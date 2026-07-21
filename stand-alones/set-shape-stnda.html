@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set & Shape Operations</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<style>
+  :root {
+    --bg: #0e1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f3a5f;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --pink: #f778ba;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  .page { display: flex; height: 100vh; overflow: hidden; }
+
+  /* --- Left panel --- */
+  .api-panel {
+    width: 320px; min-width: 260px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 20px;
+    background: var(--surface); flex-shrink: 0;
+  }
+
+  .api-panel h1 { font-size: 16px; font-weight: 600; color: var(--pink); font-family: var(--mono); margin-bottom: 4px; }
+  .api-panel .subtitle { font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }
+
+  .api-section { margin-bottom: 16px; }
+  .api-section summary {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--green);
+    cursor: pointer; padding: 6px 0; border-bottom: 1px solid var(--border); list-style: none;
+  }
+  .api-section summary::before { content: '▸ '; color: var(--text-muted); }
+  .api-section[open] summary::before { content: '▾ '; }
+
+  .api-method {
+    font-family: var(--mono); font-size: 11px; padding: 4px 0 4px 12px;
+    color: var(--text-muted); border-left: 1px solid var(--border); margin-left: 4px;
+  }
+  .api-method .name { color: var(--text); }
+  .api-method .ret { color: var(--purple); }
+
+  /* --- Main --- */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  .tabs {
+    display: flex; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .tab {
+    font-family: var(--mono); font-size: 12px; padding: 10px 20px;
+    border: none; background: none; color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .tab-content.active { display: flex; }
+
+  /* --- Discrete Sets tab --- */
+  .sets-area { padding: 20px; overflow-y: auto; flex: 1; }
+
+  .set-row {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;
+  }
+
+  .set-label {
+    font-family: var(--mono); font-size: 13px; font-weight: 600; min-width: 20px;
+  }
+
+  .set-input {
+    font-family: var(--mono); font-size: 12px; padding: 6px 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); flex: 1; min-width: 200px;
+  }
+  .set-input:focus { outline: none; border-color: var(--accent); }
+
+  .set-ops {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; margin-bottom: 16px;
+  }
+
+  button {
+    font-family: var(--mono); font-size: 11px; padding: 5px 10px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--surface); color: var(--text); cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { border-color: var(--accent); background: var(--accent-dim); }
+
+  .result-box {
+    font-family: var(--mono); font-size: 12px; padding: 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    min-height: 40px; color: var(--text-muted); line-height: 1.8;
+  }
+  .result-box .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 3px;
+    margin: 2px 3px; font-size: 11px;
+  }
+  .result-box .tag.a { background: #58a6ff22; color: var(--accent); border: 1px solid #58a6ff44; }
+  .result-box .tag.b { background: #f778ba22; color: var(--pink); border: 1px solid #f778ba44; }
+  .result-box .tag.both { background: #3fb95022; color: var(--green); border: 1px solid #3fb95044; }
+  .result-box .tag.neither { background: #30363d; color: var(--text-muted); border: 1px solid var(--border); }
+
+  /* --- Shapes tab --- */
+  .shapes-main { display: flex; flex: 1; overflow: hidden; }
+
+  .shapes-toolbar {
+    display: flex; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--surface); flex-wrap: wrap; align-items: center;
+  }
+
+  .shapes-toolbar .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  .canvas-area { flex: 1; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; }
+
+  .shapes-info {
+    width: 260px; border-left: 1px solid var(--border); overflow-y: auto;
+    padding: 16px; background: var(--surface); font-family: var(--mono); font-size: 11px;
+  }
+
+  .shapes-info h3 { font-size: 12px; color: var(--green); margin-bottom: 8px; font-weight: 600; }
+  .shapes-info .info-block { margin-bottom: 16px; color: var(--text-muted); line-height: 1.8; }
+  .shapes-info .val { color: var(--text); }
+
+  .shape-a-color { color: var(--accent); }
+  .shape-b-color { color: var(--pink); }
+  .result-color { color: var(--green); }
+
+  .mode-indicator {
+    font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: auto;
+  }
+  .mode-indicator .mode-name { color: var(--orange); }
+
+  button.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- API Panel -->
+  <div class="api-panel">
+    <h1>Set & Shape Ops</h1>
+    <div class="subtitle">Discrete sets · geometric shapes · boolean operations</div>
+
+    <details class="api-section" open>
+      <summary>DiscreteSet</summary>
+      <div class="api-method"><span class="name">constructor</span>(iterable?) </div>
+      <div class="api-method"><span class="name">add</span>(el) → <span class="ret">this</span></div>
+      <div class="api-method"><span class="name">delete</span>(el) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">has</span>(el) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">union</span>(other) → <span class="ret">Set</span></div>
+      <div class="api-method"><span class="name">intersect</span>(other) → <span class="ret">Set</span></div>
+      <div class="api-method"><span class="name">difference</span>(other) → <span class="ret">Set</span></div>
+      <div class="api-method"><span class="name">symmetricDifference</span>(other) → <span class="ret">Set</span></div>
+      <div class="api-method"><span class="name">isSubsetOf</span>(other) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">equals</span>(other) → <span class="ret">bool</span></div>
+    </details>
+
+    <details class="api-section" open>
+      <summary>Shape (base)</summary>
+      <div class="api-method"><span class="name">containsPoint</span>(x, y) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">boundingBox</span>() → <span class="ret">{x,y,w,h}</span></div>
+      <div class="api-method"><span class="name">area</span>() → <span class="ret">number</span></div>
+      <div class="api-method"><span class="name">perimeter</span>() → <span class="ret">number</span></div>
+      <div class="api-method"><span class="name">translate</span>(dx,dy) → <span class="ret">Shape</span></div>
+      <div class="api-method"><span class="name">scale</span>(f, origin) → <span class="ret">Shape</span></div>
+      <div class="api-method"><span class="name">vertices</span>() → <span class="ret">[{x,y}]</span></div>
+    </details>
+
+    <details class="api-section">
+      <summary>Circle / Rect / Polygon</summary>
+      <div class="api-method"><span class="name">Circle</span>(cx, cy, r)</div>
+      <div class="api-method"><span class="name">Rect</span>(x, y, w, h)</div>
+      <div class="api-method"><span class="name">Polygon</span>(points)</div>
+      <div class="api-method"><span class="name">Polygon.isConvex</span>() → <span class="ret">bool</span></div>
+    </details>
+
+    <details class="api-section" open>
+      <summary>Shape Operations</summary>
+      <div class="api-method"><span class="name">shapeIntersect</span>(a, b) → <span class="ret">Polygon?</span></div>
+      <div class="api-method"><span class="name">shapeUnion</span>(a, b) → <span class="ret">Polygon[]</span></div>
+      <div class="api-method"><span class="name">shapeDifference</span>(a, b) → <span class="ret">Polygon[]</span></div>
+    </details>
+
+    <details class="api-section">
+      <summary>Utilities</summary>
+      <div class="api-method"><span class="name">boundingBoxOverlap</span>(a,b) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">boundingBoxUnion</span>(a,b) → <span class="ret">{…}</span></div>
+      <div class="api-method"><span class="name">convexHull</span>(pts) → <span class="ret">Polygon</span></div>
+      <div class="api-method"><span class="name">pointInPolygon</span>(pt,poly) → <span class="ret">bool</span></div>
+    </details>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="tabs">
+      <button class="tab active" data-tab="discrete">Discrete Sets</button>
+      <button class="tab" data-tab="shapes">Geometric Shapes</button>
+    </div>
+
+    <!-- Discrete Sets Tab -->
+    <div class="tab-content active" id="tab-discrete">
+      <div class="sets-area">
+        <div class="set-row">
+          <span class="set-label shape-a-color">A</span>
+          <input class="set-input" id="set-a" value="apple, banana, cherry, date, elderberry" placeholder="comma-separated elements">
+        </div>
+        <div class="set-row">
+          <span class="set-label shape-b-color">B</span>
+          <input class="set-input" id="set-b" value="banana, date, fig, grape, honeydew" placeholder="comma-separated elements">
+        </div>
+
+        <div class="set-ops">
+          <button onclick="runSetOp('union')">A ∪ B  union</button>
+          <button onclick="runSetOp('intersect')">A ∩ B  intersect</button>
+          <button onclick="runSetOp('difference')">A ∖ B  difference</button>
+          <button onclick="runSetOp('symmetricDifference')">A △ B  symmetric diff</button>
+          <button onclick="runSetOp('isSubsetOf')">A ⊆ B ?</button>
+          <button onclick="runSetOp('equals')">A = B ?</button>
+        </div>
+
+        <div class="result-box" id="set-result">Click an operation above to see the result.</div>
+      </div>
+    </div>
+
+    <!-- Geometric Shapes Tab -->
+    <div class="tab-content" id="tab-shapes">
+      <div class="shapes-toolbar">
+        <button id="btn-circle-a" class="active" title="Draw shape A (circle)">○ Circle A</button>
+        <button id="btn-rect-a" title="Draw shape A (rectangle)">□ Rect A</button>
+        <button id="btn-poly-a" title="Draw shape A (polygon — click vertices, double-click to close)">△ Poly A</button>
+        <div class="sep"></div>
+        <button id="btn-circle-b" title="Draw shape B (circle)">○ Circle B</button>
+        <button id="btn-rect-b" title="Draw shape B (rectangle)">□ Rect B</button>
+        <button id="btn-poly-b" title="Draw shape B (polygon)">△ Poly B</button>
+        <div class="sep"></div>
+        <button id="btn-intersect" title="Show intersection">A ∩ B</button>
+        <button id="btn-union-shapes" title="Show union">A ∪ B</button>
+        <button id="btn-diff" title="Show A minus B">A ∖ B</button>
+        <button id="btn-hull" title="Convex hull of all vertices">Hull</button>
+        <button id="btn-clear-shapes" style="color:var(--red)">Clear</button>
+        <div class="mode-indicator">
+          <span class="mode-name" id="shape-mode-label">circle-a</span>
+        </div>
+      </div>
+
+      <div class="shapes-main">
+        <div class="canvas-area">
+          <canvas id="shape-canvas"></canvas>
+        </div>
+        <div class="shapes-info" id="shapes-info">
+          <h3>Shape Info</h3>
+          <div class="info-block">Draw shapes on the canvas to see properties and boolean operations.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+//<< import { DiscreteSet } from './discrete-set.js';
+//-- file: ./discrete-set.js --
+//>> export { DiscreteSet };
+// ============================================================
+//  DISCRETE SET LIBRARY
+// ============================================================
+
+class DiscreteSet {
+  constructor(iterable = []) {
+    this._set = new Set();
+    for (const el of iterable) this._set.add(el);
+  }
+
+  add(el) { this._set.add(el); return this; }
+  delete(el) { return this._set.delete(el); }
+  has(el) { return this._set.has(el); }
+  get size() { return this._set.size; }
+  [Symbol.iterator]() { return this._set[Symbol.iterator](); }
+  toArray() { return Array.from(this._set); }
+
+  union(other) {
+    const result = new DiscreteSet(this);
+    for (const el of other) result.add(el);
+    return result;
+  }
+
+  intersect(other) {
+    const result = new DiscreteSet();
+    for (const el of this) {
+      if (other.has(el)) result.add(el);
+    }
+    return result;
+  }
+
+  difference(other) {
+    const result = new DiscreteSet();
+    for (const el of this) {
+      if (!other.has(el)) result.add(el);
+    }
+    return result;
+  }
+
+  symmetricDifference(other) {
+    const result = new DiscreteSet();
+    for (const el of this) { if (!other.has(el)) result.add(el); }
+    for (const el of other) { if (!this.has(el)) result.add(el); }
+    return result;
+  }
+
+  isSubsetOf(other) {
+    for (const el of this) {
+      if (!other.has(el)) return false;
+    }
+    return true;
+  }
+
+  isSupersetOf(other) { return other.isSubsetOf(this); }
+
+  equals(other) {
+    return this.size === other.size && this.isSubsetOf(other);
+  }
+}
+
+//-- endfile --
+
+//<< import { Shape, Circle, Rect, Polygon, shapeIntersect, shapeUnion, shapeDifference, convexHull, pointInPolygon, boundingBoxOverlap, boundingBoxUnion } from './shape-ops.js';
+//-- file: ./shape-ops.js --
+//>> export { Shape, Circle, Rect, Polygon, shapeIntersect, shapeUnion, shapeDifference, convexHull, pointInPolygon, boundingBoxOverlap, boundingBoxUnion };
+// ============================================================
+//  GEOMETRIC SHAPE LIBRARY
+// ============================================================
+
+// #util/shape/lib/code
+
+class Shape {
+  containsPoint(x, y) { throw new Error('abstract'); }
+  boundingBox() { throw new Error('abstract'); }
+  area() { throw new Error('abstract'); }
+  perimeter() { throw new Error('abstract'); }
+  translate(dx, dy) { throw new Error('abstract'); }
+  scale(factor, origin = { x: 0, y: 0 }) { throw new Error('abstract'); }
+  vertices(resolution = 32) { throw new Error('abstract'); }
+}
+
+class Circle extends Shape {
+  constructor(cx, cy, radius) {
+    super();
+    this.cx = cx; this.cy = cy; this.radius = Math.abs(radius);
+  }
+
+  containsPoint(x, y) {
+    return (x - this.cx) ** 2 + (y - this.cy) ** 2 <= this.radius ** 2;
+  }
+
+  boundingBox() {
+    return { x: this.cx - this.radius, y: this.cy - this.radius, width: this.radius * 2, height: this.radius * 2 };
+  }
+
+  area() { return Math.PI * this.radius ** 2; }
+  perimeter() { return 2 * Math.PI * this.radius; }
+
+  translate(dx, dy) { return new Circle(this.cx + dx, this.cy + dy, this.radius); }
+
+  scale(factor, origin = { x: 0, y: 0 }) {
+    return new Circle(
+      origin.x + (this.cx - origin.x) * factor,
+      origin.y + (this.cy - origin.y) * factor,
+      this.radius * factor
+    );
+  }
+
+  vertices(resolution = 48) {
+    const pts = [];
+    for (let i = 0; i < resolution; i++) {
+      const a = (2 * Math.PI * i) / resolution;
+      pts.push({ x: this.cx + this.radius * Math.cos(a), y: this.cy + this.radius * Math.sin(a) });
+    }
+    return pts;
+  }
+}
+
+class Rect extends Shape {
+  constructor(x, y, width, height) {
+    super();
+    this.x = x; this.y = y; this.width = width; this.height = height;
+  }
+
+  containsPoint(px, py) {
+    return px >= this.x && px <= this.x + this.width && py >= this.y && py <= this.y + this.height;
+  }
+
+  boundingBox() { return { x: this.x, y: this.y, width: this.width, height: this.height }; }
+  area() { return this.width * this.height; }
+  perimeter() { return 2 * (this.width + this.height); }
+
+  translate(dx, dy) { return new Rect(this.x + dx, this.y + dy, this.width, this.height); }
+
+  scale(factor, origin = { x: 0, y: 0 }) {
+    const nx = origin.x + (this.x - origin.x) * factor;
+    const ny = origin.y + (this.y - origin.y) * factor;
+    return new Rect(nx, ny, this.width * factor, this.height * factor);
+  }
+
+  vertices() {
+    return [
+      { x: this.x, y: this.y },
+      { x: this.x + this.width, y: this.y },
+      { x: this.x + this.width, y: this.y + this.height },
+      { x: this.x, y: this.y + this.height },
+    ];
+  }
+}
+
+class Polygon extends Shape {
+  constructor(points) {
+    super();
+    this.points = points.map(p => ({ x: p.x, y: p.y }));
+  }
+
+  containsPoint(px, py) {
+    return pointInPolygon({ x: px, y: py }, this.points);
+  }
+
+  boundingBox() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of this.points) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  area() {
+    return Math.abs(signedArea(this.points));
+  }
+
+  perimeter() {
+    let p = 0;
+    const pts = this.points;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length;
+      p += Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y);
+    }
+    return p;
+  }
+
+  translate(dx, dy) {
+    return new Polygon(this.points.map(p => ({ x: p.x + dx, y: p.y + dy })));
+  }
+
+  scale(factor, origin = { x: 0, y: 0 }) {
+    return new Polygon(this.points.map(p => ({
+      x: origin.x + (p.x - origin.x) * factor,
+      y: origin.y + (p.y - origin.y) * factor,
+    })));
+  }
+
+  vertices() { return [...this.points]; }
+
+  isConvex() {
+    const pts = this.points;
+    const n = pts.length;
+    if (n < 3) return false;
+    let sign = 0;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n], c = pts[(i + 2) % n];
+      const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+      if (cross !== 0) {
+        if (sign === 0) sign = cross > 0 ? 1 : -1;
+        else if ((cross > 0 ? 1 : -1) !== sign) return false;
+      }
+    }
+    return true;
+  }
+}
+
+
+// ============================================================
+//  GEOMETRY UTILITIES
+// ============================================================
+
+function signedArea(pts) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    a += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+  }
+  return a / 2;
+}
+
+function pointInPolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function boundingBoxOverlap(a, b) {
+  return !(a.x + a.width < b.x || b.x + b.width < a.x ||
+           a.y + a.height < b.y || b.y + b.height < a.y);
+}
+
+function boundingBoxUnion(a, b) {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x, y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+}
+
+/**
+ * Andrew's monotone chain convex hull. O(n log n).
+ */
+function convexHull(points) {
+  const pts = points.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  if (pts.length <= 1) return new Polygon(pts);
+
+  const cross = (O, A, B) => (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+
+  const lower = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+
+  const upper = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+
+  lower.pop();
+  upper.pop();
+  return new Polygon(lower.concat(upper));
+}
+
+/**
+ * Sutherland-Hodgman polygon clipping.
+ * Clips subjectPoly by each edge of clipPoly.
+ * Returns the intersection polygon or null if empty.
+ */
+function clipPolygon(subjectPoints, clipPoints) {
+  let output = subjectPoints.slice();
+
+  for (let i = 0; i < clipPoints.length; i++) {
+    if (output.length === 0) return null;
+    const input = output;
+    output = [];
+    const edgeStart = clipPoints[i];
+    const edgeEnd = clipPoints[(i + 1) % clipPoints.length];
+
+    for (let j = 0; j < input.length; j++) {
+      const current = input[j];
+      const prev = input[(j + input.length - 1) % input.length];
+
+      const currInside = isInside(current, edgeStart, edgeEnd);
+      const prevInside = isInside(prev, edgeStart, edgeEnd);
+
+      if (currInside) {
+        if (!prevInside) {
+          const inter = lineIntersect(prev, current, edgeStart, edgeEnd);
+          if (inter) output.push(inter);
+        }
+        output.push(current);
+      } else if (prevInside) {
+        const inter = lineIntersect(prev, current, edgeStart, edgeEnd);
+        if (inter) output.push(inter);
+      }
+    }
+  }
+
+  return output.length >= 3 ? output : null;
+}
+
+function isInside(point, edgeStart, edgeEnd) {
+  return (edgeEnd.x - edgeStart.x) * (point.y - edgeStart.y) -
+         (edgeEnd.y - edgeStart.y) * (point.x - edgeStart.x) >= 0;
+}
+
+function lineIntersect(a1, a2, b1, b2) {
+  const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+  const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-10) return null;
+  const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / denom;
+  return { x: a1.x + t * d1x, y: a1.y + t * d1y };
+}
+
+function ensureCCW(pts) {
+  if (signedArea(pts) < 0) return pts.slice().reverse();
+  return pts;
+}
+
+/**
+ * Proper segment–segment intersection.
+ * Returns { x, y, t, u } only for strict interior crossings (t,u ∈ (ε, 1−ε)).
+ */
+function segSegIntersect(a0, a1, b0, b1) {
+  const d1x = a1.x - a0.x, d1y = a1.y - a0.y;
+  const d2x = b1.x - b0.x, d2y = b1.y - b0.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-10) return null;
+  const t = ((b0.x - a0.x) * d2y - (b0.y - a0.y) * d2x) / denom;
+  const u = ((b0.x - a0.x) * d1y - (b0.y - a0.y) * d1x) / denom;
+  const EPS = 1e-9;
+  if (t > EPS && t < 1 - EPS && u > EPS && u < 1 - EPS) {
+    return { x: a0.x + t * d1x, y: a0.y + t * d1y, t, u };
+  }
+  return null;
+}
+
+/**
+ * Greiner-Hormann–style polygon boolean operations.
+ *
+ * 1. Find all proper edge–edge crossings between subject S and clip C.
+ * 2. Insert crossing points into augmented vertex lists for both polygons.
+ * 3. Classify each crossing as entering or exiting (subject entering clip).
+ * 4. Trace result boundaries by alternating between S and C at crossings.
+ *
+ * @param {Array<{x,y}>} subjPts  Subject polygon vertices.
+ * @param {Array<{x,y}>} clipPts  Clip polygon vertices.
+ * @param {'intersect'|'union'|'difference'} op
+ * @returns {Array<Polygon>}
+ */
+function polygonBoolean(subjPts, clipPts, op) {
+  const S = ensureCCW(subjPts);
+  const C = ensureCCW(clipPts);
+
+  // ---- 1. find all proper edge–edge crossings ----
+  const xings = [];
+  for (let i = 0; i < S.length; i++) {
+    const s0 = S[i], s1 = S[(i + 1) % S.length];
+    for (let j = 0; j < C.length; j++) {
+      const c0 = C[j], c1 = C[(j + 1) % C.length];
+      const hit = segSegIntersect(s0, s1, c0, c1);
+      if (hit) {
+        xings.push({
+          x: hit.x, y: hit.y,
+          si: i, st: hit.t,   // subject edge index & parameter
+          ci: j, ct: hit.u,   // clip edge index & parameter
+          id: xings.length,
+          entering: false,     // filled in step 3
+        });
+      }
+    }
+  }
+
+  // ---- no crossings → containment or disjoint ----
+  if (xings.length < 2) {
+    const sInC = pointInPolygon(S[0], C);
+    const cInS = pointInPolygon(C[0], S);
+    switch (op) {
+      case 'intersect':
+        if (sInC) return [new Polygon(S)];
+        if (cInS) return [new Polygon(C)];
+        return [];
+      case 'union':
+        if (sInC) return [new Polygon(C)];
+        if (cInS) return [new Polygon(S)];
+        return [new Polygon(S), new Polygon(C)];
+      case 'difference':
+        if (sInC) return [];
+        return [new Polygon(S)];
+    }
+  }
+
+  // ---- 2. build augmented vertex lists with crossings inserted ----
+  const sXings = xings.slice().sort((a, b) => a.si - b.si || a.st - b.st);
+  const cXings = xings.slice().sort((a, b) => a.ci - b.ci || a.ct - b.ct);
+
+  const augS = [];
+  let sxi = 0;
+  for (let i = 0; i < S.length; i++) {
+    augS.push({ x: S[i].x, y: S[i].y, isXing: false });
+    while (sxi < sXings.length && sXings[sxi].si === i) {
+      augS.push({ x: sXings[sxi].x, y: sXings[sxi].y, isXing: true, xid: sXings[sxi].id });
+      sxi++;
+    }
+  }
+
+  const augC = [];
+  let cxi = 0;
+  for (let i = 0; i < C.length; i++) {
+    augC.push({ x: C[i].x, y: C[i].y, isXing: false });
+    while (cxi < cXings.length && cXings[cxi].ci === i) {
+      augC.push({ x: cXings[cxi].x, y: cXings[cxi].y, isXing: true, xid: cXings[cxi].id });
+      cxi++;
+    }
+  }
+
+  // ---- 3. classify crossings: entering / exiting ----
+  // For two CCW polygons the subject enters the clip when the subject
+  // edge direction crossed with the clip edge direction is negative
+  // (subject turns from the outside half-plane to the inside one).
+  for (const x of xings) {
+    const sDir = {
+      x: S[(x.si + 1) % S.length].x - S[x.si].x,
+      y: S[(x.si + 1) % S.length].y - S[x.si].y,
+    };
+    const cDir = {
+      x: C[(x.ci + 1) % C.length].x - C[x.ci].x,
+      y: C[(x.ci + 1) % C.length].y - C[x.ci].y,
+    };
+    x.entering = (sDir.x * cDir.y - sDir.y * cDir.x) < 0;
+  }
+
+  // ---- position lookup: crossing id → index in augmented list ----
+  const sPosOf = new Map();
+  const cPosOf = new Map();
+  for (let i = 0; i < augS.length; i++) if (augS[i].isXing) sPosOf.set(augS[i].xid, i);
+  for (let i = 0; i < augC.length; i++) if (augC[i].isXing) cPosOf.set(augC[i].xid, i);
+
+  // ---- 4. trace result polygons ----
+  //  intersection : start at entering,  clip forward
+  //  union        : start at exiting,   clip forward
+  //  difference   : start at exiting,   clip backward
+  const visited = new Set();
+  const results = [];
+
+  for (const startX of xings) {
+    if (visited.has(startX.id)) continue;
+
+    const wantEntering = (op === 'intersect');
+    if (startX.entering !== wantEntering) continue;
+
+    const poly = [];
+    let onSubject = true;
+    let curXid = startX.id;
+    let safety = 0;
+
+    do {
+      visited.add(curXid);
+
+      if (onSubject) {
+        // follow subject forward from this crossing
+        let idx = sPosOf.get(curXid);
+        while (++safety < 4000) {
+          idx = (idx + 1) % augS.length;
+          poly.push({ x: augS[idx].x, y: augS[idx].y });
+          if (augS[idx].isXing) { curXid = augS[idx].xid; break; }
+        }
+      } else {
+        // follow clip (forward for intersect/union, backward for difference)
+        let idx = cPosOf.get(curXid);
+        const step = (op === 'difference') ? -1 : 1;
+        while (++safety < 4000) {
+          idx = (idx + step + augC.length) % augC.length;
+          poly.push({ x: augC[idx].x, y: augC[idx].y });
+          if (augC[idx].isXing) { curXid = augC[idx].xid; break; }
+        }
+      }
+
+      onSubject = !onSubject;
+    } while (curXid !== startX.id && safety < 4000);
+
+    if (poly.length >= 3) results.push(new Polygon(poly));
+  }
+
+  return results;
+}
+
+
+// ---- public shape operations ----
+
+function shapeIntersect(a, b) {
+  const results = polygonBoolean(a.vertices(48), b.vertices(48), 'intersect');
+  return results.length > 0 ? results[0] : null;
+}
+
+function shapeUnion(a, b) {
+  return polygonBoolean(a.vertices(48), b.vertices(48), 'union');
+}
+
+function shapeDifference(a, b) {
+  return polygonBoolean(a.vertices(48), b.vertices(48), 'difference');
+}
+
+//-- endfile --
+
+// ============================================================
+//  DISCRETE SET UI
+// ============================================================
+
+function parseSet(inputId) {
+  const val = document.getElementById(inputId).value;
+  const elements = val.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  return new DiscreteSet(elements);
+}
+
+function runSetOp(op) {
+  const a = parseSet('set-a');
+  const b = parseSet('set-b');
+  const resultEl = document.getElementById('set-result');
+
+  if (op === 'isSubsetOf') {
+    const yes = a.isSubsetOf(b);
+    resultEl.innerHTML = `A ⊆ B → <span style="color:${yes ? 'var(--green)' : 'var(--red)'}">${yes}</span>`;
+    return;
+  }
+
+  if (op === 'equals') {
+    const yes = a.equals(b);
+    resultEl.innerHTML = `A = B → <span style="color:${yes ? 'var(--green)' : 'var(--red)'}">${yes}</span>`;
+    return;
+  }
+
+  const result = a[op](b);
+
+  // Build tagged output
+  let html = `<b>${opSymbol(op)}</b> (${result.size} elements)<br>`;
+
+  for (const el of result) {
+    const inA = a.has(el), inB = b.has(el);
+    let cls = 'neither';
+    if (inA && inB) cls = 'both';
+    else if (inA) cls = 'a';
+    else if (inB) cls = 'b';
+    html += `<span class="tag ${cls}">${el}</span>`;
+  }
+
+  if (result.size === 0) html += '<span style="color:var(--text-muted)">∅ (empty set)</span>';
+
+  resultEl.innerHTML = html;
+}
+
+function opSymbol(op) {
+  return { union: 'A ∪ B', intersect: 'A ∩ B', difference: 'A ∖ B', symmetricDifference: 'A △ B' }[op] || op;
+}
+
+
+// ============================================================
+//  GEOMETRIC SHAPES UI
+// ============================================================
+
+const shapeCanvas = document.getElementById('shape-canvas');
+const sCtx = shapeCanvas.getContext('2d');
+const shapesInfoEl = document.getElementById('shapes-info');
+
+let shapeA = null;  // Shape instance
+let shapeB = null;
+let resultShape = null;  // result of boolean op
+let shapeMode = 'circle-a';
+let drawState = null;  // for tracking mouse drag or polygon clicks
+
+const SHAPE_A_COLOR = '#58a6ff';
+const SHAPE_B_COLOR = '#f778ba';
+const RESULT_COLOR = '#3fb950';
+
+function resizeShapeCanvas() {
+  const rect = shapeCanvas.parentElement.getBoundingClientRect();
+  shapeCanvas.width = rect.width * devicePixelRatio;
+  shapeCanvas.height = rect.height * devicePixelRatio;
+  shapeCanvas.style.width = rect.width + 'px';
+  shapeCanvas.style.height = rect.height + 'px';
+  sCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  drawShapes();
+}
+
+function drawShapes() {
+  const w = shapeCanvas.width / devicePixelRatio;
+  const h = shapeCanvas.height / devicePixelRatio;
+  sCtx.clearRect(0, 0, w, h);
+
+  // Grid
+  sCtx.strokeStyle = '#ffffff08';
+  sCtx.lineWidth = 1;
+  for (let x = 0; x < w; x += 40) { sCtx.beginPath(); sCtx.moveTo(x, 0); sCtx.lineTo(x, h); sCtx.stroke(); }
+  for (let y = 0; y < h; y += 40) { sCtx.beginPath(); sCtx.moveTo(0, y); sCtx.lineTo(w, y); sCtx.stroke(); }
+
+  // Draw shapes
+  if (shapeA) drawSingleShape(shapeA, SHAPE_A_COLOR, 'A');
+  if (shapeB) drawSingleShape(shapeB, SHAPE_B_COLOR, 'B');
+
+  // Result
+  if (resultShape) {
+    const shapes = Array.isArray(resultShape) ? resultShape : [resultShape];
+    for (const s of shapes) {
+      if (!s) continue;
+      const verts = s.vertices(48);
+      sCtx.beginPath();
+      for (let i = 0; i < verts.length; i++) {
+        if (i === 0) sCtx.moveTo(verts[i].x, verts[i].y);
+        else sCtx.lineTo(verts[i].x, verts[i].y);
+      }
+      sCtx.closePath();
+      sCtx.fillStyle = RESULT_COLOR + '25';
+      sCtx.fill();
+      sCtx.strokeStyle = RESULT_COLOR;
+      sCtx.lineWidth = 2.5;
+      sCtx.setLineDash([6, 4]);
+      sCtx.stroke();
+      sCtx.setLineDash([]);
+    }
+  }
+
+  // In-progress drawing
+  if (drawState) {
+    if (drawState.type === 'circle' && drawState.center) {
+      const r = drawState.radius || 0;
+      sCtx.beginPath();
+      sCtx.arc(drawState.center.x, drawState.center.y, r, 0, Math.PI * 2);
+      sCtx.strokeStyle = (drawState.which === 'a' ? SHAPE_A_COLOR : SHAPE_B_COLOR) + '80';
+      sCtx.lineWidth = 1;
+      sCtx.setLineDash([4, 4]);
+      sCtx.stroke();
+      sCtx.setLineDash([]);
+    } else if (drawState.type === 'rect' && drawState.start) {
+      const s = drawState.start, e = drawState.end || s;
+      sCtx.strokeStyle = (drawState.which === 'a' ? SHAPE_A_COLOR : SHAPE_B_COLOR) + '80';
+      sCtx.lineWidth = 1;
+      sCtx.setLineDash([4, 4]);
+      sCtx.strokeRect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y));
+      sCtx.setLineDash([]);
+    } else if (drawState.type === 'poly' && drawState.points.length > 0) {
+      const color = drawState.which === 'a' ? SHAPE_A_COLOR : SHAPE_B_COLOR;
+      sCtx.beginPath();
+      sCtx.moveTo(drawState.points[0].x, drawState.points[0].y);
+      for (let i = 1; i < drawState.points.length; i++) {
+        sCtx.lineTo(drawState.points[i].x, drawState.points[i].y);
+      }
+      if (drawState.cursor) sCtx.lineTo(drawState.cursor.x, drawState.cursor.y);
+      sCtx.strokeStyle = color + '80';
+      sCtx.lineWidth = 1;
+      sCtx.setLineDash([4, 4]);
+      sCtx.stroke();
+      sCtx.setLineDash([]);
+      // Dots
+      for (let pi = 0; pi < drawState.points.length; pi++) {
+        const p = drawState.points[pi];
+        sCtx.beginPath();
+        sCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        sCtx.fillStyle = color;
+        sCtx.fill();
+        // Highlight first vertex when cursor is close enough to close
+        if (pi === 0 && drawState.cursor && drawState.points.length >= 3) {
+          const d = Math.hypot(drawState.cursor.x - p.x, drawState.cursor.y - p.y);
+          if (d < 14) {
+            sCtx.beginPath();
+            sCtx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+            sCtx.strokeStyle = color;
+            sCtx.lineWidth = 2;
+            sCtx.stroke();
+          }
+        }
+      }
+    }
+  }
+}
+
+function drawSingleShape(shape, color, label) {
+  const verts = shape.vertices(48);
+  sCtx.beginPath();
+  if (shape instanceof Circle) {
+    sCtx.arc(shape.cx, shape.cy, shape.radius, 0, Math.PI * 2);
+  } else {
+    for (let i = 0; i < verts.length; i++) {
+      if (i === 0) sCtx.moveTo(verts[i].x, verts[i].y);
+      else sCtx.lineTo(verts[i].x, verts[i].y);
+    }
+    sCtx.closePath();
+  }
+  sCtx.fillStyle = color + '15';
+  sCtx.fill();
+  sCtx.strokeStyle = color;
+  sCtx.lineWidth = 1.5;
+  sCtx.stroke();
+
+  // Label
+  const bb = shape.boundingBox();
+  sCtx.font = '600 13px ' + getComputedStyle(document.body).getPropertyValue('--mono');
+  sCtx.fillStyle = color;
+  sCtx.textAlign = 'center';
+  sCtx.fillText(label, bb.x + bb.width / 2, bb.y - 8);
+}
+
+function getShapeMousePos(e) {
+  const rect = shapeCanvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+shapeCanvas.addEventListener('mousedown', (e) => {
+  const pos = getShapeMousePos(e);
+  const which = shapeMode.endsWith('-a') ? 'a' : 'b';
+  resultShape = null;
+
+  if (shapeMode.startsWith('circle')) {
+    drawState = { type: 'circle', which, center: pos, radius: 0 };
+  } else if (shapeMode.startsWith('rect')) {
+    drawState = { type: 'rect', which, start: pos, end: pos };
+  } else if (shapeMode.startsWith('poly')) {
+    if (!drawState || drawState.type !== 'poly' || drawState.which !== which) {
+      drawState = { type: 'poly', which, points: [pos], cursor: null };
+    } else {
+      // Close the polygon if clicking near the first vertex (within 14px)
+      const first = drawState.points[0];
+      if (drawState.points.length >= 3 &&
+          Math.hypot(pos.x - first.x, pos.y - first.y) < 14) {
+        finishPolygon();
+        return;
+      }
+      drawState.points.push(pos);
+    }
+    drawShapes();
+  }
+});
+
+shapeCanvas.addEventListener('mousemove', (e) => {
+  if (!drawState) return;
+  const pos = getShapeMousePos(e);
+
+  if (drawState.type === 'circle' && drawState.center) {
+    drawState.radius = Math.hypot(pos.x - drawState.center.x, pos.y - drawState.center.y);
+    drawShapes();
+  } else if (drawState.type === 'rect' && drawState.start) {
+    drawState.end = pos;
+    drawShapes();
+  } else if (drawState.type === 'poly') {
+    drawState.cursor = pos;
+    drawShapes();
+  }
+});
+
+shapeCanvas.addEventListener('mouseup', (e) => {
+  if (!drawState) return;
+  const pos = getShapeMousePos(e);
+  const which = drawState.which;
+
+  if (drawState.type === 'circle') {
+    const r = Math.hypot(pos.x - drawState.center.x, pos.y - drawState.center.y);
+    if (r > 5) {
+      const shape = new Circle(drawState.center.x, drawState.center.y, r);
+      if (which === 'a') shapeA = shape; else shapeB = shape;
+    }
+    drawState = null;
+    updateShapeInfo();
+    drawShapes();
+  } else if (drawState.type === 'rect') {
+    const s = drawState.start, en = pos;
+    const x = Math.min(s.x, en.x), y = Math.min(s.y, en.y);
+    const w = Math.abs(en.x - s.x), h = Math.abs(en.y - s.y);
+    if (w > 5 && h > 5) {
+      const shape = new Rect(x, y, w, h);
+      if (which === 'a') shapeA = shape; else shapeB = shape;
+    }
+    drawState = null;
+    updateShapeInfo();
+    drawShapes();
+  }
+  // poly handled by dblclick
+});
+
+// Close in-progress polygon, ignoring the last N points (from dblclick's mousedowns)
+function finishPolygon(dropLast = 0) {
+  if (!drawState || drawState.type !== 'poly') return;
+  while (dropLast-- > 0 && drawState.points.length > 3) drawState.points.pop();
+  if (drawState.points.length >= 3) {
+    const shape = new Polygon(drawState.points);
+    if (drawState.which === 'a') shapeA = shape; else shapeB = shape;
+  }
+  drawState = null;
+  updateShapeInfo();
+  drawShapes();
+}
+
+shapeCanvas.addEventListener('dblclick', (e) => {
+  // The two mousedown events that compose this dblclick each added a point;
+  // drop them both so only the deliberately-placed vertices remain.
+  finishPolygon(2);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && drawState && drawState.type === 'poly') {
+    finishPolygon(0);
+  }
+});
+
+function updateShapeInfo() {
+  let html = '<h3>Shape Info</h3>';
+
+  const describeShape = (s, label, color) => {
+    if (!s) return `<div class="info-block" style="color:${color}">${label}: not drawn</div>`;
+    const bb = s.boundingBox();
+    const typeName = s instanceof Circle ? 'Circle' : s instanceof Rect ? 'Rect' : 'Polygon';
+    let detail = '';
+    if (s instanceof Circle) detail = `center (${s.cx.toFixed(0)}, ${s.cy.toFixed(0)}), r=${s.radius.toFixed(1)}`;
+    else if (s instanceof Rect) detail = `(${s.x.toFixed(0)}, ${s.y.toFixed(0)}) ${s.width.toFixed(0)}×${s.height.toFixed(0)}`;
+    else detail = `${s.points.length} vertices` + (s.isConvex() ? ', convex' : ', concave');
+
+    return `<div class="info-block">
+      <span style="color:${color}"><b>${label}</b> — ${typeName}</span><br>
+      ${detail}<br>
+      area: <span class="val">${s.area().toFixed(1)}</span><br>
+      perimeter: <span class="val">${s.perimeter().toFixed(1)}</span><br>
+      bbox: <span class="val">(${bb.x.toFixed(0)}, ${bb.y.toFixed(0)}) ${bb.width.toFixed(0)}×${bb.height.toFixed(0)}</span>
+    </div>`;
+  };
+
+  html += describeShape(shapeA, 'A', SHAPE_A_COLOR);
+  html += describeShape(shapeB, 'B', SHAPE_B_COLOR);
+
+  if (shapeA && shapeB) {
+    const bbOverlap = boundingBoxOverlap(shapeA.boundingBox(), shapeB.boundingBox());
+    html += `<div class="info-block">bbox overlap: <span class="val">${bbOverlap}</span></div>`;
+  }
+
+  if (resultShape) {
+    const shapes = Array.isArray(resultShape) ? resultShape : [resultShape];
+    const validShapes = shapes.filter(s => s);
+    if (validShapes.length === 0) {
+      html += `<div class="info-block" style="color:${RESULT_COLOR}"><b>Result</b>: ∅ (empty)</div>`;
+    } else {
+      for (let i = 0; i < validShapes.length; i++) {
+        const s = validShapes[i];
+        html += `<div class="info-block"><span style="color:${RESULT_COLOR}"><b>Result${validShapes.length > 1 ? ' ' + (i+1) : ''}</b></span><br>
+          area: <span class="val">${s.area().toFixed(1)}</span><br>
+          perimeter: <span class="val">${s.perimeter().toFixed(1)}</span></div>`;
+      }
+    }
+  }
+
+  shapesInfoEl.innerHTML = html;
+}
+
+// --- Shape toolbar ---
+const shapeBtns = {
+  'btn-circle-a': 'circle-a', 'btn-rect-a': 'rect-a', 'btn-poly-a': 'poly-a',
+  'btn-circle-b': 'circle-b', 'btn-rect-b': 'rect-b', 'btn-poly-b': 'poly-b',
+};
+
+for (const [btnId, mode] of Object.entries(shapeBtns)) {
+  document.getElementById(btnId).onclick = () => {
+    shapeMode = mode;
+    drawState = null;
+    document.getElementById('shape-mode-label').textContent = mode;
+    Object.keys(shapeBtns).forEach(id => document.getElementById(id).classList.remove('active'));
+    document.getElementById(btnId).classList.add('active');
+  };
+}
+
+document.getElementById('btn-intersect').onclick = () => {
+  if (!shapeA || !shapeB) return;
+  resultShape = shapeIntersect(shapeA, shapeB);
+  updateShapeInfo();
+  drawShapes();
+};
+
+document.getElementById('btn-union-shapes').onclick = () => {
+  if (!shapeA || !shapeB) return;
+  resultShape = shapeUnion(shapeA, shapeB);
+  updateShapeInfo();
+  drawShapes();
+};
+
+document.getElementById('btn-diff').onclick = () => {
+  if (!shapeA || !shapeB) return;
+  resultShape = shapeDifference(shapeA, shapeB);
+  updateShapeInfo();
+  drawShapes();
+};
+
+document.getElementById('btn-hull').onclick = () => {
+  const allVerts = [];
+  if (shapeA) allVerts.push(...shapeA.vertices(48));
+  if (shapeB) allVerts.push(...shapeB.vertices(48));
+  if (allVerts.length < 3) return;
+  resultShape = convexHull(allVerts);
+  updateShapeInfo();
+  drawShapes();
+};
+
+document.getElementById('btn-clear-shapes').onclick = () => {
+  shapeA = null; shapeB = null; resultShape = null; drawState = null;
+  updateShapeInfo();
+  drawShapes();
+};
+
+// --- Tabs ---
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'shapes') {
+      setTimeout(resizeShapeCanvas, 0);
+    }
+  };
+});
+
+window.addEventListener('resize', resizeShapeCanvas);
+setTimeout(resizeShapeCanvas, 0);
+</script>
+</body>
+</html>

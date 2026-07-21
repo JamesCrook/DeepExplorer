@@ -1,0 +1,530 @@
+/* =============================================================================
+   PROTEINS.CSS - Visualization Styles for Protein Analysis
+   ============================================================================= */
+
+/* =============================================================================
+   1. VARIABLES
+   ============================================================================= */
+:root {
+    /* --- STRUCTURAL: Spacing --- */
+    --prot-space-sm: 8px;
+    --prot-space-md: 16px;
+    --prot-space-lg: 20px;
+
+    /* --- AESTHETIC: Colors (Bias Analysis) --- */
+    --bias-bg-body: #e0e0e0;
+    --bias-bg-container: #ffffff;
+    --bias-bg-controls: #f9f9f9;
+    --bias-bg-canvas: #333333;
+    --bias-color-text: #333333;
+    --bias-color-label: #aaaaaa;
+
+    /* --- AESTHETIC: Colors (Domain Viewer) --- */
+    --dv-bg-body: #f3f4f6;
+    --dv-bg-panel: #ffffff;
+    --dv-bg-canvas: #fafafa;
+    --dv-border: #e5e7eb;
+    --dv-color-primary: #3b82f6;
+    --dv-color-primary-hover: #2563eb;
+    --dv-color-text: #333333;
+    --dv-color-subtitle: #ea74e5;
+
+  --color-2d2d44: #2d2d44;
+  --color-444: #444;
+  --color-ccc: #ccc;
+  --color-007bff: #007bff;
+  --color-0056b3: #0056b3;
+  --color-555: #555;
+  --color-eee: #eee;
+  --color-ddd: #ddd;
+  --color-fff: #fff;
+  --color-777: #777;
+  --color-666: #666;
+  --color-888: #888;
+  --color-e5e7eb: #e5e7eb;
+  --color-333: #333;
+  --color-d1d5db: #d1d5db;
+  --color-f8fafc: #f8fafc;
+  --color-f3f4f6: #f3f4f6;
+  --color-f9fafb: #f9fafb;
+  --color-f0f7ff: #f0f7ff;
+  --color-dbeafe: #dbeafe;
+  --color-e2e8f0: #e2e8f0;
+  --color-3b82f6: #3b82f6;
+  --color-cbd5e1: #cbd5e1;
+  --color-10b981: #10b981;
+  --color-64748b: #64748b;
+  --color-ef4444: #ef4444;
+  --color-111: #111;
+  --color-0f0: #0f0;
+  --color-f0f4f8: #f0f4f8;
+  --color-9333ea: #9333ea;
+  --color-f3e8ff: #f3e8ff;
+  --color-7e22ce: #7e22ce;
+  --color-1a1a2e: #1a1a2e;
+  --color-16213e: #16213e;
+  --color-0f3460: #0f3460;
+  --color-aaa: #aaa;
+  --color-1a1a4e: #1a1a4e;
+  --color-4a9eff: #4a9eff;
+  --color-1a4a7e: #1a4a7e;
+  --color-2a5a8e: #2a5a8e;
+  --color-4a6a8e: #4a6a8e;
+  --color-1a3a5e: #1a3a5e;
+  --color-1a2a4e: #1a2a4e;
+  --color-2a4a7e: #2a4a7e;
+  --color-12121f: #12121f;
+  --color-4a4a6e: #4a4a6e;
+  --color-5a5a8e: #5a5a8e;
+  --color-4a3a1e: #4a3a1e;
+  --color-5a4a2e: #5a4a2e;
+  --color-4ae: #4ae;
+  --color-6a6: #6a6;
+  --color-a8a: #a8a;
+  --color-aa6: #aa6;
+  --color-3a8eef: #3a8eef;
+  --color-999: #999;
+  --color-1e40af: #1e40af;
+}
+
+/* =============================================================================
+   2. SHARED STRUCTURAL UTILITIES
+   ============================================================================= */
+
+/* Legend styling shared by both */
+.protein-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+    font-size: 12px;
+}
+
+.protein-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: black
+
+}
+
+/* Bias uses bordered legend items, Domain Viewer uses simpler ones.
+   We will keep specific classes for now but use shared variable naming where possible.
+*/
+
+.color-box-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+
+/* =============================================================================
+   3. BIAS ANALYSIS (bias_analysis.html)
+   ============================================================================= */
+
+.bias-body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bias-bg-body);
+    padding: 20px;
+    color: var(--bias-color-text);
+}
+
+.bias-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: var(--bias-bg-container);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.bias-h2 {
+    margin-top: 0;
+    color: var(--color-444);
+}
+
+.bias-controls {
+    margin-bottom: 20px;
+    background: var(--bias-bg-controls);
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.bias-textarea {
+    width: 100%;
+    height: 60px;
+    padding: 10px;
+    font-family: monospace;
+    border: 1px solid var(--color-ccc);
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.bias-button {
+    background: var(--color-007bff);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.bias-button:hover {
+    background: var(--color-0056b3);
+}
+
+.bias-canvas-wrapper {
+    position: relative;
+    overflow-x: auto;
+    border: 1px solid var(--color-555);
+    background: var(--bias-bg-canvas);
+    padding: 20px 10px;
+    border-radius: 4px;
+}
+
+.bias-canvas {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.bias-label {
+    color: var(--bias-color-label);
+    font-size: 11px;
+    margin-bottom: 2px;
+    font-family: sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 10px;
+}
+.bias-label:first-child { margin-top: 0; }
+
+.bias-legend-item {
+    background: var(--color-eee);
+    border: 1px solid var(--color-ddd);
+}
+
+.bias-legend-item .color-box-indicator {
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+.bias-tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.9);
+    color: var(--color-fff);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+    z-index: 9999;
+    white-space: pre-wrap;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 1px solid var(--color-777);
+    max-width: 300px;
+}
+
+.bias-settings {
+    font-size: 13px;
+    color: var(--color-666);
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.bias-toggles {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--color-444);
+    border-top: 1px solid var(--color-ddd);
+    padding-top: 10px;
+}
+
+.bias-input-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.bias-slider {
+    width: 100px;
+    vertical-align: middle;
+}
+
+
+/* =============================================================================
+   4. DOMAIN VIEWER (domain-viewer.html)
+   ============================================================================= */
+
+.dv-body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--dv-bg-body);
+    padding: 20px;
+    color: var(--dv-color-text);
+}
+
+.dv-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.dv-h1 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+}
+
+.dv-subtitle {
+    font-size: 0.85rem;
+    color: var(--dv-color-subtitle);
+    margin-bottom: 16px;
+}
+
+.dv-panel {
+    background: var(--dv-bg-panel);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.dv-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.dv-controls label {
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.dv-controls input[type="range"] {
+    width: 120px;
+}
+
+.dv-zoom-val {
+    font-size: 0.75rem;
+    color: var(--color-888);
+    min-width: 40px;
+}
+
+.dv-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.15s;
+}
+
+.dv-btn-primary {
+    background: var(--dv-color-primary);
+    color: var(--color-fff);
+}
+.dv-btn-primary:hover {
+    background: var(--dv-color-primary-hover);
+}
+
+.dv-btn-secondary {
+    background: var(--color-e5e7eb);
+    color: var(--color-333);
+}
+.dv-btn-secondary:hover {
+    background: var(--color-d1d5db);
+}
+
+.dv-canvas-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--dv-border);
+    border-radius: 4px;
+    background: var(--dv-bg-canvas);
+}
+
+.dv-canvas-wrap:active { cursor: grabbing; }
+
+.dv-canvas {
+    display: block;
+}
+
+/* Legend adjustment */
+.dv-legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.75rem;
+}
+.dv-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: black;
+}
+.dv-legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+}
+
+/* Tables */
+.dv-tables-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 800px) {
+    .dv-tables-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dv-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.dv-table-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dv-table-selector select {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-333);
+    background: var(--color-fff);
+    border: 1px solid var(--dv-border);
+    cursor: pointer;
+    padding: 5px 28px 5px 8px;
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+
+.dv-table-selector select:hover {
+    border-color: var(--dv-color-primary);
+    background-color: var(--color-f8fafc);
+}
+
+.dv-table-selector select:focus {
+    outline: none;
+    border-color: var(--dv-color-primary);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+
+.dv-table-size {
+    font-size: 0.75rem;
+    color: var(--color-888);
+    font-weight: 400;
+}
+
+.dv-nav-arrows {
+    display: flex;
+    gap: 2px;
+}
+
+.dv-nav-arrow {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--dv-border);
+    background: var(--color-fff);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-666);
+    font-size: 0.75rem;
+    transition: all 0.15s;
+}
+
+.dv-nav-arrow:hover {
+    background: var(--color-f3f4f6);
+    border-color: var(--dv-color-primary);
+    color: var(--dv-color-primary);
+}
+
+.dv-nav-arrow:active {
+    background: var(--color-e5e7eb);
+}
+
+.dv-feature-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.dv-feature-table th, .dv-feature-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-eee);
+}
+
+.dv-feature-table th {
+    background: var(--color-f9fafb);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.dv-feature-table tr {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.dv-feature-table tr:hover {
+    background: var(--color-f0f7ff);
+}
+
+.dv-feature-table tr.selected {
+    background: var(--color-dbeafe);
+}
+
+.dv-table-scroll {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--dv-border);
+    border-radius: 4px;
+}
+
+.dv-type-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--color-fff);
+    font-size: 0.7rem;
+}
+
+.dv-info {
+    font-size: 0.8rem;
+    color: var(--color-555);
+    margin-top: 8px;
+}
+
+.dv-loading {
+    color: var(--color-666);
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+}

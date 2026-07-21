@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="../../wheel.ico">
+    <title>Tree Browser</title>
+    <link rel="stylesheet" type="text/css" href="../css/proteins.css">    
+    <style>
+    * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  background: var(--color-1a1a2e);
+  color: var(--color-eee);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  background: var(--color-16213e);
+  padding: 10px 15px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  border-bottom: 1px solid var(--color-0f3460);
+  flex-shrink: 0;
+}
+
+.toolbar label {
+  font-size: 13px;
+  color: var(--color-aaa);
+}
+
+.toolbar input[type="text"] {
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 250px;
+}
+
+.toolbar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-4a9eff);
+}
+
+.toolbar button {
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar button:hover {
+  background: var(--color-1a4a7e);
+}
+
+.search-info {
+  font-size: 12px;
+  color: var(--color-888);
+  min-width: 100px;
+}
+
+.line-info {
+  font-size: 12px;
+  color: var(--color-666);
+  margin-left: auto;
+}
+
+.breadcrumbs {
+  background: var(--color-0f3460);
+  padding: 8px 15px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-1a1a4e);
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+.breadcrumbs .label {
+  color: var(--color-666);
+  margin-right: 5px;
+}
+
+.breadcrumb {
+  color: var(--color-4a9eff);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.breadcrumb:hover {
+  background: var(--color-1a4a7e);
+}
+
+.breadcrumb.current {
+  color: var(--color-fff);
+  background: var(--color-2a5a8e);
+}
+
+.breadcrumb.ghosted {
+  color: var(--color-4a6a8e);
+  opacity: 0.6;
+}
+
+.breadcrumb.ghosted:hover {
+  opacity: 1;
+  background: var(--color-1a3a5e);
+}
+
+.separator {
+  color: var(--color-444);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  cursor: pointer;
+  position: relative;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.separator:hover {
+  background: rgba(74, 158, 255, 0.15);
+  border-color: rgba(74, 158, 255, 0.3);
+}
+
+.separator.ghosted {
+  opacity: 0.4;
+}
+
+.separator.ghosted:hover {
+  opacity: 0.7;
+}
+
+.separator .tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  background: var(--color-1a2a4e);
+  border: 1px solid var(--color-2a4a7e);
+  color: var(--color-aaa);
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  white-space: pre;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.separator:hover .tooltip {
+  display: block;
+}
+
+#mainUI {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tree-container {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: scroll;
+  background: var(--color-12121f);
+  position: relative;
+  /* Firefox scrollbar */
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-4a4a6e) var(--color-1a1a2e);
+}
+
+/* Webkit (Chrome, Safari, Edge) scrollbar styling */
+.tree-container::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.tree-container::-webkit-scrollbar-track {
+  background: var(--color-1a1a2e);
+}
+
+.tree-container::-webkit-scrollbar-thumb {
+  background: var(--color-4a4a6e);
+  border-radius: 7px;
+  border: 3px solid var(--color-1a1a2e);
+  min-height: 40px;
+}
+
+.tree-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-5a5a8e);
+}
+
+.tree-container::-webkit-scrollbar-corner {
+  background: var(--color-1a1a2e);
+}
+
+.tree-scroll-content {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.tree-line {
+  position: absolute;
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  padding: 1px 10px;
+  cursor: pointer;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.tree-line:hover {
+  background: var(--color-1a2a4e);
+}
+
+.tree-line.selected {
+  background: var(--color-2a4a7e);
+}
+
+.tree-line.search-match {
+  background: var(--color-4a3a1e);
+}
+
+.tree-line.search-match.selected {
+  background: var(--color-5a4a2e);
+}
+
+.node-accession {
+  color: var(--color-4ae);
+}
+
+.node-name {
+  color: var(--color-aaa);
+}
+
+.node-organism {
+  color: var(--color-6a6);
+}
+
+.node-length {
+  color: var(--color-a8a);
+}
+
+.node-score {
+  color: var(--color-aa6);
+}
+
+.tree-chars {
+  color: var(--color-555);
+}
+
+.instructions {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(15, 52, 96, 0.9);
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--color-888);
+  max-width: 300px;
+}
+
+.instructions .close-btn {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--color-666);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.instructions .close-btn:hover {
+  color: var(--color-aaa);
+}
+
+.instructions kbd {
+  background: var(--color-1a1a2e);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.load-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.load-area h2 {
+  color: var(--color-4a9eff);
+}
+
+.load-area textarea {
+  width: 80%;
+  max-width: 800px;
+  height: 300px;
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 15px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.load-area button {
+  background: var(--color-4a9eff);
+  border: none;
+  color: var(--color-fff);
+  padding: 10px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.load-area button:hover {
+  background: var(--color-3a8eef);
+}
+
+.load-area .button-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(26, 26, 46, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-overlay h2 {
+  color: var(--color-4a9eff);
+  margin-bottom: 20px;
+}
+
+.loading-overlay .status {
+  color: var(--color-aaa);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.loading-overlay .progress-bar {
+  width: 300px;
+  height: 8px;
+  background: var(--color-0f3460);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.loading-overlay .progress-fill {
+  height: 100%;
+  background: var(--color-4a9eff);
+  width: 0%;
+  transition: width 0.2s;
+}
+    </style>
+  </head>
+  <body>
+    <div id="loadArea" class="load-area">
+      <h2>Tree Browser</h2>
+      <p>Paste your tree data below, or load from file:</p>
+      <textarea id="inputData" placeholder="0:Node 492056 A2ASS6 Length:35213 [ROOT 0] Titin; Mus musculus (Mouse).
+0:├─ Node 492055 Q8WZ42 Length:34350 (s:65503) Titin; Homo sapiens (Human).
+...">
+      </textarea>
+      <div class="button-row">
+        <button id="loadBtn">Load from Paste</button>
+        <span style="color: var(--color-666);">— or —</span>
+        <input type="file" id="fileInput" accept=".txt" style="display: none;">
+        <button id="fileBtn">Load from File</button>
+      </div>
+    </div>
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <h2>Loading Tree</h2>
+      <div id="loadingStatus" class="status">Reading file...</div>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill">
+        </div>
+      </div>
+    </div>
+    <div id="mainUI" class="hidden">
+      <div class="toolbar">
+        <label>Search:</label>
+        <input type="text" id="searchBox" placeholder="Type to search...">
+        <button id="prevBtn">◀ Prev</button>
+        <button id="nextBtn">Next ▶</button>
+        <span id="searchInfo" class="search-info">
+        </span>
+        <span id="lineInfo" class="line-info">
+        </span>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <div id="breadcrumbs" class="breadcrumbs">
+        <span class="label">Path:</span>
+      </div>
+      <div id="treeContainer" class="tree-container">
+        <div id="treeScrollContent" class="tree-scroll-content">
+        </div>
+      </div>
+    </div>
+    <div id="instructions" class="instructions hidden">
+      <button class="close-btn" id="closeInstructions">×</button>
+      <strong>Navigation:</strong>
+      <br>
+      • Click a line to select
+      <br>
+      • Click breadcrumbs to jump to ancestors
+      <br>
+      •
+      <kbd>↑</kbd>
+      /
+      <kbd>↓</kbd>
+      to move selection
+      <br>
+      •
+      <kbd>Enter</kbd>
+      in search to find next
+      <br>
+      •
+      <kbd>Esc</kbd>
+      to clear search
+    </div>
+    <script type="module">
+    // Configuration
+const LINE_HEIGHT = 20;  // pixels per line
+const BUFFER_LINES = 20; // extra lines to render above/below viewport
+
+// Data structures
+let rawLines = [];        // Raw line strings (unparsed for memory efficiency)
+let parsedCache = {};     // Cache of parsed lines (sparse)
+let lineCount = 0;
+let selectedIndex = -1;
+let searchMatches = new Set();
+let searchMatchList = [];
+let currentMatchIndex = -1;
+
+// Virtual scrolling state
+let visibleStart = 0;
+let visibleEnd = 0;
+let lineElements = {};    // Currently rendered DOM elements, keyed by line index
+
+// Breadcrumb forward history
+let forwardHistory = [];  // Array of {index, accession} for ghosted breadcrumbs
+let activePipes = "";
+
+// DOM references
+let treeContainer, treeScrollContent;
+
+// Parse a single line of tree data
+function parseLine(index) {
+  if (parsedCache[index]) return parsedCache[index];
+  
+  const raw = rawLines[index];
+  if (!raw) return null;
+  
+  // After dead reckoning, every line effectively has a '0:' prefix
+  const depthMatch = raw.match(/^(\d+):/);
+  if (!depthMatch) {
+    parsedCache[index] = { raw, depth: 0, content: raw };
+    return parsedCache[index];
+  }
+  
+  const depthPrefix = parseInt(depthMatch[1], 10); // This will be 0 after pre-processing
+  const rest = raw.substring(depthMatch[0].length);
+  
+  // Capture all tree characters (pipes, branches, and the spaces between them)
+  const treeCharsMatch = rest.match(/^([│├└─\s]*)/);
+  const treeChars = treeCharsMatch ? treeCharsMatch[1] : '';
+  const afterTree = rest.substring(treeChars.length);
+  
+  // Depth is now simply the number of 3-character blocks
+  const depth = Math.floor(treeChars.length / 3);
+  
+  const nodeMatch = afterTree.match(/^\s*([A-Z0-9]+)\s+Length:(\d+)(?:\s+\(s:(\d+)\))?\s*(?:\[([^\]]+)\])?\s*(.*)$/);
+  
+  if (!nodeMatch) {
+    parsedCache[index] = {
+      raw, depthPrefix, treeChars, depth,
+      content: afterTree.trim(),
+      accession: null
+    };
+    return parsedCache[index];
+  }
+  
+  const [, accession, length, score, rootInfo, remainder] = nodeMatch;
+  
+  let name = '', organism = '';
+  const semicolonIdx = remainder.indexOf(';');
+  if (semicolonIdx >= 0) {
+    name = remainder.substring(0, semicolonIdx).trim();
+    organism = remainder.substring(semicolonIdx + 1).replace(/\.$/, '').trim();
+  } else {
+    name = remainder.replace(/\.$/, '').trim();
+  }
+  
+  parsedCache[index] = {
+    raw, depthPrefix, treeChars, depth,
+    accession, 
+    length: parseInt(length, 10),
+    score: score ? parseInt(score, 10) : null,
+    rootInfo, name, organism
+  };
+  
+  return parsedCache[index];
+}
+
+// Expand abbreviated indentation
+function expandTreeChars(line, index) {
+  // Since we pre-processed everything into depth 0, 
+  // there is nothing left to expand.
+  return line.treeChars || '';
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Render a line to HTML
+function renderLineHtml(index) {
+  const line = parseLine(index);
+  if (!line) return '';
+  
+  const fullTreeChars = expandTreeChars(line, index);
+  
+  let html = `<span class="tree-chars">${escapeHtml(fullTreeChars)}</span>`;
+  
+  if (line.accession) {
+    html += `<span class="node-accession">${escapeHtml(line.accession)}</span>`;
+    html += ` <span class="node-length">Length:${line.length}</span>`;
+    if (line.score !== null) {
+      html += ` <span class="node-score">(s:${line.score})</span>`;
+    }
+    if (line.rootInfo) {
+      html += ` [${escapeHtml(line.rootInfo)}]`;
+    }
+    if (line.name) {
+      html += ` <span class="node-name">${escapeHtml(line.name)}</span>`;
+    }
+    if (line.organism) {
+      html += `; <span class="node-organism">${escapeHtml(line.organism)}</span>`;
+    }
+  } else {
+    html += `<span class="node-name">${escapeHtml(line.content || '')}</span>`;
+  }
+  
+  return html;
+}
+
+// Create or update a line element
+function createLineElement(index) {
+  const div = document.createElement('div');
+  div.className = 'tree-line';
+  div.style.top = (index * LINE_HEIGHT) + 'px';
+  div.style.height = LINE_HEIGHT + 'px';
+  div.innerHTML = renderLineHtml(index);
+  div.dataset.index = index;
+  
+  if (index === selectedIndex) {
+    div.classList.add('selected');
+  }
+  if (searchMatches.has(index)) {
+    div.classList.add('search-match');
+  }
+  
+  div.addEventListener('click', () => selectLine(index));
+  
+  return div;
+}
+
+// Virtual scrolling: render visible lines
+function renderVisibleLines() {
+  const scrollTop = treeContainer.scrollTop;
+  const viewportHeight = treeContainer.clientHeight;
+  
+  const newStart = Math.max(0, Math.floor(scrollTop / LINE_HEIGHT) - BUFFER_LINES);
+  const newEnd = Math.min(lineCount, Math.ceil((scrollTop + viewportHeight) / LINE_HEIGHT) + BUFFER_LINES);
+  
+  // Remove lines that are no longer visible
+  for (const idx in lineElements) {
+    const i = parseInt(idx);
+    if (i < newStart || i >= newEnd) {
+      lineElements[i].remove();
+      delete lineElements[i];
+    }
+  }
+  
+  // Add new lines that have become visible
+  for (let i = newStart; i < newEnd; i++) {
+    if (!lineElements[i]) {
+      const el = createLineElement(i);
+      treeScrollContent.appendChild(el);
+      lineElements[i] = el;
+    }
+  }
+  
+  visibleStart = newStart;
+  visibleEnd = newEnd;
+}
+
+// Find ancestors of a line
+function findAncestors(index) {
+  const ancestors = [];
+  if (index < 0 || index >= lineCount) return ancestors;
+  
+  const targetLine = parseLine(index);
+  if (!targetLine) return ancestors;
+  
+  let currentDepth = targetLine.depth;
+  
+  for (let i = index - 1; i >= 0; i--) {
+    const line = parseLine(i);
+    if (line && line.depth < currentDepth) {
+      ancestors.unshift({ index: i, line });
+      currentDepth = line.depth;
+      if (currentDepth === 0) break;
+    }
+  }
+  
+  return ancestors;
+}
+
+// Update breadcrumb display
+function updateBreadcrumbs(index, fromBreadcrumbClick = false, clickedBreadcrumbIdx = -1) {
+  const container = document.getElementById('breadcrumbs');
+  container.innerHTML = '<span class="label">Path:</span>';
+  
+  if (index < 0 || index >= lineCount) return;
+  
+  const ancestors = findAncestors(index);
+  const currentLine = parseLine(index);
+  
+  // If clicked a breadcrumb, build forward history from current position
+  if (fromBreadcrumbClick && clickedBreadcrumbIdx >= 0) {
+    // Get the old breadcrumb trail (ancestors of where we were + where we were)
+    // The forward history should be everything after the clicked position
+    const oldAncestors = findAncestors(selectedIndex);
+    const oldTrail = [...oldAncestors.map(a => ({ index: a.index, accession: a.line.accession }))];
+    oldTrail.push({ index: selectedIndex, accession: parseLine(selectedIndex)?.accession });
+    
+    // Add any existing forward history
+    oldTrail.push(...forwardHistory);
+    
+    // Forward history is everything after clickedBreadcrumbIdx
+    forwardHistory = oldTrail.slice(clickedBreadcrumbIdx + 1);
+  }
+  
+  // Helper to extract node number from nodeId like "Node 492055"
+  function getNodeId(line) {
+    if (!line || !line.accession) return '?';
+    return line.accession;
+  }
+  
+  // Add ancestors
+  ancestors.forEach((anc, i) => {
+    const span = document.createElement('span');
+    span.className = 'breadcrumb';
+    span.textContent = anc.line.accession || `Node@${anc.index}`;
+    span.addEventListener('click', () => {
+      document.getElementById('instructions').classList.add('hidden');
+      navigateViaBreadcrumb(anc.index, i);
+    });
+    container.appendChild(span);
+    
+    // Separator with tooltip - connects this ancestor to the next node
+    const nextLine = (i < ancestors.length - 1) ? ancestors[i + 1].line : currentLine;
+    const parentNodeNum = getNodeId(anc.line);
+    const childNodeNum = getNodeId(nextLine);
+    const childScore = nextLine?.score;
+    
+    const sep = document.createElement('span');
+    sep.className = 'separator';
+    sep.innerHTML = '›';
+    
+    // Add tooltip
+    const tooltip = document.createElement('span');
+    tooltip.className = 'tooltip';
+    let tooltipText = `${parentNodeNum}-${childNodeNum}`;
+    if (childScore !== null && childScore !== undefined) {
+      tooltipText = `score:${childScore}\n${tooltipText}`;
+    }
+    tooltip.textContent = tooltipText;
+    sep.appendChild(tooltip);
+    
+    // Store data for future click handling
+    sep.dataset.parentNode = parentNodeNum;
+    sep.dataset.childNode = childNodeNum;
+    sep.dataset.score = childScore || '';
+    
+    container.appendChild(sep);
+  });
+  
+  // Add current
+  const current = document.createElement('span');
+  current.className = 'breadcrumb current';
+  current.textContent = (currentLine && currentLine.accession) || `Node@${index}`;
+  container.appendChild(current);
+  
+  // Add forward history (ghosted)
+  let prevLine = currentLine;
+  forwardHistory.forEach((fwd, i) => {
+    const fwdLine = parseLine(fwd.index);
+    const parentNodeNum = getNodeId(prevLine);
+    const childNodeNum = getNodeId(fwdLine);
+    const childScore = fwdLine?.score;
+    
+    const sep = document.createElement('span');
+    sep.className = 'separator ghosted';
+    sep.innerHTML = '›';
+    
+    // Add tooltip
+    const tooltip = document.createElement('span');
+    tooltip.className = 'tooltip';
+    let tooltipText = `${parentNodeNum}-${childNodeNum}`;
+    if (childScore !== null && childScore !== undefined) {
+      tooltipText = `score:${childScore}\n${tooltipText}`;
+    }
+    tooltip.textContent = tooltipText;
+    sep.appendChild(tooltip);
+    
+    // Store data for future click handling
+    sep.dataset.parentNode = parentNodeNum;
+    sep.dataset.childNode = childNodeNum;
+    sep.dataset.score = childScore || '';
+    
+    container.appendChild(sep);
+    
+    const span = document.createElement('span');
+    span.className = 'breadcrumb ghosted';
+    span.textContent = fwd.accession || `Node@${fwd.index}`;
+    span.addEventListener('click', () => {
+      document.getElementById('instructions').classList.add('hidden');
+      navigateForward(i);
+    });
+    container.appendChild(span);
+    
+    prevLine = fwdLine;
+  });
+}
+
+// Navigate via breadcrumb click (preserves forward history)
+function navigateViaBreadcrumb(index, breadcrumbIdx) {
+  updateBreadcrumbs(index, true, breadcrumbIdx);
+  
+  // Remove old selection
+  if (selectedIndex >= 0 && lineElements[selectedIndex]) {
+    lineElements[selectedIndex].classList.remove('selected');
+  }
+  
+  selectedIndex = index;
+  
+  if (lineElements[index]) {
+    lineElements[index].classList.add('selected');
+  }
+  
+  updateLineInfo();
+  scrollToLine(index);
+}
+
+// Navigate forward in history
+function navigateForward(forwardIdx) {
+  const target = forwardHistory[forwardIdx];
+  if (!target) return;
+  
+  // Everything before forwardIdx becomes part of normal trail
+  // Everything after stays in forward history
+  forwardHistory = forwardHistory.slice(forwardIdx + 1);
+  
+  // Remove old selection
+  if (selectedIndex >= 0 && lineElements[selectedIndex]) {
+    lineElements[selectedIndex].classList.remove('selected');
+  }
+  
+  selectedIndex = target.index;
+  
+  if (lineElements[target.index]) {
+    lineElements[target.index].classList.add('selected');
+  }
+  
+  updateBreadcrumbs(target.index);
+  updateLineInfo();
+  scrollToLine(target.index);
+}
+
+// Select a line (clears forward history)
+function selectLine(index) {
+  // Clear forward history when navigating directly
+  forwardHistory = [];
+  
+  // Remove old selection
+  if (selectedIndex >= 0 && lineElements[selectedIndex]) {
+    lineElements[selectedIndex].classList.remove('selected');
+  }
+  
+  selectedIndex = index;
+  
+  // Add new selection (if visible)
+  if (lineElements[index]) {
+    lineElements[index].classList.add('selected');
+  }
+  
+  updateBreadcrumbs(index);
+  updateLineInfo();
+  scrollToLine(index);
+}
+
+// Scroll to make a line visible
+function scrollToLine(index) {
+  const targetScrollTop = (index * LINE_HEIGHT) - (treeContainer.clientHeight / 2) + (LINE_HEIGHT / 2);
+  treeContainer.scrollTop = Math.max(0, targetScrollTop);
+  
+  // Horizontal scroll to show content
+  const line = parseLine(index);
+  if (line) {
+    const fullTreeChars = expandTreeChars(line, index);
+    const charWidth = 7.8;
+    const contentStart = fullTreeChars.length * charWidth;
+    const targetScrollLeft = Math.max(0, contentStart - 50);
+    treeContainer.scrollLeft = targetScrollLeft;
+  }
+  
+  // Re-render to ensure the line is visible
+  renderVisibleLines();
+  
+  // Make sure selection is shown
+  if (lineElements[index]) {
+    lineElements[index].classList.add('selected');
+  }
+}
+
+function updateLineInfo() {
+  document.getElementById('lineInfo').textContent = `Line ${(selectedIndex + 1).toLocaleString()} of ${lineCount.toLocaleString()}`;
+}
+
+// Search functionality
+function performSearch() {
+  const query = document.getElementById('searchBox').value.toLowerCase().trim();
+  
+  searchMatches.clear();
+  searchMatchList = [];
+  currentMatchIndex = -1;
+  
+  // Update visible elements to remove match highlighting
+  for (const idx in lineElements) {
+    lineElements[idx].classList.remove('search-match');
+  }
+  
+  if (!query) {
+    document.getElementById('searchInfo').textContent = '';
+    return;
+  }
+  
+  // Search through all lines
+  showLoading('Searching...', 0);
+  
+  setTimeout(() => {
+    const batchSize = 50000;
+    let i = 0;
+    
+    function searchBatch() {
+      const end = Math.min(i + batchSize, lineCount);
+      
+      for (; i < end; i++) {
+        const raw = rawLines[i];
+        if (raw && raw.toLowerCase().includes(query)) {
+          searchMatches.add(i);
+          searchMatchList.push(i);
+        }
+      }
+      
+      if (i < lineCount) {
+        updateProgress((i / lineCount) * 100);
+        setTimeout(searchBatch, 0);
+      } else {
+        hideLoading();
+        finishSearch();
+      }
+    }
+    
+    searchBatch();
+  }, 10);
+}
+
+function finishSearch() {
+  document.getElementById('searchInfo').textContent = `${searchMatchList.length.toLocaleString()} matches`;
+  
+  // Update visible elements with match highlighting
+  for (const idx in lineElements) {
+    if (searchMatches.has(parseInt(idx))) {
+      lineElements[idx].classList.add('search-match');
+    }
+  }
+  
+  if (searchMatchList.length > 0) {
+    currentMatchIndex = 0;
+    selectLine(searchMatchList[0]);
+    updateSearchInfo();
+  }
+}
+
+function findNext() {
+  if (searchMatchList.length === 0) return;
+  currentMatchIndex = (currentMatchIndex + 1) % searchMatchList.length;
+  selectLine(searchMatchList[currentMatchIndex]);
+  updateSearchInfo();
+}
+
+function findPrev() {
+  if (searchMatchList.length === 0) return;
+  currentMatchIndex = (currentMatchIndex - 1 + searchMatchList.length) % searchMatchList.length;
+  selectLine(searchMatchList[currentMatchIndex]);
+  updateSearchInfo();
+}
+
+function updateSearchInfo() {
+  if (searchMatchList.length > 0) {
+    document.getElementById('searchInfo').textContent = 
+      `${(currentMatchIndex + 1).toLocaleString()} of ${searchMatchList.length.toLocaleString()}`;
+  }
+}
+
+function resetView() {
+  document.getElementById('searchBox').value = '';
+  searchMatches.clear();
+  searchMatchList = [];
+  currentMatchIndex = -1;
+  forwardHistory = [];
+  document.getElementById('searchInfo').textContent = '';
+  
+  for (const idx in lineElements) {
+    lineElements[idx].classList.remove('search-match');
+  }
+  
+  selectLine(0);
+}
+
+// Loading UI
+function showLoading(status, progress) {
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  document.getElementById('loadingStatus').textContent = status;
+  document.getElementById('progressFill').style.width = progress + '%';
+}
+
+function updateProgress(progress) {
+  document.getElementById('progressFill').style.width = progress + '%';
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+// Main tree loading function
+function loadTreeFromText(text) {
+  showLoading('Processing tree structure...', 0);
+  
+  setTimeout(() => {
+    const lines = text.split('\n');
+    lineCount = lines.length;
+    rawLines = []; // We will store the ALREADY expanded lines here
+    let currentPipes = ""; 
+
+    for (let i = 0; i < lineCount; i++) {
+      const raw = lines[i];
+      const depthMatch = raw.match(/^(\d+):/);
+      if (!depthMatch) {
+        rawLines.push(raw);
+        continue;
+      }
+
+      const prefixNum = parseInt(depthMatch[1], 10);
+      const rest = raw.substring(depthMatch[0].length);
+      const treeCharsMatch = rest.match(/^([│├└─\s]*)/);
+      const treeChars = treeCharsMatch ? treeCharsMatch[1] : '';
+      const content = rest.substring(treeChars.length);
+
+      // 1. Reconstruct the missing prefix using dead reckoning
+      // Truncate the existing pipe state to the current prefix length
+      let expanded = currentPipes.substring(0, prefixNum);
+      
+      // If the pipe state isn't long enough (new depth), pad with spaces
+      if (expanded.length < prefixNum) {
+        expanded = expanded.padEnd(prefixNum, " ");
+      }
+
+      // 2. Update the "Dead Reckoning" state for future lines
+      // We look at the treeChars of the CURRENT line to see what 
+      // the NEXT lines should inherit.
+      let nextStateBase = expanded + treeChars;
+      let nextState = "";
+      
+      for (let j = 0; j < nextStateBase.length; j += 3) {
+        const chunk = nextStateBase.substring(j, j + 3);
+        if (chunk.includes('│') || chunk.includes('├')) {
+          nextState += "│  ";
+        } else {
+          nextState += "   ";
+        }
+      }
+      currentPipes = nextState;
+
+      // 3. Store the fully reconstructed line
+      // We store it as "0:FullExpandedChars + Content" to keep your parseLine happy
+      rawLines.push(`0:${expanded}${treeChars}${content}`);
+      
+      if (i % 50000 === 0) updateProgress((i / lineCount) * 100);
+    }
+
+    showLoading(`Prepared ${lineCount.toLocaleString()} lines.`, 100);
+    setTimeout(() => {
+      initializeTreeView();
+      hideLoading();
+    }, 50);
+  }, 50);
+}
+
+function initializeTreeView() {
+  treeContainer = document.getElementById('treeContainer');
+  treeScrollContent = document.getElementById('treeScrollContent');
+  
+  // Set total scrollable height
+  treeScrollContent.style.height = (lineCount * LINE_HEIGHT) + 'px';
+  
+  // Clear existing elements
+  treeScrollContent.innerHTML = '';
+  lineElements = {};
+  forwardHistory = [];
+  
+  // Show main UI
+  document.getElementById('loadArea').classList.add('hidden');
+  document.getElementById('mainUI').classList.remove('hidden');
+  document.getElementById('instructions').classList.remove('hidden');
+  
+  // Initial render
+  renderVisibleLines();
+  
+  // Select first line
+  selectLine(0);
+  
+  // Focus search box
+  document.getElementById('searchBox').focus();
+}
+
+function loadTree() {
+  const input = document.getElementById('inputData').value;
+  if (!input.trim()) return;
+  loadTreeFromText(input);
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+  // Close instructions button
+  document.getElementById('closeInstructions').addEventListener('click', function() {
+    document.getElementById('instructions').classList.add('hidden');
+  });
+  
+  // Search input with debounce
+  let searchTimeout;
+  document.getElementById('searchBox').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 300);
+  });
+  
+  // Button event listeners
+  document.getElementById('prevBtn').addEventListener('click', findPrev);
+  document.getElementById('nextBtn').addEventListener('click', findNext);
+  document.getElementById('resetBtn').addEventListener('click', resetView);
+  document.getElementById('loadBtn').addEventListener('click', loadTree);
+  
+
+  // Pre-populate with sample data for demo
+  document.getElementById('inputData').value = `0:A2ASS6 Length:35213 [ROOT 0] Titin; Mus musculus (Mouse). 
+0:├─ Q8WZ42 Length:34350 (s:65503) Titin; Homo sapiens (Human).
+0:│  ├─ Q23551 Length:7158 (s:5354) Twitchin {ECO:0000303|PubMed:7190524}; Caenorhabditis elegans.
+0:│  │  └─ Q18066 Length:640 (s:297) Disorganized muscle protein 1; Caenorhabditis elegans.
+0:│  ├─ Q86VF2 Length:1251 (s:1036) Immunoglobulin-like and fibronectin type III domain-containing protein 1; Homo sapiens (Human).
+0:│  │  └─ Q3KNY0 Length:2849 (s:3400) Immunoglobulin-like and fibronectin type III domain-containing protein 1; Mus musculus (Mouse).
+0:│  │     └─ P83544 Length:148 (s:114) Transglutaminase-activating metalloprotease inhibitor; Streptomyces mobaraensis (Streptoverticillium mobaraense).
+0:│  │        ├─ O33702 Length:145 (s:461) Kexstatin-1; Streptomyces platensis.
+0:│  │        ├─ P80600 Length:108 (s:439) Protease inhibitor SIL-V5; Streptomyces luteoverticillatus (Streptoverticillium luteoverticillatus).
+0:│  │        │  └─ P80598 Length:108 (s:442) Protease inhibitor SIL-V3; Streptomyces eurocidicus (Streptoverticillium eurocidicus).
+0:│  │        │     └─ P80596 Length:110 (s:419) Protease inhibitor SIL-V1/SIL-V4; Streptomyces netropsis (Streptoverticillium netropsis).
+0:│  │        │        └─ P29607 Length:113 (s:360) Subtilisin inhibitor-like protein 2; Streptomyces rochei (Streptomyces parvullus).
+0:│  │        │           ├─ P61152 Length:144 (s:459) Subtilase-type protease inhibitor; Streptomyces coelicolor (strain ATCC BAA-471 / A3(2) / M145).
+0:│  │        │           │  ├─ P61153 Length:144 (s:641) Protease inhibitor; Streptomyces lividans.
+0:│  │        │           │  │  └─ P35706 Length:144 (s:542) Trypsin inhibitor STI2; Streptomyces longisporus.
+0:│  │        │           │  │     ├─ Q825H1 Length:144 (s:555) Probable subtilase-type protease inhibitor; Streptomyces avermitilis (strain ATCC 31267 / DSM 46492 / JCM 5070 / NBRC 14893 / NCIMB 12804 / NRRL 8165 / MA-4680).
+0:│  │        │           │  │     │  ├─ P01007 Length:109 (s:461) Plasminostreptin; Streptomyces antifibrinolyticus.
+0:│  │        │           │  │     │  └─ Q9ZA15 Length:142 (s:337) Subtilase-type protease inhibitor; Streptomyces fradiae (Streptomyces roseoflavus).
+0:│  │        │           │  │     ├─ P29609 Length:116 (s:445) Subtilisin inhibitor-like protein 4; Streptomyces lavendulae.
+0:│  │        │           │  │     │  └─ Q9R643 Length:107 (s:367) Subtilisin inhibitor-like protein 5; Streptomyces fradiae (Streptomyces roseoflavus).
+0:│  │        │           │  │     └─ P01006 Length:144 (s:434) Subtilisin inhibitor; Streptomyces albogriseolus.
+0:│  │        │           │  │        ├─ P28592 Length:107 (s:477) Alkaline protease inhibitor 2C'; Streptomyces griseoincarnatus.
+0:│  │        │           │  │        └─ Q82L56 Length:146 (s:200) Putative serine protease inhibitor SAV_2156; Streptomyces avermitilis (strain ATCC 31267 / DSM 46492 / JCM 5070 / NBRC 14893 / NCIMB 12804 / NRRL 8165 / MA-4680).
+0:│  │        │           │  └─ P29608 Length:107 (s:478) Subtilisin inhibitor-like protein 3; Streptomyces coelicolor.
+0:│  │        │           └─ Q9R642 Length:109 (s:453) Subtilisin inhibitor-like protein 7; Streptomyces ambofaciens.
+0:│  │        ├─ P80597 Length:109 (s:426) Protease inhibitor SIL-V2; Streptomyces orinoci (Streptoverticillium orinoci).
+0:│  │        │  └─ Q9R641 Length:111 (s:355) Subtilisin inhibitor-like protein 12; Streptomyces hygroscopicus.
+0:│  │        │     └─ P29606 Length:110 (s:280) Subtilisin inhibitor-like protein 1; Streptomyces cacaoi.
+0:│  │        └─ O06871 Length:146 (s:337) Subtilisin inhibitor; Streptomyces violaceus (Streptomyces venezuelae).
+0:│  │           └─ P80388 Length:111 (s:295) Subtilisin inhibitor-like protein 8; Streptomyces virginiae (Streptomyces cinnamonensis).`;
+
+  // File loading
+  document.getElementById('fileBtn').addEventListener('click', function() {
+    document.getElementById('fileInput').click();
+  });
+  
+  document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    showLoading(`Reading ${file.name}...`, 0);
+    
+    const reader = new FileReader();
+    
+    reader.onprogress = function(event) {
+      if (event.lengthComputable) {
+        const pct = (event.loaded / event.total) * 100;
+        updateProgress(pct);
+        showLoading(`Reading file... ${Math.round(pct)}%`, pct);
+      }
+    };
+    
+    reader.onload = function(event) {
+      loadTreeFromText(event.target.result);
+    };
+    
+    reader.onerror = function() {
+      hideLoading();
+      alert('Error reading file');
+    };
+    
+    reader.readAsText(file);
+  });
+  
+  // Scroll handler for virtual scrolling
+  document.getElementById('treeContainer').addEventListener('scroll', function() {
+    requestAnimationFrame(renderVisibleLines);
+  });
+  
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    const searchBox = document.getElementById('searchBox');
+    const isSearchFocused = document.activeElement === searchBox;
+    
+    if (e.key === 'Escape') {
+      searchBox.value = '';
+      searchMatches.clear();
+      searchMatchList = [];
+      currentMatchIndex = -1;
+      document.getElementById('searchInfo').textContent = '';
+      for (const idx in lineElements) {
+        lineElements[idx].classList.remove('search-match');
+      }
+      searchBox.blur();
+      return;
+    }
+    
+    if (e.key === 'Enter' && isSearchFocused) {
+      if (searchMatchList.length === 0) {
+        performSearch();
+      } else {
+        findNext();
+      }
+      return;
+    }
+    
+    if (isSearchFocused) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (selectedIndex < lineCount - 1) {
+        selectLine(selectedIndex + 1);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (selectedIndex > 0) {
+        selectLine(selectedIndex - 1);
+      }
+    } else if (e.key === '/') {
+      e.preventDefault();
+      searchBox.focus();
+    }
+  });
+});
+    </script>
+  </body>
+</html>

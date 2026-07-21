@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control costume reference v2 — overlay sliders + server icon fading</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<style>
+/* ============================================================
+   COSTUME REFERENCE SHEET v2
+   Panel 1: quiet edit mode
+   Panel 2: LCARS stage mode
+   Panel 3: overlay sliders — label/value/track share one row
+   Panel 4: server icon fading lab (canvas, per-pixel)
+   ------------------------------------------------------------
+   Changes from v1:
+   - Modified marker is now a hollow ring in currentColor:
+     it inherits the button's own text color, so its brightness
+     automatically follows the costume (dormant/active/stage)
+     and it adds no new hue to the registry.
+     Alternative: a text asterisk (*) — swap ::after content.
+   ============================================================ */
+
+:root {
+  --bg-page:   #1a1a2e;
+  --bg-panel:  #16213e;
+  --bg-well:   #0f0f23;
+  --bg-stage:  #0b0b14;
+
+  --blue-full:  #4fc3f7;
+  --blue-hi:    #7fd4f9;
+  --blue-ember: #5e86a0;
+  --blue-tint:  rgba(79, 195, 247, 0.20);
+  --blue-ring:  rgba(79, 195, 247, 0.45);
+
+  --green-full:  #3fb950;
+  --green-ember: #4a8a5c;
+  --green-tint:  rgba(63, 185, 80, 0.08);
+  --green-ring:  rgba(63, 185, 80, 0.50);
+
+  --orange-full:  #f0883e;
+  --orange-ember: #a06a3c;
+  --orange-tint:  rgba(240, 136, 62, 0.08);
+  --orange-ring:  rgba(240, 136, 62, 0.50);
+
+  --text-dim:    #666;
+  --text-mid:    #8b949e;
+  --readout:     #6b7ac5;
+  --thumb-rest:  #2b3a55;
+  --thumb-hover: #3d5578;
+
+  --t-in:  0.08s;
+  --t-out: 0.30s;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg-page);
+  color: #eee;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+h1 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.sub { font-size: 12px; color: var(--text-mid); margin-bottom: 20px; max-width: 900px; line-height: 1.5; }
+
+.sheet {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  max-width: 1000px;
+}
+
+.panel { border-radius: 12px; padding: 16px; }
+
+.panel-tag {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--text-mid);
+  margin-bottom: 14px;
+}
+
+.note {
+  font-size: 11px;
+  color: #6e7681;
+  line-height: 1.55;
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 10px;
+}
+
+:focus-visible { outline: 2px solid var(--blue-full); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0s !important; }
+}
+
+/* ============ PANEL 1 — QUIET EDIT MODE ============ */
+
+.quiet { background: var(--bg-panel); }
+
+.quiet h3 {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin: 14px 0 6px;
+}
+.quiet h3:first-of-type { margin-top: 0; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.preset-btn {
+  position: relative;
+  padding: 4px 9px;
+  font-size: 10.5px;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--blue-ember);
+  transition: color var(--t-out), border-color var(--t-out), background var(--t-out);
+}
+.preset-btn:hover {
+  color: var(--blue-hi);
+  border-color: var(--blue-ring);
+  transition-duration: var(--t-in);
+}
+.preset-btn.active { background: var(--blue-tint); color: #bfe9fb; }
+.preset-btn.active:hover { border-color: var(--blue-ring); }
+
+/* modified marker: hollow ring in currentColor.
+   For the asterisk variant use:
+   content: "\2217"; font-size: 9px; border: none; top: 0; right: 2px; */
+.preset-btn.modified::after {
+  content: "";
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+
+.control { margin-bottom: 10px; }
+.control label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #b9c0cc;
+  margin-bottom: 3px;
+}
+.control label .val {
+  color: var(--readout);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  transition: color var(--t-out);
+}
+.control.dragging label .val { color: var(--blue-hi); transition-duration: var(--t-in); }
+
+input[type="range"] {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-well);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--thumb-rest);
+  cursor: pointer;
+  transition: background var(--t-out);
+}
+input[type="range"]:hover::-webkit-slider-thumb  { background: var(--thumb-hover); transition-duration: var(--t-in); }
+input[type="range"]:active::-webkit-slider-thumb { background: var(--blue-full); }
+input[type="range"]::-moz-range-thumb {
+  width: 12px; height: 12px; border: none;
+  border-radius: 50%;
+  background: var(--thumb-rest);
+  cursor: pointer;
+  transition: background var(--t-out);
+}
+input[type="range"]:hover::-moz-range-thumb  { background: var(--thumb-hover); }
+input[type="range"]:active::-moz-range-thumb { background: var(--blue-full); }
+
+.actions { display: flex; gap: 5px; margin-top: 4px; }
+
+.act-btn {
+  padding: 4px 10px;
+  font-size: 10.5px;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: color var(--t-out), border-color var(--t-out);
+}
+.act-btn:hover { transition-duration: var(--t-in); }
+.act-add    { background: var(--green-tint);  color: var(--green-ember); }
+.act-add:hover    { color: var(--green-full);  border-color: var(--green-ring); }
+.act-remove { background: var(--orange-tint); color: var(--orange-ember); }
+.act-remove:hover { color: var(--orange-full); border-color: var(--orange-ring); }
+
+/* ============ PANEL 2 — LCARS STAGE MODE ============ */
+
+.stage { background: var(--bg-stage); }
+
+.lc-row { display: flex; gap: 6px; margin-bottom: 8px; }
+
+.lc {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 14px 10px;
+  border-radius: 4px;
+  position: relative;
+  transition: filter var(--t-out);
+}
+.lc:hover  { filter: brightness(1.18); transition-duration: var(--t-in); }
+.lc:active { filter: brightness(1.32); }
+.lc.cap-l  { border-radius: 16px 4px 4px 16px; }
+.lc.cap-r  { border-radius: 4px 16px 16px 4px; }
+
+.lc.p        { flex: 1; background: #233c4a; color: #7ba7ba; }
+.lc.p.active { flex: 2; background: var(--blue-full); color: #04141c; font-weight: 600; }
+.lc.p.modified::after {
+  content: "";
+  position: absolute;
+  top: 6px; right: 8px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+
+.lc.step { flex: 1; background: #2f5a3d; color: #a9dcb8; }
+.lc-readout {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #141428;
+  color: var(--blue-hi);
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.lc.add    { flex: 2; background: var(--green-full); color: #08240f; font-weight: 600; }
+.lc.remove { flex: 1; background: #8a4a20; color: #f5c9a5; }
+
+/* ============ PANEL 3 — OVERLAY SLIDERS ============
+   Label, value, and track share ONE row. Full-width drag.
+   Three variants; same interaction, different rendering.  */
+
+.osliders { background: var(--bg-panel); }
+
+.oslider {
+  position: relative;
+  height: 24px;
+  border-radius: 4px;
+  cursor: ew-resize;
+  user-select: none;
+  margin-bottom: 6px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* variant A + B sit in a well */
+.oslider.v-pip, .oslider.v-fill { background: var(--bg-well); }
+
+/* variant B: fill bar (Blender-style), two candidate fills */
+.oslider .os-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  pointer-events: none;
+}
+.oslider.b1 .os-fill { background: rgba(79, 195, 247, 0.18); } /* brighter: chroma tint */
+.oslider.b2 .os-fill { background: #232c49; }                  /* darker: neutral raise */
+
+/* the pip: thin vertical bar riding the value position */
+.oslider .os-pip {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--thumb-rest);
+  pointer-events: none;
+  transition: background var(--t-out);
+}
+.oslider:hover .os-pip { background: var(--thumb-hover); transition-duration: var(--t-in); }
+.oslider.engaged .os-pip { background: var(--blue-full); }
+
+/* variant C: underline track, dot pip */
+.oslider.v-line { background: transparent; overflow: visible; cursor: default; }
+.oslider.v-line::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--bg-well);
+}
+.oslider.v-line .os-pip {
+  top: auto; bottom: -1px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-left: -3px;
+}
+
+.oslider .os-label,
+.oslider .os-val {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  pointer-events: none;
+}
+.oslider .os-label { left: 8px; color: #b9c0cc; }
+.oslider .os-val {
+  right: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--readout);
+  transition: color var(--t-out);
+}
+.oslider.engaged .os-val { color: var(--blue-hi); }
+.oslider.v-line .os-label { left: 0; }
+.oslider.v-line .os-val   { right: 0; }
+
+.os-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin: 14px 0 6px;
+}
+.os-group-label:first-of-type { margin-top: 0; }
+
+/* ============ PANEL 4 — SERVER ICON FADING LAB ============ */
+
+.iconlab { background: var(--bg-panel); }
+
+.lab-body { display: flex; gap: 18px; }
+
+.server-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 6px;
+  background: var(--bg-well);
+  border-radius: 10px;
+}
+
+.server-icon {
+  position: relative;
+  width: 44px; height: 44px;
+  cursor: pointer;
+}
+.server-icon canvas { display: block; width: 44px; height: 44px; }
+
+.server-icon .badge {
+  position: absolute;
+  right: -2px; bottom: -2px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #f23f43;              /* alert state is never muted */
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-well); /* punch-out against the strip */
+}
+
+.server-icon .active-bar {
+  position: absolute;
+  left: -6px; top: 50%;
+  transform: translateY(-50%);
+  width: 3px; height: 0;
+  border-radius: 2px;
+  background: #fff;
+  transition: height 0.15s;
+}
+.server-icon.active .active-bar { height: 28px; }
+
+.lab-controls { flex: 1; min-width: 0; }
+
+.lab-controls .control { margin-bottom: 10px; }
+
+.lab-controls select {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--bg-well);
+  border: 1px solid #26304d;
+  border-radius: 4px;
+  color: #c9d1d9;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+}
+.lab-controls select:focus { border-color: var(--blue-full); }
+</style>
+</head>
+<body>
+
+<h1>Control costume reference — v2</h1>
+<p class="sub">
+Panels 1–2 as before, with the modified marker as a hollow ring in
+currentColor. Panel 3 prototypes the single-row overlay slider — drag
+anywhere along the row; variant B now comes in brighter (chroma tint) and
+darker (neutral raise) fills. Panel 4 is the server icon fading lab:
+linear desaturation only, defaults 33% saturation / 66% brightness. Click
+an icon to activate it, hover to wake.
+</p>
+
+<div class="sheet">
+
+  <!-- ============ PANEL 1 ============ -->
+  <section class="panel quiet" id="quietPanel">
+    <p class="panel-tag">1 · quiet edit mode</p>
+
+    <h3>Presets</h3>
+    <div class="presets">
+      <button class="preset-btn" data-preset="orbit">Orbit</button>
+      <button class="preset-btn" data-preset="drift">Drift</button>
+      <button class="preset-btn" data-preset="pulse">Pulse</button>
+      <button class="preset-btn" data-preset="lattice">Lattice</button>
+    </div>
+
+    <h3>Parameters</h3>
+    <div class="control" data-param="density">
+      <label><span>Density</span><span class="val">0.42</span></label>
+      <input type="range" min="0" max="100" value="42">
+    </div>
+    <div class="control" data-param="flow">
+      <label><span>Flow</span><span class="val">0.60</span></label>
+      <input type="range" min="0" max="100" value="60">
+    </div>
+
+    <h3>Layers</h3>
+    <div class="actions">
+      <button class="act-btn act-add">+ add layer</button>
+      <button class="act-btn act-remove">&minus; remove</button>
+    </div>
+
+    <p class="note">
+      Modified marker is now a hollow ring drawn in currentColor: it
+      inherits the button's own text color, so it brightens and dims with
+      the costume automatically and adds no hue to the registry. Swap the
+      ::after for content "&lowast;" if you prefer the asterisk convention.
+    </p>
+  </section>
+
+  <!-- ============ PANEL 2 ============ -->
+  <section class="panel stage" id="stagePanel">
+    <p class="panel-tag">2 · LCARS stage mode</p>
+
+    <div class="lc-row" id="lcPresets">
+      <button class="lc p cap-l active" data-preset="orbit">ORBIT</button>
+      <button class="lc p" data-preset="drift">DRIFT</button>
+      <button class="lc p" data-preset="pulse">PULSE</button>
+      <button class="lc p cap-r" data-preset="lattice">LATTICE</button>
+    </div>
+
+    <div class="lc-row">
+      <button class="lc step cap-l" id="lcMinus">&minus; DENSITY</button>
+      <div class="lc-readout" id="lcVal">0.42</div>
+      <button class="lc step cap-r" id="lcPlus">+ DENSITY</button>
+    </div>
+
+    <div class="lc-row">
+      <button class="lc add cap-l">ADD LAYER</button>
+      <button class="lc remove cap-r">REMOVE</button>
+    </div>
+
+    <p class="note">
+      Same ring marker, scaled up. On the active (filled) block the ring
+      renders in the dark on-fill text color; on inactive blocks it takes
+      their muted text color — one rule, every costume.
+    </p>
+  </section>
+
+  <!-- ============ PANEL 3 ============ -->
+  <section class="panel osliders" id="osPanel">
+    <p class="panel-tag">3 · overlay sliders — one row, full-width drag</p>
+
+    <p class="os-group-label">Variant A — pip only</p>
+    <div class="oslider v-pip" data-val="42"><div class="os-pip"></div><span class="os-label">Density</span><span class="os-val"></span></div>
+    <div class="oslider v-pip" data-val="60"><div class="os-pip"></div><span class="os-label">Flow</span><span class="os-val"></span></div>
+    <div class="oslider v-pip" data-val="18"><div class="os-pip"></div><span class="os-label">Turbulence</span><span class="os-val"></span></div>
+
+    <p class="os-group-label">Variant B1 — fill + pip, brighter (chroma tint)</p>
+    <div class="oslider v-fill b1" data-val="42"><div class="os-fill"></div><div class="os-pip"></div><span class="os-label">Density</span><span class="os-val"></span></div>
+    <div class="oslider v-fill b1" data-val="60"><div class="os-fill"></div><div class="os-pip"></div><span class="os-label">Flow</span><span class="os-val"></span></div>
+
+    <p class="os-group-label">Variant B2 — fill + pip, darker (neutral raise)</p>
+    <div class="oslider v-fill b2" data-val="42"><div class="os-fill"></div><div class="os-pip"></div><span class="os-label">Density</span><span class="os-val"></span></div>
+    <div class="oslider v-fill b2" data-val="60"><div class="os-fill"></div><div class="os-pip"></div><span class="os-label">Flow</span><span class="os-val"></span></div>
+
+    <p class="os-group-label">Variant C — underline + dot</p>
+    <div class="oslider v-line" data-val="42"><div class="os-pip"></div><span class="os-label">Density</span><span class="os-val"></span></div>
+    <div class="oslider v-line" data-val="60"><div class="os-pip"></div><span class="os-label">Flow</span><span class="os-val"></span></div>
+    <div class="oslider v-line" data-val="18"><div class="os-pip"></div><span class="os-label">Turbulence</span><span class="os-val"></span></div>
+
+    <p class="note">
+      24px per parameter vs ~34px for the stacked label+slider. Drag maps
+      absolutely (click position = value); full row width = full range.
+      B1 fill is chroma at 18% alpha — louder but the value shape reads
+      from peripheral vision; B2 fill is a neutral raise (#232c49) — the
+      Blender approach, value shape readable only on direct look, zero
+      chroma cost across twenty sliders. Variant C uses the standard
+      cursor, per native range controls; A and B keep ew-resize as the
+      drag affordance. Caution: fills can read as progress bars near a
+      chat stream.
+    </p>
+  </section>
+
+  <!-- ============ PANEL 4 ============ -->
+  <section class="panel iconlab" id="iconLab">
+    <p class="panel-tag">4 · server icon fading lab (canvas, per-pixel)</p>
+
+    <div class="lab-body">
+      <div class="server-strip" id="serverStrip"></div>
+
+      <div class="lab-controls">
+        <div class="control">
+          <label><span>Dormant saturation</span><span class="val" id="satOut">33%</span></label>
+          <input type="range" id="satIn" min="0" max="100" value="33">
+        </div>
+        <div class="control">
+          <label><span>Dormant brightness</span><span class="val" id="briOut">66%</span></label>
+          <input type="range" id="briIn" min="30" max="100" value="66">
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Linear desaturation, per your finding. Consequence for production:
+      no canvas needed at all — this is exactly
+      filter: saturate(0.33) brightness(0.66) with a CSS transition for
+      the wake, GPU-cheap and one line per state. Click an icon to
+      activate it (full color + indicator bar); hover any icon to wake it
+      (fast in, slow out). The notification badge is an HTML overlay, not
+      part of the canvas, so alert state is never muted.
+    </p>
+  </section>
+
+</div>
+
+<script>
+/* ---------- shared preset model ---------- */
+var PRESETS = {
+  orbit:   { density: 42, flow: 60 },
+  drift:   { density: 25, flow: 80 },
+  pulse:   { density: 70, flow: 35 },
+  lattice: { density: 55, flow: 55 }
+};
+function fmt(v) { return (v / 100).toFixed(2); }
+
+/* ============ PANEL 1 ============ */
+(function () {
+  var panel   = document.getElementById('quietPanel');
+  var buttons = panel.querySelectorAll('.preset-btn');
+  var ctrls   = {};
+  panel.querySelectorAll('.control').forEach(function (c) {
+    ctrls[c.dataset.param] = { root: c, input: c.querySelector('input'), out: c.querySelector('.val') };
+  });
+  var active = null;
+
+  function applyPreset(name) {
+    active = name;
+    var p = PRESETS[name];
+    Object.keys(ctrls).forEach(function (k) {
+      ctrls[k].input.value = p[k];
+      ctrls[k].out.textContent = fmt(p[k]);
+    });
+    buttons.forEach(function (b) {
+      b.classList.toggle('active', b.dataset.preset === name);
+      b.classList.remove('modified');
+    });
+  }
+
+  function markModified() {
+    if (!active) return;
+    var p = PRESETS[active], departed = false;
+    Object.keys(ctrls).forEach(function (k) {
+      if (+ctrls[k].input.value !== p[k]) departed = true;
+    });
+    buttons.forEach(function (b) {
+      if (b.dataset.preset === active) b.classList.toggle('modified', departed);
+    });
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { applyPreset(b.dataset.preset); });
+  });
+
+  Object.keys(ctrls).forEach(function (k) {
+    var c = ctrls[k];
+    c.input.addEventListener('input', function () {
+      c.out.textContent = fmt(c.input.value);
+      markModified();
+    });
+    c.input.addEventListener('pointerdown', function () { c.root.classList.add('dragging'); });
+    window.addEventListener('pointerup',   function () { c.root.classList.remove('dragging'); });
+  });
+
+  applyPreset('orbit');
+})();
+
+/* ============ PANEL 2 ============ */
+(function () {
+  var buttons = document.querySelectorAll('#lcPresets .lc.p');
+  var valEl   = document.getElementById('lcVal');
+  var density = 42, active = 'orbit';
+
+  function render() { valEl.textContent = fmt(density); }
+
+  function markModified() {
+    var departed = density !== PRESETS[active].density;
+    buttons.forEach(function (b) {
+      if (b.dataset.preset === active) b.classList.toggle('modified', departed);
+    });
+  }
+
+  function applyPreset(name) {
+    active = name;
+    density = PRESETS[name].density;
+    buttons.forEach(function (b) {
+      var on = b.dataset.preset === name;
+      b.classList.toggle('active', on);
+      b.classList.remove('modified');
+      b.style.flex = on ? '2' : '1';
+    });
+    render();
+  }
+
+  function bump(d) {
+    density = Math.max(0, Math.min(100, density + d));
+    render();
+    markModified();
+  }
+
+  function holdRepeat(btn, fn) {
+    var timer = null, delay;
+    function schedule() {
+      timer = setTimeout(function () {
+        fn();
+        delay = Math.max(50, delay * 0.82);
+        schedule();
+      }, delay);
+    }
+    btn.addEventListener('pointerdown', function (e) {
+      fn(); delay = 380; schedule();
+      btn.setPointerCapture(e.pointerId);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) {
+      btn.addEventListener(ev, function () { clearTimeout(timer); });
+    });
+  }
+
+  holdRepeat(document.getElementById('lcMinus'), function () { bump(-1); });
+  holdRepeat(document.getElementById('lcPlus'),  function () { bump(+1); });
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { applyPreset(b.dataset.preset); });
+  });
+
+  applyPreset('orbit');
+})();
+
+/* ============ PANEL 3 — overlay sliders ============ */
+(function () {
+  document.querySelectorAll('.oslider').forEach(function (el) {
+    var pip  = el.querySelector('.os-pip');
+    var fill = el.querySelector('.os-fill');
+    var out  = el.querySelector('.os-val');
+    var val  = +el.dataset.val;
+    var dragging = false;
+
+    function render() {
+      var pct = val + '%';
+      pip.style.left = 'calc(' + pct + ' - 1px)';
+      if (fill) fill.style.width = pct;
+      out.textContent = fmt(val);
+    }
+
+    function fromEvent(e) {
+      var r = el.getBoundingClientRect();
+      val = Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 100)));
+      render();
+    }
+
+    el.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      el.classList.add('engaged');
+      el.setPointerCapture(e.pointerId);
+      fromEvent(e);
+    });
+    el.addEventListener('pointermove', function (e) { if (dragging) fromEvent(e); });
+    ['pointerup', 'pointercancel'].forEach(function (ev) {
+      el.addEventListener(ev, function () {
+        dragging = false;
+        el.classList.remove('engaged');
+      });
+    });
+
+    render();
+  });
+})();
+
+/* ============ PANEL 4 — server icon fading lab ============ */
+(function () {
+  var SERVERS = [
+    { emoji: '\uD83E\uDD8A', bg: '#5865f2' },              /* fox    */
+    { emoji: '\uD83C\uDF0B', bg: '#e67e22', badge: 3 },    /* volcano*/
+    { emoji: '\uD83C\uDFA8', bg: '#9b59b6' },              /* art    */
+    { emoji: '\uD83D\uDE80', bg: '#16a085' },              /* rocket */
+    { emoji: '\uD83D\uDC19', bg: '#c0392b' }               /* octopus*/
+  ];
+  var SIZE = 44, DPR = Math.min(2, window.devicePixelRatio || 1), PX = SIZE * DPR;
+
+  var strip = document.getElementById('serverStrip');
+  var satIn = document.getElementById('satIn'), satOut = document.getElementById('satOut');
+  var briIn = document.getElementById('briIn'), briOut = document.getElementById('briOut');
+
+  var icons = [], activeIdx = 0, running = false;
+
+  /* the v2 bug: hover/click set targets but never restarted the
+     stopped rAF loop. ensureRunning() is now the single entry point. */
+  function ensureRunning() {
+    if (!running) {
+      running = true;
+      requestAnimationFrame(frame);
+    }
+  }
+
+  SERVERS.forEach(function (cfg, i) {
+    var wrap = document.createElement('div');
+    wrap.className = 'server-icon' + (i === activeIdx ? ' active' : '');
+
+    var bar = document.createElement('div');
+    bar.className = 'active-bar';
+    wrap.appendChild(bar);
+
+    var cv = document.createElement('canvas');
+    cv.width = PX; cv.height = PX;
+    wrap.appendChild(cv);
+
+    if (cfg.badge) {
+      var badge = document.createElement('div');
+      badge.className = 'badge';
+      badge.textContent = cfg.badge;
+      wrap.appendChild(badge);
+    }
+
+    var ctx = cv.getContext('2d');
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(PX / 2, PX / 2, PX / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = cfg.bg;
+    ctx.fillRect(0, 0, PX, PX);
+    ctx.font = (26 * DPR) + 'px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cfg.emoji, PX / 2, PX / 2 + DPR);
+    ctx.restore();
+
+    var original = ctx.getImageData(0, 0, PX, PX);
+
+    var icon = { ctx: ctx, original: original, t: i === activeIdx ? 1 : 0, target: i === activeIdx ? 1 : 0, wrap: wrap, idx: i };
+    icons.push(icon);
+
+    wrap.addEventListener('pointerenter', function () {
+      icon.target = 1;
+      ensureRunning();
+    });
+    wrap.addEventListener('pointerleave', function () {
+      if (icon.idx !== activeIdx) icon.target = 0;
+      ensureRunning();
+    });
+    wrap.addEventListener('click', function () {
+      activeIdx = icon.idx;
+      icons.forEach(function (ic) {
+        ic.wrap.classList.toggle('active', ic.idx === activeIdx);
+        ic.target = ic.idx === activeIdx ? 1 : 0;
+      });
+      ensureRunning();
+    });
+
+    strip.appendChild(wrap);
+  });
+
+  /* linear desaturation + dim (Rec.709 luminance).
+     Production equivalent, no canvas required:
+       .server-icon.dormant img { filter: saturate(.33) brightness(.66);
+                                  transition: filter .12s ease-out; }
+       .server-icon.dormant img:hover { filter: none; }
+     with a slower transition-duration on the un-hover rule. */
+  function process(icon, sat, bri) {
+    var src = icon.original.data;
+    var out = icon.ctx.createImageData(PX, PX);
+    var dst = out.data;
+    for (var p = 0; p < src.length; p += 4) {
+      var r = src[p], g = src[p + 1], b = src[p + 2];
+      var lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      dst[p]     = (lum + (r - lum) * sat) * bri;
+      dst[p + 1] = (lum + (g - lum) * sat) * bri;
+      dst[p + 2] = (lum + (b - lum) * sat) * bri;
+      dst[p + 3] = src[p + 3];
+    }
+    icon.ctx.putImageData(out, 0, 0);
+  }
+
+  function frame() {
+    var sat0 = satIn.value / 100;
+    var bri0 = briIn.value / 100;
+    var animating = false;
+
+    icons.forEach(function (icon) {
+      /* asymmetric lerp: wake fast, sleep slow */
+      var rate = icon.target > icon.t ? 0.35 : 0.12;
+      var prev = icon.t;
+      icon.t += (icon.target - icon.t) * rate;
+      if (Math.abs(icon.target - icon.t) < 0.01) icon.t = icon.target;
+      if (icon.t !== prev) animating = true;
+
+      if (icon.t >= 1) {
+        icon.ctx.putImageData(icon.original, 0, 0);
+      } else {
+        process(icon, sat0 + (1 - sat0) * icon.t, bri0 + (1 - bri0) * icon.t);
+      }
+    });
+
+    if (animating) {
+      requestAnimationFrame(frame);
+    } else {
+      running = false;
+    }
+  }
+
+  function refresh() {
+    satOut.textContent = satIn.value + '%';
+    briOut.textContent = briIn.value + '%';
+    ensureRunning();
+  }
+
+  [satIn, briIn].forEach(function (el) { el.addEventListener('input', refresh); });
+
+  refresh();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Reorder + DSM</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1a2e; --surface: #22223a; --surface-hover: #2a2a48;
+    --border: #33335a; --border-active: #6c63ff;
+    --text: #e0def4; --text-muted: #908caa;
+    --accent: #6c63ff; --accent-glow: rgba(108,99,255,0.25);
+    --danger: #eb6f92; --success: #9ccfd8;
+    --drag-shadow: rgba(108,99,255,0.35); --radius: 10px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:1.5rem; }
+  .container { max-width:740px; margin:0 auto; }
+
+  /* ── Header ── */
+  .app-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.35rem; }
+  .app-header h1 { font-size:1.4rem; font-weight:600; letter-spacing:-0.02em; }
+  .view-tabs { display:flex; gap:0.35rem; }
+  .session-label {
+    font-size:0.78rem; color:var(--text-muted); margin-bottom:1rem;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .session-label span { color:var(--text); cursor:pointer; }
+  .session-label span:hover { text-decoration:underline; color:var(--accent); }
+
+  /* ── Buttons ── */
+  button { font-family:'DM Sans',sans-serif; font-size:0.88rem; font-weight:500; border:none; border-radius:8px; padding:0.6rem 1.3rem; cursor:pointer; transition:background 0.15s,transform 0.1s,box-shadow 0.15s; }
+  button:active { transform:scale(0.97); }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { box-shadow:0 4px 18px var(--drag-shadow); }
+  .btn-secondary { background:var(--surface); color:var(--text); border:1.5px solid var(--border); }
+  .btn-secondary:hover { background:var(--surface-hover); }
+  .btn-success { background:var(--success); color:var(--bg); }
+  .btn-danger { color:var(--danger); border-color:var(--danger); opacity:0.7; }
+  .btn-danger:hover { opacity:1; background:rgba(235,111,146,0.1); }
+  .btn-pill { font-family:'JetBrains Mono',monospace; font-size:0.70rem; font-weight:500; padding:0.2rem 0.55rem; background:var(--surface); color:var(--text-muted); border:1.5px solid var(--border); border-radius:6px; cursor:pointer; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+  .btn-pill:hover { background:var(--surface-hover); color:var(--text); border-color:var(--border-active); }
+  .btn-pill.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn-row { display:flex; gap:0.65rem; margin-top:1rem; flex-wrap:wrap; }
+
+  /* ── Input Phase ── */
+  #input-phase textarea { width:100%; min-height:260px; background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); color:var(--text); font-family:'JetBrains Mono',monospace; font-size:0.85rem; line-height:1.65; padding:1rem 1.15rem; resize:vertical; transition:border-color 0.2s; }
+  #input-phase textarea:focus { outline:none; border-color:var(--border-active); box-shadow:0 0 0 3px var(--accent-glow); }
+  #input-phase textarea::placeholder { color:var(--text-muted); opacity:0.6; }
+
+  /* ── Reorder Phase ── */
+  .reorder-toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.5rem; }
+  .toolbar-left { display:flex; align-items:center; gap:0.5rem; }
+  .block-count { font-size:0.82rem; color:var(--text-muted); }
+  .lines-slider { display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted); }
+  .lines-slider label { white-space:nowrap; }
+  .lines-slider span { font-family:'JetBrains Mono',monospace; font-size:0.78rem; min-width:1.5em; text-align:center; color:var(--text); }
+  input[type="range"] { -webkit-appearance:none; appearance:none; height:4px; background:var(--border); border-radius:2px; outline:none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:var(--accent); cursor:pointer; }
+  input[type="range"]::-moz-range-thumb { width:14px; height:14px; border-radius:50%; background:var(--accent); cursor:pointer; border:none; }
+
+  .dsm-controls { display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.5rem; font-size:0.78rem; color:var(--text-muted); }
+  .dsm-controls .ctrl-group { display:flex; align-items:center; gap:0.35rem; }
+  .dsm-controls .ctrl-group label { white-space:nowrap; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em; }
+  .dsm-controls .ctrl-group span { font-family:'JetBrains Mono',monospace; font-size:0.72rem; min-width:2em; text-align:center; color:var(--text); }
+  .dsm-controls input[type="range"] { width:70px; }
+  #dsm-container { display:flex; justify-content:center; margin-bottom:0.6rem; }
+  #dsm-canvas { border:1px solid var(--border); border-radius:4px; }
+  #detail-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.6rem 1rem; margin-bottom:0.85rem; font-family:'JetBrains Mono',monospace; font-size:0.76rem; line-height:1.55; min-height:2.6rem; color:var(--text-muted); }
+  .detail-blocks { color:var(--text); margin-bottom:0.15rem; }
+  .detail-blocks b { color:var(--accent); font-weight:500; }
+  .detail-words { color:var(--success); }
+
+  /* ── Block List ── */
+  #block-list { display:flex; flex-direction:column; }
+  .block-item { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); padding:0.75rem 1rem; cursor:grab; transition:transform 0.18s,box-shadow 0.18s,border-color 0.18s,opacity 0.18s; display:flex; align-items:flex-start; gap:0.75rem; margin-bottom:0.5rem; user-select:none; position:relative; }
+  .block-item:hover { border-color:var(--border-active); box-shadow:0 2px 12px var(--accent-glow); }
+  #block-list.has-selection .block-item:not(.selected):hover { border-color:var(--border); box-shadow:none; }
+  .block-item.dragging { opacity:0.35; transform:scale(0.97); }
+  .block-item.drag-over-above { border-top:2.5px solid var(--accent); margin-top:-1px; }
+  .block-item.drag-over-below { border-bottom:2.5px solid var(--accent); margin-bottom:-1px; }
+  .block-item.selected { border-color:var(--border-active); box-shadow:0 2px 12px var(--accent-glow); }
+  .drag-handle { flex-shrink:0; width:18px; padding-top:3px; opacity:0.5; transition:opacity 0.15s; }
+  .block-item:hover .drag-handle { opacity:0.9; }
+  .block-number { flex-shrink:0; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-muted); background:var(--bg); border-radius:5px; width:26px; height:22px; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .block-text { flex:1; font-family:'JetBrains Mono',monospace; font-size:0.82rem; line-height:1.6; white-space:pre-wrap; word-break:break-word; color:var(--text); max-height:var(--block-max-height,120px); overflow:hidden; position:relative; }
+  .block-text.truncated::after { content:''; position:absolute; bottom:0; left:0; right:0; height:32px; background:linear-gradient(transparent,var(--surface)); pointer-events:none; }
+  .cb { cursor:pointer; display:inline; user-select:none; font-family:'JetBrains Mono',monospace; font-size:inherit; line-height:inherit; position:relative; z-index:2; border-radius:3px; padding:0 1px; }
+  .cb:hover { color:var(--accent); }
+  .cb[data-checked="false"] { color:var(--text-muted); }
+  .cb[data-checked="true"] { color:var(--success); }
+
+  .divider-item { display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0; margin-bottom:0.5rem; cursor:grab; user-select:none; }
+  .divider-handle { flex-shrink:0; width:18px; display:flex; align-items:center; justify-content:center; opacity:0.35; transition:opacity 0.15s; }
+  .divider-item:hover .divider-handle { opacity:0.8; }
+  .divider-item .divider-line { flex:1; height:2px; border-radius:1px; opacity:0.5; transition:opacity 0.15s; }
+  .divider-item:hover .divider-line { opacity:1; }
+  .divider-item.dragging { opacity:0.35; }
+  .divider-item.drag-over-above { border-top:2.5px solid var(--accent); }
+  .divider-item.drag-over-below { border-bottom:2.5px solid var(--accent); }
+
+  /* ── View switching ── */
+  [data-view="grid"] #block-list-section { display:none; }
+  [data-view="list"] #dsm-section { display:none; }
+
+  .list-toolbar { display:flex; align-items:center; justify-content:flex-end; margin-bottom:0.6rem; }
+
+  /* ── Side-by-side on wide screens ── */
+  @media (min-width:1200px) {
+    .container { max-width:1400px; }
+    #reorder-phase[data-view="both"] .reorder-content {
+      display:flex; gap:1.5rem; align-items:flex-start;
+    }
+    #reorder-phase[data-view="both"] #dsm-section {
+      flex-shrink:0;
+      max-height:calc(100vh - 8rem); overflow-y:auto;
+    }
+    #reorder-phase[data-view="both"] #block-list-section {
+      flex:1; min-width:0;
+      max-height:calc(100vh - 8rem); overflow-y:auto;
+    }
+  }
+
+  /* ── Sessions Phase ── */
+  #sessions-phase { display:none; }
+  .session-list { display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1rem; }
+  .session-card { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius); padding:0.75rem 1rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; transition:border-color 0.15s; cursor:pointer; }
+  .session-card:hover { border-color:var(--border-active); }
+  .session-card.current { border-color:var(--accent); box-shadow:0 2px 12px var(--accent-glow); }
+  .session-info { flex:1; min-width:0; }
+  .session-name { font-weight:500; font-size:0.9rem; margin-bottom:0.15rem; }
+  .session-meta { font-size:0.75rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+  .session-actions { display:flex; gap:0.4rem; flex-shrink:0; }
+  .empty-sessions { color:var(--text-muted); font-size:0.88rem; padding:2rem; text-align:center; }
+
+  /* ── Toast ── */
+  .toast { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%) translateY(20px); background:var(--success); color:var(--bg); font-weight:500; font-size:0.88rem; padding:0.6rem 1.4rem; border-radius:8px; opacity:0; transition:opacity 0.25s,transform 0.25s; pointer-events:none; z-index:100; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  @media (pointer:coarse) { .block-item { padding:0.9rem 1rem; } .divider-item { padding:0.5rem 0; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="app-header">
+    <h1>Block Reorder</h1>
+    <div class="view-tabs">
+      <button class="btn-pill active" data-view="both" onclick="app.setView('both')">Both</button>
+      <button class="btn-pill" data-view="grid" onclick="app.setView('grid')">Grid</button>
+      <button class="btn-pill" data-view="list" onclick="app.setView('list')">List</button>
+      <button class="btn-pill" data-view="sessions" onclick="app.setView('sessions')">Sessions</button>
+    </div>
+  </div>
+  <div class="session-label">Session: <span id="session-name" onclick="app.renameSession()">Untitled</span></div>
+
+  <div id="input-phase">
+    <textarea id="raw-input" placeholder="Paste your text here…&#10;&#10;Separate blocks with blank lines.&#10;Use --- on its own line as a divider."></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="app.parseInput()">Split into blocks</button>
+      <button class="btn-secondary btn-danger" onclick="app.clearInput()">Clear</button>
+    </div>
+  </div>
+
+  <div id="reorder-phase" style="display:none">
+    <div class="reorder-toolbar">
+      <div class="toolbar-left">
+        <span class="block-count" id="block-count"></span>
+        <button class="btn-pill" onclick="app.sort('asc')">A↓Z</button>
+        <button class="btn-pill" onclick="app.sort('desc')">Z↓A</button>
+        <button class="btn-pill" onclick="app.reverse()">Rev</button>
+      </div>
+    </div>
+    <div class="reorder-content">
+      <div id="dsm-section">
+        <div class="dsm-controls">
+          <div class="ctrl-group">
+            <button class="btn-pill active" id="metric-btn" onclick="app.cycleMetric()">Jaccard</button>
+            <button class="btn-pill" id="marginal-btn" onclick="app.cycleMarginal()">Unique</button>
+          </div>
+          <div class="ctrl-group"><label>Floor</label><input type="range" id="thresh-low" min="0" max="100" value="0" oninput="app.setThresholds()"><span id="thresh-low-val">.00</span></div>
+          <div class="ctrl-group"><label>Ceil</label><input type="range" id="thresh-high" min="0" max="100" value="50" oninput="app.setThresholds()"><span id="thresh-high-val">.50</span></div>
+        </div>
+        <div id="dsm-container"><canvas id="dsm-canvas"></canvas></div>
+        <div id="detail-panel"><span style="opacity:0.5">Hover a cell in the matrix.</span></div>
+      </div>
+      <div id="block-list-section">
+        <div class="list-toolbar">
+          <div class="lines-slider">
+            <label for="max-lines">Lines</label>
+            <input type="range" id="max-lines" min="1" max="20" value="5" oninput="app.setMaxLines(this.value)">
+            <span id="max-lines-val">5</span>
+          </div>
+        </div>
+        <div id="block-list"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-success" onclick="app.copyResult()">Copy reordered text</button>
+      <button class="btn-secondary" onclick="app.goBack()">← Edit source</button>
+    </div>
+  </div>
+
+  <div id="sessions-phase">
+    <div class="btn-row" style="margin-top:0;margin-bottom:1rem;">
+      <button class="btn-primary" onclick="app.newSession()">New Session</button>
+    </div>
+    <div id="session-list" class="session-list"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+
+// ════════════════════════════════════════════════════════════════
+// Constants & Utilities
+// ════════════════════════════════════════════════════════════════
+
+const SECTION_PALETTE = ['#6c8fff','#eb6f92','#9ccfd8','#f6c177','#c4a7e7','#56c99d','#ea9a97','#7dc4e4'];
+
+const HANDLE_SVG = (color) =>
+  `<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="4" r="1.5" fill="${color}"/><circle cx="12" cy="4" r="1.5" fill="${color}"/><circle cx="6" cy="9" r="1.5" fill="${color}"/><circle cx="12" cy="9" r="1.5" fill="${color}"/><circle cx="6" cy="14" r="1.5" fill="${color}"/><circle cx="12" cy="14" r="1.5" fill="${color}"/></svg>`;
+
+const DIVIDER_HANDLE_SVG = (color) =>
+  `<svg width="12" height="10" viewBox="0 0 12 10" fill="none"><circle cx="4" cy="3" r="1" fill="${color}"/><circle cx="8" cy="3" r="1" fill="${color}"/><circle cx="4" cy="7" r="1" fill="${color}"/><circle cx="8" cy="7" r="1" fill="${color}"/></svg>`;
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function computeSections(items) {
+  const map = []; let s = 0, seen = false;
+  for (const it of items) {
+    if (it.type === 'divider') { map.push(-1); if (seen) s++; }
+    else { seen = true; map.push(s); }
+  }
+  return map;
+}
+
+function blockSectionColors(items) {
+  const cols = []; let s = 0, seen = false;
+  for (const it of items) {
+    if (it.type === 'divider') { if (seen) s++; }
+    else { seen = true; cols.push(SECTION_PALETTE[s % SECTION_PALETTE.length]); }
+  }
+  return cols;
+}
+
+function dividerColor(items, idx) {
+  const sec = computeSections(items);
+  const next = sec.slice(idx + 1).find(s => s >= 0);
+  return SECTION_PALETTE[(next ?? 0) % SECTION_PALETTE.length];
+}
+
+function getBlocks(items) { return items.filter(it => it.type === 'block'); }
+
+// ════════════════════════════════════════════════════════════════
+// EventBus — lightweight pub/sub for decoupled communication
+// ════════════════════════════════════════════════════════════════
+
+class EventBus {
+  constructor() { this._listeners = {}; }
+  on(event, fn) { (this._listeners[event] ||= []).push(fn); }
+  off(event, fn) {
+    const list = this._listeners[event];
+    if (list) this._listeners[event] = list.filter(f => f !== fn);
+  }
+  emit(event, ...args) { (this._listeners[event] || []).forEach(fn => fn(...args)); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SimilarityEngine — tokenization & similarity math (unchanged)
+// ════════════════════════════════════════════════════════════════
+
+class SimilarityEngine {
+  constructor() {
+    this._cache = new Map();
+    this._stop = new Set(['a','an','the','and','or','but','in','on','at','to','for','of','with','by','from','as','is','was','are','were','been','be','have','has','had','do','does','did','will','would','could','should','may','might','shall','can','need','must','it','its','this','that','these','those','i','me','my','we','our','you','your','he','him','his','she','her','they','them','their','what','which','who','whom','when','where','why','how','all','each','every','both','few','more','most','other','some','such','no','not','only','own','same','so','than','too','very','just','about','also','then','there','here','up','out','if','into','over','after']);
+  }
+  tokenize(text) {
+    if (this._cache.has(text)) return this._cache.get(text);
+    const words = text.toLowerCase().match(/[a-z']+/g) || [];
+    const set = new Set(words.filter(w => w.length > 1 && !this._stop.has(w)));
+    this._cache.set(text, set); return set;
+  }
+  _shared(a, b) { let n=0; const [sm,lg]=a.size<=b.size?[a,b]:[b,a]; for(const w of sm) if(lg.has(w)) n++; return n; }
+  jaccard(a, b) { if(!a.size&&!b.size) return 0; const s=this._shared(a,b); return s/(a.size+b.size-s); }
+  overlap(a, b) { if(!a.size||!b.size) return 0; return this._shared(a,b)/Math.min(a.size,b.size); }
+  sharedWords(tA, tB) { const a=this.tokenize(tA),b=this.tokenize(tB),out=[]; const [sm,lg]=a.size<=b.size?[a,b]:[b,a]; for(const w of sm) if(lg.has(w)) out.push(w); return out.sort(); }
+  buildMatrix(texts, metric='jaccard') {
+    const n=texts.length, tok=texts.map(t=>this.tokenize(t)), fn=metric==='overlap'?this.overlap:this.jaccard;
+    const m=Array.from({length:n},()=>new Float32Array(n));
+    for(let i=0;i<n;i++){m[i][i]=1;for(let j=i+1;j<n;j++){const s=fn.call(this,tok[i],tok[j]);m[i][j]=s;m[j][i]=s;}} return m;
+  }
+  uniqueCount(text) { return this.tokenize(text).size; }
+  wordCount(text) { return (text.match(/\S+/g)||[]).length; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DSMRenderer — canvas-based matrix rendering (unchanged)
+// ════════════════════════════════════════════════════════════════
+
+class DSMRenderer {
+  constructor(canvas, callbacks) {
+    this.canvas=canvas; this.ctx=canvas.getContext('2d'); this.cb=callbacks;
+    this.DRAG_W=14; this.ANNOT_W=7; this.GAP=3; this.ANNOT_H=7;
+    this.MARGINAL_W=52; this.MAX_CELL=16; this.MIN_CELL=8; this.MAX_MATRIX_PX=520;
+    this.ACCENT=[108,99,255];
+    this.data=null; this.rowStarts=[]; this.rowHeights=[]; this.gridPx=0;
+    this.cellSize=0; this.divSize=0; this.matrixX=0; this.matrixY=0;
+    this.marginalX=0; this.totalW=0; this.totalH=0;
+    this.hovered=null; this.drag=null;
+    this._bind();
+  }
+  update(data) { this.data=data; this._layout(); this.render(); }
+  _layout() {
+    const items=this.data.items, bc=items.filter(it=>it.type==='block').length;
+    if(bc<2){this.gridPx=0;return;}
+    this.cellSize=Math.max(this.MIN_CELL,Math.min(this.MAX_CELL,Math.floor(this.MAX_MATRIX_PX/bc)));
+    this.divSize=Math.max(4,Math.round(this.cellSize*0.3));
+    this.rowStarts=[]; this.rowHeights=[]; let pos=0;
+    for(const item of items){this.rowStarts.push(pos);const h=item.type==='block'?this.cellSize:this.divSize;this.rowHeights.push(h);pos+=h;}
+    this.gridPx=pos;
+    this.matrixX=this.DRAG_W+this.ANNOT_W+this.GAP; this.matrixY=this.ANNOT_H+this.GAP;
+    this.marginalX=this.matrixX+this.gridPx+this.GAP;
+    this.totalW=this.marginalX+this.MARGINAL_W; this.totalH=this.matrixY+this.gridPx;
+  }
+  render() {
+    const{canvas,ctx}=this;
+    if(!this.gridPx){canvas.width=canvas.height=0;canvas.style.width=canvas.style.height='0';return;}
+    const dpr=devicePixelRatio||1;
+    canvas.width=this.totalW*dpr; canvas.height=this.totalH*dpr;
+    canvas.style.width=this.totalW+'px'; canvas.style.height=this.totalH+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,this.totalW,this.totalH);
+    this._drawDragHandles(); this._drawAnnotations(); this._drawCells();
+    this._drawDividerBands(); this._drawGrid(); this._drawMarginal();
+    this._drawHover(); this._drawDragIndicator();
+  }
+  _alpha(sim){const lo=this.data.threshLow,hi=this.data.threshHigh;if(sim<=lo)return 0;if(hi<=lo)return sim>lo?1:0;return Math.min(1,(sim-lo)/(hi-lo));}
+  _drawCells(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,ACCENT}=this;const items=data.items;const[ar,ag,ab]=ACCENT;for(let r=0;r<items.length;r++){if(items[r].type!=='block')continue;for(let c=0;c<items.length;c++){if(items[c].type!=='block')continue;const bi=items[r].blockIdx,bj=items[c].blockIdx;const x=matrixX+rowStarts[c],y=matrixY+rowStarts[r];const w=rowHeights[c],h=rowHeights[r];if(bi===bj){ctx.fillStyle='rgba(255,255,255,0.06)';}else{const a=this._alpha(data.matrix[bi][bj]);if(a<0.01)continue;ctx.fillStyle=`rgba(${ar},${ag},${ab},${a})`;}ctx.fillRect(x,y,w,h);}}}
+  _drawDividerBands(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='divider')continue;const color=data.items[i].color;const y=matrixY+rowStarts[i],x=matrixX+rowStarts[i],h=rowHeights[i];ctx.fillStyle=color;ctx.globalAlpha=0.08;ctx.fillRect(matrixX,y,gridPx,h);ctx.fillRect(x,matrixY,h,gridPx);ctx.globalAlpha=1;ctx.strokeStyle=color;ctx.globalAlpha=0.5;ctx.lineWidth=1;const cy=y+h/2,cx=x+h/2;ctx.beginPath();ctx.moveTo(matrixX,cy);ctx.lineTo(matrixX+gridPx,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx,matrixY);ctx.lineTo(cx,matrixY+gridPx);ctx.stroke();ctx.globalAlpha=1;}}
+  _drawGrid(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=0.5;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='block')continue;const s=rowStarts[i],e=s+rowHeights[i];ctx.beginPath();ctx.moveTo(matrixX,matrixY+s);ctx.lineTo(matrixX+gridPx,matrixY+s);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX,matrixY+e);ctx.lineTo(matrixX+gridPx,matrixY+e);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX+s,matrixY);ctx.lineTo(matrixX+s,matrixY+gridPx);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX+e,matrixY);ctx.lineTo(matrixX+e,matrixY+gridPx);ctx.stroke();}}
+  _drawAnnotations(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,DRAG_W,ANNOT_W,ANNOT_H}=this;for(let i=0;i<data.items.length;i++){ctx.fillStyle=data.items[i].color||'#6c8fff';const h=rowHeights[i];ctx.fillRect(DRAG_W,matrixY+rowStarts[i]+0.5,ANNOT_W,h-1);ctx.fillRect(matrixX+rowStarts[i]+0.5,0,h-1,ANNOT_H);}}
+  _drawDragHandles(){const{ctx,data,matrixY,rowStarts,rowHeights,DRAG_W}=this;for(let i=0;i<data.items.length;i++){const cy=matrixY+rowStarts[i]+rowHeights[i]/2;if(data.items[i].type==='block'){const cx=DRAG_W/2;ctx.fillStyle='rgba(255,255,255,0.18)';for(const dx of[-2.5,2.5])for(const dy of[-3.5,0,3.5]){ctx.beginPath();ctx.arc(cx+dx,cy+dy,1,0,Math.PI*2);ctx.fill();}}else{const cx=DRAG_W/2+2;ctx.fillStyle=data.items[i].color||'rgba(255,255,255,0.25)';ctx.globalAlpha=0.5;for(const dx of[-1.5,1.5])for(const dy of[-1.5,1.5]){ctx.beginPath();ctx.arc(cx+dx,cy+dy,0.8,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;}}}
+  _drawMarginal(){const{ctx,data,matrixY,rowStarts,rowHeights,marginalX,MARGINAL_W,ACCENT}=this;if(!data.marginal||!data.marginal.length)return;const maxVal=Math.max(...data.marginal,1);const[r,g,b]=ACCENT;const barMax=MARGINAL_W-6;let bi=0;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='block')continue;const barW=(data.marginal[bi]/maxVal)*barMax;ctx.fillStyle=`rgba(${r},${g},${b},0.3)`;ctx.fillRect(marginalX+3,matrixY+rowStarts[i]+1,barW,rowHeights[i]-2);bi++;}}
+  _drawHover(){if(!this.hovered||this.drag)return;const{ctx,hovered,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;const{row,col}=hovered;if(row>=rowStarts.length||col>=rowStarts.length)return;ctx.fillStyle='rgba(255,255,255,0.035)';ctx.fillRect(matrixX,matrixY+rowStarts[row],gridPx,rowHeights[row]);ctx.fillRect(matrixX+rowStarts[col],matrixY,rowHeights[col],gridPx);ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;ctx.strokeRect(matrixX+rowStarts[col],matrixY+rowStarts[row],rowHeights[col],rowHeights[row]);}
+  _drawDragIndicator(){if(!this.drag)return;const{ctx,drag,matrixY,rowStarts,rowHeights,totalW,gridPx}=this;ctx.fillStyle='rgba(255,255,255,0.07)';ctx.fillRect(0,matrixY+rowStarts[drag.srcRow],totalW,rowHeights[drag.srcRow]);const insertPx=matrixY+(drag.insertRow<rowStarts.length?rowStarts[drag.insertRow]:gridPx);ctx.strokeStyle='rgba(235,111,146,0.9)';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(0,insertPx);ctx.lineTo(totalW,insertPx);ctx.stroke();}
+  _local(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+  _rowAt(y){const rel=y-this.matrixY;if(rel<0||rel>=this.gridPx)return -1;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i])return i;return -1;}
+  _colAt(x){const rel=x-this.matrixX;if(rel<0||rel>=this.gridPx)return -1;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i])return i;return -1;}
+  _insertAt(y){const rel=y-this.matrixY;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i]/2)return i;return this.rowStarts.length;}
+  _inDragZone(x){return x<this.DRAG_W+this.ANNOT_W+this.GAP;}
+  _inMatrix(x,y){return x>=this.matrixX&&x<this.matrixX+this.gridPx&&y>=this.matrixY&&y<this.matrixY+this.gridPx;}
+  _bind(){const c=this.canvas;c.addEventListener('mousemove',e=>this._onMove(e));c.addEventListener('mousedown',e=>this._onDown(e));c.addEventListener('mouseup',e=>this._onUp(e));c.addEventListener('mouseleave',()=>this._onLeave());}
+  _onMove(e){const{x,y}=this._local(e);if(this.drag){this.drag.insertRow=this._insertAt(y);this.canvas.style.cursor='grabbing';this.render();return;}if(this._inDragZone(x)&&this._rowAt(y)>=0){this.canvas.style.cursor='grab';if(this.hovered){this.hovered=null;this.render();this.cb.onCellHover(null);}return;}if(this._inMatrix(x,y)){const row=this._rowAt(y),col=this._colAt(x);if(row>=0&&col>=0&&(!this.hovered||this.hovered.row!==row||this.hovered.col!==col)){this.hovered={row,col};this.render();this.cb.onCellHover(this.hovered);}this.canvas.style.cursor='crosshair';return;}this.canvas.style.cursor='default';}
+  _onDown(e){const{x,y}=this._local(e);if(this._inDragZone(x)){const row=this._rowAt(y);if(row>=0){this.drag={srcRow:row,insertRow:row};e.preventDefault();}}}
+  _onUp(){if(!this.drag)return;const{srcRow,insertRow}=this.drag;this.drag=null;this.canvas.style.cursor='default';this.render();if(srcRow!==insertRow&&srcRow!==insertRow-1){const fromIdx=this.data.items[srcRow].itemIdx;const toIdx=insertRow<this.data.items.length?this.data.items[insertRow].itemIdx:this.data.items[this.data.items.length-1].itemIdx+1;this.cb.onReorder(fromIdx,toIdx);}}
+  _onLeave(){if(this.drag){this.drag=null;this.render();}this.canvas.style.cursor='default';}
+}
+
+// ════════════════════════════════════════════════════════════════
+// Session — namespaced localStorage store (unchanged)
+// ════════════════════════════════════════════════════════════════
+
+class Session {
+  constructor(id, name, store = localStorage) {
+    this.id = id; this.name = name; this.store = store;
+    this.prefix = `brd:${id}:`;
+  }
+  get(key) { const v = this.store.getItem(this.prefix + key); return v ? JSON.parse(v) : null; }
+  set(key, value) { this.store.setItem(this.prefix + key, JSON.stringify(value)); Session._touchIndex(this.id); }
+  remove(key) { this.store.removeItem(this.prefix + key); }
+  save(state) { this.set('state', state); }
+  load() { return this.get('state'); }
+
+  static INDEX_KEY = 'brd:sessions';
+  static _getIndex() { const raw = localStorage.getItem(Session.INDEX_KEY); return raw ? JSON.parse(raw) : []; }
+  static _setIndex(idx) { localStorage.setItem(Session.INDEX_KEY, JSON.stringify(idx)); }
+  static _touchIndex(id) { const idx = Session._getIndex(); const e = idx.find(e => e.id === id); if (e) e.modified = Date.now(); Session._setIndex(idx); }
+  static list() { return Session._getIndex().sort((a, b) => (b.modified || 0) - (a.modified || 0)); }
+  static create(name) {
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const entry = { id, name, created: Date.now(), modified: Date.now() };
+    const idx = Session._getIndex(); idx.push(entry); Session._setIndex(idx);
+    return new Session(id, name);
+  }
+  static open(id) { const idx = Session._getIndex(); const e = idx.find(e => e.id === id); return e ? new Session(id, e.name) : null; }
+  static rename(id, name) { const idx = Session._getIndex(); const e = idx.find(e => e.id === id); if (e) { e.name = name; Session._setIndex(idx); } }
+  static delete(id) {
+    const prefix = `brd:${id}:`, toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k?.startsWith(prefix)) toRemove.push(k); }
+    toRemove.forEach(k => localStorage.removeItem(k));
+    Session._setIndex(Session._getIndex().filter(e => e.id !== id));
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// InputParser — raw text → items[]
+// ════════════════════════════════════════════════════════════════
+
+class InputParser {
+  static parse(raw) {
+    if (!raw.trim()) return [];
+    let chunks = raw.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+    if (chunks.length === 1) {
+      const lines = chunks[0].split('\n').map(s => s.trim()).filter(Boolean);
+      if (lines.length > 1) chunks = lines;
+    }
+    return chunks.map(t => /^-{3,}$/.test(t) ? { type: 'divider' } : { type: 'block', text: t });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DraggableCard — single block or divider DOM element
+// ════════════════════════════════════════════════════════════════
+
+class DraggableCard {
+  constructor(item, index, { sectionColor, blockNumber, onCheckboxToggle }) {
+    this.item = item;
+    this.index = index;
+    this.sectionColor = sectionColor;
+    this.blockNumber = blockNumber;
+    this._onCheckboxToggle = onCheckboxToggle;
+    this.el = this._createElement();
+  }
+
+  _createElement() {
+    const el = document.createElement('div');
+    el.draggable = true;
+    el.dataset.index = this.index;
+
+    if (this.item.type === 'divider') {
+      el.className = 'divider-item';
+      const h = document.createElement('div');
+      h.className = 'divider-handle';
+      h.innerHTML = DIVIDER_HANDLE_SVG(this.sectionColor);
+      const l = document.createElement('div');
+      l.className = 'divider-line';
+      l.style.background = this.sectionColor;
+      el.append(h, l);
+    } else {
+      el.className = 'block-item';
+      const h = document.createElement('div');
+      h.className = 'drag-handle';
+      h.innerHTML = HANDLE_SVG(this.sectionColor);
+      const n = document.createElement('div');
+      n.className = 'block-number';
+      n.textContent = this.blockNumber;
+      const c = document.createElement('div');
+      c.className = 'block-text';
+      c.innerHTML = DraggableCard.renderCheckboxes(this.item.text, this.index);
+      el.append(h, n, c);
+
+      // Checkbox click
+      c.addEventListener('click', e => {
+        const cb = e.target.closest('.cb');
+        if (!cb) return;
+        e.stopPropagation();
+        this._onCheckboxToggle(parseInt(cb.dataset.item), parseInt(cb.dataset.cb));
+      });
+
+      // Disable drag while clicking a checkbox
+      c.addEventListener('mousedown', e => {
+        if (e.target.closest('.cb')) {
+          el.draggable = false;
+          const r = () => { el.draggable = true; document.removeEventListener('mouseup', r); };
+          document.addEventListener('mouseup', r);
+        }
+      });
+
+      // Detect truncation
+      requestAnimationFrame(() => c.classList.toggle('truncated', c.scrollHeight > c.clientHeight));
+    }
+    return el;
+  }
+
+  /** Refresh checkbox display after toggle */
+  refreshCheckboxes() {
+    const c = this.el.querySelector('.block-text');
+    if (c) c.innerHTML = DraggableCard.renderCheckboxes(this.item.text, this.index);
+  }
+
+  static renderCheckboxes(text, idx) {
+    const e = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    let n = 0;
+    return e.replace(/\[([ xX])\]/g, (_, c) => {
+      const chk = c.toLowerCase() === 'x';
+      return `<span class="cb" data-item="${idx}" data-cb="${n++}" data-checked="${chk}">${chk ? '[x]' : '[ ]'}</span>`;
+    });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CardContainer — block list, drag/drop, selection, keyboard
+// ════════════════════════════════════════════════════════════════
+
+class CardContainer {
+  constructor(containerEl, bus) {
+    this.el = containerEl;
+    this.bus = bus;
+    this.cards = [];
+    this.maxLines = 5;
+    this.selectedIdx = null;
+    this.selectedRect = null;
+    this.lastMouse = { x: -1, y: -1 };
+    this._bindGlobal();
+  }
+
+  render(items) {
+    this.el.innerHTML = '';
+    this.el.style.setProperty('--block-max-height', this.maxLines * 1.312 + 'rem');
+    this.cards = [];
+
+    const sec = computeSections(items);
+    let blockNum = 0;
+
+    items.forEach((item, i) => {
+      if (item.type === 'block') blockNum++;
+      const color = item.type === 'divider'
+        ? dividerColor(items, i)
+        : SECTION_PALETTE[sec[i] % SECTION_PALETTE.length];
+
+      const card = new DraggableCard(item, i, {
+        sectionColor: color,
+        blockNumber: blockNum,
+        onCheckboxToggle: (ii, ci) => this.bus.emit('checkbox:toggle', ii, ci),
+      });
+
+      // Click to select (blocks only)
+      if (item.type === 'block') {
+        card.el.addEventListener('click', () => this._select(i));
+      }
+
+      this.cards.push(card);
+      this.el.appendChild(card.el);
+      this._attachDrag(card.el, i, items);
+    });
+  }
+
+  setMaxLines(val) {
+    this.maxLines = parseInt(val);
+    document.getElementById('max-lines-val').textContent = val;
+    this.el.style.setProperty('--block-max-height', this.maxLines * 1.312 + 'rem');
+    this.el.querySelectorAll('.block-text').forEach(c =>
+      c.classList.toggle('truncated', c.scrollHeight > c.clientHeight));
+  }
+
+  // ── Selection ──
+
+  _select(idx) {
+    this.el.querySelectorAll('.block-item.selected').forEach(el => el.classList.remove('selected'));
+    this.selectedIdx = idx;
+    const els = this.el.querySelectorAll(':scope > *');
+    if (els[idx]?.classList.contains('block-item')) {
+      els[idx].classList.add('selected');
+      const r = els[idx].getBoundingClientRect();
+      this.selectedRect = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      this.lastMouse = { x: -1, y: -1 };
+      this.el.classList.add('has-selection');
+    }
+  }
+
+  deselect() {
+    if (this.selectedIdx === null) return;
+    this.el.querySelectorAll('.block-item.selected').forEach(el => el.classList.remove('selected'));
+    this.selectedIdx = null;
+    this.selectedRect = null;
+    this.el.classList.remove('has-selection');
+  }
+
+  // ── Drag & Drop ──
+
+  _attachDrag(el, i, items) {
+    el.addEventListener('dragstart', e => {
+      this.deselect();
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); this._clearDrop(); });
+    el.addEventListener('dragover', e => {
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move'; this._clearDrop();
+      const r = el.getBoundingClientRect();
+      el.classList.add(e.clientY < r.top + r.height / 2 ? 'drag-over-above' : 'drag-over-below');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over-above', 'drag-over-below'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      const fi = parseInt(e.dataTransfer.getData('text/plain'));
+      if (isNaN(fi)) return;
+      const ti = parseInt(el.dataset.index);
+      if (fi === ti) return;
+      const r = el.getBoundingClientRect();
+      let ins = e.clientY < r.top + r.height / 2 ? ti : ti + 1;
+      this.bus.emit('items:reorder', fi, ins);
+    });
+
+    // Touch drag
+    let tc = null, di = null;
+    el.addEventListener('touchstart', e => {
+      if (e.target.closest('.cb')) return;
+      di = i;
+      el._tt = setTimeout(() => {
+        el.classList.add('dragging');
+        tc = el.cloneNode(true);
+        Object.assign(tc.style, {
+          position: 'fixed', left: '1.5rem', right: '1.5rem',
+          width: el.offsetWidth + 'px', opacity: '0.85',
+          pointerEvents: 'none', zIndex: '999',
+          boxShadow: '0 8px 32px var(--drag-shadow)'
+        });
+        document.body.appendChild(tc);
+      }, 150);
+    }, { passive: true });
+    el.addEventListener('touchmove', e => {
+      if (di === null) return; e.preventDefault();
+      const y = e.touches[0].clientY;
+      if (tc) tc.style.top = (y - 30) + 'px';
+      this._clearDrop();
+      const tgt = this._elAtY(y);
+      if (tgt && parseInt(tgt.dataset.index) !== di) {
+        const r = tgt.getBoundingClientRect();
+        tgt.classList.add(y < r.top + r.height / 2 ? 'drag-over-above' : 'drag-over-below');
+      }
+    }, { passive: false });
+    el.addEventListener('touchend', e => {
+      clearTimeout(el._tt);
+      if (tc) { tc.remove(); tc = null; }
+      if (di === null) return;
+      const y = e.changedTouches[0].clientY;
+      const tgt = this._elAtY(y);
+      if (tgt) {
+        const ti = parseInt(tgt.dataset.index);
+        if (di !== ti) {
+          const r = tgt.getBoundingClientRect();
+          let ins = y < r.top + r.height / 2 ? ti : ti + 1;
+          this.bus.emit('items:reorder', di, ins);
+        }
+      }
+      el.classList.remove('dragging');
+      this._clearDrop();
+      di = null;
+    });
+  }
+
+  _elAtY(y) {
+    for (const el of this.el.querySelectorAll(':scope > *')) {
+      const r = el.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) return el;
+    }
+    return null;
+  }
+
+  _clearDrop() {
+    this.el.querySelectorAll(':scope > *').forEach(el =>
+      el.classList.remove('drag-over-above', 'drag-over-below'));
+  }
+
+  // ── Global keyboard & mouse-leave ──
+
+  _bindGlobal() {
+    document.addEventListener('mousemove', e => {
+      const moved = this.lastMouse.x !== -1 && (e.clientX !== this.lastMouse.x || e.clientY !== this.lastMouse.y);
+      this.lastMouse = { x: e.clientX, y: e.clientY };
+      if (!moved || this.selectedIdx === null || !this.selectedRect) return;
+      const r = this.selectedRect;
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)
+        this.deselect();
+    });
+    document.addEventListener('keydown', e => {
+      if (this.selectedIdx === null || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      this.bus.emit('items:arrow-move', this.selectedIdx, e.key === 'ArrowUp' ? -1 : 1);
+    });
+  }
+
+  /** Called by AppController after an arrow-key move resolves */
+  focusAfterMove(newIdx) {
+    this._select(newIdx);
+    this.lastMouse = { x: -1, y: -1 };
+    this.el.querySelectorAll(':scope > *')[newIdx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SimilarityMatrix — DSM canvas + controls + detail panel
+// ════════════════════════════════════════════════════════════════
+
+class SimilarityMatrix {
+  constructor({ canvasEl, detailPanelEl }, bus, engine) {
+    this.bus = bus;
+    this.engine = engine;
+    this.detailPanel = detailPanelEl;
+    this.metric = 'jaccard';
+    this.marginalMode = 'unique';
+    this.blocks = [];
+    this.items = [];
+
+    this.dsm = new DSMRenderer(canvasEl, {
+      onCellHover: cell => this._onCellHover(cell),
+      onReorder: (from, to) => bus.emit('items:reorder-dsm', from, to),
+    });
+  }
+
+  update(items) {
+    this.items = items;
+    this.blocks = getBlocks(items);
+    const texts = this.blocks.map(b => b.text);
+    const matrix = this.engine.buildMatrix(texts, this.metric);
+    const marginal = this.marginalMode === 'unique'
+      ? this.blocks.map(x => this.engine.uniqueCount(x.text))
+      : this.blocks.map(x => this.engine.wordCount(x.text));
+
+    this.dsm.update({
+      items: this._buildDSMItems(items), matrix, marginal,
+      threshLow: parseInt(document.getElementById('thresh-low').value) / 100,
+      threshHigh: parseInt(document.getElementById('thresh-high').value) / 100,
+    });
+  }
+
+  _buildDSMItems(items) {
+    const sc = blockSectionColors(items); let bi = 0;
+    return items.map((item, i) => item.type === 'divider'
+      ? { type: 'divider', color: dividerColor(items, i), itemIdx: i }
+      : { type: 'block', blockIdx: bi++, color: sc[bi - 1], itemIdx: i });
+  }
+
+  cycleMetric() {
+    this.metric = this.metric === 'jaccard' ? 'overlap' : 'jaccard';
+    document.getElementById('metric-btn').textContent = this.metric === 'jaccard' ? 'Jaccard' : 'Overlap';
+    this.bus.emit('matrix:settings-changed');
+  }
+
+  cycleMarginal() {
+    this.marginalMode = this.marginalMode === 'unique' ? 'words' : 'unique';
+    document.getElementById('marginal-btn').textContent = this.marginalMode === 'unique' ? 'Unique' : 'Words';
+    this.bus.emit('matrix:settings-changed');
+  }
+
+  setThresholds() {
+    const lo = parseInt(document.getElementById('thresh-low').value);
+    const hi = parseInt(document.getElementById('thresh-high').value);
+    document.getElementById('thresh-low-val').textContent = (lo / 100).toFixed(2);
+    document.getElementById('thresh-high-val').textContent = (hi / 100).toFixed(2);
+    this.bus.emit('matrix:settings-changed');
+  }
+
+  getSettings() {
+    return {
+      metric: this.metric,
+      marginalMode: this.marginalMode,
+      threshLow: parseInt(document.getElementById('thresh-low').value),
+      threshHigh: parseInt(document.getElementById('thresh-high').value),
+    };
+  }
+
+  applySettings(s) {
+    if (!s) return;
+    this.metric = s.metric || 'jaccard';
+    this.marginalMode = s.marginalMode || 'unique';
+    document.getElementById('metric-btn').textContent = this.metric === 'jaccard' ? 'Jaccard' : 'Overlap';
+    document.getElementById('marginal-btn').textContent = this.marginalMode === 'unique' ? 'Unique' : 'Words';
+    if (s.threshLow != null) { document.getElementById('thresh-low').value = s.threshLow; document.getElementById('thresh-low-val').textContent = (s.threshLow/100).toFixed(2); }
+    if (s.threshHigh != null) { document.getElementById('thresh-high').value = s.threshHigh; document.getElementById('thresh-high-val').textContent = (s.threshHigh/100).toFixed(2); }
+  }
+
+  clearHover() { this.dsm.hovered = null; }
+
+  // ── Detail panel ──
+
+  _onCellHover(cell) {
+    const panel = this.detailPanel;
+    const di = this.dsm.data ? this.dsm.data.items : [];
+    if (!cell || cell.row >= di.length || cell.col >= di.length) {
+      panel.innerHTML = '<span style="opacity:0.5">Hover a cell in the matrix.</span>'; return;
+    }
+    const { row, col } = cell;
+    const rI = di[row], cI = di[col];
+    const preview = (t, n) => { const l = t.split('\n')[0]; return esc(l.length > n ? l.slice(0, n) + '…' : l); };
+
+    if (rI.type === 'divider' || cI.type === 'divider') {
+      panel.innerHTML = '<span style="opacity:0.5">Section divider</span>'; return;
+    }
+    if (row === col) {
+      const tok = this.engine.tokenize(this.blocks[rI.blockIdx].text);
+      panel.innerHTML = `<div class="detail-blocks"><b>${rI.blockIdx+1}</b> ${preview(this.blocks[rI.blockIdx].text,90)}</div><div style="color:var(--text-muted)">${tok.size} unique word${tok.size!==1?'s':''}</div>`;
+      return;
+    }
+    const sim = this.dsm.data.matrix[rI.blockIdx][cI.blockIdx];
+    const shared = this.engine.sharedWords(this.blocks[rI.blockIdx].text, this.blocks[cI.blockIdx].text);
+    panel.innerHTML =
+      `<div class="detail-blocks"><b>${rI.blockIdx+1}</b> ${preview(this.blocks[rI.blockIdx].text,55)}</div>` +
+      `<div class="detail-blocks"><b>${cI.blockIdx+1}</b> ${preview(this.blocks[cI.blockIdx].text,55)}</div>` +
+      `<div style="color:var(--text-muted)">Similarity: ${sim.toFixed(3)}</div>` +
+      (shared.length ? `<div class="detail-words">${shared.join(', ')}</div>` : '');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// SessionManager — sessions list UI & CRUD interactions
+// ════════════════════════════════════════════════════════════════
+
+class SessionManager {
+  constructor(listEl, bus) {
+    this.el = listEl;
+    this.bus = bus;
+  }
+
+  render(currentSessionId) {
+    const sessions = Session.list();
+    if (!sessions.length) {
+      this.el.innerHTML = '<div class="empty-sessions">No saved sessions yet.</div>';
+      return;
+    }
+    this.el.innerHTML = '';
+    for (const s of sessions) {
+      const card = document.createElement('div');
+      card.className = 'session-card' + (s.id === currentSessionId ? ' current' : '');
+      const ago = SessionManager._timeAgo(s.modified || s.created);
+      const blocks = s.blockCount || 0;
+      card.innerHTML =
+        `<div class="session-info">` +
+        `<div class="session-name">${esc(s.name)}</div>` +
+        `<div class="session-meta">${blocks} block${blocks !== 1 ? 's' : ''} · ${ago}</div>` +
+        `</div>` +
+        `<div class="session-actions">` +
+        `<button class="btn-pill" data-rename="${s.id}">Rename</button>` +
+        `<button class="btn-pill" data-load="${s.id}">Load</button>` +
+        `<button class="btn-pill" style="color:var(--danger);border-color:var(--danger)" data-del="${s.id}">✕</button>` +
+        `</div>`;
+      card.querySelector('[data-rename]').addEventListener('click', e => { e.stopPropagation(); this.rename(s.id); });
+      card.querySelector('[data-load]').addEventListener('click', e => { e.stopPropagation(); this.bus.emit('session:load', s.id); });
+      card.querySelector('[data-del]').addEventListener('click', e => { e.stopPropagation(); this.delete(s.id); });
+      this.el.appendChild(card);
+    }
+  }
+
+  rename(id) {
+    const idx = Session._getIndex();
+    const entry = idx.find(e => e.id === id);
+    if (!entry) return;
+    const name = prompt('Session name:', entry.name);
+    if (name && name.trim()) {
+      Session.rename(id, name.trim());
+      this.bus.emit('session:renamed', id, name.trim());
+    }
+  }
+
+  delete(id) {
+    if (!confirm('Delete this session?')) return;
+    Session.delete(id);
+    this.bus.emit('session:deleted', id);
+  }
+
+  static _timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'just now';
+    const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+    const d = Math.floor(h / 24); if (d < 30) return d + 'd ago';
+    return new Date(ts).toLocaleDateString();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// AppController — orchestrator, phase/view routing, state owner
+// ════════════════════════════════════════════════════════════════
+
+class AppController {
+  constructor() {
+    this.items = [];
+    this.engine = new SimilarityEngine();
+    this.session = null;
+    this.view = 'both';
+    this.phase = 'input';
+    this.bus = new EventBus();
+
+    // Create widgets
+    this.cardContainer = new CardContainer(document.getElementById('block-list'), this.bus);
+    this.matrix = new SimilarityMatrix(
+      { canvasEl: document.getElementById('dsm-canvas'), detailPanelEl: document.getElementById('detail-panel') },
+      this.bus, this.engine
+    );
+    this.sessionManager = new SessionManager(document.getElementById('session-list'), this.bus);
+
+    // Wire up events
+    this.bus.on('items:reorder', (fi, ins) => this._applyReorder(fi, ins));
+    this.bus.on('items:reorder-dsm', (from, to) => this._applyDSMReorder(from, to));
+    this.bus.on('items:arrow-move', (idx, dir) => this._applyArrowMove(idx, dir));
+    this.bus.on('checkbox:toggle', (ii, ci) => this._toggleCheckbox(ii, ci));
+    this.bus.on('matrix:settings-changed', () => { this._renderAll(); this._saveState(); });
+    this.bus.on('session:load', id => { this._saveState(); this._loadSession(id); });
+    this.bus.on('session:deleted', id => {
+      if (this.session?.id === id) this._initSession();
+      this.sessionManager.render(this.session?.id);
+    });
+    this.bus.on('session:renamed', (id, name) => {
+      if (this.session?.id === id) { this.session.name = name; this._updateSessionLabel(); }
+      if (this.view === 'sessions') this.sessionManager.render(this.session?.id);
+    });
+
+    this._bindInputEvents();
+    this._initSession();
+  }
+
+  // ── Facade methods for HTML onclick handlers ──
+
+  parseInput()       { this._parseInput(); }
+  clearInput()       { document.getElementById('raw-input').value = ''; document.getElementById('raw-input').focus(); this.items = []; this._saveState(); }
+  sort(dir)          { this._sortItems(dir); }
+  reverse()          { this._reverseItems(); }
+  cycleMetric()      { this.matrix.cycleMetric(); }
+  cycleMarginal()    { this.matrix.cycleMarginal(); }
+  setThresholds()    { this.matrix.setThresholds(); }
+  setMaxLines(val)   { this.cardContainer.setMaxLines(val); this._saveState(); }
+  async copyResult() { await this._copyResult(); }
+  goBack()           { this._goBack(); }
+  newSession()       { this._newSession(); }
+  renameSession(id)  { this.sessionManager.rename(id || this.session?.id); }
+
+  setView(view) {
+    this.view = view;
+    document.querySelectorAll('.view-tabs .btn-pill').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    const inp = document.getElementById('input-phase');
+    const reo = document.getElementById('reorder-phase');
+    const ses = document.getElementById('sessions-phase');
+    if (view === 'sessions') {
+      inp.style.display = 'none'; reo.style.display = 'none'; ses.style.display = 'block';
+      this.sessionManager.render(this.session?.id);
+      return;
+    }
+    ses.style.display = 'none';
+    if (this.phase === 'input') { inp.style.display = 'block'; reo.style.display = 'none'; }
+    else { inp.style.display = 'none'; reo.style.display = 'block'; reo.setAttribute('data-view', view); }
+  }
+
+  // ── Phase management ──
+
+  _showPhase(phase) { this.phase = phase; if (this.view !== 'sessions') this.setView(this.view); }
+
+  // ── Parsing ──
+
+  _parseInput() {
+    const raw = document.getElementById('raw-input').value;
+    this.items = InputParser.parse(raw);
+    if (!getBlocks(this.items).length) return;
+    this._renderAll();
+    this._showPhase('reorder');
+    this._saveState();
+  }
+
+  // ── Item mutations ──
+
+  _ensureSentinel() { if (!this.items.length || this.items[0].type !== 'divider') this.items.unshift({ type: 'divider' }); }
+
+  _applyReorder(fi, ins) {
+    const [moved] = this.items.splice(fi, 1);
+    if (ins > fi) ins--;
+    this.items.splice(ins, 0, moved);
+    this._renderAll();
+    this._saveState();
+  }
+
+  _applyDSMReorder(from, to) {
+    const [moved] = this.items.splice(from, 1);
+    this.items.splice(to > from ? to - 1 : to, 0, moved);
+    this._renderAll();
+    this._saveState();
+  }
+
+  _applyArrowMove(idx, dir) {
+    const ni = idx + dir;
+    if (ni < 0 || ni >= this.items.length) return;
+    const [moved] = this.items.splice(idx, 1);
+    this.items.splice(ni, 0, moved);
+    this._renderAll();
+    this.cardContainer.focusAfterMove(ni);
+    this._saveState();
+  }
+
+  _toggleCheckbox(ii, ci) {
+    let n = 0;
+    this.items[ii].text = this.items[ii].text.replace(/\[([ xX])\]/g, (m, c) => {
+      if (n++ === ci) return c.trim() === '' ? '[x]' : '[ ]';
+      return m;
+    });
+    const card = this.cardContainer.cards[ii];
+    if (card) card.refreshCheckboxes();
+    this._saveState();
+  }
+
+  _sortItems(dir) {
+    this.cardContainer.deselect();
+    const cmp = (a, b) => {
+      const na = a.text.replace(/[\t ]+/g, ' '), nb = b.text.replace(/[\t ]+/g, ' ');
+      const re = /(\d+|\D+)/g, pa = na.match(re) || [], pb = nb.match(re) || [];
+      for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+        const an = /^\d+$/.test(pa[i]), bn = /^\d+$/.test(pb[i]);
+        if (an && bn) { const d = parseInt(pa[i]) - parseInt(pb[i]); if (d) return d; }
+        else { if (pa[i] < pb[i]) return -1; if (pa[i] > pb[i]) return 1; }
+      }
+      return pa.length - pb.length;
+    };
+    const result = []; let section = [];
+    const flush = () => { section.sort((a, b) => dir === 'desc' ? -cmp(a, b) : cmp(a, b)); result.push(...section); section = []; };
+    for (const it of this.items) { if (it.type === 'divider') { flush(); result.push(it); } else section.push(it); }
+    flush();
+    this.items = result;
+    this._renderAll();
+    this._saveState();
+  }
+
+  _reverseItems() {
+    this.cardContainer.deselect();
+    const result = []; let section = [];
+    const flush = () => { section.reverse(); result.push(...section); section = []; };
+    for (const it of this.items) { if (it.type === 'divider') { flush(); result.push(it); } else section.push(it); }
+    flush();
+    this.items = result;
+    this._renderAll();
+    this._saveState();
+  }
+
+  // ── Rendering ──
+
+  _renderAll() {
+    this._ensureSentinel();
+    this.matrix.update(this.items);
+    this.cardContainer.render(this.items);
+    this._updateCount();
+  }
+
+  _updateCount() {
+    const n = getBlocks(this.items).length, d = this.items.filter(it => it.type === 'divider').length;
+    let s = n + ' block' + (n !== 1 ? 's' : '');
+    if (d) s += ' · ' + d + ' divider' + (d !== 1 ? 's' : '');
+    document.getElementById('block-count').textContent = s;
+  }
+
+  // ── Clipboard ──
+
+  _joinItems() {
+    const single = this.items.every(it => it.type === 'divider' || !it.text.includes('\n'));
+    const sep = single ? '\n' : '\n\n';
+    return this.items.map(it => it.type === 'divider' ? '---' : it.text).join(sep);
+  }
+
+  async _copyResult() {
+    const text = this._joinItems();
+    try { await navigator.clipboard.writeText(text); }
+    catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+    this._toast('Copied to clipboard!');
+  }
+
+  _goBack() {
+    document.getElementById('raw-input').value = this._joinItems();
+    this._showPhase('input');
+    this._saveState();
+    this.matrix.clearHover();
+  }
+
+  // ── Session management ──
+
+  _initSession() {
+    this.session = Session.create('Untitled');
+    this._updateSessionLabel();
+    this._showPhase('input');
+  }
+
+  _updateSessionLabel() {
+    document.getElementById('session-name').textContent = this.session ? this.session.name : 'None';
+  }
+
+  _saveState() {
+    if (!this.session) return;
+    this.session.save({
+      items: this.items,
+      rawInput: document.getElementById('raw-input').value,
+      phase: this.phase,
+      settings: {
+        ...this.matrix.getSettings(),
+        maxLines: this.cardContainer.maxLines,
+      },
+    });
+    const idx = Session._getIndex();
+    const entry = idx.find(e => e.id === this.session.id);
+    if (entry) {
+      entry.blockCount = getBlocks(this.items).length;
+      entry.modified = Date.now();
+      Session._setIndex(idx);
+    }
+  }
+
+  _loadSession(id) {
+    const session = Session.open(id);
+    if (!session) return;
+    this.session = session;
+    this._updateSessionLabel();
+    const state = session.load();
+    if (state) {
+      this.items = state.items || [];
+      document.getElementById('raw-input').value = state.rawInput || '';
+      if (state.settings) {
+        this.matrix.applySettings(state.settings);
+        if (state.settings.maxLines) {
+          this.cardContainer.maxLines = state.settings.maxLines;
+          document.getElementById('max-lines').value = state.settings.maxLines;
+          document.getElementById('max-lines-val').textContent = state.settings.maxLines;
+        }
+      }
+      this.phase = state.phase || 'input';
+      if (this.phase === 'reorder' && getBlocks(this.items).length > 0) {
+        this._renderAll();
+        this._showPhase('reorder');
+      } else {
+        this._showPhase('input');
+      }
+    } else {
+      this.items = [];
+      document.getElementById('raw-input').value = '';
+      this._showPhase('input');
+    }
+    this.setView('both');
+  }
+
+  _newSession() {
+    this._saveState();
+    this.session = Session.create('Untitled');
+    this.items = [];
+    document.getElementById('raw-input').value = '';
+    this._updateSessionLabel();
+    this._showPhase('input');
+    this.setView('both');
+  }
+
+  // ── Input-area events ──
+
+  _bindInputEvents() {
+    const ta = document.getElementById('raw-input');
+    ta.addEventListener('paste', () => {
+      const empty = !ta.value.trim();
+      setTimeout(() => { if (empty && ta.value.trim() && ta.value.includes('\n')) this._parseInput(); }, 0);
+    });
+    ta.addEventListener('blur', () => this._saveState());
+
+    // Cross-tab sync
+    window.addEventListener('storage', e => {
+      if (!this.session || !e.key?.startsWith(this.session.prefix)) return;
+      const state = this.session.load();
+      if (state?.items) { this.items = state.items; if (this.phase === 'reorder') this._renderAll(); }
+    });
+    window.addEventListener('beforeunload', () => this._saveState());
+  }
+
+  // ── Toast ──
+
+  _toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+}
+
+// ── Bootstrap ──
+
+const app = new AppController();
+window.app = app;
+</script>
+</body>
+</html>

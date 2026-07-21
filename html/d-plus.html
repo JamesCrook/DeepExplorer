@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深 d-plus</title>
+<link rel="icon" type="image/x-icon" href="../../wheel.ico">
+
+<!-- Panel + widget styles. Must come BEFORE the inline block below: -->
+<!-- omni-controls.css sets its own `body { background:#1a1a2e; ... }`, and -->
+<!-- the later inline rules win on equal specificity. -->
+<link rel="stylesheet" href="../css/omni-controls.css">
+<link rel="stylesheet" href="../css/omni-scene.css">
+
+<style>
+
+</style>
+</head>
+<body>
+
+<!-- Must be a CLASSIC script, and must precede the module below. -->
+<!-- Module scripts are deferred, so this always runs first; an import could -->
+<!-- not do it, because imports are hoisted and would boot the app first. -->
+<script>window.OMNI_SCENE_NO_AUTOBOOT = true;</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+
+import { OmniSceneApp }     from '../js/apps/omni-scene-app.js';
+import { OmniControlPanel } from '../js/omni-support/omni-control-panel.js';
+import { SCENES }           from '../js/omni-support/scene.js';
+import { createWidget, parseDslValue, _esc }
+                             from '../js/omni-support/omni-widget.js';
+import { sceneRegistry }     from '../js/omni-support/scene.js';
+
+
+// ═══════════════════════════════════════════════════════════════
+//  DeepExplorer — markdown-driven explorer UI, scene-graph aware
+// ═══════════════════════════════════════════════════════════════
+
+
+
+class DeepExplorer {
+
+  constructor(container, config) {
+    this.el = container;
+    this.pages = config.pages;
+    this.diagrams = config.diagrams || {};
+    this.bot = config.bot;
+    this.onMessage = config.onMessage || null;
+    this.activeServerId = null;
+
+    this.liveStage    = null;    // the card whose scene the panel drives
+    this.engagedStage = null;    // the card that currently receives wheel
+    this.stageApps    = new Map();   // card -> OmniSceneApp
+    this._stageRO = null;
+    this._stageIO = null;
+    this._scrollHandler = null;
+    this._prevScroller = null;
+
+    this._createShell();
+    this._createPanel();
+    // Lightweight context for chat-layout widgets.  Panel widgets use
+    // WidgetContext.fromPanel(panel) separately; this just lets code islands
+    // find the validator and diagrams find their registry.
+    this._widgetCtx = { panel: this.panel };
+    this._bindEvents();
+    for (const name of config.startupPages) this.loadPseudoUrl(name);
+    if (config.initialServer) this.setActiveServer(config.initialServer);
+  }
+
+  // ── Shell ─────────────────────────────────────────────────
+  //
+  //  col2 is split so the panel and the markdown never fight over the same
+  //  element. #panel-controls is STABLE for the panel's lifetime — the panel
+  //  holds a direct reference to it, so if markdown ever replaced it the
+  //  panel would be left writing into a detached node. Markdown owns only
+  //  #zone-col2-head and #zone-col2-topics.
+  //
+  //  This is the seam where "load markdown into a column" becomes "load
+  //  markdown into a div in a column": zone names may now be dotted, so
+  //  `:col2.topics:` targets #zone-col2-topics.
+
+  _createShell() {
+    this.el.innerHTML = `<div class="app">
+      <div id="zone-col1" class="servers"></div>
+      <div class="channels">
+        <div id="zone-col2-head"></div>
+        <div class="ch-body">
+          <div id="zone-col2-topics"></div>
+          <div class="col2-sep"></div>
+          <div id="panel-controls" class="controls"></div>
+        </div>
+      </div>
+      <div class="chat-col">
+        <div id="zone-col3"></div>
+        <div id="zone-widgets"></div>
+      </div></div>`;
+  }
+
+  /** One panel, shared by every stage card. Whichever card is live calls
+   *  _rebuildContext() and re-points the panel at its own scene. */
+  _createPanel() {
+    this.panelControlsEl = this.el.querySelector('#panel-controls');
+    this.panel = new OmniControlPanel({
+      elements: {
+        container: this.panelControlsEl,
+        controls:  this.panelControlsEl,
+        // No multiscroller: the panel skips the strip entirely when absent.
+        // "Scenes" and "Explore" stay topic links in col2 for now.
+      },
+      sliderConfig:  [],
+      presets:       {},
+      enablePanZoom: false,   // Omni2d owns pan/zoom on its own canvas
+      manageLayout:  false,   // never touch <body> — the chat grid owns layout
+      onRender:      () => {},
+      onResize:      () => {},
+      onTopicSelect: (detail) => this._onPanelTopic(detail),
+    });
+  }
+
+  _onPanelTopic(detail) {
+    if (detail.topic?.scene) this._scrollToScene(detail.topic.scene);
+  }
+
+  // ── Transformer ───────────────────────────────────────────
+  //
+  //  The parser splits on # {Split} / ## {Split}, extracts :type: and
+  //  the raw param text, runs parseDslValue, and hands a config to
+  //  createWidget.  The transformer only cares about meta.sticky (wrap in a
+  //  position:sticky section) and the chatheader type (open the
+  //  chat-msgs scroller).
+
+  _transform(rawMd) {
+    const md = '\n' + rawMd.trim() + '\n';
+    const zones = {};
+
+    for (const block of md.split('\n# {Split}')) {
+      const trimmed = block.trim();
+      if (!trimmed) continue;
+      const nlIdx = trimmed.indexOf('\n');
+      const zoneLine = (nlIdx === -1 ? trimmed : trimmed.slice(0, nlIdx)).trim();
+      const zoneMatch = zoneLine.match(/^:([\w.]+):$/);
+      if (!zoneMatch) continue;
+      const zoneName = zoneMatch[1];
+      const zoneContent = nlIdx === -1 ? '' : trimmed.slice(nlIdx + 1);
+
+      const container = document.createDocumentFragment();
+      let currentSection = null;   // open sticky-section div
+      let chatMsgs = null;         // chat-msgs wrapper (col3)
+
+      for (const frag of ('\n' + zoneContent).split('\n## {Split}')) {
+        const ft = frag.trim();
+        if (!ft) continue;
+        const fnl = ft.indexOf('\n');
+        const firstLine = (fnl === -1 ? ft : ft.slice(0, fnl)).trim();
+        const fm = firstLine.match(/^:(\w+):\s*(.*)/);
+        if (!fm) continue;
+        const type = fm[1], rawParams = fm[2] || '';
+        const content = fnl === -1 ? '' : ft.slice(fnl + 1);
+
+        // _buildWidget disappears. Inline in _transform:
+        const value = parseDslValue(rawParams);
+        const node = { type, value, _content: content || null };
+        if (type === 'diagrams') node._diagrams = this.diagrams;
+        if (type === 'code')     node.validator  = OmniControlPanel.validateSpec;
+
+        const w = createWidget(node);
+        console.log(type, w, typeof w.mount);
+        const el = w.mount(this._widgetCtx, node, {});
+
+        //const el = createWidget(node).mount(this._widgetCtx, node, {});
+        if (!el) continue;
+
+        const target = chatMsgs || container;
+        const sticky = sceneRegistry.meta[type]?.defaultParams?.sticky;
+
+        if (sticky) {
+          // Close previous sticky section
+          if (currentSection) target.appendChild(currentSection);
+          // Open new one: sticky-head pins, children scroll beneath
+          currentSection = document.createElement('div');
+          currentSection.className = 'sticky-section';
+          const head = document.createElement('div');
+          head.className = 'sticky-head';
+          head.appendChild(el);
+          currentSection.appendChild(head);
+
+        } else if (type === 'chatheader') {
+          // ChatHeader produces just the bar; we open the scroller.
+          container.appendChild(el);
+          chatMsgs = document.createElement('div');
+          chatMsgs.className = 'chat-msgs';
+
+        } else {
+          // Non-sticky fragments: go inside the open section (as
+          // siblings of sticky-head), or directly into the target.
+          if (currentSection) currentSection.appendChild(el);
+          else target.appendChild(el);
+        }
+      }
+
+      // Close any open section / scroller
+      if (currentSection) (chatMsgs || container).appendChild(currentSection);
+      if (chatMsgs) container.appendChild(chatMsgs);
+
+      zones[zoneName] = container;
+    }
+    return zones;
+  }
+
+  // ── Navigation ────────────────────────────────────────────
+
+  loadPseudoUrl(name) {
+    const md = this.pages[name];
+    if (!md) return;
+    this._teardownStages();
+
+    const zones = this._transform(md);
+    for (const [zone, frag] of Object.entries(zones)) {
+      const el = document.getElementById('zone-' + zone.replace(/\./g, '-'));
+      if (el) { el.innerHTML = ''; el.appendChild(frag); }
+    }
+    if (zones.col3) {
+      const msgs = this.el.querySelector('.chat-msgs');
+      if (msgs) { this._initStickyObservers(msgs); this._initStages(msgs); }
+    }
+    if (!this.stageApps.size) this.panel.setContext({ sliderConfig: [] });
+  }
+
+  setActiveServer(id) {
+    this.activeServerId = id;
+    this.el.querySelectorAll('.srv[data-server-id]').forEach(el => {
+      const isActive = el.dataset.serverId === id;
+      el.classList.toggle('active', isActive);
+      el.classList.toggle('dormant', !isActive);
+    });
+  }
+
+  // ── Sticky observers ──────────────────────────────────────
+
+  _initStickyObservers(scrollContainer) {
+    scrollContainer.querySelectorAll('.sticky-head').forEach(head => {
+      const sentinel = document.createElement('div');
+      sentinel.style.cssText = 'height:1px;margin-bottom:-1px;';
+      head.parentElement.insertBefore(sentinel, head);
+      new IntersectionObserver(([entry]) => {
+        const above = entry.boundingClientRect.top < scrollContainer.getBoundingClientRect().top;
+        head.classList.toggle('is-stuck', !entry.isIntersecting && above);
+      }, { root: scrollContainer, threshold: 0 }).observe(sentinel);
+    });
+  }
+
+  // ── Stages ────────────────────────────────────────────────
+
+  _teardownStages() {
+    for (const app of this.stageApps.values()) {
+      try { app._stopAnimLoop(); app.activeBackend?.deactivate(); } catch (e) { /* nothing to undo */ }
+    }
+    this.stageApps.clear();
+    this.liveStage = null;
+    this.engagedStage = null;
+    this._stageRO?.disconnect();  this._stageRO = null;
+    this._stageIO?.disconnect();  this._stageIO = null;
+    if (this._scrollHandler && this._prevScroller) {
+      this._prevScroller.removeEventListener('scroll', this._scrollHandler);
+    }
+    this._scrollHandler = null;
+  }
+
+  _initStages(scroller) {
+    const stages = [...scroller.querySelectorAll('.scene-stage')];
+    if (!stages.length) return;
+
+    for (const stage of stages) this._mountStage(stage);
+
+    // Resize: Omni2d.resize() measures the canvas's parentElement, which is
+    // zero-sized until the card is laid out. Re-measure whenever it changes.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._stageRO = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const app = this.stageApps.get(e.target);
+          if (!app?.activeBackend) continue;
+          app.activeBackend.resize();
+          app.render();
+        }
+      });
+      stages.forEach(s => this._stageRO.observe(s));
+    }
+
+    // Dormancy: a card scrolled out of view costs nothing. Its last frame
+    // stays on its canvas; nothing redraws until it returns.
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._stageIO = new IntersectionObserver(entries => {
+        for (const e of entries) {
+          const app = this.stageApps.get(e.target);
+          if (!app) continue;
+          e.target.dataset.visible = e.isIntersecting ? '1' : '0';
+          if (e.isIntersecting) {
+            app.activeBackend?.resize();
+            app.render();
+            if (app.currentScene?.animated) app._startAnimLoop();
+          } else {
+            app._stopAnimLoop();
+            if (this.engagedStage === e.target) this._engageStage(null);
+          }
+        }
+      }, { root: scroller, threshold: 0 });
+      stages.forEach(s => this._stageIO.observe(s));
+    }
+
+    let queued = false;
+    this._scrollHandler = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; this._updateLiveStage(scroller); });
+    };
+    this._prevScroller = scroller;
+    scroller.addEventListener('scroll', this._scrollHandler, { passive: true });
+    this._updateLiveStage(scroller);
+  }
+
+  /** Build a shell for one card and hand it to a real OmniSceneApp.
+   *  Reusing OmniSceneApp means Omni2d still receives the `this` it expects —
+   *  no backend code is touched or duplicated here. */
+  _mountStage(card) {
+    if (this.stageApps.has(card)) return;
+    const sceneId = card.dataset.stageScene;
+    const mount = card.querySelector('[data-stage-mount]');
+    if (!mount) return;
+
+    if (!SCENES.find(s => s.id === sceneId)) {
+      mount.insertAdjacentHTML('beforeend',
+        `<div class="stage-err">No scene registered with id "${_esc(sceneId || '')}"</div>`);
+      return;
+    }
+
+    // Mirrors OmniApp's multi-layer stack: a sized wrapper (Omni2d.resize
+    // measures it), the canvas flowing normally, the other backends overlaid.
+    const stack = document.createElement('div');
+    stack.className = 'layer-stack';
+    const uid = card.dataset.stageId || sceneId;
+    const canvas = document.createElement('canvas');
+    canvas.id = 'scene-canvas-' + uid;
+    const v3d = document.createElement('div');
+    v3d.id = 'scene-viewport-3d-' + uid;
+    const vhtml = document.createElement('div');
+    vhtml.id = 'scene-viewport-html-' + uid;
+    for (const el of [v3d, vhtml]) {
+      el.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+    }
+    stack.append(canvas, v3d, vhtml);
+    mount.appendChild(stack);
+
+    const shell = {
+      container: card,
+      layers: {
+        'scene-canvas':        canvas,
+        'scene-viewport-3d':   v3d,
+        'scene-viewport-html': vhtml,
+      },
+      controls:      this.panelControlsEl,
+      multiscroller: null,
+    };
+
+    let app;
+    try {
+      app = new OmniSceneApp({ shell, controls: this.panel, defaultScene: sceneId });
+    } catch (err) {
+      console.error('d-plus: scene "' + sceneId + '" failed to load', err);
+      mount.insertAdjacentHTML('beforeend',
+        `<div class="stage-err">${_esc(sceneId)} failed to load — see console</div>`);
+      return;
+    }
+    this.stageApps.set(card, app);
+
+    // ── Wheel gating ───────────────────────────────────────
+    // Omni2d's wheel handler calls preventDefault() unconditionally, which is
+    // correct when the canvas IS the page. Here it sits inside the chat
+    // scroller, and the live card is pinned exactly where the cursor rests —
+    // so unguarded, scrolling the chat would silently zoom the scene.
+    // A capture-phase listener on the mount runs before the canvas's own
+    // handler and stops the event reaching it unless the card is engaged.
+    mount.addEventListener('wheel', (e) => {
+      if (card !== this.engagedStage) e.stopPropagation();
+    }, { capture: true });
+
+    // Pointer down engages the card and makes it live. Click and drag stay
+    // available on any visible card — engagement only gates the wheel.
+    card.addEventListener('pointerdown', () => {
+      this._engageStage(card);
+      this._setLive(card);
+    });
+  }
+
+  _engageStage(card) {
+    if (this.engagedStage === card) return;
+    this.engagedStage?.classList.remove('is-engaged');
+    this.engagedStage = card;
+    card?.classList.add('is-engaged');
+  }
+
+  /** Live stage = the last one whose sticky head has reached the top.
+   *  Measure the head, not the stage: .sticky-head carries top padding, so a
+   *  pinned stage sits below the scroller top and would never qualify. */
+  _updateLiveStage(scroller) {
+    const stages = [...scroller.querySelectorAll('.scene-stage')];
+    if (!stages.length) return;
+    const top = scroller.getBoundingClientRect().top;
+    let live = stages[0];
+    for (const s of stages) {
+      const head = s.closest('.sticky-head') || s;
+      if (head.getBoundingClientRect().top <= top + 1) live = s;
+    }
+    this._setLive(live);
+  }
+
+  /** Point the shared panel at this card's scene. */
+  _setLive(stage) {
+    if (!stage || stage === this.liveStage) return;
+    this.el.querySelectorAll('.scene-stage').forEach(s =>
+      s.classList.toggle('is-live', s === stage));
+    this.liveStage = stage;
+
+    const scene = stage.dataset.stageScene || '';
+    const track = this.el.querySelector('#zone-col2-head .stage-track');
+    if (track) track.textContent = scene ? '· ' + scene : '';
+    this.el.querySelectorAll('#zone-col2-topics .ch[data-scene]').forEach(ch =>
+      ch.classList.toggle('active', ch.dataset.scene === scene));
+
+    // This is the whole point of the shared panel: the live app rebuilds the
+    // sidebar from its own layer tree, and re-points onRender at itself.
+    const app = this.stageApps.get(stage);
+    if (app) { app._rebuildContext(); app.render(); }
+  }
+
+  _scrollToScene(scene) {
+    const scroller = this.el.querySelector('.chat-msgs');
+    if (!scroller) return;
+    const stage = scroller.querySelector(`.scene-stage[data-stage-scene="${scene}"]`);
+    if (!stage) return;
+    const section = stage.closest('.sticky-section') || stage;
+    const delta = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' });
+  }
+
+  // ── Events ────────────────────────────────────────────────
+
+  _bindEvents() {
+    this.el.addEventListener('click', e => {
+      const srv = e.target.closest('.srv[data-server-id]');
+      if (srv) {
+        this.setActiveServer(srv.dataset.serverId);
+        if (srv.dataset.url) this.loadPseudoUrl(srv.dataset.url);
+        return;
+      }
+      // Clicking away from a card releases the wheel back to the chat.
+      if (!e.target.closest('.scene-stage')) this._engageStage(null);
+
+      const ch = e.target.closest('.ch');
+      if (ch) {
+        // A scene topic is a link into col3. Don't set active here — scrolling
+        // makes that stage live, and _setLive marks it. One source of truth.
+        if (ch.dataset.scene) { this._scrollToScene(ch.dataset.scene); return; }
+        const body = ch.closest('.ch-body');
+        if (body) body.querySelectorAll('.ch:not([data-scene])').forEach(c => c.classList.remove('active'));
+        ch.classList.add('active');
+        return;
+      }
+      if (e.target.classList.contains('chat-send')) { this._handleSend(); return; }
+    });
+
+    this.el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.classList.contains('chat-input')) this._handleSend();
+    });
+  }
+
+  _appendMsg(msgs, author, html) {
+    const w = createWidget({
+      type: 'message',
+      value: { name: author.name, role: author.role, avatar: author.avatar, time: 'just now' },
+      _content: html,
+    });
+    msgs.appendChild(w.mount(this._widgetCtx, w.config, {}));
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  _handleSend() {
+    const input = this.el.querySelector('.chat-input');
+    const msgs = this.el.querySelector('.chat-msgs');
+    if (!input || !msgs) return;
+    const text = input.value.trim();
+    if (!text) return;
+    this._appendMsg(msgs, { name: 'you', role: 'u1', avatar: 'me' }, _esc(text));
+    input.value = '';
+
+    const addReply = (html) => this._appendMsg(msgs, this.bot, html);
+    setTimeout(() => {
+      if (this.onMessage) this.onMessage(text, addReply);
+      else this._defaultReply(text, addReply);
+    }, 300);
+  }
+
+  _defaultReply(text, addReply) {
+    if (text.startsWith('\\help')) {
+      addReply('<strong>Commands</strong><br><code>\\ui</code> — Show dashboard<br><code>\\help</code> — This message<br><code>\\related</code> — Show linked channels<br><code>\\idiolect [term]</code> — Look up a term');
+    } else if (text.startsWith('\\scenes')) {
+      addReply('<strong>Registered scenes</strong><br><code>' +
+        SCENES.map(s => s.id).join('</code> · <code>') + '</code>');
+    } else {
+      addReply('Bring your <a href="#">own LLM</a> to get AI-powered answers. Configure your API key in settings to enable the assistant.');
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  Domain content
+// ═══════════════════════════════════════════════════════════════
+
+const BOT = { name: 'Deep Explorer', role: 'bot', avatar: '深' };
+
+const DIAGRAMS = {
+  arch: { name: 'Architecture', desc: 'Libraries, adapters, subsystem links',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="8" y="8" width="42" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="29" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Cycles</text>
+      <rect x="60" y="8" width="50" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="85" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">OpenSubdiv</text>
+      <rect x="120" y="8" width="42" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="141" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Embree</text>
+      <rect x="20" y="52" width="42" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="41" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">GHOST</text>
+      <rect x="72" y="52" width="36" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="90" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">BKE</text>
+      <rect x="118" y="52" width="36" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="136" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">DEG</text>
+      <line x1="29" y1="26" x2="90" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+      <line x1="85" y1="26" x2="90" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+      <line x1="141" y1="26" x2="136" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+    </svg>` },
+  flow: { name: 'Data Flow', desc: 'Mesh → modifiers → depsgraph → render',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="5" y="32" width="32" height="16" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="21" y="44" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Mesh</text>
+      <line x1="37" y1="40" x2="48" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="48" y="32" width="32" height="16" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="64" y="44" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Mods</text>
+      <line x1="80" y1="40" x2="91" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="91" y="32" width="32" height="16" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="107" y="44" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">DEG</text>
+      <line x1="123" y1="40" x2="134" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="134" y="32" width="40" height="16" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="154" y="44" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">Render</text>
+    </svg>` },
+  pipeline: { name: 'Annotation Pipeline', desc: 'Sources → annotation → SwissProt',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="5" y="12" width="30" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="20" y="23" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">PDB</text>
+      <line x1="35" y1="19" x2="48" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="48" y="12" width="35" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="65" y="23" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">Align</text>
+      <line x1="83" y1="19" x2="96" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="96" y="12" width="35" height="14" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="113" y="23" text-anchor="middle" fill="#dba06a" font-size="6" font-family="monospace">Annot</text>
+      <line x1="131" y1="19" x2="140" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="140" y="12" width="30" height="14" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="155" y="23" text-anchor="middle" fill="#dba06a" font-size="6" font-family="monospace">SP</text>
+      <rect x="5" y="50" width="40" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="25" y="61" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">GenBank</text>
+      <line x1="45" y1="57" x2="65" y2="26" stroke="#4a5580" stroke-width="0.7"/>
+      <rect x="60" y="50" width="45" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="82" y="61" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">Literature</text>
+      <line x1="105" y1="57" x2="113" y2="26" stroke="#4a5580" stroke-width="0.7"/>
+    </svg>` },
+  complex: { name: 'Relational Structure', desc: 'Proteins → complexes → pathways',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <circle cx="40" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="40" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P1</text>
+      <circle cx="90" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="90" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P2</text>
+      <circle cx="140" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="140" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P3</text>
+      <line x1="50" y1="28" x2="80" y2="28" stroke="#dba06a" stroke-width="1.2"/>
+      <line x1="100" y1="28" x2="130" y2="28" stroke="#dba06a" stroke-width="1.2"/>
+      <rect x="50" y="56" width="80" height="14" rx="7" fill="none" stroke="#dba06a" stroke-width="1"/><text x="90" y="67" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">Complex</text>
+      <line x1="65" y1="38" x2="75" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+      <line x1="90" y1="38" x2="90" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+      <line x1="115" y1="38" x2="105" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+    </svg>` },
+};
+
+const PAGES = {};
+
+PAGES.serverStrip = `
+# {Split}
+:col1:
+## {Split}
+:server: {"icon":"⚙","id":"gear","name":"Settings","url":"gear","bg":"#3a3d4d"}
+## {Split}
+:separator:
+## {Split}
+:server: {"icon":"🦊","id":"blender","name":"Blender","url":"blender","bg":"#d4700a"}
+## {Split}
+:server: {"icon":"🧬","id":"swissprot","name":"SwissProt","url":"swissprot","bg":"#8b2240"}
+## {Split}
+:server: {"icon":"🎨","id":"omniscene","name":"OmniScene","url":"omniscene","bg":"#5865f2"}
+## {Split}
+:separator:
+## {Split}
+:server: {"icon":"🌋","id":"volcano","name":"Volcano Lab","bg":"#b85c1a"}
+## {Split}
+:server: {"icon":"🚀","id":"rocket","name":"Launchpad","bg":"#1a7a6a"}
+## {Split}
+:server: {"icon":"🐙","id":"octopus","name":"Deep Sea","bg":"#2c3e6b"}
+## {Split}
+:html:
+<div class="srv-sep"></div>
+<div class="srv" style="font-size:calc(var(--srv-btn-size) * 0.45 * 1px);color:var(--text-3);background:transparent">+<div class="tip">Add domain</div></div>
+`;
+
+PAGES.blender = `
+# {Split}
+:col2.head:
+## {Split}
+:header:
+<span class="domain">深</span> Blender
+# {Split}
+:col2.topics:
+## {Split}
+:group: Data Structures
+## {Split}
+:topic: {"icon":"B","bg":"#3d4a6a","fg":"#8eaad8","label":"BMesh","doc":58,"wiki":30,"id":"bmesh","active":true}
+## {Split}
+:topic: {"icon":"M","bg":"#3d4a6a","fg":"#8eaad8","label":"Mesh","doc":50,"wiki":22,"id":"mesh"}
+## {Split}
+:topic: {"icon":"D","bg":"#3d4a6a","fg":"#8eaad8","label":"DNA / RNA","doc":35,"wiki":45,"id":"dna"}
+## {Split}
+:topic: {"icon":"C","bg":"#3d4a6a","fg":"#8eaad8","label":"Curves","doc":42,"wiki":10,"id":"curves"}
+## {Split}
+:topic: {"icon":"G","bg":"#3d4a6a","fg":"#8eaad8","label":"Dependency Graph","doc":48,"wiki":15,"id":"depsgraph"}
+## {Split}
+:group: Editors
+## {Split}
+:topic: {"icon":"V","bg":"#3a5050","fg":"#80b8b0","label":"3D Viewport","meta":"4h","id":"viewport"}
+## {Split}
+:topic: {"icon":"U","bg":"#3a5050","fg":"#80b8b0","label":"UV Editor","meta":"2d","id":"uv"}
+## {Split}
+:topic: {"icon":"N","bg":"#3a5050","fg":"#80b8b0","label":"Node Editor","meta":"1d","id":"nodes"}
+## {Split}
+:group: Explore
+## {Split}
+:topic: {"icon":"§","bg":"#504a3a","fg":"#c8b888","label":"Idiolect","meta":"134 terms","id":"idiolect","labelStyle":"color:var(--wiki)"}
+## {Split}
+:topic: {"icon":"◈","bg":"#504a3a","fg":"#c8b888","label":"Architecture","id":"arch"}
+## {Split}
+:topic: {"icon":"⇢","bg":"#504a3a","fg":"#c8b888","label":"Data Flow","id":"dataflow"}
+## {Split}
+:topic: {"icon":"⌕","bg":"#504a3a","fg":"#c8b888","label":"Files & Classes →","id":"files","labelStyle":"color:var(--accent)"}
+## {Split}
+:legend: {"doc":"Docstrings","wiki":"Wiki","gap":"Gap"}
+# {Split}
+:col3:
+## {Split}
+:chatheader: {"name":"BMesh","desc":"— half-edge mesh data structure and operations"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+Welcome to <strong>#BMesh</strong>. This channel covers Blender's half-edge mesh data structure — the core topology layer for mesh editing. Type <code>\\help</code> for commands, <code>\\ui</code> to show the dashboard, or just ask a question.
+## {Split}
+:tags: {"datastructures":"ds","animation":"anim","experimental":"exp"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Idiolect highlights for #BMesh</strong>
+## {Split}
+:card: {"title":"BMLoop","doc":60,"wiki":32}
+A <em>loop</em> in BMesh represents one corner of a face — vertex + edge + face. The connective tissue of half-edge topology. Each knows its vertex, edge, face, and can walk to the next loop around the same face or radially around the same edge. <em>A face's opinion of a vertex.</em>
+## {Split}
+:card: {"title":"BMEdge","doc":55,"wiki":28}
+An edge connecting two vertices. Carries a radial linked list of all loops (and therefore faces) that share it. The primary way to walk between adjacent faces.
+## {Split}
+:card: {"title":"Mesh deformation by heat flow","doc":12,"wiki":2,"titleStyle":"color:var(--text-3)","textStyle":"color:var(--text-3)","barStyle":"border-color:#4a3535","warn":"⚠ Sparse coverage — mostly raw code."}
+Solves heat diffusion over mesh surface for smooth skeleton binding weights.
+## {Split}
+:link: → 134 terms in full <a href="#">idiolect</a>
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Linked specs &amp; algorithms</strong>
+## {Split}
+:row: {"label":"DNA / RNA — Schema Evolution & Serialization","doc":35,"wiki":45,"badge":"spec ↔ code"}
+## {Split}
+:row: {"label":"Catmull-Clark Subdivision","doc":55,"wiki":40,"badge":"LaTeX + code"}
+## {Split}
+:row: {"label":"Mesh Deformation by Heat Flow","doc":12,"wiki":2,"badge":"stub","labelStyle":"color:var(--text-3)","badgeStyle":"color:#a06060","barStyle":"outline:1px solid #4a3535;border-radius:3px"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Explorable diagrams</strong>
+## {Split}
+:diagrams: ["arch","flow"]
+## {Split}
+:message: {"name":"rkwright","role":"u1","avatar":"rk","time":"Yesterday at 16:42"}
+Anyone know why <code>BM_face_kill</code> doesn't clean up the radial loop list? I keep getting dangling pointers when I delete faces in a specific order.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Yesterday at 16:42"}
+It does — but only for loops it owns. If you're deleting faces that share edges, the radial list updates are order-dependent. You're asking about <strong>BMLoop</strong> radial walking — <a href="#">BMLoop idiolect</a> · <a href="#">radial loop diagram</a>
+## {Split}
+:message: {"name":"j_martinez","role":"u2","avatar":"jm","time":"Today at 08:15"}
+The heat flow deformation docs are basically nonexistent. I spent two hours reading the raw Laplacian solver code. Can we get this documented?
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 08:15"}
+You're right — that's currently at 12% docstring / 2% wiki coverage. Want to <a href="#">file a documentation request</a>? I can pre-fill it with what I know about the Laplacian solver and the files involved.
+## {Split}
+:message: {"name":"k_tanaka","role":"u3","avatar":"kt","time":"Today at 10:30"}
+Do meshes have to be quads? I'm trying to understand when BMesh tolerates n-gons vs when things break down.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 10:30"}
+BMesh supports arbitrary n-gons — triangles, quads, pentagons, anything. The <strong>BMLoop</strong> ring around a face has as many entries as the face has vertices. Where things get tricky is subdivision and rendering: Catmull-Clark assumes quads, and the GPU triangulates everything. — <a href="#">Catmull-Clark explainer</a> · <a href="#">BMFace idiolect</a>
+# {Split}
+:widgets:
+## {Split}
+:input: {"placeholder":"Ask about BMesh, or type \\\\help..."}
+`;
+
+PAGES.swissprot = `
+# {Split}
+:col2.head:
+## {Split}
+:header:
+<span class="domain">深</span> SwissProt
+# {Split}
+:col2.topics:
+## {Split}
+:group: Organisms
+## {Split}
+:topic: {"icon":"H","bg":"#3a5050","fg":"#80b8b0","label":"Homo sapiens","meta":"20k","id":"human","active":true}
+## {Split}
+:topic: {"icon":"M","bg":"#3a5050","fg":"#80b8b0","label":"Mus musculus","meta":"17k","id":"mouse"}
+## {Split}
+:topic: {"icon":"E","bg":"#3a5050","fg":"#80b8b0","label":"E. coli (K-12)","meta":"4.4k","id":"ecoli"}
+## {Split}
+:topic: {"icon":"S","bg":"#3a5050","fg":"#80b8b0","label":"S. cerevisiae","meta":"6.7k","id":"yeast"}
+## {Split}
+:topic: {"icon":"A","bg":"#3a5050","fg":"#80b8b0","label":"A. thaliana","meta":"15k","id":"arab"}
+## {Split}
+:group: Families
+## {Split}
+:topic: {"icon":"K","bg":"#504a3a","fg":"#c8b888","label":"Kinases","doc":90,"wiki":25,"id":"kinases"}
+## {Split}
+:topic: {"icon":"G","bg":"#504a3a","fg":"#c8b888","label":"GPCRs","doc":85,"wiki":20,"id":"gpcr"}
+## {Split}
+:topic: {"icon":"I","bg":"#504a3a","fg":"#c8b888","label":"Immunoglobulins","doc":80,"wiki":15,"id":"immuno"}
+## {Split}
+:group: Explore
+## {Split}
+:topic: {"icon":"§","bg":"#504a3a","fg":"#c8b888","label":"Idiolect","meta":"87 terms","id":"sp-idiolect","labelStyle":"color:var(--wiki)"}
+## {Split}
+:topic: {"icon":"⇢","bg":"#3a3a50","fg":"#9098d0","label":"Pathways","id":"pathways"}
+## {Split}
+:topic: {"icon":"◎","bg":"#3a3a50","fg":"#9098d0","label":"Cell Structure","id":"cell"}
+## {Split}
+:topic: {"icon":"⇄","bg":"#3a3a50","fg":"#9098d0","label":"Complexes","doc":40,"wiki":8,"id":"complexes"}
+## {Split}
+:topic: {"icon":"≡","bg":"#3a3a50","fg":"#9098d0","label":"Schema Mappings","id":"schema"}
+## {Split}
+:topic: {"icon":"🔍","bg":"#3a3a50","fg":"#9098d0","label":"Protein Finder →","id":"finder","labelStyle":"color:var(--accent)"}
+## {Split}
+:legend: {"doc":"Records","wiki":"Wiki","gap":"Gap"}
+# {Split}
+:col3:
+## {Split}
+:chatheader: {"name":"Homo sapiens","desc":"— 20,434 reviewed entries"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+Welcome to <strong>#Homo sapiens</strong>. 20,434 reviewed SwissProt entries. Type <code>\\help</code> for commands, <code>\\ui</code> for the dashboard, or ask about any protein, complex, or pathway.
+## {Split}
+:tags: {"toxins":"toxin","repetitive":"rep","trans-membrane":"tm","LUCA":"luca","mitochondrial":"mito"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Idiolect highlights</strong>
+## {Split}
+:card: {"title":"Evidence Code","doc":80,"wiki":35}
+A qualifier on every annotation asserting <em>how we know this</em>. Ranges from direct experimental assay (ECO:0000269) through sequence similarity to purely computational prediction. Determines how much to trust any given annotation.
+## {Split}
+:card: {"title":"Feature Key","doc":75,"wiki":28}
+A typed annotation pinned to a sequence range — <em>DOMAIN</em>, <em>TRANSMEM</em>, <em>BINDING</em>, <em>VARIANT</em>. The vocabulary of what can be said about a stretch of residues.
+## {Split}
+:link: → 87 terms in full <a href="#">idiolect</a>
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Interaction documents</strong>
+## {Split}
+:row: {"label":"Proteasome 26S — Subunit Assembly","doc":60,"wiki":30,"badge":"complex"}
+## {Split}
+:row: {"label":"MAPK/ERK Signaling Cascade","doc":70,"wiki":12,"badge":"pathway"}
+## {Split}
+:row: {"label":"Respiratory Chain Complex IV","doc":55,"wiki":5,"badge":"sparse","labelStyle":"color:var(--text-3)","badgeStyle":"color:#a06060","barStyle":"outline:1px solid #4a3535;border-radius:3px"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 09:00"}
+<strong>Explorable diagrams</strong>
+## {Split}
+:diagrams: ["pipeline","complex"]
+## {Split}
+:message: {"name":"a_lindqvist","role":"u3","avatar":"al","time":"Yesterday at 14:20"}
+Is there a way to find all human proteins with a transmembrane domain that also have a known disease association?
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Yesterday at 14:20"}
+You want feature key <code>TRANSMEM</code> combined with <code>INVOLVEMENT IN DISEASE</code>. The <a href="#">Protein Finder</a> can run this query — about 1,200 entries in human.
+## {Split}
+:message: {"name":"r_patel","role":"u1","avatar":"rp","time":"Today at 11:05"}
+The Complex IV interaction doc is pretty thin. Half the subunits don't even have assembly notes.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"Today at 11:05"}
+Agreed — Complex IV is at 55% records / 5% wiki. Want to <a href="#">file a documentation request</a>? Three other users have flagged this area.
+# {Split}
+:widgets:
+## {Split}
+:input: {"placeholder":"Ask about proteins, or type \\\\help..."}
+`;
+
+PAGES.gear = `
+# {Split}
+:col2.head:
+## {Split}
+:header:
+<span class="domain">⚙</span> Settings
+# {Split}
+:col2.topics:
+## {Split}
+:group: Typography
+## {Split}
+:control: {"label":"Message font size","var":"--msg-font-size","min":11,"max":22,"value":13.5,"step":0.5,"unit":"px"}
+## {Split}
+:group: Server Strip
+## {Split}
+:control: {"label":"Button size","var":"--srv-btn-size","min":28,"max":64,"value":44,"suffix":"px"}
+## {Split}
+:control: {"label":"Icon scale","var":"--srv-icon-pct","min":10,"max":100,"value":75,"suffix":"%"}
+## {Split}
+:control: {"label":"Dormant saturation","var":"--srv-dormant-sat","min":0,"max":1,"value":0.33,"step":0.01}
+## {Split}
+:control: {"label":"Dormant brightness","var":"--srv-dormant-bri","min":0.2,"max":1,"value":0.66,"step":0.01}
+## {Split}
+:group: Slider Geometry
+## {Split}
+:control: {"label":"Track height","var":"--ms-track-h","min":1,"max":32,"value":24}
+## {Split}
+:control: {"label":"Track radius","var":"--ms-track-r","min":0,"max":16,"value":4}
+## {Split}
+:control: {"label":"Pip height","var":"--ms-pip-h","min":4,"max":32,"value":28}
+## {Split}
+:control: {"label":"Pip width","var":"--ms-pip-w","min":2,"max":24,"value":3}
+## {Split}
+:control: {"label":"Fill opacity","var":"--ms-fill-op","min":0,"max":0.5,"value":0.18,"step":0.01}
+## {Split}
+:control: {"label":"Text offset Y","var":"--ms-text-y","min":-16,"max":16,"value":0}
+## {Split}
+:control: {"label":"Pip brightness","var":"--ms-pip-bri","min":0.2,"max":2,"value":1.4,"step":0.05}
+## {Split}
+:control: {"label":"Label inset","var":"--ms-label-inset","min":0,"max":16,"value":8}
+## {Split}
+:group: Spacing
+## {Split}
+:control: {"label":"Sidebar width","var":"--col2-width","min":180,"max":420,"value":260,"unit":"px"}
+## {Split}
+:group: Theme
+## {Split}
+:topic: {"icon":"◑","bg":"#3a3a50","fg":"#9098d0","label":"Dark (default)","id":"theme-dark","active":true}
+## {Split}
+:topic: {"icon":"◐","bg":"#3a3a50","fg":"#9098d0","label":"Midnight","id":"theme-midnight"}
+## {Split}
+:topic: {"icon":"☀","bg":"#504a3a","fg":"#c8b888","label":"Light (coming soon)","id":"theme-light"}
+# {Split}
+:col3:
+## {Split}
+:chatheader: {"name":"Settings","desc":"— customise your workspace"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Use the controls in the sidebar to adjust how Deep Explorer looks and feels. Changes take effect immediately.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+<strong>Server Strip</strong> — Button size and icon scale control the server column. Dormant saturation and brightness control how inactive servers fade — hover any dormant icon to see it wake, or click to switch.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+<strong>Slider Geometry</strong> — These controls morph <em>all</em> sliders in the app — including the ones you're dragging right now. Try track height → 2, pip → 8×8, fill → 0, text offset → −8 for a minimal dot look.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+<strong>JSON</strong> — Parked here is the JSON GeSHi formatting example. It specs a diagram and its controls.
+## {Split}
+:code: {"lang":"json","title":"heatmap scene — control spec"}
+{
+  "scene": "heatmap",
+  "sections": [
+    {
+      "group": "Heatmap",
+      "abbrev": "Heat",
+      "sliders": [
+        { "id": "blur",    "label": "Blur radius", "min": 0, "max": 60,  "step": 1, "default": 18 },
+        { "id": "opacity", "label": "Opacity",     "min": 0, "max": 100, "step": 1, "default": 70, "format": "percent" }
+      ]
+    },
+    {
+      "group": "Sparkles",
+      "abbrev": "Sprk",
+      "sliders": [
+        { "id": "sparkleCount", "label": "Count", "min": 0,   "max": 3000, "step": 50,  "default": 500 },
+        { "id": "sparkleSize",  "label": "Size",  "min": 0.5, "max": 5,    "step": 0.5, "default": 1.5 },
+        {
+          "id": "sparkleStyle", "label": "Style", "type": "button-row", "default": "dot",
+          "options": [
+            { "value": "dot", "label": "•" }, { "value": "plus",  "label": "+" },
+            { "value": "cross", "label": "×" }, { "value": "ring", "label": "○" }
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Colormap", "abbrev": "Cmap", "type": "select", "bind": "cmap",
+      "options": [
+        { "value": "inferno", "label": "Inferno" }, { "value": "viridis", "label": "Viridis" },
+        { "value": "magma",   "label": "Magma" }
+      ]
+    },
+    {
+      "group": "Explore", "abbrev": "Exp", "type": "topics",
+      "topics": [
+        { "id": "sc-heatmap", "label": "Body Heatmap", "icon": "H", "scene": "heatmap" },
+        { "id": "sc-chart",   "label": "Product Sales", "icon": "◫", "scene": "chart-sales" }
+      ]
+    }
+  ],
+  "presets": {
+    "Default": { "blur": 18, "opacity": 70, "sparkleCount": 500,  "sparkleSize": 1.5 },
+    "Sharp":   { "blur": 4,  "opacity": 85, "sparkleCount": 200,  "sparkleSize": 1.0 },
+    "Diffuse": { "blur": 45, "opacity": 50, "sparkleCount": 1000, "sparkleSize": 2.0 },
+    "Minimal": { "blur": 20, "opacity": 40, "sparkleCount": 0,    "sparkleSize": 1.5 }
+  }
+}
+# {Split}
+:widgets:
+## {Split}
+:input: {"placeholder":"Settings are adjusted via the sidebar controls..."}
+`;
+
+// ── OmniScene — real scene graph ────────────────────────────────
+PAGES.omniscene = `
+# {Split}
+:col2.head:
+## {Split}
+:header:
+<span class="domain">O</span> OmniScene <span class="stage-track" style="color:var(--text-3);font-weight:400;font-size:11px"></span>
+# {Split}
+:col2.topics:
+## {Split}
+:group: Scenes
+## {Split}
+:topic: {"icon":"H","bg":"#3d4a6a","fg":"#8eaad8","label":"Body Heatmap","id":"sc-heatmap","scene":"heatmap","active":true}
+## {Split}
+:topic: {"icon":"◫","bg":"#3d4a6a","fg":"#8eaad8","label":"Product Sales","id":"sc-chart","scene":"chart-sales"}
+## {Split}
+:topic: {"icon":"C","bg":"#3d4a6a","fg":"#8eaad8","label":"Canvas","id":"sc-canvas","scene":"canvas"}
+## {Split}
+:group: Explore
+## {Split}
+:topic: {"icon":"§","bg":"#504a3a","fg":"#c8b888","label":"Idiolect","meta":"soon","id":"omni-idiolect","labelStyle":"color:var(--wiki)"}
+## {Split}
+:topic: {"icon":"⌕","bg":"#504a3a","fg":"#c8b888","label":"Scene graph →","id":"omni-graph","labelStyle":"color:var(--accent)"}
+# {Split}
+:col3:
+## {Split}
+:chatheader: {"name":"OmniScene","desc":"— live scene graph in a chat"}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Welcome to <strong>#OmniScene</strong>. These stage cards hold <strong>real</strong> scenes — each one is an <code>OmniSceneApp</code> with its own <code>scene-root</code>, layer tree and canvas, mounted into the card. The sidebar above the topic links is the actual <code>OmniControlPanel</code>, shared between all three cards. Whichever card is pinned to the top is <em>live</em>, and drives it.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+<strong>Click a card to engage it</strong>, then drag and scroll-to-zoom as you would in OmniScene. Until you do, the wheel scrolls the chat rather than zooming the scene — otherwise the pinned card would swallow every scroll, since it sits exactly where your cursor rests.
+## {Split}
+:stage: {"id":"st-heat","scene":"heatmap","badge":"O","label":"Body Heatmap","height":520}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+That is the heatmap scene — <code>phases: ['draw2d']</code>, <code>hasLayers: false</code>. Its blur, opacity, sparkle and region sliders in the sidebar are built by <code>layer.inst.buildUI(layer)</code>, exactly as in omni-scene. The presets morph through <code>OmniParamEngine</code>.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+The same scene's controls can also be written as pure JSON and compiled with <code>setContextFromSpec()</code>. The island below is validated by the real <code>OmniControlPanel.validateSpec()</code> as it renders — no local copy of the rules:
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Two things in a live scene resist JSON, and the spec shows the fix for each. <code>format: v =&gt; Math.round(v) + '%'</code> is a function — here it is <code>"format": "percent"</code>. The colormap select's <code>onChange</code> closure becomes <code>"bind": "cmap"</code>. Names <code>formatValue</code> already knows — <code>int</code>, <code>deg</code>, <code>degRad</code>, <code>degInt</code> — pass straight through.
+## {Split}
+:stage: {"id":"st-chart","scene":"chart-sales","badge":"O","label":"Product Sales","height":520}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Stage 2 is a chart scene — <code>phases: ['measure','layout','draw2d']</code>, seventeen presets, and a CSV drop target in its Load Data group. Scrolling here re-pointed the shared panel at this card's layer tree, and the <strong>Scenes</strong> list followed.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Cards that scroll out of view go dormant: their anim loop stops and nothing redraws. The last frame simply stays on the canvas until the card returns.
+## {Split}
+:card: {"title":"Where this stands","doc":70,"wiki":0}
+Real scenes, real panel, real presets. Not yet: dragging a layer from one card to another, and a card that is interactive while a <em>different</em> card is live. Both need a broker above the apps and a coordinate mapping between scenes — the AST half already exists, since the layers widget can already move a layer between parents via <code>onReceive</code>.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+<strong>Roadmap</strong>
+## {Split}
+:row: {"label":"omni-control-panel — topic links + JSON spec source","doc":100,"wiki":0,"badge":"done"}
+## {Split}
+:row: {"label":"omni-scene-app — injectable shell + shared panel","doc":100,"wiki":0,"badge":"done"}
+## {Split}
+:row: {"label":"cross-card layer drag","doc":0,"wiki":100,"badge":"next"}
+## {Split}
+:stage: {"id":"st-canvas","scene":"canvas","badge":"O","label":"Canvas","height":520}
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Stage 3 is the Canvas scene — <code>hasLayers: true</code>, so the sidebar gains an add bar and a layers list. Add a heatmap or a chart to it and they arrive as resizable handle-frames.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Being last, this card needs room beneath it to reach the top at all — the chat scroller carries bottom padding so a final stage behaves like any other.
+## {Split}
+:message: {"name":"Deep Explorer","role":"bot","avatar":"深","time":"just now"}
+Type <code>\\scenes</code> to list every registered scene id.
+# {Split}
+:widgets:
+## {Split}
+:input: {"placeholder":"Ask about the scene graph, or type \\\\scenes..."}
+`;
+
+
+// ═══════════════════════════════════════════════════════════════
+//  Boot
+// ═══════════════════════════════════════════════════════════════
+
+new DeepExplorer(document.body, {
+  pages: PAGES,
+  diagrams: DIAGRAMS,
+  bot: BOT,
+  startupPages: ['serverStrip', 'omniscene'],
+  initialServer: 'omniscene',
+});
+
+</script>
+</body>
+</html>

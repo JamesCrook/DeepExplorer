@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ButtonNode Harness</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: system-ui, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; border-bottom: 1px solid #2a2824;
+    background: #17160f; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; }
+  header .tag {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+    background: #222018; padding: 2px 7px; border-radius: 4px;
+    border: 1px solid #2a2824;
+  }
+  canvas { flex: 1; display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ButtonNode Harness</h1>
+  <span class="tag">throwaway · shims ctxMix + T</span>
+</header>
+
+<canvas id="cv"></canvas>
+
+<script>
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — ButtonNode
+//
+//  This is the deliverable. It is identical to button-node.js
+//  except import/export and sceneRegistry.registerNodeClass are
+//  commented out (they need the real module system).
+//
+//  To integrate: copy this class and its helpers into a .js file,
+//  add the import/export lines, call registerNodeClass.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { ButtonNode, DEFAULTS, hexToRgb, shiftColor, roundRectPath } from '../deep-explorer/js/nodes2d/button-node.js';
+//-- file: ./button-node.js --
+//>> import { sceneRegistry } from '../deep-explorer/js/omni-support/scene.js';
+//>> export { ButtonNode, DEFAULTS };
+// ── helpers ─────────────────────────────────────────────────
+
+function hexToRgb(hex) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function shiftColor({ r, g, b }, amt) {
+  const f = v => Math.round(Math.min(255, Math.max(0,
+    amt > 0 ? v + (255 - v) * amt : v + v * amt)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+}
+
+const DEFAULTS = Object.freeze({
+  fill:           '#e0ddd4',
+  color:          '#2a2a2a',
+  cornerRadius:   12,
+  borderWidth:    2.5,
+  bevel:          1,
+  bevelStrength:  0.38,
+  lightAngle:     315,
+  lightIntensity: 0.55,
+  shadowColor:    'rgba(0,0,0,0.28)',
+  shadowOffsetX:  2,
+  shadowOffsetY:  3,
+  shadowBlur:     6,
+  fontSize:       32,
+  subOffset:      0,
+  badgeFill:      '#e74c3c',
+  badgeColor:     '#ffffff',
+  scale:          1.0,
+  liftY:          0.0,
+  brightness:     1.0,
+  hoverScale:     1.08,
+  hoverLift:      -2,
+  pressScale:     0.96,
+  pressDepth:     1,
+});
+
+
+class ButtonNode {
+
+  static draw2d(ctxMix, node, params) {
+    const T = ctxMix.T;
+    if (!T) return;
+
+    const v = node.value || {};
+    const p = { ...DEFAULTS, ...params };
+    const zoom = T.sx;
+
+    const rawW   = v.width  || 64;
+    const rawH   = v.height || 64;
+    const sc     = (p.scale || 1);
+    const w      = rawW * zoom * sc;
+    const h      = rawH * zoom * sc;
+    const screen = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const cx     = screen.x;
+    const cy     = screen.y + (p.liftY || 0) * zoom;
+    const left   = cx - w / 2;
+    const top    = cy - h / 2;
+    const r      = (p.cornerRadius || 0) * zoom * sc;
+    const bw     = (p.borderWidth  || 0) * zoom * sc;
+
+    const fillHex = v.color || p.fill;
+
+    const ctx = ctxMix.directCtx();
+
+    if (v.disabled) ctx.globalAlpha *= 0.42;
+
+    if (p.shadowBlur > 0) {
+      ctx.save();
+      ctx.shadowColor   = p.shadowColor;
+      ctx.shadowOffsetX = (p.shadowOffsetX || 0) * zoom;
+      ctx.shadowOffsetY = (p.shadowOffsetY || 0) * zoom;
+      ctx.shadowBlur    = (p.shadowBlur    || 0) * zoom;
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.fillStyle = fillHex;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const base    = hexToRgb(fillHex);
+    const bevel   = p.bevel || 0;
+    const bStr    = p.bevelStrength || 0;
+    const lInt    = p.lightIntensity || 0;
+    const angle   = p.lightAngle || 315;
+    const rad     = angle * Math.PI / 180;
+    const dx      = Math.sin(rad);
+    const dy      = -Math.cos(rad);
+
+    const faceLit = shiftColor(base,  lInt * 0.14 * bevel);
+    const faceSh  = shiftColor(base, -lInt * 0.10 * bevel);
+
+    const gx0 = cx + dx * w / 2;
+    const gy0 = cy + dy * h / 2;
+    const gx1 = cx - dx * w / 2;
+    const gy1 = cy - dy * h / 2;
+
+    const faceGrad = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    faceGrad.addColorStop(0, faceLit);
+    faceGrad.addColorStop(1, faceSh);
+
+    roundRectPath(ctx, left, top, w, h, r);
+    ctx.fillStyle = faceGrad;
+    ctx.fill();
+
+    if (bevel !== 0 && bStr > 0) {
+      const litAmt = bStr * lInt * bevel;
+      const hi     = shiftColor(base,  litAmt);
+      const lo     = shiftColor(base, -litAmt);
+      const edgeW  = bw * 1.4;
+
+      ctx.save();
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.clip();
+
+      ctx.strokeStyle = hi;
+      ctx.lineWidth   = edgeW;
+      roundRectPath(ctx, left + dx * bw * 0.5,
+                         top  + dy * bw * 0.5, w, h, r);
+      ctx.stroke();
+
+      ctx.strokeStyle = lo;
+      ctx.lineWidth   = edgeW;
+      roundRectPath(ctx, left - dx * bw * 0.5,
+                         top  - dy * bw * 0.5, w, h, r);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    if ((p.brightness || 1) < 1.0) {
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.fillStyle = `rgba(0,0,0,${(1 - p.brightness).toFixed(3)})`;
+      ctx.fill();
+    }
+
+    const label = v.label ?? v.emoji ?? v.symbol
+               ?? v.name?.substring(0, 2) ?? '';
+
+    if (label) {
+      const fSize = (p.fontSize || 32) * zoom * sc;
+      ctx.fillStyle    = p.color;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = `600 ${fSize.toFixed(1)}px "Hiragino Kaku Gothic Pro", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif`;
+
+      const labelY = v.sub ? cy - h * 0.06 : cy;
+      ctx.fillText(label, cx, labelY);
+    }
+
+    if (v.sub) {
+      const subSize = (p.fontSize || 32) * 0.36 * zoom * sc;
+      ctx.fillStyle    = p.color;
+      ctx.globalAlpha  = (v.disabled ? 0.42 : 1.0) * 0.65;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = `400 ${subSize.toFixed(1)}px "Hiragino Kaku Gothic Pro", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif`;
+
+      const subY = cy + h * 0.22 + (p.subOffset || 0) * zoom;
+      ctx.fillText(v.sub, cx, subY);
+    }
+
+    if (v.badge != null && v.badge !== '') {
+      const badgeR = 10 * zoom;
+      const badgeX = left + w - badgeR * 0.4;
+      const badgeY = top  - badgeR * 0.4;
+
+      ctx.globalAlpha = v.disabled ? 0.42 : 1.0;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = p.badgeFill || '#e74c3c';
+      ctx.fill();
+
+      ctx.fillStyle    = p.badgeColor || '#fff';
+      ctx.font         = `700 ${(11 * zoom).toFixed(1)}px system-ui, sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(v.badge), badgeX, badgeY + 0.5);
+    }
+
+    if (ctxMix.highlighted?.has(node)) {
+      ctx.setLineDash([4 * zoom, 4 * zoom]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 2 * zoom;
+      roundRectPath(ctx, left - 4 * zoom, top - 4 * zoom,
+                    w + 8 * zoom, h + 8 * zoom,
+                    r + 4 * zoom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
+
+    const v = node.value || {};
+    if (v.disabled) return;
+
+    const p    = { ...DEFAULTS, ...params };
+    const zoom = T.sx;
+
+    const sc   = p.scale || 1;
+    const rawW = v.width  || 64;
+    const rawH = v.height || 64;
+    const w    = rawW * zoom * sc;
+    const h    = rawH * zoom * sc;
+    const r    = Math.min((p.cornerRadius || 0) * zoom * sc, w / 2, h / 2);
+
+    const screen = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const sx   = screen.x;
+    const sy   = screen.y + (p.liftY || 0) * zoom;
+    const left = sx - w / 2;
+    const top  = sy - h / 2;
+
+    if (pt.x < left || pt.x > left + w ||
+        pt.y < top  || pt.y > top  + h) return;
+
+    const lx = pt.x - left;
+    const ly = pt.y - top;
+    if (lx < r && ly < r && (lx - r) ** 2 + (ly - r) ** 2 > r * r) return;
+    if (lx > w - r && ly < r && (lx - (w - r)) ** 2 + (ly - r) ** 2 > r * r) return;
+    if (lx < r && ly > h - r && (lx - r) ** 2 + (ly - (h - r)) ** 2 > r * r) return;
+    if (lx > w - r && ly > h - r && (lx - (w - r)) ** 2 + (ly - (h - r)) ** 2 > r * r) return;
+
+    const dxHit = pt.x - sx;
+    const dyHit = pt.y - sy;
+    const Ts = T.clone();
+
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(screenX, screenY) {
+          const local = Ts.toLocal({ x: screenX - dxHit, y: screenY - dyHit });
+          node.value.x = local.x;
+          node.value.y = local.y;
+        },
+      },
+    };
+  }
+}
+
+//>> sceneRegistry.registerNodeClass('button-node', ButtonNode);
+
+
+//-- endfile --
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — throwaway shims for ctxMix, T, and mouse events.
+//
+//  This is NOT part of the deliverable. It exists only to prove
+//  the nugget works. In the real scene graph, replace:
+//
+//    MiniT          → the scene's Transform (has sx, toScreen, toLocal, clone)
+//    directCtx()    → ctxMix.directCtx() (balanced by ctx.restore())
+//    highlighted    → ctxMix.highlighted (Set of selected nodes)
+//    the draw loop  → sceneRegistry.runPhases(ctxMix, root, params, ['draw2d'])
+//    mouse handlers → the scene's hit-test + drag infrastructure
+// ═══════════════════════════════════════════════════════════════
+
+class MiniT {
+  constructor(sx = 1, panX = 0, panY = 0) {
+    this.sx = sx;
+    this.panX = panX;
+    this.panY = panY;
+  }
+  toScreen({ x, y }) {
+    return { x: x * this.sx + this.panX, y: y * this.sx + this.panY };
+  }
+  toLocal({ x, y }) {
+    return { x: (x - this.panX) / this.sx, y: (y - this.panY) / this.sx };
+  }
+  clone() { return new MiniT(this.sx, this.panX, this.panY); }
+}
+
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H;
+
+const T = new MiniT(1, 0, 0);
+const highlighted = new Set();
+
+function makeCtxMix(hitPoint) {
+  return {
+    ctx,
+    T,
+    W, H,
+    hitPoint:  hitPoint || null,
+    hitResult: null,
+    highlighted,
+    directCtx() { ctx.save(); return ctx; },
+  };
+}
+
+// ── Demo nodes — different button configurations ────────────
+
+const nodes = [
+  { type: 'button-node', value: { x: -90, y: -40, width: 64, height: 64, label: 'あ', sub: 'a' } },
+  { type: 'button-node', value: { x:   0, y: -40, width: 64, height: 64, label: 'い', sub: 'i' } },
+  { type: 'button-node', value: { x:  90, y: -40, width: 64, height: 64, label: 'う', sub: 'u' } },
+  { type: 'button-node', value: { x: -90, y:  40, width: 64, height: 64, label: 'え', sub: 'e', color: '#6b8cae' } },
+  { type: 'button-node', value: { x:   0, y:  40, width: 64, height: 64, label: 'お', sub: 'o', color: '#8b6b4a', badge: 3 } },
+  { type: 'button-node', value: { x:  90, y:  40, width: 64, height: 64, label: '✕', disabled: true } },
+];
+
+// ── Resize ──────────────────────────────────────────────────
+
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width  = W * dpr;
+  cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  T.panX = W / 2;
+  T.panY = H / 2;
+}
+
+// ── Draw ────────────────────────────────────────────────────
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const mix = makeCtxMix();
+  for (const node of nodes) {
+    ButtonNode.draw2d(mix, node, {});
+  }
+}
+
+// ── Hit test ────────────────────────────────────────────────
+
+function hitTest(mx, my) {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const mix = makeCtxMix({ x: mx, y: my });
+    ButtonNode.hit_test(mix, nodes[i], {});
+    if (mix.hitResult) return mix.hitResult;
+  }
+  return null;
+}
+
+// ── Mouse interaction ───────────────────────────────────────
+
+let dragResult = null;
+
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+
+  if (dragResult) {
+    dragResult.interactions.applyDrag(mx, my);
+    draw();
+    return;
+  }
+
+  const hit = hitTest(mx, my);
+  cv.style.cursor = hit ? 'pointer' : 'default';
+});
+
+cv.addEventListener('mousedown', e => {
+  const r = cv.getBoundingClientRect();
+  const hit = hitTest(e.clientX - r.left, e.clientY - r.top);
+  if (hit) {
+    dragResult = hit;
+    // toggle highlight on click
+    if (highlighted.has(hit.node)) highlighted.delete(hit.node);
+    else highlighted.add(hit.node);
+    draw();
+  }
+});
+
+cv.addEventListener('mouseup', () => { dragResult = null; });
+cv.addEventListener('mouseleave', () => { dragResult = null; });
+
+// ── Init ────────────────────────────────────────────────────
+
+resize();
+draw();
+new ResizeObserver(() => { resize(); draw(); }).observe(cv);
+
+</script>
+</body>
+</html>

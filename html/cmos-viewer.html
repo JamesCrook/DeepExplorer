@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMOS Schematic & Hex Viewer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #141422;
+    --surface: #1a1a2e;
+    --surface2: #22223a;
+    --border: #2a2a44;
+    --text: #c8c8d8;
+    --text-dim: #6a6a80;
+    --red: #e05555;
+    --orange: #e0a030;
+    --yellow: #d4d060;
+    --green: #50b878;
+    --blue: #5588cc;
+    --grey: #555566;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .view-label {
+    padding: 6px 16px 2px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+  }
+
+  canvas {
+    display: block;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  #waveform-canvas { cursor: default; }
+  #schematic-canvas { cursor: pointer; }
+  #hex-canvas { cursor: default; }
+
+  .canvas-wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 16px;
+    background: var(--surface2);
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .tool-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tool-group-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-right: 4px;
+  }
+
+  .swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: #fff; }
+
+  .mode-btn {
+    background: var(--border);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    transition: background 0.15s;
+  }
+  .mode-btn:hover { background: #3a3a54; }
+  .mode-btn.active { background: var(--blue); color: #fff; }
+
+  .clock-btn {
+    background: var(--border);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    width: 32px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+  .clock-btn:hover { background: #3a3a54; }
+  .clock-btn:active { background: var(--blue); }
+
+  #tick-display {
+    font-size: 12px;
+    color: var(--text-dim);
+    min-width: 70px;
+    text-align: center;
+  }
+
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .slider-group input[type="range"] {
+    width: 80px;
+    accent-color: var(--blue);
+  }
+</style>
+</head>
+<body>
+
+<div class="view-label">Waveform</div>
+<canvas id="waveform-canvas"></canvas>
+
+<div class="view-label">Schematic</div>
+<div class="canvas-wrap">
+  <canvas id="schematic-canvas"></canvas>
+</div>
+
+<div class="view-label">Hex</div>
+<canvas id="hex-canvas"></canvas>
+
+<div id="toolbar">
+  <div class="tool-group">
+    <span class="tool-group-label">Paint</span>
+    <div class="swatch active" data-color="blue" style="background:var(--blue)"></div>
+    <div class="swatch" data-color="green" style="background:var(--green)"></div>
+    <div class="swatch" data-color="yellow" style="background:var(--yellow)"></div>
+    <div class="swatch" data-color="orange" style="background:var(--orange)"></div>
+    <div class="swatch" data-color="red" style="background:var(--red)"></div>
+  </div>
+  <div class="tool-group">
+    <button class="mode-btn" id="value-mode-btn">Value</button>
+  </div>
+  <div class="tool-group">
+    <span class="tool-group-label">Clock</span>
+    <button class="clock-btn" id="btn-reset" title="Reset">⏮</button>
+    <button class="clock-btn" id="btn-back" title="Step back">◂</button>
+    <button class="clock-btn" id="btn-fwd" title="Step forward">▸</button>
+    <span id="tick-display">Phase 0</span>
+  </div>
+  <div class="tool-group">
+    <div class="slider-group">
+      <span>Dead zone</span>
+      <input type="range" id="dead-zone" min="0.1" max="1.5" step="0.05" value="0.4">
+    </div>
+    <div class="slider-group">
+      <span>Scale</span>
+      <input type="range" id="wf-scale" min="0.5" max="3" step="0.1" value="1.0">
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+
+const CONFIG = {
+  display: {
+    schematic: { blobRadius: 13, spacing: 38, rowGap: 64, clockLineWidth: 4, labelWidth: 56 },
+    hex:       { fontSize: 22, digitGap: 8, rowHeight: 32, labelWidth: 56 },
+    waveform:  { height: 100, traceHeight: 28, labelWidth: 56 },
+    background: '#1a1a2e',
+    colors: { red: '#e05555', orange: '#e0a030', yellow: '#d4d060', green: '#50b878', blue: '#5588cc', grey: '#555566' }
+  },
+
+  clocks: {
+    CLK1: { label: 'CLK1' },
+    CLK2: { label: 'CLK2' }
+  },
+
+  clockSequence: [
+    { CLK1: 0, CLK2: 1 },
+    { CLK1: 0, CLK2: 0 },
+    { CLK1: 1, CLK2: 0 },
+    { CLK1: 0, CLK2: 0 }
+  ],
+
+  waveform: { deadZone: 0.4, riseTime: 0.18, scale: 1.0 },
+
+  columns: (() => {
+    const cols = [];
+    for (let i = 0; i < 16; i++) cols.push({ clock: i % 2 === 0 ? 'CLK1' : 'CLK2' });
+    return cols;
+  })(),
+
+  rows: [
+    { id: 'Row0', label: 'Row 0', direction: 'ltr', input: 'Row0', initialState: [1,0,1,0, 0,1,0,1, 1,1,0,0, 0,0,0,0] },
+    { id: 'Row1', label: 'Row 1', direction: 'rtl', input: 'Row0', initialState: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+    { id: 'Row2', label: 'Row 2', direction: 'ltr', input: 'Row1', initialState: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] },
+    { id: 'Row3', label: 'Row 3', direction: 'rtl', input: 'Row2', initialState: [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0] }
+  ],
+
+  hexGroups: [
+    { label: 'CLK',   type: 'clocks' },
+    { label: 'Row 0', type: 'row', rowId: 'Row0' },
+    { label: 'Row 1', type: 'row', rowId: 'Row1' },
+    { label: 'Row 2', type: 'row', rowId: 'Row2' },
+    { label: 'Row 3', type: 'row', rowId: 'Row3' }
+  ]
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// COLOR SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+const ColorSys = {
+  RANK: { blue: 0, green: 1, yellow: 2, orange: 3, red: 4 },
+  NAMES: ['blue', 'green', 'yellow', 'orange', 'red'],
+
+  hex(name) { return CONFIG.display.colors[name] || CONFIG.display.colors.blue; },
+
+  dominant(a, b) {
+    return (ColorSys.RANK[a] || 0) >= (ColorSys.RANK[b] || 0) ? a : b;
+  },
+
+  dominantOfSet(colors) {
+    return colors.reduce((best, c) => ColorSys.dominant(best, c), 'blue');
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// SIMULATION ENGINE
+// ═══════════════════════════════════════════════════════════
+
+const Sim = (() => {
+  let state = null;      // { rows: { [id]: [{ value, color }] }, phaseIndex }
+  let history = [];      // array of deep-copied states
+  let tick = 0;
+  let futureValid = 0;   // how far forward history is valid
+
+  function deepCopyState(s) {
+    const rows = {};
+    for (const id in s.rows) {
+      rows[id] = s.rows[id].map(c => ({ value: c.value, color: c.color }));
+    }
+    return { rows, phaseIndex: s.phaseIndex };
+  }
+
+  function init() {
+    state = { rows: {}, phaseIndex: 0 };
+    for (const row of CONFIG.rows) {
+      state.rows[row.id] = CONFIG.columns.map((_, i) => ({
+        value: (row.initialState && row.initialState[i]) || 0,
+        color: 'blue'
+      }));
+    }
+    history = [deepCopyState(state)];
+    tick = 0;
+    futureValid = 0;
+  }
+
+  function getRowConfig(id) {
+    return CONFIG.rows.find(r => r.id === id);
+  }
+
+  function outputCell(rowId) {
+    const rc = getRowConfig(rowId);
+    const idx = rc.direction === 'ltr' ? CONFIG.columns.length - 1 : 0;
+    return state.rows[rowId][idx];
+  }
+
+  function step() {
+    // Save current state
+    history.length = tick + 1;
+    history[tick] = deepCopyState(state);
+
+    // Advance clock phase
+    const prevPhase = state.phaseIndex;
+    state.phaseIndex = (state.phaseIndex + 1) % CONFIG.clockSequence.length;
+    const prevClocks = CONFIG.clockSequence[prevPhase];
+    const currClocks = CONFIG.clockSequence[state.phaseIndex];
+
+    // Find clocks that just went HIGH
+    const activated = [];
+    for (const clkId in CONFIG.clocks) {
+      if (currClocks[clkId] === 1 && prevClocks[clkId] === 0) activated.push(clkId);
+    }
+
+    // Propagate through each activated clock's cells
+    for (const clkId of activated) {
+      for (const rowCfg of CONFIG.rows) {
+        const cells = state.rows[rowCfg.id];
+        const isLTR = rowCfg.direction === 'ltr';
+
+        // Process cells controlled by this clock
+        // Order doesn't matter: we only write to clkId cells, reading from non-clkId cells
+        for (let col = 0; col < CONFIG.columns.length; col++) {
+          if (CONFIG.columns[col].clock !== clkId) continue;
+
+          const upstreamCol = isLTR ? col - 1 : col + 1;
+
+          if (upstreamCol >= 0 && upstreamCol < CONFIG.columns.length) {
+            cells[col].value = cells[upstreamCol].value;
+            cells[col].color = cells[upstreamCol].color;
+          } else if (rowCfg.input) {
+            // First cell in flow — take from input row's output
+            const src = outputCell(rowCfg.input);
+            cells[col].value = src.value;
+            cells[col].color = src.color;
+          }
+          // else: hold current value
+        }
+      }
+    }
+
+    tick++;
+    history[tick] = deepCopyState(state);
+    futureValid = tick;
+  }
+
+  function rewind() {
+    if (tick <= 0) return;
+    tick--;
+    state = deepCopyState(history[tick]);
+    futureValid = tick;
+  }
+
+  function reset() {
+    init();
+  }
+
+  function paintCell(rowId, cellIndex, newColor) {
+    const cell = state.rows[rowId][cellIndex];
+    if (cell.color === 'blue') {
+      cell.color = newColor;
+    } else {
+      cell.color = 'blue';
+    }
+    // Invalidate future after paint
+    history.length = tick + 1;
+    history[tick] = deepCopyState(state);
+    futureValid = tick;
+  }
+
+  function toggleValue(rowId, cellIndex) {
+    state.rows[rowId][cellIndex].value ^= 1;
+    history.length = tick + 1;
+    history[tick] = deepCopyState(state);
+    futureValid = tick;
+  }
+
+  function getState()      { return state; }
+  function getTick()       { return tick; }
+  function getPhaseIndex() { return state.phaseIndex; }
+  function getClocks()     { return CONFIG.clockSequence[state.phaseIndex]; }
+
+  return { init, step, rewind, reset, paintCell, toggleValue, getState, getTick, getPhaseIndex, getClocks };
+})();
+
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS UTILITIES
+// ═══════════════════════════════════════════════════════════
+
+function setupCanvas(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+function drawCircle(ctx, x, y, r, filled, color, lineW) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  if (filled) {
+    ctx.fillStyle = color;
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW || 1.5;
+    ctx.stroke();
+  }
+}
+
+function drawRect(ctx, x, y, w, h, filled, color, lineW) {
+  if (filled) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  } else {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW || 1.5;
+    ctx.strokeRect(x, y, w, h);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// WAVEFORM RENDERER
+// ═══════════════════════════════════════════════════════════
+
+const WaveformRenderer = {
+  render(canvas) {
+    const ds = CONFIG.display;
+    const wf = CONFIG.waveform;
+    const W = canvas.parentElement ? canvas.parentElement.clientWidth || 800 : 800;
+    const H = ds.waveform.height;
+    const ctx = setupCanvas(canvas, W, H);
+    const labelW = ds.waveform.labelWidth;
+    const traceH = ds.waveform.traceHeight;
+    const seq = CONFIG.clockSequence;
+    const clkIds = Object.keys(CONFIG.clocks);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Phase widths: active phases get width 1, dead (all-zero) get deadZone
+    function isDeadPhase(phase) {
+      return clkIds.every(c => phase[c] === 0);
+    }
+
+    const phaseWidths = seq.map(p => isDeadPhase(p) ? wf.deadZone : 1.0);
+    const cycleWidth = phaseWidths.reduce((a, b) => a + b, 0);
+    const drawW = W - labelW - 20;
+    const pxPerUnit = (drawW / (cycleWidth * 2.5)) * wf.scale;
+
+    clkIds.forEach((clkId, traceIdx) => {
+      const baseY = 16 + traceIdx * (traceH + 14);
+      const low = baseY + traceH;
+      const high = baseY + 4;
+
+      // Label
+      ctx.fillStyle = ds.colors.blue;
+      ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(CONFIG.clocks[clkId].label, 8, baseY + traceH / 2);
+
+      // Draw multiple cycles
+      ctx.beginPath();
+      ctx.strokeStyle = ds.colors.blue;
+      ctx.lineWidth = 1.5;
+
+      let x = labelW;
+      const totalPhases = seq.length * 4; // draw 4 cycles
+      for (let i = 0; i < totalPhases; i++) {
+        const pi = i % seq.length;
+        const pw = phaseWidths[pi] * pxPerUnit;
+        const val = seq[pi][clkId];
+        const prevPI = (pi - 1 + seq.length) % seq.length;
+        const prevVal = seq[prevPI][clkId];
+        const y = val ? high : low;
+        const prevY = prevVal ? high : low;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else if (val !== prevVal) {
+          // At x we're still at previous level; slope to new level
+          const slopeW = Math.min(pw * wf.riseTime, pw * 0.4);
+          ctx.lineTo(x, prevY);
+          ctx.lineTo(x + slopeW, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(x + pw, y);
+        x += pw;
+        if (x > W) break;
+      }
+      ctx.stroke();
+
+      // Baseline guides
+      ctx.strokeStyle = '#ffffff08';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(labelW, low); ctx.lineTo(W - 10, low);
+      ctx.stroke();
+    });
+
+    // Current phase marker
+    const currentPhase = Sim.getPhaseIndex();
+    let markerX = labelW;
+    const tickInCycle = Sim.getTick() % seq.length;
+    for (let i = 0; i < tickInCycle; i++) {
+      markerX += phaseWidths[i] * pxPerUnit;
+    }
+    markerX += phaseWidths[tickInCycle] * pxPerUnit * 0.5;
+
+    ctx.strokeStyle = '#ffffff40';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(markerX, 4);
+    ctx.lineTo(markerX, H - 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Small triangle at top
+    ctx.fillStyle = '#ffffff60';
+    ctx.beginPath();
+    ctx.moveTo(markerX - 4, 2);
+    ctx.lineTo(markerX + 4, 2);
+    ctx.lineTo(markerX, 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// SCHEMATIC RENDERER
+// ═══════════════════════════════════════════════════════════
+
+const SchematicRenderer = {
+  // Returns {x, y} for a cell at row/col
+  cellPos(rowIdx, col) {
+    const ds = CONFIG.display.schematic;
+    const x = ds.labelWidth + ds.spacing / 2 + col * ds.spacing;
+    const y = ds.spacing / 2 + rowIdx * ds.rowGap;
+    return { x, y };
+  },
+
+  contentSize() {
+    const ds = CONFIG.display.schematic;
+    return {
+      w: ds.labelWidth + CONFIG.columns.length * ds.spacing + 10,
+      h: CONFIG.rows.length * ds.rowGap + 10
+    };
+  },
+
+  hitTest(canvasX, canvasY) {
+    const ds = CONFIG.display.schematic;
+    for (let ri = 0; ri < CONFIG.rows.length; ri++) {
+      for (let ci = 0; ci < CONFIG.columns.length; ci++) {
+        const p = this.cellPos(ri, ci);
+        const dx = canvasX - p.x;
+        const dy = canvasY - p.y;
+        if (dx * dx + dy * dy <= ds.blobRadius * ds.blobRadius * 1.8) {
+          return { rowId: CONFIG.rows[ri].id, cellIndex: ci };
+        }
+      }
+    }
+    return null;
+  },
+
+  render(canvas) {
+    const ds = CONFIG.display.schematic;
+    const size = this.contentSize();
+    const W = canvas.parentElement ? canvas.parentElement.clientWidth || size.w : size.w;
+    const H = parseInt(canvas.style.height) || size.h;
+    const ctx = setupCanvas(canvas, W, H);
+    const st = Sim.getState();
+    const clocks = Sim.getClocks();
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw clock lines (behind blobs)
+    const clkLineH = CONFIG.rows.length * ds.rowGap - ds.rowGap + ds.blobRadius * 2 + 10;
+    for (let ci = 0; ci < CONFIG.columns.length; ci++) {
+      const clkId = CONFIG.columns[ci].clock;
+      const active = clocks[clkId] === 1;
+      const p = this.cellPos(0, ci);
+      const lx = p.x - ds.clockLineWidth / 2;
+      const ly = p.y - ds.blobRadius - 5;
+      const color = ColorSys.hex('blue');
+
+      if (!active) ctx.globalAlpha = 0.3;
+      drawRect(ctx, lx, ly, ds.clockLineWidth, clkLineH, active, color, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    // Draw direction arrows (subtle, between rows)
+    ctx.fillStyle = '#ffffff15';
+    ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textBaseline = 'middle';
+
+    // Draw row labels and blobs
+    for (let ri = 0; ri < CONFIG.rows.length; ri++) {
+      const rowCfg = CONFIG.rows[ri];
+      const cells = st.rows[rowCfg.id];
+      const p0 = this.cellPos(ri, 0);
+
+      // Row label
+      ctx.fillStyle = CONFIG.display.colors.grey;
+      ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(rowCfg.label, ds.labelWidth - 8, p0.y);
+
+      // Direction indicator
+      const arrow = rowCfg.direction === 'ltr' ? '→' : '←';
+      ctx.fillStyle = '#ffffff18';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      const arrowX = rowCfg.direction === 'ltr'
+        ? this.cellPos(ri, CONFIG.columns.length - 1).x + ds.spacing * 0.6
+        : this.cellPos(ri, 0).x - ds.spacing * 0.6;
+      ctx.fillText(arrow, arrowX, p0.y);
+
+      // Blobs
+      for (let ci = 0; ci < CONFIG.columns.length; ci++) {
+        const cell = cells[ci];
+        const p = this.cellPos(ri, ci);
+        drawCircle(ctx, p.x, p.y, ds.blobRadius, cell.value === 1, ColorSys.hex(cell.color), 1.5);
+      }
+    }
+
+    // Connection indicators between serpentine rows
+    for (let ri = 0; ri < CONFIG.rows.length - 1; ri++) {
+      const currRow = CONFIG.rows[ri];
+      const nextRow = CONFIG.rows[ri + 1];
+      if (nextRow.input === currRow.id) {
+        const outCol = currRow.direction === 'ltr' ? CONFIG.columns.length - 1 : 0;
+        const inCol = nextRow.direction === 'ltr' ? 0 : CONFIG.columns.length - 1;
+        const pOut = this.cellPos(ri, outCol);
+        const pIn = this.cellPos(ri + 1, inCol);
+
+        ctx.strokeStyle = '#ffffff12';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const midY = (pOut.y + pIn.y) / 2;
+        const bendX = outCol === CONFIG.columns.length - 1
+          ? pOut.x + ds.spacing * 0.5
+          : pOut.x - ds.spacing * 0.5;
+        ctx.moveTo(pOut.x, pOut.y + ds.blobRadius + 2);
+        ctx.quadraticCurveTo(bendX, midY, pIn.x, pIn.y - ds.blobRadius - 2);
+        ctx.stroke();
+      }
+    }
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// HEX RENDERER
+// ═══════════════════════════════════════════════════════════
+
+const HexRenderer = {
+  contentHeight() {
+    const ds = CONFIG.display.hex;
+    return CONFIG.hexGroups.length * ds.rowHeight + 16;
+  },
+
+  render(canvas) {
+    const ds = CONFIG.display.hex;
+    const W = canvas.parentElement ? canvas.parentElement.clientWidth || 600 : 600;
+    const H = this.contentHeight();
+    const ctx = setupCanvas(canvas, W, H);
+    const st = Sim.getState();
+    const clocks = Sim.getClocks();
+
+    ctx.clearRect(0, 0, W, H);
+
+    const fontStack = "'SF Mono', 'Cascadia Code', Consolas, 'Fira Code', monospace";
+
+    CONFIG.hexGroups.forEach((group, gi) => {
+      const y = 12 + gi * ds.rowHeight;
+
+      // Label
+      ctx.fillStyle = CONFIG.display.colors.grey;
+      ctx.font = '11px ' + fontStack;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(group.label, ds.labelWidth - 8, y + ds.rowHeight / 2 - 4);
+
+      if (group.type === 'clocks') {
+        // Show clock state as binary
+        const clkIds = Object.keys(CONFIG.clocks);
+        let x = ds.labelWidth + 4;
+        const clkColor = ColorSys.hex('blue');
+        for (const clkId of clkIds) {
+          const val = clocks[clkId];
+          ctx.font = ds.fontSize + 'px ' + fontStack;
+          ctx.textAlign = 'left';
+          ctx.globalAlpha = val ? 1 : 0.3;
+          ctx.fillStyle = clkColor;
+          ctx.fillText(val.toString(), x, y + ds.rowHeight / 2 - 2);
+          ctx.globalAlpha = 1;
+          x += ds.fontSize * 0.8 + ds.digitGap;
+        }
+      } else if (group.type === 'row') {
+        const cells = st.rows[group.rowId];
+        if (!cells) return;
+
+        // Group into nibbles (4 bits each)
+        const nibbleCount = Math.ceil(cells.length / 4);
+        let x = ds.labelWidth + 4;
+
+        for (let ni = 0; ni < nibbleCount; ni++) {
+          const startBit = ni * 4;
+          let nibbleVal = 0;
+          const nibbleColors = [];
+          let allDefault = true;
+
+          for (let bi = 0; bi < 4; bi++) {
+            const ci = startBit + bi;
+            if (ci < cells.length) {
+              nibbleVal |= (cells[ci].value << (3 - bi));
+              nibbleColors.push(cells[ci].color);
+              if (cells[ci].color !== 'blue') allDefault = false;
+            }
+          }
+
+          const domColor = ColorSys.dominantOfSet(nibbleColors);
+          const hexChar = nibbleVal.toString(16).toUpperCase();
+
+          // Determine display color
+          let dispColor;
+          let dispAlpha = 1;
+          if (nibbleColors.length === 0) {
+            dispColor = CONFIG.display.colors.grey;
+          } else if (allDefault && nibbleVal === 0) {
+            dispColor = ColorSys.hex('blue');
+            dispAlpha = 0.4;
+          } else {
+            dispColor = ColorSys.hex(domColor);
+          }
+
+          ctx.font = ds.fontSize + 'px ' + fontStack;
+          ctx.textAlign = 'left';
+          ctx.globalAlpha = dispAlpha;
+          ctx.fillStyle = dispColor;
+          ctx.fillText(hexChar, x, y + ds.rowHeight / 2 - 2);
+          ctx.globalAlpha = 1;
+
+          x += ds.fontSize * 0.75 + ds.digitGap;
+        }
+      }
+    });
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// UI CONTROLLER
+// ═══════════════════════════════════════════════════════════
+
+const UI = (() => {
+  let selectedColor = 'blue';
+  let valueMode = false;
+
+  function renderAll() {
+    WaveformRenderer.render(document.getElementById('waveform-canvas'));
+    SchematicRenderer.render(document.getElementById('schematic-canvas'));
+    HexRenderer.render(document.getElementById('hex-canvas'));
+    document.getElementById('tick-display').textContent = `Phase ${Sim.getPhaseIndex()}  Tick ${Sim.getTick()}`;
+  }
+
+  function sizeCanvases() {
+    const schCanvas = document.getElementById('schematic-canvas');
+    const size = SchematicRenderer.contentSize();
+    schCanvas.style.height = size.h + 'px';
+
+    const hexCanvas = document.getElementById('hex-canvas');
+    hexCanvas.style.height = HexRenderer.contentHeight() + 'px';
+  }
+
+  function bindEvents() {
+    // Color palette
+    document.querySelectorAll('.swatch').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+        selectedColor = el.dataset.color;
+      });
+    });
+
+    // Value mode toggle
+    document.getElementById('value-mode-btn').addEventListener('click', function() {
+      valueMode = !valueMode;
+      this.classList.toggle('active', valueMode);
+    });
+
+    // Clock controls
+    document.getElementById('btn-fwd').addEventListener('click', () => { Sim.step(); renderAll(); });
+    document.getElementById('btn-back').addEventListener('click', () => { Sim.rewind(); renderAll(); });
+    document.getElementById('btn-reset').addEventListener('click', () => { Sim.reset(); renderAll(); });
+
+    // Waveform controls
+    document.getElementById('dead-zone').addEventListener('input', function() {
+      CONFIG.waveform.deadZone = parseFloat(this.value);
+      renderAll();
+    });
+    document.getElementById('wf-scale').addEventListener('input', function() {
+      CONFIG.waveform.scale = parseFloat(this.value);
+      renderAll();
+    });
+
+    // Schematic canvas click
+    document.getElementById('schematic-canvas').addEventListener('click', (e) => {
+      const rect = e.target.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const hit = SchematicRenderer.hitTest(x, y);
+      if (!hit) return;
+
+      if (valueMode) {
+        Sim.toggleValue(hit.rowId, hit.cellIndex);
+      } else if (selectedColor !== 'blue' || Sim.getState().rows[hit.rowId][hit.cellIndex].color !== 'blue') {
+        // Only paint if a non-blue color is selected OR the cell is already colored
+        Sim.paintCell(hit.rowId, hit.cellIndex, selectedColor === 'blue' ? 'blue' : selectedColor);
+      }
+      renderAll();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); Sim.step(); renderAll(); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); Sim.rewind(); renderAll(); }
+      if (e.key === 'v' || e.key === 'V') {
+        valueMode = !valueMode;
+        document.getElementById('value-mode-btn').classList.toggle('active', valueMode);
+      }
+      if (e.key === 'r') { Sim.reset(); renderAll(); }
+      // Number keys for colors
+      const colorKeys = { '1': 'red', '2': 'orange', '3': 'yellow', '4': 'green', '5': 'blue' };
+      if (colorKeys[e.key]) {
+        selectedColor = colorKeys[e.key];
+        document.querySelectorAll('.swatch').forEach(s => {
+          s.classList.toggle('active', s.dataset.color === selectedColor);
+        });
+      }
+    });
+
+    // Resize
+    window.addEventListener('resize', () => { sizeCanvases(); renderAll(); });
+  }
+
+  function init() {
+    Sim.init();
+    sizeCanvases();
+    bindEvents();
+    renderAll();
+  }
+
+  return { init, renderAll };
+})();
+
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', UI.init);
+</script>
+</body>
+</html>

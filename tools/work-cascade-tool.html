@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Work Cascade Tool</title>
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
+      --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
+      --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
+      --accent: #f59e0b; --accent-dim: #b45309;
+      --success: #22c55e; --danger: #ef4444; --warning: #eab308;
+      --role-todo: #f59e0b; --role-prompt: #a855f7; --role-spec: #3b82f6; --role-code: #06b6d4;
+      --font-mono: 'JetBrains Mono', monospace; --font-sans: 'Space Grotesk', sans-serif;
+    }
+    html, body { height: 100%; }
+    body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
+    .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+    header { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); }
+    h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+    h1 span { color: var(--accent); }
+    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+    .stat-badge { display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono); font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border); }
+    .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
+    main { display: grid; grid-template-columns: 280px 1fr 380px; overflow: hidden; }
+    .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .panel:last-child { border-right: none; }
+    .panel-header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; }
+    .panel-header .count { background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; }
+    .panel-tabs { display: flex; gap: 0.25rem; }
+    .panel-tab { background: none; border: none; padding: 0.2rem 0.5rem; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--text-muted); cursor: pointer; border-radius: 3px; }
+    .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+    .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
+    .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
+    .drop-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245,158,11,0.05); }
+    .drop-zone.secondary { border-style: dotted; opacity: 0.7; padding: 1rem; }
+    .drop-zone.secondary:hover { opacity: 1; }
+    .drop-zone-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--text-muted); }
+    .drop-zone p { font-size: 0.85rem; color: var(--text-secondary); text-align: center; }
+    .drop-zone small { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; }
+    .filter-row { display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+    .filter-input { flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-primary); outline: none; }
+    .filter-input:focus { border-color: var(--accent); }
+    .filter-input::placeholder { color: var(--text-muted); }
+
+    .tag-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.78rem; min-height: 26px; user-select: none; }
+    .tag-row:hover { background: var(--bg-hover); }
+    .tag-row.selected { background: rgba(245,158,11,0.12); border-left: 2px solid var(--accent); margin-left: -2px; }
+    .tag-arrow { width: 14px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; font-size: 0.6rem; text-align: center; }
+    .tag-arrow.expanded { transform: rotate(90deg); }
+    .tag-arrow.leaf { visibility: hidden; }
+    .tag-name { font-family: var(--font-mono); font-size: 0.75rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tag-frac { font-family: var(--font-mono); font-size: 0.55rem; color: var(--text-muted); min-width: 28px; text-align: right; flex-shrink: 0; }
+    .tag-frac.all-done { color: var(--success); }
+    .tag-frac.none-done { color: var(--danger); }
+    .tag-idio-mark { color: var(--accent); font-size: 0.6rem; flex-shrink: 0; margin-right: 1px; }
+    .tag-maturity { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+    .mat-dot { width: 9px; height: 9px; border-radius: 50%; position: relative; opacity: 0.15; flex-shrink: 0; }
+    .mat-dot.active { opacity: 1; }
+    .mat-dot.todo { background: var(--role-todo); }
+    .mat-dot.prompt { background: var(--role-prompt); }
+    .mat-dot.spec { background: var(--role-spec); }
+    .mat-dot.code { background: var(--role-code); }
+    .mat-dot.has-checked::after { content: ''; position: absolute; width: 3px; height: 3px; background: var(--bg-primary); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    .tag-children { margin-left: 14px; }
+    .tag-children.collapsed { display: none; }
+
+    .file-list { border-top: 1px solid var(--border); padding: 0.4rem; }
+    .file-entry { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.4rem; font-size: 0.7rem; border-radius: 3px; }
+    .file-entry:hover { background: var(--bg-hover); }
+    .file-entry .fname { font-family: var(--font-mono); font-size: 0.65rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-role { font-family: var(--font-mono); font-size: 0.5rem; text-transform: uppercase; padding: 0.05rem 0.25rem; border-radius: 2px; flex-shrink: 0; }
+    .file-role.todo { background: rgba(245,158,11,0.15); color: var(--role-todo); }
+    .file-role.prompt { background: rgba(168,85,247,0.15); color: var(--role-prompt); }
+    .file-role.spec { background: rgba(59,130,246,0.15); color: var(--role-spec); }
+    .file-role.code { background: rgba(6,182,212,0.15); color: var(--role-code); }
+    .file-role.idiolect { background: rgba(152,152,164,0.15); color: var(--text-secondary); }
+    .file-role.prefix { background: rgba(236,72,153,0.15); color: #ec4899; }
+
+    .role-group { margin-bottom: 0.75rem; }
+    .role-header { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.3rem 0.5rem; margin-bottom: 0.2rem; border-radius: 3px; font-weight: 600; }
+    .role-header.todo { color: var(--role-todo); background: rgba(245,158,11,0.08); }
+    .role-header.prompt { color: var(--role-prompt); background: rgba(168,85,247,0.08); }
+    .role-header.spec { color: var(--role-spec); background: rgba(59,130,246,0.08); }
+    .role-header.code { color: var(--role-code); background: rgba(6,182,212,0.08); }
+    .item { padding: 0.4rem 0.5rem; border-radius: 4px; margin-bottom: 0.2rem; border: 1px solid transparent; font-size: 0.78rem; }
+    .item:hover { background: var(--bg-hover); border-color: var(--border); }
+    .item-top { display: flex; align-items: center; gap: 0.4rem; }
+    .item-dots { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
+    .item-dot { width: 8px; height: 8px; border-radius: 50%; position: relative; opacity: 0.15; flex-shrink: 0; }
+    .item-dot.active { opacity: 1; }
+    .item-dot.todo { background: var(--role-todo); }
+    .item-dot.prompt { background: var(--role-prompt); }
+    .item-dot.spec { background: var(--role-spec); }
+    .item-dot.code { background: var(--role-code); }
+    .item-dot.has-checked::after { content: ''; position: absolute; width: 3px; height: 3px; background: var(--bg-primary); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    .item-text { flex: 1; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .item-tag-right { font-family: var(--font-mono); font-size: 0.6rem; color: var(--accent); flex-shrink: 0; margin-left: auto; white-space: nowrap; }
+    .item-sub { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 0.15rem; margin-left: 31px; }
+    .item-warn { font-family: var(--font-mono); font-size: 0.55rem; color: var(--warning); margin-top: 0.15rem; margin-left: 31px; }
+    .item-classes { font-family: var(--font-mono); font-size: 0.6rem; color: var(--role-code); margin-top: 0.2rem; margin-left: 31px; }
+    .item-content { margin-top: 0.4rem; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow-y: auto; color: var(--text-secondary); }
+    .item-content.expanded { max-height: none; }
+    .item-expand { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.65rem; font-family: var(--font-sans); padding: 0.1rem 0; }
+
+    .idio-term { display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 3px; margin-bottom: 0.15rem; font-size: 0.75rem; }
+    .idio-term.lit { background: rgba(245,158,11,0.08); border-left: 2px solid var(--accent); }
+    .idio-term.dim { opacity: 0.35; }
+    .idio-term input[type="checkbox"] { accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+    .idio-term-body { flex: 1; min-width: 0; }
+    .idio-term-name { font-weight: 600; font-family: var(--font-mono); font-size: 0.72rem; }
+    .idio-term-def { color: var(--text-muted); font-size: 0.68rem; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .bundle-actions { display: flex; gap: 0.4rem; padding: 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+    .bundle-preview { flex: 1; overflow-y: auto; padding: 0.5rem; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary); }
+    .report-section { margin-bottom: 1rem; }
+    .report-label { font-family: var(--font-mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 0.3rem; font-weight: 600; }
+    .report-item { font-family: var(--font-mono); font-size: 0.68rem; padding: 0.2rem 0.4rem; color: var(--text-secondary); border-radius: 3px; margin-bottom: 0.1rem; }
+    .report-item:hover { background: var(--bg-hover); }
+    .report-item .ri-tag { color: var(--accent); }
+    .report-item .ri-warn { color: var(--warning); }
+    .report-item .ri-ok { color: var(--success); }
+    .report-item .ri-err { color: var(--danger); }
+    .report-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 0.2rem 0 0.4rem; background: var(--bg-tertiary); }
+    .report-bar span { height: 100%; }
+
+    .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn svg { width: 14px; height: 14px; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem; text-align: center; height: 100%; }
+    .status { font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 1rem; border-top: 1px solid var(--border); background: var(--bg-secondary); font-family: var(--font-mono); }
+    .status.success { color: var(--success); }
+    .status.error { color: var(--danger); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Work <span>Cascade</span></h1>
+      <div class="header-actions" id="headerActions">
+        <button class="btn" id="btnRescan" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>Rescan</button>
+        <button class="btn btn-primary" id="btnCopy" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy Bundle</button>
+      </div>
+    </header>
+    <main>
+      <div class="panel">
+        <div class="panel-header">Tags <span class="count" id="tagCount">0</span></div>
+        <div class="filter-row" id="filterRow" style="display:none">
+          <input type="text" class="filter-input" id="treeFilter" placeholder="filter tags...">
+        </div>
+        <div class="panel-content" id="treeContent">
+          <div class="drop-zone" id="dropMd">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+            <p>Drop work folder</p><small>.md files — BOM, prompts, specs, insights</small>
+          </div>
+          <div class="drop-zone secondary" id="dropCode">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/></svg>
+            <p>Drop code folder</p><small>Scans .js/.html for classes and tags → manifest</small>
+          </div>
+        </div>
+        <div class="file-list" id="fileList" style="display:none"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-tabs" id="centerTabs">
+            <button class="panel-tab active" data-tab="items">Items</button>
+            <button class="panel-tab" data-tab="idiolect">Idiolect</button>
+          </div>
+          <span class="count" id="centerCount">0</span>
+        </div>
+        <div class="panel-content" id="centerContent"><div class="empty-state">Select a tag to see items</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-tabs" id="rightTabs">
+            <button class="panel-tab active" data-tab="bundle">Bundle</button>
+            <button class="panel-tab" data-tab="report">Report</button>
+          </div>
+        </div>
+        <div class="bundle-actions" id="bundleActions">
+          <button class="btn btn-primary" id="btnCopyBundle" disabled>Copy to clipboard</button>
+        </div>
+        <div class="panel-content" id="rightContent"><div class="empty-state">Select a tag to build a bundle</div></div>
+      </div>
+    </main>
+    <div class="status" id="status">Drop a folder of .md work files to begin</div>
+  </div>
+
+  <script type="module">
+    // ═══════════════════════════════════════════════════════════════
+    // CascadeParse — tag extraction, role detection, markdown parsing
+    // ═══════════════════════════════════════════════════════════════
+    //-- file: ./cascade-parse.js --
+    //>> export { CascadeParse };
+    class CascadeParse {
+      static ROLES = ['todo', 'prompt', 'spec', 'code'];
+      static ROLE_LABELS = { todo: 'Todo', prompt: 'Prompt', spec: 'Spec', code: 'Code' };
+      static TAG_RE = /#([a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_]+)*)/g;
+
+      /** Extract all #tags from text. requireSlash filters to tags containing /. */
+      static extractTags(text, requireSlash = false) {
+        const tags = [], re = new RegExp(this.TAG_RE.source, 'g');
+        let m; while ((m = re.exec(text)) !== null) {
+          if (!requireSlash || m[1].includes('/')) tags.push(m[1]);
+        }
+        return tags;
+      }
+
+      static stripTags(text) {
+        return text.replace(/#[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_]+)*/g, '').trim();
+      }
+
+      /** Detect role from ```json { "role": "..." } ``` block in file content. Returns null if none found. */
+      static detectRole(content) {
+        const m = content.match(/```json\s*\n\s*\{[^}]*"role"\s*:\s*"([^"]+)"[^}]*\}\s*\n\s*```/i);
+        if (!m) return null;
+        const raw = m[1].toLowerCase();
+        if (raw === 'manifest') return 'code';
+        return raw;
+      }
+
+      /** Parse a markdown file into tagged items. Returns { items, idiolectTerms, prefixItems }. */
+      static parse(content, filename, role) {
+        if (role === 'idiolect') return { items: [], idiolectTerms: this._parseIdiolect(content, filename), prefixItems: [] };
+        if (role === 'code') return { items: this._parseManifest(content, filename), idiolectTerms: [], prefixItems: [] };
+        if (role === 'prefix') return { items: [], idiolectTerms: [], prefixItems: this._parseMd(content, filename, role) };
+        return { items: this._parseMd(content, filename, role), idiolectTerms: [], prefixItems: [] };
+      }
+
+      static _parseMd(content, filename, role) {
+        const lines = content.split('\n'), items = [];
+        let secHead = null, secTags = [], secLines = [], secStart = 0, secLevel = 0;
+        const flush = () => {
+          if (secHead && secTags.length)
+            items.push({ type:'section', heading: this.stripTags(secHead), tags: secTags,
+              content: secLines.join('\n').trim(), line: secStart, file: filename, role });
+          secHead = null; secTags = []; secLines = []; secLevel = 0;
+        };
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const hm = line.match(/^(#{1,6})\s+(.+)/);
+          if (hm) {
+            const level = hm[1].length;
+            const tags = this.extractTags(hm[2]);
+            // Flush if: new tagged heading, OR same/higher level heading
+            if (tags.length || !secHead || level <= secLevel) {
+              flush();
+              if (tags.length) { secHead = hm[2]; secTags = tags; secStart = i+1; secLevel = level; secLines = []; }
+            } else {
+              // Sub-heading within current section — include it as content
+              secLines.push(line);
+            }
+            continue;
+          }
+          const cm = line.match(/^\s*\[([xX ])\]\s+(.+)/);
+          if (cm) { const tags = this.extractTags(cm[2]); if (tags.length) items.push({ type:'checkbox', checked: cm[1].toLowerCase()==='x', text: this.stripTags(cm[2]), tags, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
+          const bm = line.match(/^\s*[*\-]\s+(.+)/);
+          if (bm) { const tags = this.extractTags(bm[1]); if (tags.length) items.push({ type:'bullet', text: this.stripTags(bm[1]), tags, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
+          const ftags = this.extractTags(line);
+          if (ftags.length && !line.startsWith('#') && line.trim()) {
+            flush();
+            const pLines = [line]; let j = i+1;
+            while (j < lines.length && lines[j].trim() && !lines[j].match(/^#{1,6}\s/) && !lines[j].match(/^\s*\[/) && !(this.extractTags(lines[j]).length && !lines[j].startsWith(' '))) { pLines.push(lines[j]); j++; }
+            items.push({ type:'section', heading: this.stripTags(line), tags: ftags, content: pLines.slice(1).join('\n').trim(), line: i+1, file: filename, role });
+            i = j-1; continue;
+          }
+          if (secHead) secLines.push(line);
+        }
+        flush();
+        return items;
+      }
+
+      static _parseManifest(content, filename) {
+        const lines = content.split('\n'), items = []; let cur = null;
+        const flush = () => { if (cur) items.push(cur); cur = null; };
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const cm = line.match(/^\[([xX ])\]\s+(\S+)\s*(.*)/);
+          if (cm) { flush(); cur = { type:'manifest', checked: cm[1].toLowerCase()==='x', path:cm[2], text:cm[2], tags: this.extractTags(cm[3]), classes:[], grammars:[], line:i+1, file:filename, role:'code' }; continue; }
+          if (cur) { const cl = line.match(/^Classes:\s*(.+)/i); if (cl) { cur.classes = cl[1].split(',').map(s=>s.trim()); continue; } const gr = line.match(/^Grammar:\s*(.+)/i); if (gr) { cur.grammars = gr[1].split(',').map(s=>s.trim()); continue; } }
+          if (line.trim() === '') flush();
+        }
+        flush(); return items;
+      }
+
+      static _parseIdiolect(content, filename) {
+        const lines = content.split('\n'), terms = [];
+        const skipH = new Set(['project idiolect', 'bijou', 'standard']);
+        let curH2 = null, curDef = [], curStart = 0, category = null;
+        const flush = () => {
+          if (curH2 && !skipH.has(curH2.toLowerCase()))
+            terms.push({ term: curH2, definition: curDef.join('\n').trim(), category, line: curStart, file: filename });
+          curH2 = null; curDef = [];
+        };
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const hm = line.match(/^##\s+(.+)/);
+          if (hm) { flush(); curH2 = hm[1].trim(); curStart = i+1; continue; }
+          const bcat = line.match(/^\*\*(.+?)\*\*\s*$/);
+          if (bcat) { category = bcat[1]; continue; }
+          const dm = line.match(/^-\s+(?:\*\*(.+?)\*\*|(.+?))\s+—\s+(.+)/);
+          if (dm) { terms.push({ term: (dm[1]||dm[2]).trim(), definition: dm[3].trim(), category, line: i+1, file: filename }); continue; }
+          if (curH2) curDef.push(line);
+        }
+        flush(); return terms;
+      }
+    }
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // CascadeTree — tag hierarchy, queries, maturity
+    // ═══════════════════════════════════════════════════════════════
+    //<< import { CascadeParse } from './cascade-parse.js';
+    //-- file: ./cascade-tree.js --
+    //>> import { CascadeParse } from './cascade-parse.js';
+    //>> export { CascadeTree };
+    class CascadeTree {
+      static build(items) {
+        const root = { name:'', fullTag:'', children: new Map(), directItems:[], allItems:[] };
+        for (const item of items) for (const tag of item.tags) {
+          let node = root, path = '';
+          for (const part of tag.split('/')) {
+            path = path ? path+'/'+part : part;
+            if (!node.children.has(part)) node.children.set(part, { name:part, fullTag:path, children: new Map(), directItems:[], allItems:[] });
+            node = node.children.get(part);
+          }
+          node.directItems.push(item);
+        }
+        this._computeAll(root); return root;
+      }
+
+      static _computeAll(node) {
+        const seen = new Set(), all = [];
+        const add = it => { const k = it.file+':'+it.line; if (!seen.has(k)) { seen.add(k); all.push(it); } };
+        node.directItems.forEach(add);
+        for (const c of node.children.values()) { this._computeAll(c); c.allItems.forEach(add); }
+        node.allItems = all;
+      }
+
+      static find(root, tag) {
+        let n = root; for (const p of tag.split('/')) { n = n.children?.get(p); if (!n) return null; } return n;
+      }
+
+      static count(n) { let c = n.children.size; for (const ch of n.children.values()) c += this.count(ch); return c; }
+
+      static getMaturity(node) {
+        const mat = {};
+        for (const r of CascadeParse.ROLES) { const inR = node.allItems.filter(i => i.role === r); mat[r] = { count: inR.length, checked: inR.filter(i => i.checked).length }; }
+        return mat;
+      }
+
+      /** Which idiolect term names appear in a tag node's text content? */
+      static relevantIdiolect(node, terms) {
+        if (!node || !terms.length) return new Set();
+        const text = node.allItems.map(i => [i.text, i.heading, i.content].filter(Boolean).join(' ')).join(' ').toLowerCase();
+        const hits = new Set();
+        for (const t of terms) {
+          const tl = t.term.toLowerCase();
+          if (text.includes(tl) || tl.split(/[\s\/,]+/).some(w => w.length > 3 && text.includes(w)))
+            hits.add(t.term);
+        }
+        return hits;
+      }
+
+      /** Which tag fullPaths reference any of the given idiolect term names? */
+      static idiolectTagHits(root, checkedNames, terms) {
+        if (!checkedNames.size) return new Set();
+        const words = [];
+        for (const name of checkedNames) {
+          const t = terms.find(x => x.term === name);
+          if (t) { words.push(t.term.toLowerCase()); t.term.toLowerCase().split(/[\s\/,]+/).forEach(w => { if (w.length > 3) words.push(w); }); }
+        }
+        const hits = new Set();
+        const walk = node => {
+          const text = node.allItems.map(i => [i.text, i.heading, i.content].filter(Boolean).join(' ')).join(' ').toLowerCase();
+          if (words.some(w => text.includes(w))) hits.add(node.fullTag);
+          for (const c of node.children.values()) walk(c);
+        };
+        for (const c of root.children.values()) walk(c);
+        return hits;
+      }
+    }
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // CascadeReport — analysis and health checks
+    // ═══════════════════════════════════════════════════════════════
+    //<< import { CascadeParse } from './cascade-parse.js';
+    //<< import { CascadeTree } from './cascade-tree.js';
+    //-- file: ./cascade-report.js --
+    //>> import { CascadeParse } from './cascade-parse.js';
+    //>> import { CascadeTree } from './cascade-tree.js';
+    //>> export { CascadeReport };
+    class CascadeReport {
+      /** [x] in todo but no prompt/spec/code exists for that tag. */
+      static cascadeGaps(items, tree) {
+        const gaps = [];
+        for (const item of items) {
+          if (item.role !== 'todo' || !item.checked) continue;
+          for (const tag of item.tags) {
+            const node = CascadeTree.find(tree, tag);
+            if (node && !node.allItems.some(i => i !== item && i.role !== 'todo'))
+              gaps.push({ tag, text: item.text || item.heading || tag, file: item.file });
+          }
+        }
+        return gaps;
+      }
+
+      /** [ ] in todo but deeper-maturity content exists. */
+      static staleCheckboxes(items, tree) {
+        const stale = [];
+        for (const item of items) {
+          if (item.role !== 'todo' || item.checked) continue;
+          for (const tag of item.tags) {
+            const node = CascadeTree.find(tree, tag);
+            if (node && node.allItems.some(i => i !== item && i.role !== 'todo'))
+              stale.push({ tag, text: item.text || tag, file: item.file });
+          }
+        }
+        return stale;
+      }
+
+      /** Tags with prompt content but no code entries. */
+      static readyToPrompt(items, tree) {
+        const allTags = [...new Set(items.flatMap(i => i.tags))], ready = [];
+        for (const tag of allTags) {
+          const node = CascadeTree.find(tree, tag);
+          if (!node) continue;
+          const roles = new Set(node.allItems.map(i => i.role));
+          if (roles.has('prompt') && !roles.has('code')) {
+            const todoItem = node.allItems.find(i => i.role === 'todo');
+            ready.push({ tag, hasSpec: roles.has('spec'), text: todoItem?.text || node.allItems[0]?.heading || tag });
+          }
+        }
+        return ready;
+      }
+
+      /** Pairs of tags at edit distance 1 (full tags and root segments). */
+      static tagTypos(items) {
+        const allTags = [...new Set(items.flatMap(i => i.tags))].sort();
+        const typos = [], seen = new Set();
+        const add = (a, b) => { const k = a+'|'+b; if (!seen.has(k)) { seen.add(k); typos.push([a, b]); } };
+        for (let i = 0; i < allTags.length; i++) for (let j = i+1; j < allTags.length; j++)
+          if (this._editDist(allTags[i], allTags[j]) === 1) add(allTags[i], allTags[j]);
+        const roots = [...new Set(allTags.map(t => t.split('/')[0]))].sort();
+        for (let i = 0; i < roots.length; i++) for (let j = i+1; j < roots.length; j++)
+          if (this._editDist(roots[i], roots[j]) <= 1) add(roots[i]+'/*', roots[j]+'/*');
+        return typos;
+      }
+
+      /** Tags appearing in only one file. */
+      static singleFileTags(items) {
+        const allTags = [...new Set(items.flatMap(i => i.tags))];
+        return allTags.filter(tag => {
+          const files = new Set(items.filter(i => i.tags.includes(tag)).map(i => i.file));
+          return files.size === 1;
+        }).map(tag => ({ tag, file: items.find(i => i.tags.includes(tag))?.file || '?' }));
+      }
+
+      static _editDist(a, b) {
+        if (Math.abs(a.length - b.length) > 1) return 99;
+        const m = a.length, n = b.length;
+        const dp = Array.from({length:m+1}, (_,i) => Array.from({length:n+1}, (_,j) => i===0?j:j===0?i:0));
+        for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++)
+          dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+        return dp[m][n];
+      }
+    }
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // CascadeBundle — bundle generation
+    // ═══════════════════════════════════════════════════════════════
+    //<< import { CascadeParse } from './cascade-parse.js';
+    //<< import { CascadeTree } from './cascade-tree.js';
+    //-- file: ./cascade-bundle.js --
+    //>> import { CascadeParse } from './cascade-parse.js';
+    //>> import { CascadeTree } from './cascade-tree.js';
+    //>> export { CascadeBundle };
+    class CascadeBundle {
+      /** Collect all unique tag segments from a set of items. */
+      static _collectSegments(items, selectedTag) {
+        const segs = new Set();
+        // Segments from the selected tag itself
+        for (const s of selectedTag.split('/')) segs.add(s);
+        // Segments from all items' tags
+        for (const item of items)
+          for (const tag of item.tags)
+            for (const s of tag.split('/')) segs.add(s);
+        return segs;
+      }
+
+      /** Build a markdown bundle. prefixItems: tagged sections from PREFIX role files. */
+      static build(tree, tag, files, idiolectTerms, prefixItems) {
+        const node = CascadeTree.find(tree, tag);
+        if (!node) return '';
+        const items = node.allItems, parts = [];
+
+        // Match prefix items by tag segment overlap
+        if (prefixItems.length) {
+          const segments = this._collectSegments(items, tag);
+          const matched = prefixItems.filter(p =>
+            p.tags.some(ptag => ptag.split('/').some(seg => segments.has(seg)))
+          );
+          if (matched.length) {
+            parts.push('## Prefix Instructions');
+            for (const p of matched) {
+              parts.push(`### ${p.heading} [${p.tags.map(t=>'#'+t).join(' ')}]`);
+              if (p.content) parts.push(p.content);
+              parts.push('');
+            }
+          }
+        }
+
+        // Code file links
+        const codeItems = items.filter(i => i.role === 'code');
+        if (codeItems.length) {
+          parts.push('## Referenced Files');
+          for (const ci of codeItems) {
+            let line = `- [${ci.path || ci.text}](${ci.path || ci.text})`;
+            if (ci.classes?.length) line += ` — ${ci.classes.join(', ')}`;
+            if (ci.grammars?.length) line += ` | Grammar: ${ci.grammars.join(', ')}`;
+            parts.push(line);
+          }
+          parts.push('');
+        }
+
+        // Content by file in pipeline order
+        const byFile = new Map();
+        for (const i of items) { if (i.role === 'code') continue; if (!byFile.has(i.file)) byFile.set(i.file, []); byFile.get(i.file).push(i); }
+        const ROLES = CascadeParse.ROLES;
+        const sorted = [...byFile.entries()].sort((a,b) => ROLES.indexOf(files.get(a[0])?.role||'prompt') - ROLES.indexOf(files.get(b[0])?.role||'prompt'));
+        for (const [filename, fileItems] of sorted) {
+          parts.push(`## From ${filename} (${files.get(filename)?.role || '?'})`);
+          for (const i of fileItems) {
+            if (i.type === 'checkbox') parts.push(`[${i.checked?'x':' '}] ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}`);
+            else if (i.type === 'bullet') parts.push(`* ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}`);
+            else if (i.type === 'section') { parts.push(`### ${i.heading}`); if (i.content) parts.push(i.content); }
+            parts.push('');
+          }
+        }
+
+        // Relevant idiolect at END
+        const relevant = CascadeTree.relevantIdiolect(node, idiolectTerms);
+        if (relevant.size) {
+          parts.push('## Relevant Idiolect');
+          for (const t of idiolectTerms)
+            if (relevant.has(t.term)) parts.push(`**${t.term}** — ${(t.definition||'').split('\n')[0]}`);
+          parts.push('');
+        }
+        return parts.join('\n');
+      }
+    }
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // Harness — state, DOM, rendering, events
+    // ═══════════════════════════════════════════════════════════════
+    const state = {
+      mdHandle: null, files: new Map(), items: [], idiolectTerms: [], prefixItems: [], tagTree: null,
+      selectedTag: null, expandedTags: new Set(), treeFilter: '',
+      checkedIdioTerms: new Set(), centerTab: 'items', rightTab: 'bundle',
+    };
+
+    const $ = id => document.getElementById(id);
+    const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const setStatus = (msg, type='') => { $('status').textContent = msg; $('status').className = 'status'+(type?' '+type:''); };
+
+    // ── File System ──
+    async function readDir(dh) {
+      const entries = [];
+      for await (const e of dh.values()) { if (!e.name.startsWith('.') && e.kind === 'file') entries.push(e); }
+      return entries;
+    }
+    async function readDirRecursive(dh, path='') {
+      const entries = [];
+      for await (const e of dh.values()) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const p = path ? path+'/'+e.name : e.name;
+        if (e.kind === 'directory') entries.push(...await readDirRecursive(e, p));
+        else entries.push({ handle: e, path: p });
+      }
+      return entries;
+    }
+
+    // ── Scanning ──
+    async function scanMdFiles() {
+      if (!state.mdHandle) return;
+      setStatus('Scanning…');
+      state.files.clear(); state.items = []; state.idiolectTerms = []; state.prefixItems = [];
+      try {
+        const entries = await readDir(state.mdHandle);
+        let skipped = 0;
+        for (const handle of entries.filter(e => e.name.endsWith('.md')).sort((a,b) => a.name.localeCompare(b.name))) {
+          const content = await (await handle.getFile()).text();
+          const role = CascadeParse.detectRole(content);
+          if (!role) { skipped++; continue; }
+          state.files.set(handle.name, { content, role, handle });
+          const { items, idiolectTerms, prefixItems } = CascadeParse.parse(content, handle.name, role);
+          state.items.push(...items);
+          if (idiolectTerms.length) state.idiolectTerms = idiolectTerms;
+          if (prefixItems.length) state.prefixItems.push(...prefixItems);
+        }
+        state.tagTree = CascadeTree.build(state.items);
+        for (const k of state.tagTree.children.keys()) state.expandedTags.add(k);
+        $('filterRow').style.display = '';
+        $('fileList').style.display = '';
+        $('btnRescan').disabled = false;
+        renderAll();
+        setStatus(`${state.files.size} files · ${state.items.length} items · ${CascadeTree.count(state.tagTree)} tags · ${state.idiolectTerms.length} idiolect · ${state.prefixItems.length} prefixes${skipped ? ' · '+skipped+' skipped (no role)' : ''}`, 'success');
+      } catch (err) { console.error(err); setStatus(`Error: ${err.message}`, 'error'); }
+    }
+
+    async function scanCodeDir(handle) {
+      setStatus('Scanning code directory…');
+      try {
+        const entries = await readDirRecursive(handle);
+        const codeFiles = entries.filter(e => /\.(js|mjs|html|htm)$/i.test(e.path));
+        let text = '# Code Manifest (generated)\n\n```json\n{ "role": "MANIFEST" }\n```\n\n', found = 0;
+        for (const { handle: fh, path } of codeFiles) {
+          try {
+            const content = await (await fh.getFile()).text();
+            const tags = CascadeParse.extractTags(content.slice(0, 2000), true);
+            const classes = [], grammars = []; let m;
+            const cRe = /\bclass\s+([A-Z][a-zA-Z0-9_]*)/g;
+            while ((m = cRe.exec(content)) !== null) classes.push(m[1]);
+            const gRe = /(?:const|let|var)\s+(\w*[Gg]rammar\w*)\s*=/g;
+            while ((m = gRe.exec(content)) !== null) grammars.push(m[1]);
+            if (tags.length || classes.length) {
+              found++;
+              text += `[ ] ${path}${tags.length ? ' '+tags.map(t=>'#'+t).join(' ') : ''}\n`;
+              if (classes.length) text += `Classes: ${classes.join(', ')}\n`;
+              if (grammars.length) text += `Grammar: ${grammars.join(', ')}\n`;
+              text += '\n';
+            }
+          } catch(e) {}
+        }
+        state.rightTab = 'bundle'; renderRightTabs();
+        $('rightContent').innerHTML = `<div class="bundle-preview">${esc(text)}</div>`;
+        $('bundleActions').style.display = '';
+        $('btnCopyBundle').disabled = false;
+        $('btnCopyBundle').onclick = () => navigator.clipboard.writeText(text).then(() => setStatus('Manifest copied', 'success'));
+        setStatus(`Scanned ${codeFiles.length} files, ${found} with classes/tags`, 'success');
+      } catch(e) { if (e.name !== 'AbortError') setStatus(e.message, 'error'); }
+    }
+
+    // ── Rendering ──
+    function renderAll() { renderTree(); renderFileList(); renderHeaderStats(); renderCenter(); renderRight(); }
+
+    function renderHeaderStats() {
+      $('headerActions').querySelectorAll('.stat-badge').forEach(e => e.remove());
+      if (!state.items.length) return;
+      for (const role of CascadeParse.ROLES) {
+        const count = state.items.filter(i => i.role === role).length;
+        if (!count) continue;
+        const b = document.createElement('div'); b.className = 'stat-badge';
+        b.innerHTML = `<span class="stat-dot" style="background:var(--role-${role})"></span>${count} ${role}`;
+        $('headerActions').insertBefore(b, $('btnRescan'));
+      }
+    }
+
+    function renderFileList() {
+      $('fileList').innerHTML = [...state.files.entries()].map(([n,f]) =>
+        `<div class="file-entry"><span class="fname" title="${esc(n)}">${esc(n)}</span><span class="file-role ${f.role}">${f.role}</span></div>`
+      ).join('');
+    }
+
+    function renderTree() {
+      const el = $('treeContent');
+      if (!state.tagTree) return;
+      const filter = state.treeFilter;
+      const idioHits = CascadeTree.idiolectTagHits(state.tagTree, state.checkedIdioTerms, state.idiolectTerms);
+
+      function matches(n) { if (!filter) return true; if (n.fullTag.toLowerCase().includes(filter)) return true; for (const c of n.children.values()) if (matches(c)) return true; return false; }
+
+      function renderNode(node) {
+        if (!matches(node)) return '';
+        const mat = CascadeTree.getMaturity(node), hasKids = node.children.size > 0;
+        const exp = state.expandedTags.has(node.fullTag), sel = state.selectedTag === node.fullTag;
+        const tt = mat.todo.count, td = mat.todo.checked;
+        const fracCls = tt ? (td === tt ? 'all-done' : td === 0 ? 'none-done' : '') : '';
+
+        let h = `<div class="tag-row${sel ? ' selected' : ''}" data-tag="${esc(node.fullTag)}">`;
+        h += `<span class="tag-arrow ${hasKids ? (exp ? 'expanded' : '') : 'leaf'}" data-toggle="${esc(node.fullTag)}">▸</span>`;
+        h += `<span class="tag-name">${esc(node.name)}</span>`;
+        if (idioHits.has(node.fullTag)) h += `<span class="tag-idio-mark" title="Matches checked idiolect">◆</span>`;
+        if (tt) h += `<span class="tag-frac ${fracCls}" title="${td} of ${tt} todo items checked">${td}/${tt}</span>`;
+        h += `<span class="tag-maturity">`;
+        for (const r of CascadeParse.ROLES) {
+          const a = mat[r].count > 0, c = mat[r].checked > 0;
+          h += `<span class="mat-dot ${r}${a ? ' active' : ''}${c ? ' has-checked' : ''}" title="${r}: ${mat[r].count} (${mat[r].checked}✓)"></span>`;
+        }
+        h += '</span></div>';
+        if (hasKids) {
+          const kidHtml = [...node.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(renderNode).join('');
+          h += `<div class="tag-children${exp ? '' : ' collapsed'}">${kidHtml}</div>`;
+        }
+        return `<div>${h}</div>`;
+      }
+
+      el.innerHTML = [...state.tagTree.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(renderNode).join('') || '<div class="empty-state">No tags found</div>';
+      $('tagCount').textContent = CascadeTree.count(state.tagTree);
+
+      el.querySelectorAll('.tag-arrow:not(.leaf)').forEach(a => {
+        a.addEventListener('click', e => { e.stopPropagation(); const t = a.dataset.toggle; state.expandedTags.has(t) ? state.expandedTags.delete(t) : state.expandedTags.add(t); renderTree(); });
+      });
+      el.querySelectorAll('.tag-row').forEach(row => {
+        row.addEventListener('click', () => {
+          state.selectedTag = row.dataset.tag === state.selectedTag ? null : row.dataset.tag;
+          renderTree(); renderCenter(); renderRight();
+          $('btnCopy').disabled = !state.selectedTag; $('btnCopyBundle').disabled = !state.selectedTag;
+        });
+      });
+    }
+
+    function renderCenter() {
+      $('centerTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.centerTab));
+      state.centerTab === 'idiolect' ? renderIdiolect() : renderItems();
+    }
+
+    function renderItems() {
+      const el = $('centerContent');
+      if (!state.selectedTag) { el.innerHTML = '<div class="empty-state">Select a tag to see items</div>'; $('centerCount').textContent = '0'; return; }
+      const node = CascadeTree.find(state.tagTree, state.selectedTag);
+      if (!node) { el.innerHTML = '<div class="empty-state">Tag not found</div>'; return; }
+      const items = node.allItems;
+      $('centerCount').textContent = items.length;
+      const groups = Object.fromEntries(CascadeParse.ROLES.map(r => [r, []]));
+      for (const i of items) if (groups[i.role]) groups[i.role].push(i);
+      const warnMap = new Map();
+      for (const i of groups.todo) {
+        const hasDeeper = items.some(x => x !== i && x.role !== 'todo');
+        if (i.checked && !hasDeeper) warnMap.set(i.file+':'+i.line, '[x] but no prompt/spec found');
+        else if (!i.checked && hasDeeper) warnMap.set(i.file+':'+i.line, '[ ] but elaboration exists — checkbox may be stale');
+      }
+      let html = '';
+      for (const role of CascadeParse.ROLES) {
+        if (!groups[role].length) continue;
+        html += `<div class="role-group"><div class="role-header ${role}">${CascadeParse.ROLE_LABELS[role]} — ${groups[role].length}</div>`;
+        for (const item of groups[role]) html += renderItem(item, warnMap.get(item.file+':'+item.line));
+        html += '</div>';
+      }
+      el.innerHTML = html || '<div class="empty-state">No items</div>';
+      el.querySelectorAll('.item-expand').forEach(btn => {
+        btn.addEventListener('click', () => { const c = btn.previousElementSibling; c.classList.toggle('expanded'); btn.textContent = c.classList.contains('expanded') ? '▲ collapse' : '▼ expand'; });
+      });
+    }
+
+    function renderItem(item, warn) {
+      const primaryTag = item.tags?.[0];
+      const tagNode = primaryTag ? CascadeTree.find(state.tagTree, primaryTag) : null;
+      const mat = tagNode ? CascadeTree.getMaturity(tagNode) : null;
+      let h = '<div class="item"><div class="item-top"><span class="item-dots">';
+      for (const r of CascadeParse.ROLES) {
+        const a = mat && mat[r].count > 0, c = mat && mat[r].checked > 0;
+        h += `<span class="item-dot ${r}${a ? ' active' : ''}${c ? ' has-checked' : ''}"></span>`;
+      }
+      h += '</span>';
+      h += `<span class="item-text">${esc(item.text || item.heading || '')}</span>`;
+      if (primaryTag) h += `<span class="item-tag-right">#${esc(primaryTag)}</span>`;
+      h += '</div>';
+      h += `<div class="item-sub">${esc(item.file)}:${item.line}</div>`;
+      if (warn) h += `<div class="item-warn">⚠ ${esc(warn)}</div>`;
+      if (item.classes?.length) h += `<div class="item-classes">Classes: ${item.classes.join(', ')}</div>`;
+      if (item.grammars?.length) h += `<div class="item-classes">Grammar: ${item.grammars.join(', ')}</div>`;
+      if (item.content) {
+        const long = item.content.split('\n').length > 6;
+        h += `<div class="item-content${long ? '' : ' expanded'}">${esc(item.content)}</div>`;
+        if (long) h += '<button class="item-expand">▼ expand</button>';
+      }
+      return h + '</div>';
+    }
+
+    function renderIdiolect() {
+      const el = $('centerContent');
+      if (!state.idiolectTerms.length) { el.innerHTML = '<div class="empty-state">No idiolect file loaded</div>'; $('centerCount').textContent = '0'; return; }
+      const relevantSet = state.selectedTag ? CascadeTree.relevantIdiolect(CascadeTree.find(state.tagTree, state.selectedTag), state.idiolectTerms) : null;
+      let litCount = 0, html = '';
+      for (const t of state.idiolectTerms) {
+        const lit = relevantSet?.has(t.term); if (lit) litCount++;
+        const cls = relevantSet ? (lit ? 'lit' : 'dim') : '';
+        html += `<div class="idio-term ${cls}"><input type="checkbox" data-term="${esc(t.term)}" ${state.checkedIdioTerms.has(t.term) ? 'checked' : ''}>`;
+        html += `<div class="idio-term-body"><div class="idio-term-name">${esc(t.term)}</div>`;
+        html += `<div class="idio-term-def">${esc((t.definition||'').split('\n')[0].slice(0,140))}</div></div></div>`;
+      }
+      $('centerCount').textContent = relevantSet ? `${litCount}/${state.idiolectTerms.length}` : state.idiolectTerms.length;
+      el.innerHTML = html;
+      el.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => { cb.checked ? state.checkedIdioTerms.add(cb.dataset.term) : state.checkedIdioTerms.delete(cb.dataset.term); renderTree(); });
+      });
+    }
+
+    function renderRight() { renderRightTabs(); state.rightTab === 'report' ? renderReport() : renderBundle(); }
+    function renderRightTabs() {
+      $('rightTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.rightTab));
+      $('bundleActions').style.display = state.rightTab === 'bundle' ? '' : 'none';
+    }
+
+    function renderBundle() {
+      const el = $('rightContent');
+      if (!state.selectedTag) { el.innerHTML = '<div class="empty-state">Select a tag to build a bundle</div>'; return; }
+      el.innerHTML = `<div class="bundle-preview">${esc(CascadeBundle.build(state.tagTree, state.selectedTag, state.files, state.idiolectTerms, state.prefixItems))}</div>`;
+    }
+
+    function renderReport() {
+      const el = $('rightContent');
+      if (!state.tagTree || !state.items.length) { el.innerHTML = '<div class="empty-state">Load files to see report</div>'; return; }
+      let html = '';
+
+      const gaps = CascadeReport.cascadeGaps(state.items, state.tagTree);
+      html += `<div class="report-section"><div class="report-label">Cascade Gaps — [x] no elaboration (${gaps.length})</div>`;
+      if (gaps.length) for (const g of gaps.slice(0,30)) html += `<div class="report-item"><span class="ri-warn">⚠</span> <span class="ri-tag">#${esc(g.tag)}</span> ${esc(g.text)} <span style="color:var(--text-muted)">${esc(g.file)}</span></div>`;
+      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
+      html += '</div>';
+
+      const stale = CascadeReport.staleCheckboxes(state.items, state.tagTree);
+      html += `<div class="report-section"><div class="report-label">Stale Checkboxes — [ ] has elaboration (${stale.length})</div>`;
+      if (stale.length) for (const s of stale.slice(0,30)) html += `<div class="report-item"><span class="ri-warn">↻</span> <span class="ri-tag">#${esc(s.tag)}</span> ${esc(s.text)} <span style="color:var(--text-muted)">${esc(s.file)}</span></div>`;
+      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
+      html += '</div>';
+
+      const ready = CascadeReport.readyToPrompt(state.items, state.tagTree);
+      html += `<div class="report-section"><div class="report-label">Ready to Prompt — has prompt, no code (${ready.length})</div>`;
+      if (ready.length) for (const r of ready.slice(0,40)) html += `<div class="report-item"><span class="ri-ok">▸</span> <span class="ri-tag">#${esc(r.tag)}</span> ${esc(r.text)}${r.hasSpec ? ' <span style="color:var(--role-spec)">[+spec]</span>' : ''}</div>`;
+      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
+      html += '</div>';
+
+      const typos = CascadeReport.tagTypos(state.items);
+      html += `<div class="report-section"><div class="report-label">Possible Tag Typos (${typos.length})</div>`;
+      if (typos.length) for (const [a,b] of typos) html += `<div class="report-item"><span class="ri-err">?</span> <span class="ri-tag">#${esc(a)}</span> ↔ <span class="ri-tag">#${esc(b)}</span></div>`;
+      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
+      html += '</div>';
+
+      html += `<div class="report-section"><div class="report-label">Coverage by Domain</div>`;
+      for (const [name, child] of [...state.tagTree.children.entries()].sort((a,b) => a[0].localeCompare(b[0]))) {
+        const mat = CascadeTree.getMaturity(child), total = child.allItems.length;
+        html += `<div class="report-item"><span class="ri-tag">#${esc(name)}</span> — ${total} items`;
+        for (const r of CascadeParse.ROLES) if (mat[r].count) html += ` · <span style="color:var(--role-${r})">${r}:${mat[r].count}</span>`;
+        html += '</div>';
+        const barParts = CascadeParse.ROLES.map(r => mat[r].count ? `<span style="width:${Math.max(mat[r].count/total*100,2)}%;background:var(--role-${r})"></span>` : '').join('');
+        html += `<div class="report-bar">${barParts}</div>`;
+      }
+      html += '</div>';
+
+      const orphans = CascadeReport.singleFileTags(state.items);
+      html += `<div class="report-section"><div class="report-label">Single-File Tags (${orphans.length})</div>`;
+      for (const o of orphans.slice(0,40)) html += `<div class="report-item"><span class="ri-tag">#${esc(o.tag)}</span> <span style="color:var(--text-muted)">only in ${esc(o.file)}</span></div>`;
+      html += '</div>';
+
+      el.innerHTML = html;
+    }
+
+    function copyBundle() {
+      const text = CascadeBundle.build(state.tagTree, state.selectedTag, state.files, state.idiolectTerms, state.prefixItems);
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => setStatus('Bundle copied', 'success')).catch(() => setStatus('Copy failed', 'error'));
+    }
+
+    // ── Drop Zone ──
+    function setupDropZone(el, onDir) {
+      if (!el) return;
+      el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', async e => {
+        e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
+        for (const item of e.dataTransfer.items) {
+          if (item.kind === 'file') { const h = await item.getAsFileSystemHandle(); if (h.kind === 'directory') { await onDir(h); return; } }
+        }
+        setStatus('Please drop a folder', 'error');
+      });
+      el.addEventListener('click', async () => {
+        try { const h = await window.showDirectoryPicker(); await onDir(h); }
+        catch (err) { if (err.name !== 'AbortError') setStatus(err.message, 'error'); }
+      });
+    }
+
+    // ── Init ──
+    function init() {
+      document.addEventListener('dragover', e => e.preventDefault());
+      document.addEventListener('drop', e => e.preventDefault());
+      setupDropZone($('dropMd'), async h => { state.mdHandle = h; await scanMdFiles(); });
+      setupDropZone($('dropCode'), scanCodeDir);
+      $('btnRescan').addEventListener('click', () => scanMdFiles());
+      $('btnCopy').addEventListener('click', copyBundle);
+      $('btnCopyBundle').addEventListener('click', copyBundle);
+      $('treeFilter').addEventListener('input', e => { state.treeFilter = e.target.value.toLowerCase(); renderTree(); });
+      $('centerTabs').querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => { state.centerTab = tab.dataset.tab; renderCenter(); });
+      });
+      $('rightTabs').querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => { state.rightTab = tab.dataset.tab; renderRight(); });
+      });
+    }
+    init();
+  </script>
+</body>
+</html>

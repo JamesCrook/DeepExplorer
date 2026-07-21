@@ -1,0 +1,400 @@
+    * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  background: var(--color-1a1a2e);
+  color: var(--color-eee);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  background: var(--color-16213e);
+  padding: 10px 15px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  border-bottom: 1px solid var(--color-0f3460);
+  flex-shrink: 0;
+}
+
+.toolbar label {
+  font-size: 13px;
+  color: var(--color-aaa);
+}
+
+.toolbar input[type="text"] {
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  width: 250px;
+}
+
+.toolbar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-4a9eff);
+}
+
+.toolbar button {
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar button:hover {
+  background: var(--color-1a4a7e);
+}
+
+.search-info {
+  font-size: 12px;
+  color: var(--color-888);
+  min-width: 100px;
+}
+
+.line-info {
+  font-size: 12px;
+  color: var(--color-666);
+  margin-left: auto;
+}
+
+.breadcrumbs {
+  background: var(--color-0f3460);
+  padding: 8px 15px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-1a1a4e);
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+.breadcrumbs .label {
+  color: var(--color-666);
+  margin-right: 5px;
+}
+
+.breadcrumb {
+  color: var(--color-4a9eff);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.breadcrumb:hover {
+  background: var(--color-1a4a7e);
+}
+
+.breadcrumb.current {
+  color: var(--color-fff);
+  background: var(--color-2a5a8e);
+}
+
+.breadcrumb.ghosted {
+  color: var(--color-4a6a8e);
+  opacity: 0.6;
+}
+
+.breadcrumb.ghosted:hover {
+  opacity: 1;
+  background: var(--color-1a3a5e);
+}
+
+.separator {
+  color: var(--color-444);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  cursor: pointer;
+  position: relative;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.separator:hover {
+  background: rgba(74, 158, 255, 0.15);
+  border-color: rgba(74, 158, 255, 0.3);
+}
+
+.separator.ghosted {
+  opacity: 0.4;
+}
+
+.separator.ghosted:hover {
+  opacity: 0.7;
+}
+
+.separator .tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 6px;
+  background: var(--color-1a2a4e);
+  border: 1px solid var(--color-2a4a7e);
+  color: var(--color-aaa);
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  white-space: pre;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.separator:hover .tooltip {
+  display: block;
+}
+
+#mainUI {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tree-container {
+  display:flex;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: scroll;
+  background: var(--color-12121f);
+  position: relative;
+  /* Firefox scrollbar */
+  scrollbar-width: auto;
+  scrollbar-color: var(--color-4a4a6e) var(--color-1a1a2e);
+}
+
+/* Webkit (Chrome, Safari, Edge) scrollbar styling */
+.tree-container::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.tree-container::-webkit-scrollbar-track {
+  background: var(--color-1a1a2e);
+}
+
+.tree-container::-webkit-scrollbar-thumb {
+  background: var(--color-4a4a6e);
+  border-radius: 7px;
+  border: 3px solid var(--color-1a1a2e);
+  min-height: 40px;
+}
+
+.tree-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-5a5a8e);
+}
+
+.tree-container::-webkit-scrollbar-corner {
+  background: var(--color-1a1a2e);
+}
+
+.tree-scroll-content {
+  display:flex;
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.tree-line {
+  position: absolute;
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  padding: 1px 10px;
+  cursor: pointer;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  white-space: pre;
+}
+
+.tree-line:hover {
+  background: var(--color-1a2a4e);
+}
+
+.tree-line.selected {
+  background: var(--color-2a4a7e);
+}
+
+.tree-line.search-match {
+  background: var(--color-4a3a1e);
+}
+
+.tree-line.search-match.selected {
+  background: var(--color-5a4a2e);
+}
+
+.node-accession {
+  color: var(--color-4ae);
+}
+
+.node-name {
+  color: var(--color-aaa);
+}
+
+.node-organism {
+  color: var(--color-6a6);
+}
+
+.node-length {
+  color: var(--color-a8a);
+}
+
+.node-score {
+  color: var(--color-aa6);
+}
+
+.tree-chars {
+  color: var(--color-555);
+}
+
+.instructions {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(15, 52, 96, 0.9);
+  padding: 10px 15px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--color-888);
+  max-width: 300px;
+}
+
+.instructions .close-btn {
+  position: absolute;
+  top: 5px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--color-666);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.instructions .close-btn:hover {
+  color: var(--color-aaa);
+}
+
+.instructions kbd {
+  background: var(--color-1a1a2e);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.load-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.load-area h2 {
+  color: var(--color-4a9eff);
+}
+
+.load-area textarea {
+  width: 80%;
+  max-width: 800px;
+  height: 300px;
+  background: var(--color-0f3460);
+  border: 1px solid var(--color-1a1a4e);
+  color: var(--color-fff);
+  padding: 15px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.load-area button {
+  background: var(--color-4a9eff);
+  border: none;
+  color: var(--color-fff);
+  padding: 10px 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.load-area button:hover {
+  background: var(--color-3a8eef);
+}
+
+.load-area .button-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(26, 26, 46, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-overlay h2 {
+  color: var(--color-4a9eff);
+  margin-bottom: 20px;
+}
+
+.loading-overlay .status {
+  color: var(--color-aaa);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.loading-overlay .progress-bar {
+  width: 300px;
+  height: 8px;
+  background: var(--color-0f3460);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.loading-overlay .progress-fill {
+  height: 100%;
+  background: var(--color-4a9eff);
+  width: 0%;
+  transition: width 0.2s;
+}

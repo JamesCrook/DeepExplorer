@@ -1,0 +1,15 @@
+HEADER    TEST PEPTIDE                            01-JAN-24   1TST
+TITLE     TEST PEPTIDE
+ATOM      1  N   ALA A   1      -0.525   1.362   0.000  1.00 20.00           N
+ATOM      2  CA  ALA A   1       0.000   0.000   0.000  1.00 20.00           C
+ATOM      3  C   ALA A   1       1.520   0.000   0.000  1.00 20.00           C
+ATOM      4  O   ALA A   1       2.100  -1.066   0.000  1.00 20.00           O
+ATOM      5  CB  ALA A   1      -0.525  -0.738  -1.196  1.00 20.00           C
+ATOM      6  N   GLY A   2       2.164   1.155   0.000  1.00 20.00           N
+ATOM      7  CA  GLY A   2       3.604   1.267   0.000  1.00 20.00           C
+ATOM      8  C   GLY A   2       4.322   0.000   0.000  1.00 20.00           C
+ATOM      9  O   GLY A   2       5.549  -0.000   0.000  1.00 20.00           O
+ATOM     10  OXT GLY A   2       3.652  -1.049   0.000  1.00 20.00           O
+TER      11      GLY A   2
+END
+

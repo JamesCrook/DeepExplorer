@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSS Refactor Tool</title>
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+  <script type="module" src="../deep-explorer/js/utilities2/nav.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #131316;
+      --bg-tertiary: #1a1a1f;
+      --bg-hover: #222228;
+      --border: #2a2a32;
+      --border-focus: #4a4a55;
+      --text-primary: #e8e8ec;
+      --text-secondary: #9898a4;
+      --text-muted: #5a5a66;
+      --accent: #f59e0b;
+      --accent-dim: #b45309;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Space Grotesk', sans-serif;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* Layout */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-secondary);
+    }
+
+    h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .indented {
+      margin-left:80px;
+    }
+
+    h1 span { color: var(--accent); }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 260px 1fr 1fr;
+      overflow: hidden;
+    }
+
+    /* Panels */
+    .panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-header .count {
+      background: var(--bg-tertiary);
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+    }
+
+    .panel-tabs {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .panel-tab {
+      background: none;
+      border: none;
+      padding: 0.2rem 0.5rem;
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+
+    .panel-tab:hover {
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+    }
+
+    .panel-tab.active {
+      color: var(--text-primary);
+      background: var(--bg-tertiary);
+    }
+
+    .sort-buttons {
+      display: flex;
+      gap: 0.25rem;
+      margin-left: auto;
+      margin-right: 0.5rem;
+    }
+
+    .sort-btn {
+      background: none;
+      border: none;
+      padding: 0.15rem 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    .sort-btn:hover {
+      color: var(--text-secondary);
+      background: var(--bg-tertiary);
+    }
+
+    .sort-btn.active {
+      color: var(--accent);
+      background: var(--bg-tertiary);
+    }
+
+    .sort-btn.sort-dir {
+      padding: 0.15rem 0.3rem;
+      font-size: 0.55rem;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .filter-input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.25rem 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .filter-input:focus {
+      border-color: var(--accent);
+    }
+
+    .filter-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .filter-input.active {
+      border-color: var(--accent);
+      background: rgba(245, 158, 11, 0.1);
+    }
+
+    .filter-clear {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 0 0.25rem;
+      line-height: 1;
+    }
+
+    .filter-clear:hover {
+      color: var(--text-primary);
+    }
+
+    /* Action Bar */
+    .action-bar {
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+      padding: 0.5rem;
+      font-size: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .action-bar-file {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--accent);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .action-bar-file.none {
+      color: var(--text-muted);
+    }
+
+    .action-bar-info {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .action-bar-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .action-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .action-row label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      min-width: 3.5rem;
+    }
+
+    .action-row input, .action-row select {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-primary);
+      outline: none;
+      min-width: 0;
+    }
+
+    .action-row input:focus, .action-row select:focus {
+      border-color: var(--accent);
+    }
+
+    .action-row select {
+      cursor: pointer;
+    }
+
+    .action-btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.65rem;
+      background: var(--accent);
+      border: none;
+      border-radius: 3px;
+      color: #000;
+      cursor: pointer;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .action-btn:hover {
+      background: var(--accent-dim);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .longest-value {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--accent-dim);
+      background: var(--bg-tertiary);
+      padding: 0.2rem 0.4rem;
+      border-radius: 2px;
+      margin-top: 0.25rem;
+      word-break: break-all;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.5rem;
+    }
+
+    /* Drop Zone */
+    .drop-zone {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      border: 2px dashed var(--border);
+      margin: 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .drop-zone-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+    }
+
+    .drop-zone p {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    .drop-zone small {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* File List */
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: default;
+    }
+
+    .file-item:hover { background: var(--bg-hover); }
+
+    .file-item.active {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 2px solid var(--accent);
+      margin-left: -2px;
+    }
+
+    .file-item input[type="checkbox"] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .file-item .filename {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .file-item .filename:hover {
+      color: var(--accent);
+    }
+
+    .file-item .ext {
+      color: var(--accent);
+      margin-left: auto;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+    }
+
+    /* List Items (Colors & Classes) */
+    .list-group {
+      margin-bottom: 0.5rem;
+    }
+
+    .list-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.5rem;
+      align-items: start;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      border: 1px solid transparent;
+    }
+
+    .list-item:hover {
+      background: var(--bg-hover);
+      border-color: var(--border);
+    }
+
+    .color-swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .color-value, .class-name {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      word-break: break-all;
+    }
+
+    .defined-in {
+      font-family: var(--font-sans);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+      font-weight: 400;
+    }
+
+    .defined-in::before {
+      content: '← ';
+    }
+
+    .locations-group {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .locations-label {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding-top: 0.15rem;
+      width: 2.5rem;
+      flex-shrink: 0;
+    }
+
+    .locations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      margin-top: 0.25rem;
+    }
+
+    .locations-group .locations {
+      margin-top: 0;
+    }
+
+    .location {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 0.1rem 0.35rem;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .location:hover {
+      background: var(--accent-dim);
+      color: var(--text-primary);
+    }
+
+    /* Rename Input */
+    .rename-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+    }
+
+    .rename-row span {
+      color: var(--text-muted);
+      font-size: 0.7rem;
+    }
+
+    .rename-input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.25rem 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .rename-input:focus { border-color: var(--accent); }
+
+    .rename-input::placeholder { color: var(--text-muted); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-focus);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dim);
+      border-color: var(--accent-dim);
+    }
+
+    .btn svg { width: 14px; height: 14px; }
+
+    /* Toggle Switch */
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .toggle-track {
+      width: 36px;
+      height: 20px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      position: relative;
+      transition: all 0.2s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: all 0.2s;
+    }
+
+    .toggle.active .toggle-track {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .toggle.active .toggle-track::after {
+      background: #000;
+      left: 18px;
+    }
+
+    /* Preview Modal */
+    .preview-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s;
+    }
+
+    .preview-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .preview-modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .preview-header h3 {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .preview-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+    }
+
+    .preview-close:hover { color: var(--text-primary); }
+
+    .preview-content {
+      padding: 1rem;
+      overflow: auto;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1.6;
+      white-space: pre;
+    }
+
+    .preview-line {
+      display: flex;
+    }
+
+    .preview-line.highlight {
+      background: rgba(245, 158, 11, 0.15);
+      margin: 0 -1rem;
+      padding: 0 1rem;
+    }
+
+    .preview-line-num {
+      color: var(--text-muted);
+      width: 4ch;
+      text-align: right;
+      margin-right: 1rem;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .preview-line-text {
+      white-space: pre;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-align: center;
+      height: 100%;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+    /* Status Message */
+    .status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .status.success { color: var(--success); }
+    .status.error { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1 class="indented">CSS <span>Refactor</span> Tool</h1>
+      <div class="controls">
+        <label class="toggle" id="togglePromotion">
+          <div class="toggle-track"></div>
+          <span>Promote Colors</span>
+        </label>
+        <label class="toggle" id="toggleRename">
+          <div class="toggle-track"></div>
+          <span>Apply Renames</span>
+        </label>
+        <button class="btn" id="btnRescan" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+          Rescan
+        </button>
+        <button class="btn btn-primary" id="btnApply" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          Apply
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <div class="panel" id="filesPanel">
+        <div class="panel-header">
+          Files
+          <span class="count" id="fileCount">0</span>
+        </div>
+        <div class="panel-content" id="filesContent">
+          <div class="drop-zone" id="dropZone">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/>
+            </svg>
+            <p>Drop a folder here</p>
+            <small>.html and .css files</small>
+          </div>
+        </div>
+        <div class="action-bar" id="actionBar">
+          <div class="action-bar-file" id="actionBarFile">No file selected</div>
+          <div class="action-bar-info" id="actionBarInfo"></div>
+          <div class="action-bar-actions" id="actionBarActions"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          Colors
+          <span class="count" id="colorCount">0</span>
+        </div>
+        <div class="panel-content" id="colorsContent">
+          <div class="empty-state">Drop a folder to scan for colors</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-tabs">
+            <button class="panel-tab active" data-tab="used">Used</button>
+            <button class="panel-tab" data-tab="unused">Unused</button>
+          </div>
+          <div class="sort-buttons" id="classSortButtons">
+            <button class="sort-btn active" data-sort="alpha">A-Z</button>
+            <button class="sort-btn" data-sort="suffix">Suffix</button>
+            <button class="sort-btn" data-sort="frequency">Freq</button>
+            <button class="sort-btn" data-sort="value">Value</button>
+            <button class="sort-btn sort-dir" id="sortDirToggle" title="Reverse sort">▲</button>
+          </div>
+          <span class="count" id="classCount">0</span>
+        </div>
+        <div class="filter-row">
+          <input type="text" class="filter-input" id="classFileFilter" placeholder="filter by file...">
+          <button class="filter-clear" id="filterClear" title="Clear filter">×</button>
+        </div>
+        <div class="panel-content" id="classesContent">
+          <div class="empty-state">Drop a folder to scan for classes</div>
+        </div>
+      </div>
+    </main>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="preview-overlay" id="previewOverlay">
+    <div class="preview-modal">
+      <div class="preview-header">
+        <h3 id="previewTitle">file.css</h3>
+        <button class="preview-close" id="previewClose">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="preview-content" id="previewContent"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ─────────────────────────────────────────────────────────────
+    // State
+    // ─────────────────────────────────────────────────────────────
+    const state = {
+      directoryHandle: null,
+      files: new Map(),          // path -> { handle, content, lines, selected }
+      colors: new Map(),         // colorValue -> [{ file, line }]
+      classes: new Map(),        // className -> [{ file, line, type: 'css'|'html' }]
+      classLongestValue: new Map(), // className -> longest value string from its CSS declarations
+      renames: new Map(),        // originalClass -> newName
+      promotionEnabled: false,
+      renameEnabled: false,
+      classTab: 'used',          // 'used' | 'unused'
+      classSort: 'alpha',        // 'alpha' | 'suffix' | 'frequency' | 'value'
+      classSortReversed: false,
+      classFileFilter: '',       // filter classes by file path fragment
+      activeFile: null           // file selected for actions
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // DOM References
+    // ─────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    const dom = {
+      dropZone: $('dropZone'),
+      filesContent: $('filesContent'),
+      colorsContent: $('colorsContent'),
+      classesContent: $('classesContent'),
+      fileCount: $('fileCount'),
+      colorCount: $('colorCount'),
+      classCount: $('classCount'),
+      btnRescan: $('btnRescan'),
+      btnApply: $('btnApply'),
+      togglePromotion: $('togglePromotion'),
+      toggleRename: $('toggleRename'),
+      status: $('status'),
+      previewOverlay: $('previewOverlay'),
+      previewTitle: $('previewTitle'),
+      previewContent: $('previewContent'),
+      previewClose: $('previewClose')
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Utilities
+    // ─────────────────────────────────────────────────────────────
+    const escapeHtml = str => str.replace(/[&<>"']/g, c => 
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const setStatus = (msg, type = '') => {
+      dom.status.textContent = msg;
+      dom.status.className = 'status' + (type ? ` ${type}` : '');
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Parsing: Colors
+    // ─────────────────────────────────────────────────────────────
+    const COLOR_REGEX = /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/g;
+    const VAR_DECL_REGEX = /--[\w-]+\s*:\s*#/;
+
+    function removeComments(content, isCss) {
+      // Replace comments with same-length whitespace, preserving newlines
+      const replacePreservingNewlines = match => 
+        match.split('').map(c => c === '\n' ? '\n' : ' ').join('');
+      
+      if (isCss) {
+        return content.replace(/\/\*[\s\S]*?\*\//g, replacePreservingNewlines);
+      }
+      return content.replace(new RegExp('<!' + '--[\\s\\S]*?-->', 'g'), replacePreservingNewlines);
+    }
+
+    function extractColors(content, filePath) {
+      const isCss = filePath.endsWith('.css');
+      const noComments = removeComments(content, isCss);
+      const lines = content.split('\n');
+      const noCommentLines = noComments.split('\n');
+      const results = [];
+
+      noCommentLines.forEach((line, idx) => {
+        if (isCss && VAR_DECL_REGEX.test(line)) return;
+        
+        let match;
+        COLOR_REGEX.lastIndex = 0;
+        while ((match = COLOR_REGEX.exec(line)) !== null) {
+          results.push({
+            value: match[0].toLowerCase(),
+            line: idx + 1
+          });
+        }
+      });
+
+      return results;
+    }
+
+    // Extract the longest CSS value for each class (for sorting by value)
+    function extractClassLongestValues(content, filePath) {
+      const isCss = filePath.endsWith('.css');
+      if (!isCss) return new Map();
+      
+      const noComments = removeComments(content, true);
+      const result = new Map(); // className -> longestValue
+      
+      // Match CSS rules: selector { declarations }
+      const ruleRegex = /([^{}]+)\{([^{}]*)\}/g;
+      let ruleMatch;
+      
+      while ((ruleMatch = ruleRegex.exec(noComments)) !== null) {
+        const selector = ruleMatch[1];
+        const declarations = ruleMatch[2];
+        
+        // Find all classes in this selector
+        CSS_CLASS_REGEX.lastIndex = 0;
+        const classesInSelector = [];
+        let classMatch;
+        while ((classMatch = CSS_CLASS_REGEX.exec(selector)) !== null) {
+          classesInSelector.push(classMatch[0]);
+        }
+        
+        if (classesInSelector.length === 0) continue;
+        
+        // Find the longest value in declarations
+        let longestValue = '';
+        const valueRegex = /:\s*([^;]+);/g;
+        let valueMatch;
+        while ((valueMatch = valueRegex.exec(declarations)) !== null) {
+          const value = valueMatch[1].trim();
+          if (value.length > longestValue.length) {
+            longestValue = value;
+          }
+        }
+        
+        // Update each class's longest value if this one is longer
+        for (const cls of classesInSelector) {
+          const existing = result.get(cls) || '';
+          if (longestValue.length > existing.length) {
+            result.set(cls, longestValue);
+          }
+        }
+      }
+      
+      return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Parsing: Classes
+    // ─────────────────────────────────────────────────────────────
+    const CSS_SELECTOR_REGEX = /([^{]+)\{/g;
+    const CSS_CLASS_REGEX = /\.(-?[_a-zA-Z][-_a-zA-Z0-9]*)(?::[a-zA-Z-]+(?:\([^)]*\))?)*(?=\s|,|{|\.|\[|:|$)/g;
+    const HTML_CLASS_ATTR_REGEX = /class\s*=\s*["']([^"']+)["']/gi;
+
+    function extractClassesFromCss(content, filePath) {
+      const noComments = removeComments(content, true);
+      const lines = content.split('\n');
+      const noCommentLines = noComments.split('\n');
+      const results = [];
+      
+      let charIndex = 0;
+      noCommentLines.forEach((line, lineIdx) => {
+        CSS_CLASS_REGEX.lastIndex = 0;
+        let match;
+        while ((match = CSS_CLASS_REGEX.exec(line)) !== null) {
+          results.push({
+            value: match[0],
+            line: lineIdx + 1,
+            type: 'css'
+          });
+        }
+      });
+
+      return results;
+    }
+
+    function extractClassesFromHtml(content, filePath) {
+      const noComments = removeComments(content, false);
+      const lines = noComments.split('\n');
+      const results = [];
+
+      // Track if we're inside a <style> block
+      let inStyleBlock = false;
+
+      lines.forEach((line, lineIdx) => {
+        // Check for entering/exiting style blocks
+        if (/<style[\s>]/i.test(line)) inStyleBlock = true;
+        
+        if (inStyleBlock) {
+          // Extract CSS class selectors from style blocks
+          CSS_CLASS_REGEX.lastIndex = 0;
+          let match;
+          while ((match = CSS_CLASS_REGEX.exec(line)) !== null) {
+            results.push({
+              value: match[0],
+              line: lineIdx + 1,
+              type: 'css'
+            });
+          }
+        }
+        
+        // Extract from class attributes (regardless of style block)
+        HTML_CLASS_ATTR_REGEX.lastIndex = 0;
+        let match;
+        while ((match = HTML_CLASS_ATTR_REGEX.exec(line)) !== null) {
+          const classNames = match[1].trim().split(/\s+/).filter(Boolean);
+          classNames.forEach(cls => {
+            results.push({
+              value: '.' + cls,  // Normalize to CSS selector format
+              line: lineIdx + 1,
+              type: 'html'
+            });
+          });
+        }
+        
+        if (/<\/style>/i.test(line)) inStyleBlock = false;
+      });
+
+      return results;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // File System Operations
+    // ─────────────────────────────────────────────────────────────
+    async function readDirectory(dirHandle, path = '') {
+      const entries = [];
+      for await (const entry of dirHandle.values()) {
+        // Skip dotfiles and dot-directories (e.g., .git)
+        if (entry.name.startsWith('.')) continue;
+        
+        const entryPath = path ? `${path}/${entry.name}` : entry.name;
+        if (entry.kind === 'directory') {
+          const subEntries = await readDirectory(entry, entryPath);
+          entries.push(...subEntries);
+        } else if (entry.kind === 'file' && /\.(html|css)$/i.test(entry.name)) {
+          entries.push({ handle: entry, path: entryPath });
+        }
+      }
+      return entries;
+    }
+
+    async function readFileContent(fileHandle) {
+      const file = await fileHandle.getFile();
+      return await file.text();
+    }
+
+    async function writeFileContent(fileHandle, content) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Scanning
+    // ─────────────────────────────────────────────────────────────
+    async function scanFiles() {
+      if (!state.directoryHandle) return;
+
+      setStatus('Scanning files...');
+      state.files.clear();
+      state.colors.clear();
+      state.classes.clear();
+      state.classLongestValue.clear();
+      state.renames.clear();
+
+      try {
+        const entries = await readDirectory(state.directoryHandle);
+        
+        for (const { handle, path } of entries) {
+          const content = await readFileContent(handle);
+          state.files.set(path, {
+            handle,
+            content,
+            lines: content.split('\n'),
+            selected: true
+          });
+
+          const isCss = path.endsWith('.css');
+          
+          // Extract colors
+          const colors = extractColors(content, path);
+          colors.forEach(({ value, line }) => {
+            if (!state.colors.has(value)) state.colors.set(value, []);
+            state.colors.get(value).push({ file: path, line });
+          });
+
+          // Extract classes (with longest value for sorting)
+          const classes = isCss 
+            ? extractClassesFromCss(content, path)
+            : extractClassesFromHtml(content, path);
+          
+          classes.forEach(({ value, line, type }) => {
+            if (!state.classes.has(value)) state.classes.set(value, []);
+            state.classes.get(value).push({ file: path, line, type });
+          });
+          
+          // Extract longest value per class (for value-based sorting)
+          if (isCss) {
+            const longestValues = extractClassLongestValues(content, path);
+            for (const [cls, val] of longestValues) {
+              const existing = state.classLongestValue.get(cls) || '';
+              if (val.length > existing.length) {
+                state.classLongestValue.set(cls, val);
+              }
+            }
+          }
+        }
+
+        renderAll();
+        dom.btnRescan.disabled = false;
+        dom.btnApply.disabled = false;
+        setStatus(`Scanned ${state.files.size} files`, 'success');
+      } catch (err) {
+        console.error(err);
+        setStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Rendering
+    // ─────────────────────────────────────────────────────────────
+    function renderFiles() {
+      if (state.files.size === 0) {
+        dom.filesContent.innerHTML = `
+          <div class="drop-zone" id="dropZone">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/>
+            </svg>
+            <p>Drop a folder here</p>
+            <small>.html and .css files</small>
+          </div>`;
+        setupDropZone();
+        return;
+      }
+
+      const sorted = [...state.files.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      
+      dom.filesContent.innerHTML = sorted.map(([path, data]) => {
+        const ext = path.split('.').pop();
+        const isActive = path === state.activeFile;
+        return `
+          <div class="file-item${isActive ? ' active' : ''}">
+            <input type="checkbox" data-path="${escapeHtml(path)}" ${data.selected ? 'checked' : ''}>
+            <span class="filename" data-path="${escapeHtml(path)}" title="Click to filter classes">${escapeHtml(path)}</span>
+            <span class="ext">${ext}</span>
+          </div>`;
+      }).join('');
+
+      dom.filesContent.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', e => {
+          const path = e.target.dataset.path;
+          state.files.get(path).selected = e.target.checked;
+        });
+      });
+
+      dom.filesContent.querySelectorAll('.filename').forEach(el => {
+        el.addEventListener('click', () => {
+          state.classFileFilter = el.dataset.path;
+          state.activeFile = el.dataset.path;
+          renderClasses();
+          renderActionBar();
+          renderFiles(); // update highlight
+        });
+      });
+
+      dom.fileCount.textContent = state.files.size;
+    }
+
+    function renderColors() {
+      if (state.colors.size === 0) {
+        dom.colorsContent.innerHTML = '<div class="empty-state">No colors found</div>';
+        dom.colorCount.textContent = '0';
+        return;
+      }
+
+      const sorted = [...state.colors.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      
+      dom.colorsContent.innerHTML = sorted.map(([value, locations]) => `
+        <div class="list-item">
+          <div class="color-swatch" style="background: ${value}"></div>
+          <div>
+            <div class="color-value">${escapeHtml(value)}</div>
+            <div class="locations">
+              ${locations.map(loc => 
+                `<span class="location" data-file="${escapeHtml(loc.file)}" data-line="${loc.line}">${escapeHtml(loc.file)}:${loc.line}</span>`
+              ).join('')}
+            </div>
+          </div>
+        </div>`
+      ).join('');
+
+      dom.colorsContent.querySelectorAll('.location').forEach(el => {
+        el.addEventListener('click', () => showPreview(el.dataset.file, parseInt(el.dataset.line)));
+      });
+
+      dom.colorCount.textContent = state.colors.size;
+    }
+
+    function renderClasses() {
+      // Update tab UI
+      document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === state.classTab);
+      });
+
+      // Update filter input UI
+      const filterInput = document.getElementById('classFileFilter');
+      if (filterInput) {
+        filterInput.value = state.classFileFilter;
+        filterInput.classList.toggle('active', state.classFileFilter !== '');
+      }
+
+      if (state.classes.size === 0) {
+        dom.classesContent.innerHTML = '<div class="empty-state">No classes found</div>';
+        dom.classCount.textContent = '0';
+        return;
+      }
+
+      // Filter classes based on active tab
+      let filtered = [...state.classes.entries()].filter(([_, locations]) => {
+        const hasCss = locations.some(loc => loc.type === 'css');
+        const hasHtml = locations.some(loc => loc.type === 'html');
+        return state.classTab === 'used' ? hasHtml : (hasCss && !hasHtml);
+      });
+      
+      // Filter by file path fragment
+      if (state.classFileFilter) {
+        const frag = state.classFileFilter.toLowerCase();
+        filtered = filtered.filter(([_, locations]) => 
+          locations.some(loc => loc.file.toLowerCase().includes(frag))
+        );
+      }
+      
+      // Sort based on classSort state
+      const reverse = s => s.split('').reverse().join('');
+      const sortFns = {
+        alpha: (a, b) => a[0].localeCompare(b[0]),
+        suffix: (a, b) => reverse(a[0]).localeCompare(reverse(b[0])),
+        frequency: (a, b) => b[1].length - a[1].length,
+        value: (a, b) => {
+          const valA = state.classLongestValue.get(a[0]) || '';
+          const valB = state.classLongestValue.get(b[0]) || '';
+          return valA.localeCompare(valB);
+        }
+      };
+      
+      const baseCmp = sortFns[state.classSort] || sortFns.alpha;
+      filtered.sort((a, b) => {
+        const result = baseCmp(a, b);
+        return state.classSortReversed ? -result : result;
+      });
+
+      // Update sort button UI
+      document.querySelectorAll('#classSortButtons .sort-btn[data-sort]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.sort === state.classSort);
+        // Update A-Z label based on direction
+        if (btn.dataset.sort === 'alpha') {
+          btn.textContent = state.classSortReversed ? 'Z-A' : 'A-Z';
+        }
+      });
+      
+      // Update direction toggle
+      const dirBtn = document.getElementById('sortDirToggle');
+      if (dirBtn) {
+        dirBtn.textContent = state.classSortReversed ? '▼' : '▲';
+        dirBtn.classList.toggle('active', state.classSortReversed);
+      }
+
+      if (filtered.length === 0) {
+        dom.classesContent.innerHTML = `<div class="empty-state">No ${state.classTab} classes found</div>`;
+        dom.classCount.textContent = '0';
+        return;
+      }
+
+      dom.classesContent.innerHTML = filtered.map(([value, locations]) => {
+        const cssLocs = locations.filter(loc => loc.type === 'css');
+        const htmlLocs = locations.filter(loc => loc.type === 'html');
+        const definingFiles = [...new Set(cssLocs.map(loc => loc.file.split('/').pop()))];
+        const longestVal = state.classLongestValue.get(value) || '';
+        const showLongestVal = state.classSort === 'value' && longestVal;
+        
+        return `
+        <div class="list-item">
+          <div></div>
+          <div>
+            <div class="class-name">${escapeHtml(value)}${definingFiles.length > 0 ? `<span class="defined-in">${definingFiles.map(f => escapeHtml(f)).join(', ')}</span>` : ''}</div>
+            ${showLongestVal ? `<div class="longest-value">${escapeHtml(longestVal)}</div>` : ''}
+            ${cssLocs.length > 0 ? `
+            <div class="locations-group">
+              <span class="locations-label">decl</span>
+              <div class="locations">
+                ${cssLocs.map(loc => 
+                  `<span class="location" data-file="${escapeHtml(loc.file)}" data-line="${loc.line}">${escapeHtml(loc.file)}:${loc.line}</span>`
+                ).join('')}
+              </div>
+            </div>` : ''}
+            ${htmlLocs.length > 0 ? `
+            <div class="locations-group">
+              <span class="locations-label">uses</span>
+              <div class="locations">
+                ${htmlLocs.map(loc => 
+                  `<span class="location" data-file="${escapeHtml(loc.file)}" data-line="${loc.line}">${escapeHtml(loc.file)}:${loc.line}</span>`
+                ).join('')}
+              </div>
+            </div>` : ''}
+            <div class="rename-row">
+              <span>→</span>
+              <input type="text" class="rename-input" data-class="${escapeHtml(value)}" placeholder="new name">
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+
+      dom.classesContent.querySelectorAll('.location').forEach(el => {
+        el.addEventListener('click', () => showPreview(el.dataset.file, parseInt(el.dataset.line)));
+      });
+
+      dom.classesContent.querySelectorAll('.rename-input').forEach(input => {
+        input.value = state.renames.get(input.dataset.class) || '';
+        input.addEventListener('input', e => {
+          const orig = e.target.dataset.class;
+          let newVal = e.target.value.trim();
+          // Preserve the dot prefix if original has it
+          if (newVal && orig.startsWith('.') && !newVal.startsWith('.')) {
+            newVal = '.' + newVal;
+          }
+          if (newVal && newVal !== orig) {
+            state.renames.set(orig, newVal);
+          } else {
+            state.renames.delete(orig);
+          }
+        });
+      });
+
+      dom.classCount.textContent = filtered.length;
+    }
+
+    function renderActionBar() {
+      const fileEl = document.getElementById('actionBarFile');
+      const infoEl = document.getElementById('actionBarInfo');
+      const actionsEl = document.getElementById('actionBarActions');
+      
+      if (!state.activeFile) {
+        fileEl.textContent = 'No file selected';
+        fileEl.className = 'action-bar-file none';
+        infoEl.innerHTML = '';
+        actionsEl.innerHTML = '';
+        return;
+      }
+      
+      const path = state.activeFile;
+      const fileData = state.files.get(path);
+      const isHtml = path.endsWith('.html');
+      const isCss = path.endsWith('.css');
+      
+      fileEl.textContent = path;
+      fileEl.className = 'action-bar-file';
+      
+      // Count classes in this file
+      const classesInFile = [...state.classes.entries()].filter(([_, locs]) =>
+        locs.some(loc => loc.file === path)
+      );
+      const declaredHere = classesInFile.filter(([_, locs]) =>
+        locs.some(loc => loc.file === path && loc.type === 'css')
+      ).length;
+      const usedHere = classesInFile.filter(([_, locs]) =>
+        locs.some(loc => loc.file === path && loc.type === 'html')
+      ).length;
+      
+      infoEl.innerHTML = `${declaredHere} declared · ${usedHere} used`;
+      
+      // Build CSS file options for migrate dropdown
+      const cssFiles = [...state.files.keys()].filter(p => p.endsWith('.css') && p !== path);
+      const cssOptions = cssFiles.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+      
+      if (isHtml) {
+        actionsEl.innerHTML = `
+          <div class="action-row">
+            <label>Prefix</label>
+            <input type="text" id="actionPrefix" placeholder="e.g. omni-">
+            <button class="action-btn" id="actionPrefixBtn">Apply</button>
+          </div>
+          <div class="action-row">
+            <label>Migrate</label>
+            <select id="actionMigrateTarget">
+              <option value="">Select CSS file...</option>
+              ${cssOptions}
+            </select>
+            <button class="action-btn" id="actionMigrateBtn" disabled>Move</button>
+          </div>
+        `;
+        
+        document.getElementById('actionPrefixBtn').addEventListener('click', applyPrefix);
+        document.getElementById('actionMigrateTarget').addEventListener('change', e => {
+          document.getElementById('actionMigrateBtn').disabled = !e.target.value;
+        });
+        document.getElementById('actionMigrateBtn').addEventListener('click', applyMigrate);
+      } else if (isCss) {
+        actionsEl.innerHTML = `
+          <div class="action-row">
+            <label>Prefix</label>
+            <input type="text" id="actionPrefix" placeholder="e.g. lcars-">
+            <button class="action-btn" id="actionPrefixBtn">Apply</button>
+          </div>
+        `;
+        
+        document.getElementById('actionPrefixBtn').addEventListener('click', applyPrefix);
+      }
+    }
+
+    async function applyPrefix() {
+      const prefix = document.getElementById('actionPrefix').value.trim();
+      if (!prefix) {
+        setStatus('Enter a prefix', 'error');
+        return;
+      }
+      
+      const path = state.activeFile;
+      const fileData = state.files.get(path);
+      if (!fileData) return;
+      
+      setStatus(`Applying prefix "${prefix}" to classes in ${path}...`);
+      
+      try {
+        // Find classes that originate in this file
+        const classesToPrefix = [];
+        for (const [cls, locs] of state.classes) {
+          if (locs.some(loc => loc.file === path && loc.type === 'css')) {
+            classesToPrefix.push(cls);
+          }
+        }
+        
+        if (classesToPrefix.length === 0) {
+          setStatus('No classes declared in this file', 'error');
+          return;
+        }
+        
+        // Apply prefix to all selected files
+        for (const [filePath, data] of state.files) {
+          if (!data.selected) continue;
+          
+          let content = data.content;
+          const isCss = filePath.endsWith('.css');
+          
+          for (const oldClass of classesToPrefix) {
+            const plainOld = oldClass.startsWith('.') ? oldClass.slice(1) : oldClass;
+            const plainNew = prefix + plainOld;
+            const CLS = 'a-zA-Z0-9_\\-';
+            const escapedPlain = plainOld.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
+            if (isCss) {
+              // Rename in CSS selectors
+              const escapedOld = oldClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              content = content.replace(
+                new RegExp('(?<![' + CLS + '])' + escapedOld + '(?![' + CLS + '])', 'g'),
+                '.' + plainNew
+              );
+            } else {
+              // Rename in HTML class attributes
+              content = content.replace(
+                new RegExp('(class\\s*=\\s*["\'][^"\']*?)(?<![' + CLS + '])(' + escapedPlain + ')(?![' + CLS + '])([^"\']*["\'])', 'gi'),
+                '$1' + plainNew + '$3'
+              );
+            }
+          }
+          
+          if (content !== data.content) {
+            await writeFileContent(data.handle, content);
+          }
+        }
+        
+        setStatus(`Prefixed ${classesToPrefix.length} classes with "${prefix}"`, 'success');
+        await scanFiles();
+        renderActionBar();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    async function applyMigrate() {
+      const targetPath = document.getElementById('actionMigrateTarget').value;
+      if (!targetPath) return;
+      
+      const sourcePath = state.activeFile;
+      const sourceData = state.files.get(sourcePath);
+      const targetData = state.files.get(targetPath);
+      if (!sourceData || !targetData) return;
+      
+      setStatus(`Migrating CSS from ${sourcePath} to ${targetPath}...`);
+      
+      try {
+        let sourceContent = sourceData.content;
+        let targetContent = targetData.content;
+        
+        // Extract CSS from <style> blocks in source HTML
+        const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+        const extractedCss = [];
+        let match;
+        
+        while ((match = styleRegex.exec(sourceContent)) !== null) {
+          extractedCss.push(match[1].trim());
+        }
+        
+        if (extractedCss.length === 0) {
+          setStatus('No embedded CSS found in this file', 'error');
+          return;
+        }
+        
+        // Remove style blocks from source
+        sourceContent = sourceContent.replace(styleRegex, '');
+        
+        // Add CSS to end of target file
+        const cssToAdd = '\n\n/* Migrated from ' + sourcePath + ' */\n' + extractedCss.join('\n\n');
+        targetContent = targetContent.trimEnd() + cssToAdd + '\n';
+        
+        // Add link to CSS file in source HTML if not present
+        const relPath = getRelativePath(sourcePath, targetPath);
+        const linkTag = `<link rel="stylesheet" href="${relPath}">`;
+        
+        if (!sourceContent.includes(relPath)) {
+          // Insert before </head> or at start of file
+          if (sourceContent.includes('</head>')) {
+            sourceContent = sourceContent.replace('</head>', `  ${linkTag}\n</head>`);
+          } else if (sourceContent.includes('<head>')) {
+            sourceContent = sourceContent.replace('<head>', `<head>\n  ${linkTag}`);
+          } else {
+            sourceContent = linkTag + '\n' + sourceContent;
+          }
+        }
+        
+        // Write both files
+        await writeFileContent(sourceData.handle, sourceContent);
+        await writeFileContent(targetData.handle, targetContent);
+        
+        setStatus(`Migrated CSS to ${targetPath}`, 'success');
+        await scanFiles();
+        renderActionBar();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    function getRelativePath(from, to) {
+      const fromParts = from.split('/').slice(0, -1);
+      const toParts = to.split('/');
+      
+      // Find common prefix
+      let common = 0;
+      while (common < fromParts.length && common < toParts.length - 1 && 
+             fromParts[common] === toParts[common]) {
+        common++;
+      }
+      
+      // Build relative path
+      const ups = fromParts.length - common;
+      const path = [...Array(ups).fill('..'), ...toParts.slice(common)].join('/');
+      return path || toParts[toParts.length - 1];
+    }
+
+    function renderAll() {
+      renderFiles();
+      renderColors();
+      renderClasses();
+      renderActionBar();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Preview Modal
+    // ─────────────────────────────────────────────────────────────
+    function showPreview(filePath, lineNum) {
+      const fileData = state.files.get(filePath);
+      if (!fileData) return;
+
+      // Update active file for action bar
+      state.activeFile = filePath;
+      renderActionBar();
+      renderFiles();
+
+      const lines = fileData.lines;
+
+      dom.previewTitle.textContent = `${filePath} : ${lineNum}`;
+      dom.previewContent.innerHTML = lines.map((line, idx) => {
+        const actualLine = idx + 1;
+        const highlight = actualLine === lineNum ? ' highlight' : '';
+        return `<div class="preview-line${highlight}" data-line="${actualLine}">
+          <span class="preview-line-num">${actualLine}</span>
+          <span class="preview-line-text">${escapeHtml(line)}</span>
+        </div>`;
+      }).join('');
+
+      dom.previewOverlay.classList.add('visible');
+      
+      // Scroll to highlighted line
+      const highlightedLine = dom.previewContent.querySelector('.highlight');
+      if (highlightedLine) {
+        highlightedLine.scrollIntoView({ block: 'center' });
+      }
+    }
+
+    function hidePreview() {
+      dom.previewOverlay.classList.remove('visible');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Apply Changes
+    // ─────────────────────────────────────────────────────────────
+    async function applyChanges() {
+      const selectedFiles = [...state.files.entries()].filter(([_, data]) => data.selected);
+      if (selectedFiles.length === 0) {
+        setStatus('No files selected', 'error');
+        return;
+      }
+
+      setStatus('Applying changes...');
+
+      try {
+        // Find :root location for color promotion
+        let rootFile = null;
+        let rootInsertIndex = -1;
+
+        if (state.promotionEnabled && state.colors.size > 0) {
+          for (const [path, data] of selectedFiles) {
+            if (!path.endsWith('.css')) continue;
+            const rootMatch = data.content.match(/:root\s*\{/);
+            if (rootMatch) {
+              rootFile = path;
+              const rootStart = rootMatch.index + rootMatch[0].length;
+              // Find the closing brace
+              let braceCount = 1;
+              let i = rootStart;
+              while (i < data.content.length && braceCount > 0) {
+                if (data.content[i] === '{') braceCount++;
+                if (data.content[i] === '}') braceCount--;
+                i++;
+              }
+              rootInsertIndex = i - 1;
+              break;
+            }
+          }
+        }
+
+        // Process each selected file
+        for (const [path, data] of selectedFiles) {
+          let content = data.content;
+          const isCss = path.endsWith('.css');
+
+          // Apply color promotion
+          if (state.promotionEnabled) {
+            for (const [colorValue] of state.colors) {
+              const varName = `--color-${colorValue.slice(1)}`;
+              const varRef = `var(${varName})`;
+              
+              // Replace colors but not in variable declarations
+              if (isCss) {
+                content = content.replace(
+                  new RegExp('(?<!' + '--[\\w-]+\\s*:\\s*)' + colorValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'),
+                  match => {
+                    // Check if this is part of a var declaration line
+                    const beforeMatch = content.substring(0, content.indexOf(match));
+                    const lineStart = beforeMatch.lastIndexOf('\n') + 1;
+                    const lineContent = content.substring(lineStart);
+                    if (/--[\w-]+\s*:/.test(lineContent.substring(0, lineContent.indexOf(match) - lineStart + match.length))) {
+                      return match;
+                    }
+                    return varRef;
+                  }
+                );
+              } else {
+                // In HTML, replace colors everywhere EXCEPT inside <script type="module"> blocks
+                // But still replace in script if line contains '[ <]style\s*=' (dynamic DOM)
+                const lines = content.split('\n');
+                let inScriptBlock = false;
+                content = lines.map(line => {
+                  if (/<script[\s>]/i.test(line)) inScriptBlock = true;
+                  
+                  const hasStyleAttr = /[ <]style\s*=/.test(line);
+                  const shouldReplace = !inScriptBlock || hasStyleAttr;
+                  
+                  if (/<\/script>/i.test(line)) inScriptBlock = false;
+                  
+                  if (shouldReplace) {
+                    return line.replace(
+                      new RegExp(colorValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+                      varRef
+                    );
+                  }
+                  return line;
+                }).join('\n');
+              }
+            }
+          }
+
+          // Apply class renames
+          if (state.renameEnabled) {
+            for (const [oldClass, newClass] of state.renames) {
+              // Class name chars: letters, digits, underscore, hyphen
+              const CLS = 'a-zA-Z0-9_\\-';
+              
+              if (isCss) {
+                // CSS: rename class selectors
+                // Ensure the . is not preceded by class chars (to avoid matching inside .statusbar)
+                // and the class name is not followed by class chars (to avoid .bar matching .bar-item)
+                const escapedOld = oldClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                content = content.replace(
+                  new RegExp('(?<![' + CLS + '])' + escapedOld + '(?![' + CLS + '])', 'g'),
+                  newClass
+                );
+              } else {
+                // HTML: rename in class attributes, but skip <script type="module"> blocks
+                // But still replace in script if line contains '[ <]class\s*=' (dynamic DOM)
+                const plainClass = oldClass.startsWith('.') ? oldClass.slice(1) : oldClass;
+                const plainNew = newClass.startsWith('.') ? newClass.slice(1) : newClass;
+                const escapedPlain = plainClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const lines = content.split('\n');
+                let inScriptBlock = false;
+                content = lines.map(line => {
+                  if (/<script[\s>]/i.test(line)) inScriptBlock = true;
+                  
+                  const hasClassAttr = /[ <]class\s*=/.test(line);
+                  const shouldReplace = !inScriptBlock || hasClassAttr;
+                  
+                  if (/<\/script>/i.test(line)) inScriptBlock = false;
+                  
+                  if (shouldReplace) {
+                    // Match class name with explicit boundaries (not preceded/followed by class chars)
+                    return line.replace(
+                      new RegExp('(class\\s*=\\s*["\'][^"\']*?)(?<![' + CLS + '])(' + escapedPlain + ')(?![' + CLS + '])([^"\']*["\'])', 'gi'),
+                      '$1' + plainNew + '$3'
+                    );
+                  }
+                  return line;
+                }).join('\n');
+              }
+            }
+          }
+
+          // Write back if changed
+          if (content !== data.content) {
+            await writeFileContent(data.handle, content);
+          }
+        }
+
+        // Insert variable declarations into :root
+        if (state.promotionEnabled && state.colors.size > 0) {
+          const declarations = [...state.colors.keys()]
+            .map(c => `  --color-${c.slice(1)}: ${c};`)
+            .join('\n');
+
+          if (rootFile) {
+            const fileData = state.files.get(rootFile);
+            let content = await readFileContent(fileData.handle);
+            
+            // Find :root block again in potentially modified content
+            const rootMatch = content.match(/:root\s*\{/);
+            if (rootMatch) {
+              const rootStart = rootMatch.index + rootMatch[0].length;
+              let braceCount = 1;
+              let i = rootStart;
+              while (i < content.length && braceCount > 0) {
+                if (content[i] === '{') braceCount++;
+                if (content[i] === '}') braceCount--;
+                i++;
+              }
+              const insertPos = i - 1;
+              content = content.slice(0, insertPos) + '\n' + declarations + '\n' + content.slice(insertPos);
+              await writeFileContent(fileData.handle, content);
+            }
+          } else {
+            // No :root found, create one in first CSS file
+            const firstCss = selectedFiles.find(([p]) => p.endsWith('.css'));
+            if (firstCss) {
+              const [path, data] = firstCss;
+              let content = await readFileContent(data.handle);
+              const rootBlock = `:root {\n${declarations}\n}\n\n`;
+              content = rootBlock + content;
+              await writeFileContent(data.handle, content);
+            }
+          }
+        }
+
+        setStatus('Changes applied successfully!', 'success');
+        
+        // Rescan to update state
+        await scanFiles();
+      } catch (err) {
+        console.error(err);
+        setStatus(`Error: ${err.message}`, 'error');
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Event Handlers
+    // ─────────────────────────────────────────────────────────────
+    
+    // Prevent browser default drag/drop behavior on the whole document
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => e.preventDefault());
+    
+    function setupDropZone() {
+      const dropZone = document.getElementById('dropZone');
+      if (!dropZone) return;
+
+      const handleDragOver = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.add('drag-over');
+      };
+
+      const handleDragLeave = () => {
+        dropZone.classList.remove('drag-over');
+      };
+
+      const handleDrop = async e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.classList.remove('drag-over');
+
+        const items = e.dataTransfer.items;
+        for (const item of items) {
+          if (item.kind === 'file') {
+            const handle = await item.getAsFileSystemHandle();
+            if (handle.kind === 'directory') {
+              state.directoryHandle = handle;
+              await scanFiles();
+              return;
+            }
+          }
+        }
+        setStatus('Please drop a folder, not individual files', 'error');
+      };
+
+      dropZone.addEventListener('dragover', handleDragOver);
+      dropZone.addEventListener('dragleave', handleDragLeave);
+      dropZone.addEventListener('drop', handleDrop);
+      dropZone.addEventListener('click', async () => {
+        try {
+          state.directoryHandle = await window.showDirectoryPicker();
+          await scanFiles();
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            setStatus(`Error: ${err.message}`, 'error');
+          }
+        }
+      });
+    }
+
+    function setupToggles() {
+      dom.togglePromotion.addEventListener('click', () => {
+        state.promotionEnabled = !state.promotionEnabled;
+        dom.togglePromotion.classList.toggle('active', state.promotionEnabled);
+      });
+
+      dom.toggleRename.addEventListener('click', () => {
+        state.renameEnabled = !state.renameEnabled;
+        dom.toggleRename.classList.toggle('active', state.renameEnabled);
+      });
+    }
+
+    function setupButtons() {
+      dom.btnRescan.addEventListener('click', () => scanFiles());
+      dom.btnApply.addEventListener('click', () => applyChanges());
+    }
+
+    function setupPreview() {
+      dom.previewClose.addEventListener('click', hidePreview);
+      dom.previewOverlay.addEventListener('click', e => {
+        if (e.target === dom.previewOverlay) hidePreview();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') hidePreview();
+      });
+    }
+
+    function setupTabs() {
+      document.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          state.classTab = tab.dataset.tab;
+          renderClasses();
+        });
+      });
+    }
+
+    function setupSortButtons() {
+      document.querySelectorAll('#classSortButtons .sort-btn[data-sort]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.classSort = btn.dataset.sort;
+          renderClasses();
+        });
+      });
+      
+      document.getElementById('sortDirToggle').addEventListener('click', () => {
+        state.classSortReversed = !state.classSortReversed;
+        renderClasses();
+      });
+    }
+
+    function setupFilter() {
+      document.getElementById('classFileFilter').addEventListener('input', e => {
+        state.classFileFilter = e.target.value;
+        renderClasses();
+      });
+      
+      document.getElementById('filterClear').addEventListener('click', () => {
+        state.classFileFilter = '';
+        renderClasses();
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Initialize
+    // ─────────────────────────────────────────────────────────────
+    function init() {
+      setupDropZone();
+      setupToggles();
+      setupButtons();
+      setupPreview();
+      setupTabs();
+      setupSortButtons();
+      setupFilter();
+    }
+
+    init();
+  </script>
+</body>
+</html>

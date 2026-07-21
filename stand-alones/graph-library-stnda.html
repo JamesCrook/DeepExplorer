@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Small Graph Library</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<style>
+  :root {
+    --bg: #0e1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f3a5f;
+    --green: #3fb950;
+    --green-dim: #1a3a2a;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .page { display: flex; height: 100vh; overflow: hidden; }
+
+  /* --- Left panel: API reference --- */
+  .api-panel {
+    width: 340px;
+    min-width: 280px;
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .api-panel h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent);
+    font-family: var(--mono);
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .api-panel .subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  .api-section {
+    margin-bottom: 16px;
+  }
+
+  .api-section summary {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+    cursor: pointer;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .api-section summary::before {
+    content: '▸ ';
+    color: var(--text-muted);
+  }
+
+  .api-section[open] summary::before {
+    content: '▾ ';
+  }
+
+  .api-method {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 0 4px 12px;
+    color: var(--text-muted);
+    border-left: 1px solid var(--border);
+    margin-left: 4px;
+  }
+
+  .api-method .name { color: var(--text); }
+  .api-method .ret { color: var(--purple); }
+
+  /* --- Main area --- */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* --- Toolbar --- */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+
+  .toolbar .group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .toolbar .sep {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  button:hover { border-color: var(--accent); background: var(--accent-dim); }
+  button.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  button.green:hover { border-color: var(--green); background: var(--green-dim); }
+  button.danger:hover { border-color: var(--red); background: #3d1a1a; }
+
+  .mode-indicator {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .mode-indicator .mode-name { color: var(--orange); }
+
+  /* --- Canvas --- */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+  }
+
+  /* --- Output log --- */
+  .output {
+    height: 160px;
+    min-height: 80px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    overflow-y: auto;
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .output .log-entry { padding: 1px 0; }
+  .output .log-entry.info { color: var(--accent); }
+  .output .log-entry.success { color: var(--green); }
+  .output .log-entry.warn { color: var(--orange); }
+  .output .log-entry.error { color: var(--red); }
+
+  .output .cycle-color {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <!-- API Reference Panel -->
+  <div class="api-panel">
+    <h1>Graph</h1>
+    <div class="subtitle">Nodes, edges, cycles, MST</div>
+
+    <details class="api-section" open>
+      <summary>Nodes</summary>
+      <div class="api-method"><span class="name">addNode</span>(id, data?) → <span class="ret">Node</span></div>
+      <div class="api-method"><span class="name">removeNode</span>(id) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">hasNode</span>(id) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">getNode</span>(id) → <span class="ret">Node?</span></div>
+      <div class="api-method"><span class="name">nodes</span>() → <span class="ret">Iterator</span></div>
+      <div class="api-method"><span class="name">nodeCount</span> → <span class="ret">number</span></div>
+    </details>
+
+    <details class="api-section" open>
+      <summary>Edges</summary>
+      <div class="api-method"><span class="name">addEdge</span>(src, tgt, w?, data?) → <span class="ret">Edge</span></div>
+      <div class="api-method"><span class="name">removeEdge</span>(src, tgt) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">hasEdge</span>(src, tgt) → <span class="ret">bool</span></div>
+      <div class="api-method"><span class="name">getEdge</span>(src, tgt) → <span class="ret">Edge?</span></div>
+      <div class="api-method"><span class="name">edges</span>() → <span class="ret">Iterator</span></div>
+      <div class="api-method"><span class="name">edgeCount</span> → <span class="ret">number</span></div>
+    </details>
+
+    <details class="api-section">
+      <summary>Queries</summary>
+      <div class="api-method"><span class="name">neighbors</span>(id) → <span class="ret">Node[]</span></div>
+      <div class="api-method"><span class="name">degree</span>(id) → <span class="ret">number</span></div>
+      <div class="api-method"><span class="name">inDegree</span>(id) → <span class="ret">number</span></div>
+      <div class="api-method"><span class="name">outDegree</span>(id) → <span class="ret">number</span></div>
+      <div class="api-method"><span class="name">adjacencyList</span>() → <span class="ret">Map</span></div>
+    </details>
+
+    <details class="api-section">
+      <summary>Traversal</summary>
+      <div class="api-method"><span class="name">bfs</span>(startId, visitor) → <span class="ret">void</span></div>
+      <div class="api-method"><span class="name">dfs</span>(startId, visitor) → <span class="ret">void</span></div>
+      <div class="api-method"><span class="name">topologicalSort</span>() → <span class="ret">id[]</span></div>
+    </details>
+
+    <details class="api-section" open>
+      <summary>Algorithms</summary>
+      <div class="api-method"><span class="name">findCycles</span>() → <span class="ret">id[][]</span></div>
+      <div class="api-method"><span class="name">findMolecularCycles</span>(max?) → <span class="ret">id[][]</span></div>
+      <div class="api-method"><span class="name">minimumSpanningTree</span>() → <span class="ret">Graph</span></div>
+      <div class="api-method"><span class="name">shortestPath</span>(from, to) → <span class="ret">{path,dist}?</span></div>
+      <div class="api-method"><span class="name">connectedComponents</span>() → <span class="ret">Set[]</span></div>
+    </details>
+
+    <details class="api-section">
+      <summary>Serialisation</summary>
+      <div class="api-method"><span class="name">fromAdjacencyList</span>(adj) → <span class="ret">Graph</span></div>
+      <div class="api-method"><span class="name">fromEdgeList</span>(edges) → <span class="ret">Graph</span></div>
+      <div class="api-method"><span class="name">toJSON</span>() → <span class="ret">object</span></div>
+      <div class="api-method"><span class="name">fromJSON</span>(obj) → <span class="ret">Graph</span></div>
+    </details>
+  </div>
+
+  <!-- Main area -->
+  <div class="main">
+    <div class="toolbar">
+      <div class="group">
+        <button id="btn-add-node" class="active" title="Click canvas to add nodes">+ Node</button>
+        <button id="btn-add-edge" title="Click two nodes to connect them">+ Edge</button>
+        <button id="btn-delete" class="danger" title="Click node or edge to delete">Delete</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="btn-cycles" class="green" title="Fundamental cycles (each edge in at most one)">Find Cycles</button>
+        <button id="btn-mol-cycles" class="green" title="All simple cycles, edges may be shared (for SMILES / fused rings)">Molecular Cycles</button>
+        <button id="btn-mst" class="green" title="Compute minimum spanning tree">MST</button>
+        <button id="btn-components" class="green" title="Find connected components">Components</button>
+        <button id="btn-shortest" class="green" title="Click two nodes for shortest path">Shortest Path</button>
+      </div>
+      <div class="sep"></div>
+      <div class="group">
+        <button id="btn-clear" class="danger">Clear All</button>
+        <button id="btn-sample">Load Sample</button>
+      </div>
+      <div class="mode-indicator">
+        mode: <span class="mode-name" id="mode-label">add-node</span>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <div class="output" id="output"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  SMALL GRAPH LIBRARY — Full Implementation
+// ============================================================
+
+// #util/graph/lib/code
+class Graph {
+  constructor(directed = false) {
+    this._directed = directed;
+    this._nodes = new Map();   // id → { id, data }
+    this._adj = new Map();     // id → Map<targetId, Edge>
+    if (!directed) {
+      this._adjRev = null;     // not needed for undirected
+    } else {
+      this._adjRev = new Map(); // id → Map<sourceId, Edge>
+    }
+    this._edgeCount = 0;
+  }
+
+  // --- Nodes ---
+  addNode(id, data = {}) {
+    if (this._nodes.has(id)) return this._nodes.get(id);
+    const node = { id, data };
+    this._nodes.set(id, node);
+    this._adj.set(id, new Map());
+    if (this._adjRev) this._adjRev.set(id, new Map());
+    return node;
+  }
+
+  removeNode(id) {
+    if (!this._nodes.has(id)) return false;
+    // Remove all edges involving this node
+    for (const [targetId] of this._adj.get(id)) {
+      this._edgeCount--;
+      if (!this._directed) {
+        this._adj.get(targetId).delete(id);
+      } else if (this._adjRev) {
+        this._adjRev.get(targetId).delete(id);
+      }
+    }
+    if (this._directed && this._adjRev) {
+      for (const [sourceId] of this._adjRev.get(id)) {
+        this._adj.get(sourceId).delete(id);
+        this._edgeCount--;
+      }
+      this._adjRev.delete(id);
+    } else if (!this._directed) {
+      // Already handled above
+    }
+    this._adj.delete(id);
+    this._nodes.delete(id);
+    return true;
+  }
+
+  hasNode(id) { return this._nodes.has(id); }
+  getNode(id) { return this._nodes.get(id); }
+  *nodes() { yield* this._nodes.values(); }
+  get nodeCount() { return this._nodes.size; }
+
+  // --- Edges ---
+  addEdge(sourceId, targetId, weight = 1, data = {}) {
+    this.addNode(sourceId);
+    this.addNode(targetId);
+    if (this._adj.get(sourceId).has(targetId)) return this._adj.get(sourceId).get(targetId);
+    const edge = { source: sourceId, target: targetId, weight, data };
+    this._adj.get(sourceId).set(targetId, edge);
+    if (!this._directed) {
+      const rev = { source: targetId, target: sourceId, weight, data };
+      this._adj.get(targetId).set(sourceId, rev);
+    } else if (this._adjRev) {
+      this._adjRev.get(targetId).set(sourceId, edge);
+    }
+    this._edgeCount++;
+    return edge;
+  }
+
+  removeEdge(sourceId, targetId) {
+    if (!this._adj.has(sourceId)) return false;
+    if (!this._adj.get(sourceId).has(targetId)) return false;
+    this._adj.get(sourceId).delete(targetId);
+    if (!this._directed) {
+      this._adj.get(targetId).delete(sourceId);
+    } else if (this._adjRev) {
+      this._adjRev.get(targetId).delete(sourceId);
+    }
+    this._edgeCount--;
+    return true;
+  }
+
+  hasEdge(sourceId, targetId) {
+    return this._adj.has(sourceId) && this._adj.get(sourceId).has(targetId);
+  }
+
+  getEdge(sourceId, targetId) {
+    if (!this._adj.has(sourceId)) return undefined;
+    return this._adj.get(sourceId).get(targetId);
+  }
+
+  *edges() {
+    const seen = new Set();
+    for (const [src, targets] of this._adj) {
+      for (const [tgt, edge] of targets) {
+        const key = this._directed ? `${src}->${tgt}` : [src, tgt].sort().join('--');
+        if (!seen.has(key)) {
+          seen.add(key);
+          yield edge;
+        }
+      }
+    }
+  }
+
+  get edgeCount() { return this._edgeCount; }
+
+  // --- Queries ---
+  neighbors(id) {
+    if (!this._adj.has(id)) return [];
+    return Array.from(this._adj.get(id).keys()).map(nid => this._nodes.get(nid));
+  }
+
+  degree(id) {
+    if (!this._adj.has(id)) return 0;
+    if (this._directed) return this.inDegree(id) + this.outDegree(id);
+    return this._adj.get(id).size;
+  }
+
+  outDegree(id) { return this._adj.has(id) ? this._adj.get(id).size : 0; }
+
+  inDegree(id) {
+    if (!this._directed) return this.outDegree(id);
+    return this._adjRev && this._adjRev.has(id) ? this._adjRev.get(id).size : 0;
+  }
+
+  adjacencyList() {
+    const result = new Map();
+    for (const [id, targets] of this._adj) {
+      result.set(id, Array.from(targets.values()).map(e => ({ target: e.target, weight: e.weight })));
+    }
+    return result;
+  }
+
+  // --- Traversal ---
+  bfs(startId, visitor) {
+    if (!this._nodes.has(startId)) return;
+    const visited = new Set();
+    const queue = [{ id: startId, depth: 0, parent: null }];
+    visited.add(startId);
+    while (queue.length > 0) {
+      const { id, depth, parent } = queue.shift();
+      visitor(this._nodes.get(id), depth, parent);
+      for (const [nid] of this._adj.get(id)) {
+        if (!visited.has(nid)) {
+          visited.add(nid);
+          queue.push({ id: nid, depth: depth + 1, parent: id });
+        }
+      }
+    }
+  }
+
+  dfs(startId, visitor) {
+    if (!this._nodes.has(startId)) return;
+    const visited = new Set();
+    const go = (id, parent) => {
+      visited.add(id);
+      visitor(this._nodes.get(id), parent);
+      for (const [nid] of this._adj.get(id)) {
+        if (!visited.has(nid)) go(nid, id);
+      }
+    };
+    go(startId, null);
+  }
+
+  topologicalSort() {
+    if (!this._directed) throw new Error('Topological sort requires a directed graph');
+    const visited = new Set();
+    const stack = [];
+    const inProgress = new Set();
+    const visit = (id) => {
+      if (inProgress.has(id)) throw new Error('Graph contains a cycle');
+      if (visited.has(id)) return;
+      inProgress.add(id);
+      for (const [nid] of this._adj.get(id)) visit(nid);
+      inProgress.delete(id);
+      visited.add(id);
+      stack.push(id);
+    };
+    for (const [id] of this._nodes) visit(id);
+    return stack.reverse();
+  }
+
+  // --- Algorithms ---
+
+  /**
+   * Find all cycles in the graph, ordered by ring size (ascending).
+   * For undirected graphs, uses a DFS-based approach collecting fundamental
+   * cycles from the cycle space defined by back edges in the DFS tree.
+   */
+  findCycles() {
+    if (this._directed) return this._findCyclesDirected();
+    return this._findCyclesUndirected();
+  }
+
+  _findCyclesUndirected() {
+    const cycles = [];
+    const visited = new Set();
+    const parent = new Map();
+    const depth = new Map();
+
+    // For each connected component
+    for (const [startId] of this._nodes) {
+      if (visited.has(startId)) continue;
+
+      const stack = [[startId, null, 0]];
+      while (stack.length > 0) {
+        const [nodeId, par, d] = stack.pop();
+        if (visited.has(nodeId)) {
+          // Back edge found — extract cycle
+          if (depth.has(nodeId)) {
+            // Already processed this back edge from the other direction
+          }
+          continue;
+        }
+        visited.add(nodeId);
+        parent.set(nodeId, par);
+        depth.set(nodeId, d);
+
+        for (const [nid] of this._adj.get(nodeId)) {
+          if (!visited.has(nid)) {
+            stack.push([nid, nodeId, d + 1]);
+          } else if (nid !== par) {
+            // Back edge: extract cycle by tracing parents
+            const cycle = this._extractCycle(nodeId, nid, parent);
+            if (cycle && cycle.length >= 3) {
+              cycles.push(cycle);
+            }
+          }
+        }
+      }
+    }
+
+    // Deduplicate cycles (canonical form: rotate to smallest id first)
+    const unique = new Map();
+    for (const cycle of cycles) {
+      const key = this._canonicalCycle(cycle);
+      unique.set(key, cycle);
+    }
+
+    const result = Array.from(unique.values());
+    result.sort((a, b) => a.length - b.length);
+    return result;
+  }
+
+  _extractCycle(fromId, toId, parent) {
+    // Trace from fromId back to toId using parent pointers
+    const pathA = [];
+    let cur = fromId;
+    const visited = new Set();
+    while (cur !== null && !visited.has(cur)) {
+      visited.add(cur);
+      pathA.push(cur);
+      if (cur === toId) return pathA;
+      cur = parent.get(cur) ?? null;
+    }
+
+    // If direct trace didn't work, find LCA
+    const ancestorsA = new Set();
+    cur = fromId;
+    const visitedA = new Set();
+    while (cur !== null && !visitedA.has(cur)) {
+      visitedA.add(cur);
+      ancestorsA.add(cur);
+      cur = parent.get(cur) ?? null;
+    }
+
+    const pathB = [];
+    cur = toId;
+    const visitedB = new Set();
+    while (cur !== null && !visitedB.has(cur) && !ancestorsA.has(cur)) {
+      visitedB.add(cur);
+      pathB.push(cur);
+      cur = parent.get(cur) ?? null;
+    }
+
+    if (cur === null) return null;
+    const lca = cur;
+
+    const pathFromA = [];
+    let c = fromId;
+    const visitedC = new Set();
+    while (c !== lca && !visitedC.has(c)) {
+      visitedC.add(c);
+      pathFromA.push(c);
+      c = parent.get(c) ?? null;
+    }
+    pathFromA.push(lca);
+
+    const cycle = [...pathFromA, ...pathB.reverse()];
+    return cycle;
+  }
+
+  _canonicalCycle(cycle) {
+    // Normalize: start from minimum id, try both directions, pick lexicographically smallest
+    const n = cycle.length;
+    let minIdx = 0;
+    for (let i = 1; i < n; i++) {
+      if (cycle[i] < cycle[minIdx]) minIdx = i;
+    }
+    const forward = [];
+    const backward = [];
+    for (let i = 0; i < n; i++) {
+      forward.push(cycle[(minIdx + i) % n]);
+      backward.push(cycle[(minIdx - i + n) % n]);
+    }
+    const fk = forward.join(',');
+    const bk = backward.join(',');
+    return fk < bk ? fk : bk;
+  }
+
+  _findCyclesDirected() {
+    // Johnson's algorithm simplified
+    const cycles = [];
+    const blocked = new Set();
+    const blockMap = new Map();
+    const stack = [];
+    const nodeIds = Array.from(this._nodes.keys());
+
+    const unblock = (u) => {
+      blocked.delete(u);
+      if (blockMap.has(u)) {
+        for (const w of blockMap.get(u)) {
+          if (blocked.has(w)) unblock(w);
+        }
+        blockMap.get(u).clear();
+      }
+    };
+
+    const circuit = (v, s) => {
+      let found = false;
+      stack.push(v);
+      blocked.add(v);
+
+      for (const [w] of this._adj.get(v)) {
+        if (w === s) {
+          cycles.push([...stack]);
+          found = true;
+        } else if (!blocked.has(w)) {
+          if (circuit(w, s)) found = true;
+        }
+      }
+
+      if (found) {
+        unblock(v);
+      } else {
+        for (const [w] of this._adj.get(v)) {
+          if (!blockMap.has(w)) blockMap.set(w, new Set());
+          blockMap.get(w).add(v);
+        }
+      }
+
+      stack.pop();
+      return found;
+    };
+
+    for (const s of nodeIds) {
+      blocked.clear();
+      blockMap.clear();
+      circuit(s, s);
+    }
+
+    cycles.sort((a, b) => a.length - b.length);
+    return cycles;
+  }
+
+  /**
+   * Find all simple cycles allowing shared edges — the ring set needed for
+   * molecular layout (SMILES, fused ring systems like naphthalene, etc.).
+   *
+   * For each node s, performs a bounded DFS looking for all simple paths that
+   * return to s, restricted to neighbours whose id >= s so each cycle is
+   * discovered exactly once (with s as the lexicographic minimum member).
+   *
+   * @param {number} maxRingSize  Maximum cycle length to report (default 12).
+   * @returns {Array<Array<id>>}  Cycles ordered ascending by ring size.
+   */
+  findMolecularCycles(maxRingSize = 12) {
+    const cycles = [];
+    const nodeIds = Array.from(this._nodes.keys()).sort();
+
+    for (const startId of nodeIds) {
+      // DFS: find all simple paths from startId back to startId,
+      // only visiting nodes with id >= startId (dedup guarantee).
+      const path = [startId];
+      const onPath = new Set([startId]);
+
+      const dfs = (current, depth) => {
+        for (const [nid] of this._adj.get(current)) {
+          if (nid === startId && depth >= 3) {
+            // Closing edge back to start — record cycle.
+            // Canonicalise direction: keep only the traversal where
+            // the second node is smaller than the last, so each
+            // undirected ring is reported exactly once.
+            if (path[1] < path[path.length - 1]) {
+              cycles.push(path.slice());
+            }
+          } else if (!onPath.has(nid) && nid > startId && depth < maxRingSize) {
+            onPath.add(nid);
+            path.push(nid);
+            dfs(nid, depth + 1);
+            path.pop();
+            onPath.delete(nid);
+          }
+        }
+      };
+
+      dfs(startId, 1);
+    }
+
+    cycles.sort((a, b) => a.length - b.length);
+    return cycles;
+  }
+
+  /**
+   * Kruskal's MST using union-find with path compression and union by rank.
+   */
+  minimumSpanningTree() {
+    const mst = new Graph(this._directed);
+    for (const node of this.nodes()) mst.addNode(node.id, { ...node.data });
+
+    // Union-Find
+    const parent = new Map();
+    const rank = new Map();
+    for (const [id] of this._nodes) {
+      parent.set(id, id);
+      rank.set(id, 0);
+    }
+
+    const find = (x) => {
+      if (parent.get(x) !== x) parent.set(x, find(parent.get(x)));
+      return parent.get(x);
+    };
+
+    const unite = (a, b) => {
+      const ra = find(a), rb = find(b);
+      if (ra === rb) return false;
+      if (rank.get(ra) < rank.get(rb)) { parent.set(ra, rb); }
+      else if (rank.get(ra) > rank.get(rb)) { parent.set(rb, ra); }
+      else { parent.set(rb, ra); rank.set(ra, rank.get(ra) + 1); }
+      return true;
+    };
+
+    const edgeList = Array.from(this.edges());
+    edgeList.sort((a, b) => a.weight - b.weight);
+
+    for (const edge of edgeList) {
+      if (unite(edge.source, edge.target)) {
+        mst.addEdge(edge.source, edge.target, edge.weight, { ...edge.data });
+      }
+    }
+
+    return mst;
+  }
+
+  /**
+   * Dijkstra's shortest path.
+   */
+  shortestPath(fromId, toId) {
+    if (!this._nodes.has(fromId) || !this._nodes.has(toId)) return null;
+
+    const dist = new Map();
+    const prev = new Map();
+    const visited = new Set();
+
+    for (const [id] of this._nodes) dist.set(id, Infinity);
+    dist.set(fromId, 0);
+
+    while (true) {
+      let u = null, uDist = Infinity;
+      for (const [id, d] of dist) {
+        if (!visited.has(id) && d < uDist) { u = id; uDist = d; }
+      }
+      if (u === null || u === toId) break;
+      visited.add(u);
+
+      for (const [nid, edge] of this._adj.get(u)) {
+        const alt = uDist + edge.weight;
+        if (alt < dist.get(nid)) {
+          dist.set(nid, alt);
+          prev.set(nid, u);
+        }
+      }
+    }
+
+    if (dist.get(toId) === Infinity) return null;
+
+    const path = [];
+    let cur = toId;
+    while (cur !== undefined) {
+      path.unshift(cur);
+      cur = prev.get(cur);
+    }
+
+    return { path, distance: dist.get(toId) };
+  }
+
+  connectedComponents() {
+    const visited = new Set();
+    const components = [];
+
+    for (const [id] of this._nodes) {
+      if (visited.has(id)) continue;
+      const comp = new Set();
+      const queue = [id];
+      visited.add(id);
+      while (queue.length > 0) {
+        const cur = queue.shift();
+        comp.add(cur);
+        for (const [nid] of this._adj.get(cur)) {
+          if (!visited.has(nid)) {
+            visited.add(nid);
+            queue.push(nid);
+          }
+        }
+      }
+      components.push(comp);
+    }
+
+    return components;
+  }
+
+  // --- Serialisation ---
+  static fromAdjacencyList(adj) {
+    const g = new Graph();
+    for (const [id, neighbors] of Object.entries(adj)) {
+      g.addNode(id);
+      for (const n of neighbors) {
+        const target = typeof n === 'object' ? n.target : n;
+        const weight = typeof n === 'object' ? (n.weight ?? 1) : 1;
+        g.addEdge(id, target, weight);
+      }
+    }
+    return g;
+  }
+
+  static fromEdgeList(edges) {
+    const g = new Graph();
+    for (const e of edges) {
+      g.addEdge(e.source ?? e[0], e.target ?? e[1], e.weight ?? 1);
+    }
+    return g;
+  }
+
+  toJSON() {
+    return {
+      directed: this._directed,
+      nodes: Array.from(this.nodes()),
+      edges: Array.from(this.edges()),
+    };
+  }
+
+  static fromJSON(obj) {
+    const g = new Graph(obj.directed);
+    for (const n of obj.nodes) g.addNode(n.id, n.data);
+    for (const e of obj.edges) g.addEdge(e.source, e.target, e.weight, e.data);
+    return g;
+  }
+}
+
+
+// ============================================================
+//  INTERACTIVE DEMO
+// ============================================================
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const outputEl = document.getElementById('output');
+
+let graph = new Graph();
+let nodePositions = new Map(); // id → {x, y}
+let nextNodeId = 0;
+let mode = 'add-node'; // add-node, add-edge, delete, shortest-path
+let selectedNode = null;
+let dragNode = null;
+let dragOffset = { x: 0, y: 0 };
+let highlightEdges = [];   // [{source, target, color}]
+let highlightNodes = [];   // [{id, color}]
+let highlightCycles = [];  // [{cycle, color}]
+
+const CYCLE_COLORS = ['#f72585', '#7209b7', '#3a0ca3', '#4361ee', '#4cc9f0', '#06d6a0', '#ffd166', '#ef476f'];
+const COMPONENT_COLORS = ['#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff', '#4cc9f0', '#ffd166', '#ef476f'];
+
+function log(msg, cls = '') {
+  const div = document.createElement('div');
+  div.className = 'log-entry ' + cls;
+  div.innerHTML = msg;
+  outputEl.appendChild(div);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+
+function clearLog() { outputEl.innerHTML = ''; }
+
+function resize() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  draw();
+}
+
+window.addEventListener('resize', resize);
+
+function nodeAt(x, y) {
+  for (const [id, pos] of nodePositions) {
+    const dx = pos.x - x, dy = pos.y - y;
+    if (dx * dx + dy * dy < 18 * 18) return id;
+  }
+  return null;
+}
+
+function edgeAt(x, y) {
+  for (const edge of graph.edges()) {
+    const a = nodePositions.get(edge.source);
+    const b = nodePositions.get(edge.target);
+    if (!a || !b) continue;
+    const dist = pointToSegmentDist(x, y, a.x, a.y, b.x, b.y);
+    if (dist < 8) return edge;
+  }
+  return null;
+}
+
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function getMousePos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const { x, y } = getMousePos(e);
+  const hit = nodeAt(x, y);
+
+  if (mode === 'add-node') {
+    if (hit !== null) {
+      dragNode = hit;
+      const pos = nodePositions.get(hit);
+      dragOffset = { x: x - pos.x, y: y - pos.y };
+      canvas.style.cursor = 'grabbing';
+    } else {
+      const id = 'n' + (nextNodeId++);
+      graph.addNode(id);
+      nodePositions.set(id, { x, y });
+      clearHighlights();
+      log(`+ node <b>${id}</b> at (${Math.round(x)}, ${Math.round(y)})`, 'info');
+      draw();
+    }
+  } else if (mode === 'add-edge') {
+    if (hit !== null) {
+      if (selectedNode === null) {
+        selectedNode = hit;
+        log(`edge start: <b>${hit}</b> — click another node`, 'info');
+        draw();
+      } else if (hit !== selectedNode) {
+        const w = Math.round(dist(nodePositions.get(selectedNode), nodePositions.get(hit)));
+        graph.addEdge(selectedNode, hit, w);
+        log(`+ edge <b>${selectedNode}</b> — <b>${hit}</b>  (weight ${w})`, 'info');
+        clearHighlights();
+        selectedNode = null;
+        draw();
+      }
+    }
+  } else if (mode === 'delete') {
+    if (hit !== null) {
+      graph.removeNode(hit);
+      nodePositions.delete(hit);
+      clearHighlights();
+      log(`− node <b>${hit}</b> removed`, 'warn');
+      draw();
+    } else {
+      const edge = edgeAt(x, y);
+      if (edge) {
+        graph.removeEdge(edge.source, edge.target);
+        clearHighlights();
+        log(`− edge <b>${edge.source}</b> — <b>${edge.target}</b> removed`, 'warn');
+        draw();
+      }
+    }
+  } else if (mode === 'shortest-path') {
+    if (hit !== null) {
+      if (selectedNode === null) {
+        selectedNode = hit;
+        log(`path start: <b>${hit}</b> — click destination`, 'info');
+        draw();
+      } else {
+        runShortestPath(selectedNode, hit);
+        selectedNode = null;
+      }
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (dragNode !== null) {
+    const { x, y } = getMousePos(e);
+    nodePositions.set(dragNode, { x: x - dragOffset.x, y: y - dragOffset.y });
+    // Recalculate weights for all edges connected to the dragged node
+    for (const edge of graph.edges()) {
+      if (edge.source === dragNode || edge.target === dragNode) {
+        const a = nodePositions.get(edge.source);
+        const b = nodePositions.get(edge.target);
+        if (a && b) {
+          const newWeight = Math.round(dist(a, b));
+          edge.weight = newWeight;
+          // Also update the reverse edge for undirected graphs
+          const rev = graph.getEdge(edge.target, edge.source);
+          if (rev) rev.weight = newWeight;
+        }
+      }
+    }
+    draw();
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (dragNode !== null) {
+    dragNode = null;
+    canvas.style.cursor = 'crosshair';
+  }
+});
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function clearHighlights() {
+  highlightEdges = [];
+  highlightNodes = [];
+  highlightCycles = [];
+}
+
+// --- Drawing ---
+function draw() {
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+
+  // Draw highlighted cycles (filled polygons)
+  for (const { cycle, color } of highlightCycles) {
+    ctx.beginPath();
+    for (let i = 0; i < cycle.length; i++) {
+      const pos = nodePositions.get(cycle[i]);
+      if (!pos) continue;
+      if (i === 0) ctx.moveTo(pos.x, pos.y);
+      else ctx.lineTo(pos.x, pos.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color + '18';
+    ctx.fill();
+    ctx.strokeStyle = color + '60';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Draw edges
+  for (const edge of graph.edges()) {
+    const a = nodePositions.get(edge.source);
+    const b = nodePositions.get(edge.target);
+    if (!a || !b) continue;
+
+    // Check if highlighted
+    const hl = highlightEdges.find(he =>
+      (he.source === edge.source && he.target === edge.target) ||
+      (he.source === edge.target && he.target === edge.source)
+    );
+
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = hl ? hl.color : '#30363d';
+    ctx.lineWidth = hl ? 3 : 1.5;
+    ctx.stroke();
+
+    // Weight label
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    ctx.font = '10px ' + getComputedStyle(document.body).getPropertyValue('--mono');
+    ctx.fillStyle = '#8b949e';
+    ctx.textAlign = 'center';
+    ctx.fillText(edge.weight, mx, my - 6);
+  }
+
+  // Draw nodes
+  for (const [id, pos] of nodePositions) {
+    const hl = highlightNodes.find(hn => hn.id === id);
+    const isSelected = id === selectedNode;
+    const r = 14;
+
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = hl ? hl.color + '30' : (isSelected ? '#1f3a5f' : '#161b22');
+    ctx.fill();
+    ctx.strokeStyle = hl ? hl.color : (isSelected ? '#58a6ff' : '#484f58');
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--mono');
+    ctx.fillStyle = hl ? hl.color : '#c9d1d9';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(id, pos.x, pos.y);
+  }
+}
+
+// --- Toolbar ---
+function setMode(m) {
+  mode = m;
+  selectedNode = null;
+  document.getElementById('mode-label').textContent = m;
+  document.querySelectorAll('.toolbar .group:first-child button').forEach(b => b.classList.remove('active'));
+  const btnMap = { 'add-node': 'btn-add-node', 'add-edge': 'btn-add-edge', 'delete': 'btn-delete' };
+  if (btnMap[m]) document.getElementById(btnMap[m]).classList.add('active');
+  draw();
+}
+
+document.getElementById('btn-add-node').onclick = () => setMode('add-node');
+document.getElementById('btn-add-edge').onclick = () => setMode('add-edge');
+document.getElementById('btn-delete').onclick = () => setMode('delete');
+
+document.getElementById('btn-cycles').onclick = () => {
+  clearHighlights();
+  const cycles = graph.findCycles();
+  if (cycles.length === 0) {
+    log('No cycles found.', 'warn');
+  } else {
+    log(`Found <b>${cycles.length}</b> cycle(s), sorted by ring size:`, 'success');
+    cycles.forEach((c, i) => {
+      const color = CYCLE_COLORS[i % CYCLE_COLORS.length];
+      highlightCycles.push({ cycle: c, color });
+      for (let j = 0; j < c.length; j++) {
+        const src = c[j], tgt = c[(j + 1) % c.length];
+        highlightEdges.push({ source: src, target: tgt, color });
+        highlightNodes.push({ id: src, color });
+      }
+      log(`<span class="cycle-color" style="background:${color}"></span>Ring ${c.length}: ${c.join(' → ')} → ${c[0]}`, 'success');
+    });
+  }
+  draw();
+};
+
+document.getElementById('btn-mol-cycles').onclick = () => {
+  clearHighlights();
+  const cycles = graph.findMolecularCycles();
+  if (cycles.length === 0) {
+    log('No cycles found.', 'warn');
+  } else {
+    // Tally shared edges
+    const edgeUse = new Map();
+    for (const c of cycles) {
+      for (let j = 0; j < c.length; j++) {
+        const key = [c[j], c[(j + 1) % c.length]].sort().join('--');
+        edgeUse.set(key, (edgeUse.get(key) || 0) + 1);
+      }
+    }
+    const shared = Array.from(edgeUse.values()).filter(v => v > 1).length;
+
+    log(`Found <b>${cycles.length}</b> molecular ring(s) (${shared} shared edge${shared !== 1 ? 's' : ''}):`, 'success');
+    cycles.forEach((c, i) => {
+      const color = CYCLE_COLORS[i % CYCLE_COLORS.length];
+      highlightCycles.push({ cycle: c, color });
+      for (let j = 0; j < c.length; j++) {
+        const src = c[j], tgt = c[(j + 1) % c.length];
+        highlightEdges.push({ source: src, target: tgt, color });
+        highlightNodes.push({ id: src, color });
+      }
+      log(`<span class="cycle-color" style="background:${color}"></span>Ring ${c.length}: ${c.join(' → ')} → ${c[0]}`, 'success');
+    });
+  }
+  draw();
+};
+
+document.getElementById('btn-mst').onclick = () => {
+  clearHighlights();
+  const mst = graph.minimumSpanningTree();
+  let totalWeight = 0;
+  let edgeCount = 0;
+  for (const edge of mst.edges()) {
+    highlightEdges.push({ source: edge.source, target: edge.target, color: '#3fb950' });
+    highlightNodes.push({ id: edge.source, color: '#3fb950' });
+    highlightNodes.push({ id: edge.target, color: '#3fb950' });
+    totalWeight += edge.weight;
+    edgeCount++;
+  }
+  log(`MST: <b>${edgeCount}</b> edges, total weight <b>${totalWeight}</b>`, 'success');
+  draw();
+};
+
+document.getElementById('btn-components').onclick = () => {
+  clearHighlights();
+  const comps = graph.connectedComponents();
+  log(`<b>${comps.length}</b> connected component(s):`, 'success');
+  comps.forEach((comp, i) => {
+    const color = COMPONENT_COLORS[i % COMPONENT_COLORS.length];
+    const ids = Array.from(comp);
+    for (const id of ids) highlightNodes.push({ id, color });
+    // highlight edges within component
+    for (const edge of graph.edges()) {
+      if (comp.has(edge.source) && comp.has(edge.target)) {
+        highlightEdges.push({ source: edge.source, target: edge.target, color });
+      }
+    }
+    log(`Component ${i + 1}: {${ids.join(', ')}}`, 'info');
+  });
+  draw();
+};
+
+document.getElementById('btn-shortest').onclick = () => {
+  setMode('shortest-path');
+  log('Click start node, then destination node.', 'info');
+};
+
+function runShortestPath(fromId, toId) {
+  clearHighlights();
+  const result = graph.shortestPath(fromId, toId);
+  if (!result) {
+    log(`No path from <b>${fromId}</b> to <b>${toId}</b>`, 'warn');
+  } else {
+    for (let i = 0; i < result.path.length; i++) {
+      highlightNodes.push({ id: result.path[i], color: '#d29922' });
+      if (i < result.path.length - 1) {
+        highlightEdges.push({ source: result.path[i], target: result.path[i + 1], color: '#d29922' });
+      }
+    }
+    log(`Path: ${result.path.join(' → ')}  (distance <b>${result.distance}</b>)`, 'success');
+  }
+  setMode('add-node');
+  draw();
+}
+
+document.getElementById('btn-clear').onclick = () => {
+  graph = new Graph();
+  nodePositions.clear();
+  nextNodeId = 0;
+  selectedNode = null;
+  clearHighlights();
+  clearLog();
+  log('Graph cleared.', 'warn');
+  draw();
+};
+
+document.getElementById('btn-sample').onclick = () => {
+  graph = new Graph();
+  nodePositions.clear();
+  clearHighlights();
+  clearLog();
+
+  // A sample graph with cycles and multiple components
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const cx = rect.width / 2, cy = rect.height / 2;
+  const positions = {
+    n0: { x: cx - 160, y: cy - 100 },
+    n1: { x: cx - 40,  y: cy - 140 },
+    n2: { x: cx + 80,  y: cy - 100 },
+    n3: { x: cx + 80,  y: cy + 40 },
+    n4: { x: cx - 40,  y: cy + 80 },
+    n5: { x: cx - 160, y: cy + 40 },
+    n6: { x: cx + 200, y: cy - 40 },
+    n7: { x: cx + 200, y: cy + 100 },
+    // disconnected pair
+    n8: { x: cx - 260, y: cy + 140 },
+    n9: { x: cx - 200, y: cy + 180 },
+  };
+
+  for (const [id, pos] of Object.entries(positions)) {
+    graph.addNode(id);
+    nodePositions.set(id, pos);
+  }
+
+  const edges = [
+    ['n0', 'n1'], ['n1', 'n2'], ['n2', 'n3'], ['n3', 'n4'], ['n4', 'n5'], ['n5', 'n0'], // hex
+    ['n1', 'n4'],  // cross-brace (creates smaller cycles)
+    ['n2', 'n6'], ['n6', 'n7'], ['n7', 'n3'], // spur with triangle
+    ['n8', 'n9'],  // disconnected edge
+  ];
+
+  for (const [s, t] of edges) {
+    const w = Math.round(dist(positions[s], positions[t]));
+    graph.addEdge(s, t, w);
+  }
+
+  nextNodeId = 10;
+  log('Loaded sample graph: hexagon with cross-brace, attached triangle, and a disconnected pair.', 'info');
+  log(`${graph.nodeCount} nodes, ${graph.edgeCount} edges.`, 'info');
+  draw();
+};
+
+// Init
+resize();
+log('Click the canvas to add nodes. Use toolbar to switch modes.', 'info');
+log('Try "Load Sample" for a pre-built graph, then run algorithms.', 'info');
+</script>
+</body>
+</html>

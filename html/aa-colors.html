@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="../../wheel.ico">
+<title>Amino Acid Colour Grid</title>
+<script type="module" src="../js/utilities2/nav.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@400;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #1a1a1e;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 32px;
+  }
+
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 36px;
+  }
+
+  .cell {
+    width: 100px;
+    height: 100px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    position: relative;
+    border: 2px solid transparent;
+  }
+
+  .cell:hover {
+    transform: scale(1.08);
+    z-index: 2;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  .cell.selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px #fff;
+  }
+
+  .cell-letter {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .cell-hex {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    margin-top: 4px;
+    opacity: 0.7;
+  }
+
+  .cell-label {
+    font-size: 0.55rem;
+    margin-top: 2px;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  #editor {
+    background: #25252a;
+    border-radius: 10px;
+    padding: 24px 28px;
+    width: 540px;
+    max-width: 100%;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  #editor.open { display: flex; }
+
+  #editor-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #editor-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .slider-row label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .slider-row input[type=range] {
+    flex: 1;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #444;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .slider-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    cursor: pointer;
+  }
+
+  .slider-row .val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  #hex-out {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: #aaa;
+    text-align: center;
+    user-select: all;
+  }
+
+  #btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  #btn-row button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 6px 16px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: transparent;
+    color: #ccc;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+  }
+
+  #btn-row button:hover { background: #333; color: #fff; }
+
+  #export-area {
+    margin-top: 20px;
+    width: 540px;
+    max-width: 100%;
+    display: none;
+  }
+
+  #export-area textarea {
+    width: 100%;
+    height: 480px;
+    background: #25252a;
+    color: #c8d0c0;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    resize: vertical;
+  }
+
+  #export-btn {
+    margin-top: 24px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    padding: 8px 20px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    background: transparent;
+    color: #ccc;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+  }
+  #export-btn:hover { background: #333; color: #fff; }
+
+  #mode-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  #mode-bar .mode-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: #888;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  #mode-slider {
+    width: 160px;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #444;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  #mode-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<h1>Amino Acid Colour Grid</h1>
+<div id="mode-bar">
+  <span class="mode-label">Fill</span>
+  <input type="range" id="mode-slider" min="0" max="100" value="0">
+  <span class="mode-label">Text</span>
+</div>
+<div id="grid"></div>
+<div id="editor">
+  <div id="editor-title"><div id="editor-swatch"></div><span id="editor-name"></span></div>
+  <div id="sliders"></div>
+  <div id="hex-out"></div>
+  <div id="btn-row">
+    <button id="btn-reset">Reset</button>
+    <button id="btn-copy">Copy Hex</button>
+  </div>
+</div>
+<button id="export-btn">Export JS</button>
+<div id="export-area"><textarea readonly id="export-text"></textarea></div>
+
+<script type="module">
+const GRID = [
+  ['P','F','Y','W','H'],
+  ['I','M','C','R','K'],
+  ['L','Q','E','T','A'],
+  ['V','N','D','S','G'],
+];
+
+const LABELS = {
+  G:'Gly', A:'Ala', S:'Ser', T:'Thr', D:'Asp', E:'Glu',
+  Q:'Gln', N:'Asn', V:'Val', L:'Leu', I:'Ile', K:'Lys',
+  R:'Arg', M:'Met', C:'Cys', F:'Phe', Y:'Tyr', W:'Trp',
+  H:'His', P:'Pro', X:'Unk'
+};
+
+const sampleColors = {
+  G:0xC9B3D0, A:0x9CABC7,
+  S:0xFF9419, T:0xFFB762,
+  D:0xD73F31, E:0xFF534A,
+  Q:0xC58846, N:0xA1682A,
+  V:0x228B22, L:0x18C61A, I:0x53D785,
+  K:0x3A93FF, R:0x22BBFF,
+  M:0xBAEE60, C:0xEEEE00,
+  F:0xFF96CB, Y:0xD285E4, W:0xA556D3, H:0x7461DB,
+  P:0xDFAFFB,
+  X:0x666666
+};
+
+const colors = Object.assign({}, sampleColors);
+let selected = null;
+
+// ── helpers ──
+
+function hexStr(n) { return '#' + n.toString(16).padStart(6,'0').toUpperCase(); }
+function toRGB(n) { return [(n>>16)&0xFF, (n>>8)&0xFF, n&0xFF]; }
+function fromRGB(r,g,b) { return (r<<16)|(g<<8)|b; }
+
+function luminance(r,g,b) {
+  const [rs,gs,bs] = [r,g,b].map(c => { c/=255; return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); });
+  return 0.2126*rs + 0.7152*gs + 0.0722*bs;
+}
+
+function textColor(n) {
+  const [r,g,b] = toRGB(n);
+  return luminance(r,g,b) > 0.35 ? '#1a1a1e' : '#f0f0f0';
+}
+
+// ── DOM helpers ──
+
+function el(tag, attrs, children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  });
+  (children||[]).forEach(c => e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+  return e;
+}
+
+// ── build grid ──
+
+const BG_DARK = [0x1a, 0x1a, 0x1e];
+let mode = 0; // 0=fill, 100=text
+
+function lerpC(a, b, t) { return Math.round(a + (b - a) * t); }
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const t = mode / 100;
+  // Phase 1: 0..0.333 — text goes from auto-contrast to white, bg unchanged
+  // Phase 2: 0.333..1 — bg goes fill→dark, text goes white→fill color
+  const t1 = Math.min(t / 0.333, 1);        // 0→1 during first third
+  const t2 = Math.max((t - 0.333) / 0.667, 0); // 0→1 during last two thirds
+  const WHITE = [0xf0, 0xf0, 0xf0];
+
+  GRID.forEach(row => row.forEach(aa => {
+    const c = colors[aa];
+    const [r,g,b] = toRGB(c);
+
+    // background: fill color throughout phase 1, then fill→dark in phase 2
+    const bgR = lerpC(r, BG_DARK[0], t2);
+    const bgG = lerpC(g, BG_DARK[1], t2);
+    const bgB = lerpC(b, BG_DARK[2], t2);
+    const bgHex = hexStr(fromRGB(bgR, bgG, bgB));
+
+    // text: auto-contrast → white (phase 1), then white → fill color (phase 2)
+    const autoTC = textColor(c);
+    const autoRGB = autoTC === '#1a1a1e' ? [0x1a,0x1a,0x1e] : [0xf0,0xf0,0xf0];
+    const midR = lerpC(autoRGB[0], WHITE[0], t1);
+    const midG = lerpC(autoRGB[1], WHITE[1], t1);
+    const midB = lerpC(autoRGB[2], WHITE[2], t1);
+    const txR = lerpC(midR, r, t2);
+    const txG = lerpC(midG, g, t2);
+    const txB = lerpC(midB, b, t2);
+    const txHex = hexStr(fromRGB(txR, txG, txB));
+
+    const cell = el('div', {
+      class: 'cell' + (selected===aa?' selected':''),
+      style: { backgroundColor: bgHex },
+      onclick: () => selectAA(aa)
+    }, [
+      el('div', { class:'cell-letter', style:{color:txHex} }, [aa]),
+      el('div', { class:'cell-hex', style:{color:txHex} }, [hexStr(c)]),
+      el('div', { class:'cell-label', style:{color:txHex} }, [LABELS[aa]]),
+    ]);
+    grid.appendChild(cell);
+  }));
+}
+
+document.getElementById('mode-slider').addEventListener('input', (e) => {
+  mode = parseInt(e.target.value);
+  buildGrid();
+});
+
+// ── editor ──
+
+function buildSliders() {
+  const box = document.getElementById('sliders');
+  box.innerHTML = '';
+  const channels = ['R','G','B'];
+  channels.forEach((ch, i) => {
+    const [r,g,b] = toRGB(colors[selected]);
+    const val = [r,g,b][i];
+    const valSpan = el('span', {class:'val'}, [String(val)]);
+    const inp = el('input', {
+      type:'range', min:'0', max:'255', value:String(val),
+      oninput: (e) => {
+        const rgb = toRGB(colors[selected]);
+        rgb[i] = parseInt(e.target.value);
+        colors[selected] = fromRGB(...rgb);
+        valSpan.textContent = e.target.value;
+        updateEditor();
+        buildGrid();
+      }
+    });
+    box.appendChild(el('div', {class:'slider-row'}, [
+      el('label', {}, [ch]),
+      inp,
+      valSpan,
+    ]));
+  });
+}
+
+function updateEditor() {
+  if (!selected) return;
+  const c = colors[selected];
+  document.getElementById('editor-swatch').style.backgroundColor = hexStr(c);
+  document.getElementById('editor-name').textContent = selected + ' · ' + LABELS[selected];
+  document.getElementById('hex-out').textContent = '0x' + c.toString(16).padStart(6,'0').toUpperCase();
+}
+
+function selectAA(aa) {
+  selected = aa;
+  document.getElementById('editor').classList.add('open');
+  buildSliders();
+  updateEditor();
+  buildGrid();
+}
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!selected) return;
+  colors[selected] = sampleColors[selected];
+  buildSliders();
+  updateEditor();
+  buildGrid();
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  if (!selected) return;
+  navigator.clipboard.writeText(hexStr(colors[selected]));
+});
+
+// ── export ──
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const area = document.getElementById('export-area');
+  const showing = area.style.display === 'block';
+  area.style.display = showing ? 'none' : 'block';
+  if (!showing) {
+    const groups = [
+      { label: 'Small', keys: ['G','A'] },
+      { label: 'Hydroxyl (salmon)', keys: ['S','T'] },
+      { label: 'Negative charge (red)', keys: ['D','E'] },
+      { label: 'Polar amide (brown)', keys: ['Q','N'] },
+      { label: 'Aliphatic (greens, wide spread)', keys: ['V','L','I'] },
+      { label: 'Positive charge (cyan–blue)', keys: ['K','R'] },
+      { label: 'Sulfur (yellow)', keys: ['M','C'] },
+      { label: 'Aromatic (pink → purple → blue)', keys: ['F','Y','W','H'] },
+      { label: 'Structural AND Aromatic', keys: ['P'] },
+      { label: 'Unknown', keys: ['X'] },
+    ];
+    let js = 'const standardColors = {\n';
+    groups.forEach(g => {
+      js += `  // ── ${g.label} ${'─'.repeat(Math.max(1,34-g.label.length))}\n`;
+      g.keys.forEach(k => {
+        const hex = '0x' + colors[k].toString(16).padStart(6,'0').toUpperCase();
+        js += `  '${k}': ${hex},\n`;
+      });
+    });
+    js += '};\n';
+    document.getElementById('export-text').value = js;
+  }
+});
+
+buildGrid();
+</script>
+</body>
+</html>
