@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tile Snapper</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e1a; color: #bbb;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  #controls {
+    height: auto; min-height: 42px; background: #111122; border-bottom: 1px solid #252540;
+    display: flex; align-items: center; padding: 6px 14px; gap: 12px 18px;
+    font-size: 12px; flex-wrap: wrap;
+  }
+  .cg { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .cg label { color: #778; white-space: nowrap; }
+  .cg .val { color: #99a; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 64px; accent-color: #5580bb; }
+  canvas { display: block; }
+  #help {
+    position: fixed; top: 54px; right: 14px; width: 280px;
+    background: rgba(18,18,42,0.94); border: 1px solid #333;
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    line-height: 1.5; color: #aab; z-index: 20; backdrop-filter: blur(6px);
+    display: block;
+  }
+  .help-btn {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: none; border: 1px solid #334; color: #778;
+    cursor: pointer; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .help-btn:hover, .help-btn.on { color: #ccd; border-color: #668; }
+  .help-btn.on { background: #252545; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <div class="cg"><label>Lock-in</label><input type="range" id="sLockIn" min="0" max="50" value="8"><span class="val" id="vLockIn">8</span></div>
+  <div class="cg"><label>Fracture</label><input type="range" id="sFracture" min="1" max="50" value="5"><span class="val" id="vFracture">5</span></div>
+  <div class="cg"><label>Snap</label><input type="range" id="sSnap" min="1" max="40" value="12"><span class="val" id="vSnap">12</span></div>
+  <div class="cg"><label>Stock size</label><input type="range" id="sSize" min="16" max="60" value="30"><span class="val" id="vSize">30</span></div>
+  <div class="cg"><label>Glow</label><input type="range" id="sGlow" min="0" max="80" value="25"><span class="val" id="vGlow">25</span></div>
+  <div class="cg"><label>Cone</label><input type="range" id="sCone" min="0" max="50" value="12"><span class="val" id="vCone">12</span></div>
+  <button class="help-btn on" id="helpToggle">?</button>
+</div>
+<div id="help">
+  <p><strong>Drag</strong> from stock strip to create. <strong>Push</strong> a connected tile — direction picks the raft. Reverse to pull. <strong>Drop</strong> on strip to delete. <strong>Scroll</strong> to zoom, drag empty space to pan. Different shapes connect if edges align.</p>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  Geo — pure geometry & angle utilities (all static)
+// ═══════════════════════════════════════════════════════════
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const mx = (vs[i].x + vs[j].x) / 2;
+      const my = (vs[i].y + vs[j].y) / 2;
+      p.push({ x: mx, y: my, out: Math.atan2(my - cy, mx - cx) });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+
+  static norm(a) { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
+  static adiff(a, b) { return Math.abs(Geo.norm(a - b)); }
+  static dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  static dist2(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
+  static pipsOpposite(a, b) { return Geo.adiff(a, b) > Geo.PI * 0.85; }
+  static sameType(a, b) { return a.n === b.n && Math.abs(Geo.norm(a.tilt - b.tilt)) < 0.01; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Camera — pan / zoom, coordinate transforms
+// ═══════════════════════════════════════════════════════════
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+
+  toWorld(sx, sy) {
+    return { x: sx / this.z + this.ox, y: sy / this.z + this.oy };
+  }
+  toScreen(wx, wy) {
+    return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z };
+  }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+
+  pan(dsx, dsy) {
+    this.ox -= dsx / this.z;
+    this.oy -= dsy / this.z;
+  }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z;
+    this.oy = wp.y - sy / this.z;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Tile — single polygon tile
+// ═══════════════════════════════════════════════════════════
+class Tile {
+  static _id = 0;
+  constructor(n, cx, cy, r, tilt) {
+    this.id = ++Tile._id;
+    this.n = n; this.cx = cx; this.cy = cy; this.r = r; this.tilt = tilt;
+    this.sx = cx; this.sy = cy;                     // saved position
+  }
+  get verts() { return Geo.verts(this.n, this.cx, this.cy, this.r, this.tilt); }
+  get pips()  { return Geo.pips(this.n, this.cx, this.cy, this.r, this.tilt); }
+  savePos()   { this.sx = this.cx; this.sy = this.cy; }
+  restore()   { this.cx = this.sx; this.cy = this.sy; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TileStore — ordered collection of tiles
+// ═══════════════════════════════════════════════════════════
+class TileStore {
+  constructor() { this.items = []; }
+
+  add(t)      { this.items.push(t); return t; }
+  find(id)    { return this.items.find(t => t.id === id); }
+  remove(id)  { const i = this.items.findIndex(t => t.id === id); if (i >= 0) this.items.splice(i, 1); }
+
+  hitTest(wx, wy) {
+    for (let i = this.items.length - 1; i >= 0; i--)
+      if (Geo.ptInPoly(wx, wy, this.items[i].verts)) return this.items[i];
+    return null;
+  }
+  bringToFront(ids) {
+    const back = [], front = [];
+    for (const t of this.items) (ids.has(t.id) ? front : back).push(t);
+    this.items = [...back, ...front];
+  }
+  saveAll()    { for (const t of this.items) t.savePos(); }
+  restoreAll() { for (const t of this.items) t.restore(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Connections — pip-to-pip connection graph
+// ═══════════════════════════════════════════════════════════
+class Connections {
+  constructor() { this.list = []; }
+
+  add(aId, aP, bId, bP) {
+    if (this.pipUsed(aId, aP) || this.pipUsed(bId, bP)) return false;
+    this.list.push({ a: aId, pipA: aP, b: bId, pipB: bP });
+    return true;
+  }
+  pipUsed(tid, pi) {
+    return this.list.some(c =>
+      (c.a === tid && c.pipA === pi) || (c.b === tid && c.pipB === pi));
+  }
+  forTile(tid) {
+    const out = [];
+    for (const c of this.list) {
+      if (c.a === tid) out.push({ other: c.b, myPip: c.pipA, otherPip: c.pipB });
+      else if (c.b === tid) out.push({ other: c.a, myPip: c.pipB, otherPip: c.pipA });
+    }
+    return out;
+  }
+  removeFor(tid) {
+    for (let i = this.list.length - 1; i >= 0; i--)
+      if (this.list[i].a === tid || this.list[i].b === tid) this.list.splice(i, 1);
+  }
+  breakBoundary(groupIds) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const c = this.list[i];
+      if (groupIds.has(c.a) !== groupIds.has(c.b)) this.list.splice(i, 1);
+    }
+  }
+  breakStrained(tiles, maxDist) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const c = this.list[i];
+      const ta = tiles.find(c.a), tb = tiles.find(c.b);
+      if (!ta || !tb) { this.list.splice(i, 1); continue; }
+      if (Geo.dist(ta.pips[c.pipA], tb.pips[c.pipB]) > maxDist) this.list.splice(i, 1);
+    }
+  }
+  component(tid) {
+    const vis = new Set([tid]), q = [tid];
+    while (q.length) { for (const c of this.forTile(q.shift())) if (!vis.has(c.other)) { vis.add(c.other); q.push(c.other); } }
+    return vis;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ConeEngine — light-cone direction & group walk (static)
+// ═══════════════════════════════════════════════════════════
+class ConeEngine {
+  static compute(n, tilt, angle) {
+    let bestA = 0, bestD = Infinity, bestType = 'edge';
+    for (let i = 0; i < n; i++) {
+      const ca = Geo.norm(tilt + (i * Geo.TAU) / n - Geo.PI);
+      const cd = Geo.adiff(angle, ca);
+      if (cd < bestD) { bestD = cd; bestA = ca; bestType = 'corner'; }
+      const ea = Geo.norm(tilt + ((i + 0.5) * Geo.TAU) / n - Geo.PI);
+      const ed = Geo.adiff(angle, ea);
+      if (ed < bestD) { bestD = ed; bestA = ea; bestType = 'edge'; }
+    }
+    return { center: bestA, half: bestType === 'corner' ? Geo.PI / n : Geo.TAU / n };
+  }
+
+  static walkGroup(dragId, cone, tiles, conns) {
+    const dt = tiles.find(dragId);
+    if (!dt) return new Set([dragId]);
+    const group = new Set([dragId]), q = [dragId];
+    while (q.length) {
+      for (const c of conns.forTile(q.shift())) {
+        if (group.has(c.other)) continue;
+        const ot = tiles.find(c.other);
+        if (!ot) continue;
+        const a = Math.atan2(ot.sy - dt.sy, ot.sx - dt.sx);
+        if (Geo.adiff(cone.center, a) <= cone.half + 0.01) { group.add(c.other); q.push(c.other); }
+      }
+    }
+    return group;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SnapEngine — find & apply pip snaps (static)
+// ═══════════════════════════════════════════════════════════
+class SnapEngine {
+  static find(groupIds, maxDist, tiles, conns) {
+    const snaps = [];
+    for (const gid of groupIds) {
+      const gt = tiles.find(gid);  if (!gt) continue;
+      const gps = gt.pips;
+      for (let gi = 0; gi < gps.length; gi++) {
+        if (conns.pipUsed(gid, gi)) continue;
+        for (const ot of tiles.items) {
+          if (groupIds.has(ot.id)) continue;
+          const ops = ot.pips;
+          for (let oi = 0; oi < ops.length; oi++) {
+            if (conns.pipUsed(ot.id, oi)) continue;
+            if (!Geo.pipsOpposite(gps[gi].out, ops[oi].out)) continue;
+            const d = Geo.dist(gps[gi], ops[oi]);
+            if (d < maxDist) snaps.push({ gTile: gid, gPip: gi, oTile: ot.id, oPip: oi,
+              dx: ops[oi].x - gps[gi].x, dy: ops[oi].y - gps[gi].y, dist: d });
+          }
+        }
+      }
+    }
+    return snaps.sort((a, b) => a.dist - b.dist);
+  }
+
+  static apply(groupIds, snapDist, tiles, conns) {
+    const snaps = SnapEngine.find(groupIds, snapDist, tiles, conns);
+    if (!snaps.length) return false;
+    const s = snaps[0];
+    for (const tid of groupIds) { const t = tiles.find(tid); if (t) { t.cx += s.dx; t.cy += s.dy; } }
+    conns.add(s.gTile, s.gPip, s.oTile, s.oPip);
+    // secondary snaps — pips now aligned after primary
+    let again = true;
+    while (again) {
+      again = false;
+      for (const gid of groupIds) {
+        const gt = tiles.find(gid); if (!gt) continue;
+        const gps = gt.pips;
+        for (let gi = 0; gi < gps.length; gi++) {
+          if (conns.pipUsed(gid, gi)) continue;
+          for (const ot of tiles.items) {
+            if (groupIds.has(ot.id)) continue;
+            const ops = ot.pips;
+            for (let oi = 0; oi < ops.length; oi++) {
+              if (conns.pipUsed(ot.id, oi)) continue;
+              if (!Geo.pipsOpposite(gps[gi].out, ops[oi].out)) continue;
+              if (Geo.dist(gps[gi], ops[oi]) < 2) { conns.add(gid, gi, ot.id, oi); again = true; }
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  DragController — drag lifecycle (preLock → locked)
+// ═══════════════════════════════════════════════════════════
+class DragController {
+  constructor(settings, tiles, conns) {
+    this.S = settings; this.tiles = tiles; this.conns = conns;
+    this.state = null;
+  }
+  get active() { return !!this.state; }
+
+  start(tile, wx, wy) {
+    this.tiles.saveAll();
+    this.tiles.bringToFront(this.conns.component(tile.id));
+    this.state = {
+      tileId: tile.id,
+      ox: wx - tile.cx, oy: wy - tile.cy,
+      startWx: wx, startWy: wy,
+      phase: 'preLock',
+      group: new Set([tile.id]),
+      cone: null, previewGroup: null,
+      fromStock: false,
+    };
+  }
+
+  update(wx, wy, zoom) {
+    const s = this.state;  if (!s) return;
+    const dt = this.tiles.find(s.tileId);  if (!dt) return;
+    const totalDist = Geo.dist2(wx, wy, s.startWx, s.startWy);
+    const ws = 1 / zoom;  // screen-pixel → world-unit conversion
+
+    if (s.phase === 'preLock') {
+      dt.cx = wx - s.ox;  dt.cy = wy - s.oy;
+      if (totalDist > 3 * ws) {
+        const a = Math.atan2(wy - s.startWy, wx - s.startWx);
+        s.cone = ConeEngine.compute(dt.n, dt.tilt, a);
+        s.previewGroup = ConeEngine.walkGroup(s.tileId, s.cone, this.tiles, this.conns);
+      }
+      if (totalDist > this.S.lockIn * ws) {
+        const a = Math.atan2(wy - s.startWy, wx - s.startWx);
+        s.cone = ConeEngine.compute(dt.n, dt.tilt, a);
+        s.group = ConeEngine.walkGroup(s.tileId, s.cone, this.tiles, this.conns);
+        s.previewGroup = null;
+        s.phase = 'locked';
+        this.conns.breakBoundary(s.group);
+      }
+      return;
+    }
+    // locked — move the whole raft
+    const dx = wx - s.ox - dt.sx, dy = wy - s.oy - dt.sy;
+    for (const t of this.tiles.items) {
+      if (s.group.has(t.id)) { t.cx = t.sx + dx; t.cy = t.sy + dy; }
+      else t.restore();
+    }
+  }
+
+  end(onStockStrip, zoom) {
+    const s = this.state;  if (!s) return;
+    const ws = 1 / zoom;
+    if (onStockStrip) {
+      for (const tid of s.group) { this.conns.removeFor(tid); this.tiles.remove(tid); }
+      this.state = null; return;
+    }
+    const snapped = SnapEngine.apply(s.group, this.S.snap * ws, this.tiles, this.conns);
+    if (!snapped && s.phase === 'preLock' && !s.fromStock) this.tiles.restoreAll();
+    this.conns.breakStrained(this.tiles, this.S.fracture * ws);
+    this.state = null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  StockStrip — template bar (screen-space, not affected by camera)
+// ═══════════════════════════════════════════════════════════
+class StockStrip {
+  constructor() {
+    this.height = 78;
+    this.templates = [
+      { n: 4, tilt: Math.PI / 4, label: 'Square' },
+      { n: 4, tilt: 0,           label: 'Diamond' },
+      { n: 6, tilt: 0,           label: 'Pointy Hex' },
+      { n: 6, tilt: Math.PI / 6, label: 'Flat Hex' },
+    ];
+  }
+  slots(W, H, stockR) {
+    const y = H - this.height / 2;
+    const gap = Math.min(120, W / (this.templates.length + 1));
+    const x0 = (W - gap * (this.templates.length - 1)) / 2;
+    return this.templates.map((s, i) => ({ ...s, cx: x0 + gap * i, cy: y }));
+  }
+  hitTest(sx, sy, W, H, stockR) {
+    if (sy < H - this.height) return null;
+    const r = stockR * 0.55;
+    for (const s of this.slots(W, H, stockR))
+      if (Geo.ptInPoly(sx, sy, Geo.verts(s.n, s.cx, s.cy, r, s.tilt))) return s;
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Renderer — all canvas drawing
+// ═══════════════════════════════════════════════════════════
+class Renderer {
+  static COLORS = {
+    4: { fill: '#c08428', stroke: '#9a6a1e' },
+    6: { fill: '#2890a8', stroke: '#1e7088' },
+  };
+  static PIP_R = 3.5;
+
+  constructor(ctx) { this.ctx = ctx; }
+
+  poly(vs, fill, stroke, lw) {
+    const c = this.ctx;
+    c.beginPath(); c.moveTo(vs[0].x, vs[0].y);
+    for (let i = 1; i < vs.length; i++) c.lineTo(vs[i].x, vs[i].y);
+    c.closePath();
+    if (fill) { c.fillStyle = fill; c.fill(); }
+    if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw || 1.5; c.stroke(); }
+  }
+
+  pip(x, y, r, fill, glowColor, glowR) {
+    const c = this.ctx;
+    if (glowColor && glowR > 0) {
+      c.beginPath(); c.arc(x, y, r + glowR, 0, Geo.TAU);
+      c.fillStyle = glowColor; c.fill();
+    }
+    c.beginPath(); c.arc(x, y, r, 0, Geo.TAU);
+    c.fillStyle = fill; c.fill();
+  }
+
+  render(W, H, cam, tiles, conns, dragState, stock, settings) {
+    const c = this.ctx;
+    const PR = Renderer.PIP_R;
+    const COL = Renderer.COLORS;
+    const glowR = settings.glow / 10;       // slider 0–80 → radius 0–8
+    const coneA = settings.coneAlpha / 100;  // slider 0–50 → alpha 0–0.5
+
+    // ── screen-space background ──
+    cam.reset(c);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, W, H);
+
+    // ── world-space content ──
+    cam.apply(c);
+
+    // grid dots
+    const spacing = 40;
+    const l = cam.ox, t = cam.oy, r = l + W / cam.z, b = t + (H - stock.height) / cam.z;
+    c.fillStyle = '#1c1c38';
+    const ds = 1 / cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+
+    // connections
+    for (const cn of conns.list) {
+      const ta = tiles.find(cn.a), tb = tiles.find(cn.b);
+      if (!ta || !tb) continue;
+      const pa = ta.pips[cn.pipA], pb = tb.pips[cn.pipB];
+      const d = Geo.dist(pa, pb);
+      c.beginPath(); c.moveTo(pa.x, pa.y); c.lineTo(pb.x, pb.y);
+      c.strokeStyle = d > 1 ? 'rgba(255,200,40,0.4)' : 'rgba(68,220,68,0.25)';
+      c.lineWidth = 2; c.stroke();
+    }
+
+    // collect snap-glow pips
+    const glowSet = new Set();
+    if (dragState) {
+      for (const h of SnapEngine.find(dragState.group, settings.snap / cam.z, tiles, conns)) {
+        glowSet.add(h.gTile + ':' + h.gPip);
+        glowSet.add(h.oTile + ':' + h.oPip);
+      }
+    }
+
+    // tiles (non-group behind, group on top)
+    const order = dragState
+      ? [...tiles.items.filter(x => !dragState.group.has(x.id)), ...tiles.items.filter(x => dragState.group.has(x.id))]
+      : tiles.items;
+
+    for (const tile of order) {
+      const cl = COL[tile.n] || COL[4];
+      this.poly(tile.verts, cl.fill, cl.stroke, 2);
+      const ps = tile.pips;
+      for (let i = 0; i < ps.length; i++) {
+        const snap = glowSet.has(tile.id + ':' + i);
+        const used = conns.pipUsed(tile.id, i);
+        if (snap)       this.pip(ps[i].x, ps[i].y, PR, '#55ccff', 'rgba(85,204,255,0.35)', glowR);
+        else if (used)  this.pip(ps[i].x, ps[i].y, PR, '#44dd44', 'rgba(68,221,68,0.25)', glowR);
+        else            this.pip(ps[i].x, ps[i].y, PR, '#555', null, 0);
+      }
+    }
+
+    // cone preview OVER tiles (preLock only)
+    if (dragState && dragState.cone && dragState.phase === 'preLock' && coneA > 0) {
+      const dt = tiles.find(dragState.tileId);
+      if (dt) {
+        c.save(); c.globalAlpha = coneA;
+        c.beginPath(); c.moveTo(dt.sx, dt.sy);
+        c.arc(dt.sx, dt.sy, 140, dragState.cone.center - dragState.cone.half, dragState.cone.center + dragState.cone.half);
+        c.closePath(); c.fillStyle = '#6699ee'; c.fill(); c.restore();
+        if (dragState.previewGroup) {
+          for (const tid of dragState.previewGroup) {
+            if (tid === dragState.tileId) continue;
+            const pt = tiles.find(tid); if (!pt) continue;
+            c.save(); c.globalAlpha = coneA * 1.2;
+            this.poly(Geo.verts(pt.n, pt.sx, pt.sy, pt.r, pt.tilt), '#6699ee', null, 0);
+            c.restore();
+          }
+        }
+      }
+    }
+
+    // ── screen-space UI ──
+    cam.reset(c);
+
+    // stock strip
+    c.fillStyle = '#16163a'; c.fillRect(0, H - stock.height, W, stock.height);
+    c.strokeStyle = '#282850'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(0, H - stock.height); c.lineTo(W, H - stock.height); c.stroke();
+
+    for (const s of stock.slots(W, H, settings.stockR)) {
+      const sr = settings.stockR * 0.55;
+      c.globalAlpha = 0.5;
+      this.poly(Geo.verts(s.n, s.cx, s.cy, sr, s.tilt), (COL[s.n] || COL[4]).fill, (COL[s.n] || COL[4]).stroke, 1.5);
+      c.globalAlpha = 1;
+      c.fillStyle = '#556'; c.font = '10px system-ui'; c.textAlign = 'center';
+      c.fillText(s.label, s.cx, s.cy + sr + 13);
+    }
+
+    // phase indicator
+    if (dragState) {
+      c.fillStyle = '#334'; c.font = '10px system-ui'; c.textAlign = 'left';
+      const lbl = dragState.phase === 'preLock' ? 'aiming…' : 'raft ×' + dragState.group.size;
+      c.fillText(lbl, 10, 16);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  App — wires everything together, owns input & loop
+// ═══════════════════════════════════════════════════════════
+class App {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.S = { lockIn: 8, fracture: 5, snap: 12, stockR: 30, glow: 25, coneAlpha: 12 };
+    this.camera   = new Camera();
+    this.tiles    = new TileStore();
+    this.conns    = new Connections();
+    this.drag     = new DragController(this.S, this.tiles, this.conns);
+    this.stock    = new StockStrip();
+    this.renderer = new Renderer(this.ctx);
+    this.panState = null;          // { lx, ly } when panning
+    this.W = 0; this.H = 0;
+    this.TOP = document.getElementById('controls').offsetHeight;
+
+    this.resize();
+    this.bindSliders();
+    this.bindInput();
+    this.seed();
+    this.loop();
+  }
+
+  // ── sizing ──
+  resize() {
+    this.TOP = document.getElementById('controls').offsetHeight;
+    this.W = this.canvas.width = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight - this.TOP;
+  }
+
+  // ── settings sliders ──
+  bindSliders() {
+    for (const [key, id] of [['lockIn','sLockIn'],['fracture','sFracture'],['snap','sSnap'],['stockR','sSize'],['glow','sGlow'],['coneAlpha','sCone']]) {
+      const el = document.getElementById(id), vl = document.getElementById(id.replace('s','v'));
+      el.addEventListener('input', () => { this.S[key] = +el.value; vl.textContent = el.value; });
+    }
+    const helpEl = document.getElementById('help'), btn = document.getElementById('helpToggle');
+    btn.addEventListener('click', () => {
+      const show = helpEl.style.display === 'none';
+      helpEl.style.display = show ? 'block' : 'none';
+      btn.classList.toggle('on', show);
+    });
+  }
+
+  // ── input ──
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY - this.TOP }; }
+    return { x: e.clientX, y: e.clientY - this.TOP };
+  }
+
+  onDown(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    // stock strip (screen-space hit test)
+    const tmpl = this.stock.hitTest(sp.x, sp.y, this.W, this.H, this.S.stockR);
+    if (tmpl) {
+      const wp = this.camera.toWorld(sp.x, sp.y);
+      const tile = this.tiles.add(new Tile(tmpl.n, wp.x, wp.y, this.S.stockR, tmpl.tilt));
+      this.drag.start(tile, wp.x, wp.y);
+      this.drag.state.fromStock = true;
+      return;
+    }
+
+    // tile (world-space hit test)
+    const wp = this.camera.toWorld(sp.x, sp.y);
+    const tile = this.tiles.hitTest(wp.x, wp.y);
+    if (tile) { this.drag.start(tile, wp.x, wp.y); return; }
+
+    // empty space → pan
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    if (this.drag.active) {
+      const wp = this.camera.toWorld(sp.x, sp.y);
+      this.drag.update(wp.x, wp.y, this.camera.z);
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (this.panState) {
+      this.camera.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move';
+      return;
+    }
+    // hover
+    const wp = this.camera.toWorld(sp.x, sp.y);
+    const over = this.tiles.hitTest(wp.x, wp.y) || this.stock.hitTest(sp.x, sp.y, this.W, this.H, this.S.stockR);
+    this.canvas.style.cursor = over ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+    if (this.drag.active) this.drag.end(sp.y > this.H - this.stock.height, this.camera.z);
+    this.panState = null;
+    this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY - this.TOP };
+    // don't zoom if cursor is on stock strip
+    if (sp.y > this.H - this.stock.height) return;
+    this.camera.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    const on = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
+    on(c, 'mousedown',  e => this.onDown(e));
+    on(c, 'mousemove',  e => this.onMove(e));
+    on(c, 'mouseup',    e => this.onUp(e));
+    on(c, 'mouseleave', e => this.onUp(e));
+    on(c, 'wheel',      e => this.onWheel(e), { passive: false });
+    on(c, 'touchstart', e => this.onDown(e),  { passive: false });
+    on(c, 'touchmove',  e => this.onMove(e),  { passive: false });
+    on(c, 'touchend',   e => this.onUp(e),    { passive: false });
+    on(window, 'resize', () => this.resize());
+  }
+
+  // ── seed ──
+  seed() {
+    const r = this.S.stockR, tilt = Math.PI / 4, n = 4;
+    const step = r * Math.cos(Math.PI / n) * 2;
+    const wc = this.camera.toWorld(this.W / 2, (this.H - this.stock.height) / 2);
+    const made = [];
+    for (let row = -1; row <= 1; row++)
+      for (let col = -1; col <= 1; col++)
+        made.push(this.tiles.add(new Tile(n, wc.x + col * step, wc.y + row * step, r, tilt)));
+    // auto-connect adjacent
+    for (let i = 0; i < made.length; i++)
+      for (let j = i + 1; j < made.length; j++) {
+        const ap = made[i].pips, bp = made[j].pips;
+        for (let ai = 0; ai < ap.length; ai++)
+          for (let bi = 0; bi < bp.length; bi++)
+            if (Geo.pipsOpposite(ap[ai].out, bp[bi].out) && Geo.dist(ap[ai], bp[bi]) < 2)
+              this.conns.add(made[i].id, ai, made[j].id, bi);
+      }
+  }
+
+  // ── render loop ──
+  loop() {
+    this.renderer.render(this.W, this.H, this.camera, this.tiles, this.conns, this.drag.state, this.stock, this.S);
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+// ─── Boot ────────────────────────────────────────────────
+new App(document.getElementById('c'));
+</script>
+</body>
+</html>
