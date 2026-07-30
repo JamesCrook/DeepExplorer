@@ -80,11 +80,11 @@
 //    node    — scene node:   .data (zone data), .value (instance state)
 //    params  — layer-level style/anim knobs
 //
-//  ctxMix.T is the transform / iteration context.  The core sets:
-//    T.index      — current zone index
-//    T.pass       — drawing pass (0-based)
-//    T.isHovered  — true if this zone is hovered
-//    T.isSelected — true if this zone is selected
+//  ctxMix.state holds transient state such as iteration context.
+//    state.index      — current zone index
+//    state.pass       — drawing pass (0-based)
+//    state.isHovered  — true if this zone is hovered
+//    state.isSelected — true if this zone is selected
 // ═══════════════════════════════════════════════════════════════
 
 
@@ -114,14 +114,14 @@ function rrPath(ctx, x, y, w, h, rtl, rtr, rbr, rbl) {
 // ═══════════════════════════════════════════════════════════════
 //  CORE — ZonedNode
 //
-//  Orchestrator node class.  Iterates zones, sets T.index,
+//  Orchestrator node class.  Iterates zones, sets state.index,
 //  delegates to the zone class found on node.value.zoneClass.
 //
 //  Zone classes must provide:
 //    static getCount(data)                          → number
-//    static draw2d(ctxMix, node, params)            — draw zone T.index
+//    static draw2d(ctxMix, node, params)            — draw zone state.index
 //    static drawBackground(ctxMix, node, params)    — before zones
-//    static hit_test(ctxMix, node, params)          — test zone T.index
+//    static hit_test(ctxMix, node, params)          — test zone state.index
 //
 //  Zone classes may provide:
 //    static drawOverlay(ctxMix, node, params)       — after zones
@@ -135,18 +135,18 @@ class ZonedNode {
 
   static draw2d(ctxMix, node, params) {
     const Zone   = node.value.zoneClass;
-    const T      = ctxMix.T;
+    const state  = ctxMix.state;
     const count  = Zone.getCount(node.data);
     const passes = Zone.getPasses ? Zone.getPasses(params) : 1;
 
     Zone.drawBackground(ctxMix, node, params);
 
     for (let pass = 0; pass < passes; pass++) {
-      T.pass = pass;
+      state.pass = pass;
       for (let i = 0; i < count; i++) {
-        T.index      = i;
-        T.isHovered  = (i === node.value.hovered);
-        T.isSelected = node.value.selected.has(i);
+        state.index      = i;
+        state.isHovered  = (i === node.value.hovered);
+        state.isSelected = node.value.selected.has(i);
         Zone.draw2d(ctxMix, node, params);
       }
     }
@@ -156,13 +156,13 @@ class ZonedNode {
 
   static hit_test(ctxMix, node, params) {
     const Zone  = node.value.zoneClass;
-    const T     = ctxMix.T;
+    const state = ctxMix.state;
     const count = Zone.getCount(node.data);
     const order = Zone.getHitOrder
                     ? Zone.getHitOrder(node.data, count) : null;
 
     const tryIndex = i => {
-      T.index = i;
+      state.index = i;
       ctxMix.hitResult = null;
       Zone.hit_test(ctxMix, node, params);
       return ctxMix.hitResult != null;
@@ -187,9 +187,9 @@ class ZonedNode {
 //  ZONE CLASS 1 — ChromosomeZone
 //
 //  node.data:  { bands[], length, cenStart, cenEnd }
-//  T.index:    band index → lookup in node.data.bands
+//  state.index:    band index → lookup in node.data.bands
 // ═══════════════════════════════════════════════════════════════
-// #mol/chromosome/code
+// #mol/node/chromosome
 
 const STAIN_COLORS = {
   gneg:    '#E8E0D0', gpos25: '#B0A890', gpos50: '#808068',
@@ -213,16 +213,15 @@ function chromosomePath(ctx, cx, topY, botY, cenY, armW, cenW, capR) {
   ctx.closePath();
 }
 
-function chrLayout(ctxMix, node) {
-  const data   = node.data;
+function chrLayout(W,H,data) {
   const margin = 30;
-  const chrH   = ctxMix.H - margin * 2;
-  const cx     = ctxMix.W / 2;
+  const chrH   = H - margin * 2;
+  const cx     = W / 2;
   const topY   = margin;
   const botY   = margin + chrH;
   const scale  = chrH / data.length;
   const cenY   = topY + ((data.cenStart + data.cenEnd) / 2) * scale;
-  const armW   = Math.min(28, ctxMix.W * 0.14);
+  const armW   = Math.min(28, W * 0.14);
   const cenW   = armW * 0.35;
   const capR   = armW * 0.7;
   return { cx, topY, botY, chrH, scale, cenY, armW, cenW, capR };
@@ -234,7 +233,10 @@ class ChromosomeZone {
 
   static drawBackground(ctxMix, node, params) {
     const ctx = ctxMix.ctx;
-    const lo  = chrLayout(ctxMix, node);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const data   = node.data;
+    const lo  = chrLayout(W,H,data);
     node._layout = lo;
 
     ctx.save();
@@ -245,16 +247,16 @@ class ChromosomeZone {
 
   static draw2d(ctxMix, node, params) {
     const ctx  = ctxMix.ctx;
-    const T    = ctxMix.T;
+    const state= ctxMix.state;
     const lo   = node._layout;
     if (!lo) return;
 
-    const band = node.data.bands[T.index];
+    const band = node.data.bands[state.index];
     const y1   = lo.topY + band.start / node.data.length * lo.chrH;
     const y2   = lo.topY + band.end   / node.data.length * lo.chrH;
 
-    if (T.isSelected)       ctx.fillStyle = T.isHovered ? '#E8B840' : HIGHLIGHT;
-    else if (T.isHovered)   ctx.fillStyle = '#504838';
+    if (state.isSelected)       ctx.fillStyle = state.isHovered ? '#E8B840' : HIGHLIGHT;
+    else if (state.isHovered)   ctx.fillStyle = '#504838';
     else                    ctx.fillStyle = STAIN_COLORS[band.stain] || '#E8E0D0';
 
     ctx.fillRect(lo.cx - 60, y1, 120, Math.max(y2 - y1, 0.5));
@@ -287,11 +289,11 @@ class ChromosomeZone {
 
   static hit_test(ctxMix, node, params) {
     const pt = ctxMix.hitPoint;
-    const T  = ctxMix.T;
+    const state = ctxMix.state;
     const lo = node._layout;
     if (!pt || !lo) return;
 
-    const band = node.data.bands[T.index];
+    const band = node.data.bands[state.index];
     if (band.stain === 'acen') return;
 
     const y1 = lo.topY + band.start / node.data.length * lo.chrH;
@@ -299,11 +301,11 @@ class ChromosomeZone {
     if (pt.y < y1 || pt.y > y2) return;
     if (Math.abs(pt.x - lo.cx) > lo.armW + 2) return;
 
-    ctxMix.hitResult = { node, zoneIndex: T.index };
+    ctxMix.hitResult = { node, zoneIndex: state.index };
   }
 
   static getZoneInfo(ctxMix, node, params) {
-    const band = node.data.bands[ctxMix.T.index];
+    const band = node.data.bands[ctxMix.state.index];
     return {
       name:   band.label,
       detail: (band.start / 1e6).toFixed(1) + '–' + (band.end / 1e6).toFixed(1) + ' Mb',
@@ -323,25 +325,32 @@ class ChromosomeZone {
 //  ZONE CLASS 2 — PianoKeyZone
 //
 //  node.data:  { startMidi, count }
-//  T.index:    semitone offset → computed black/white, position
+//  state.index:    semitone offset → computed black/white, position
 //  Two passes: 0 = white keys, 1 = black keys on top
 // ═══════════════════════════════════════════════════════════════
 
 const BLACK_SET  = new Set([1, 3, 6, 8, 10]);
 const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 
-function keyLayout(ctxMix, node, idx) {
+function noteOfIndex( data, idx ){
+  const midi = data.startMidi + idx;
+  return { 
+    midi : midi,
+    black: BLACK_SET.has(midi % 12) 
+  } 
+}
+
+function keyLayout(W,H, node, idx) {
   const data  = node.data;
-  const midi  = data.startMidi + idx;
-  const black = BLACK_SET.has(midi % 12);
+  const { midi, black }  = noteOfIndex( data, idx )
 
   let totalWhites = 0;
   for (let i = 0; i < data.count; i++)
     if (!BLACK_SET.has((data.startMidi + i) % 12)) totalWhites++;
 
   const margin = 20;
-  const kbW    = ctxMix.W - margin * 2;
-  const kbH    = ctxMix.H - margin * 2;
+  const kbW    = W - margin * 2;
+  const kbH    = H - margin * 2;
   const wW     = kbW / totalWhites;
   const bW     = wW * 0.58;
   const bH     = kbH * 0.6;
@@ -376,25 +385,26 @@ class PianoKeyZone {
 
   static draw2d(ctxMix, node, params) {
     const ctx = ctxMix.ctx;
-    const T   = ctxMix.T;
-    const lay = keyLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lay = keyLayout(W,H, node, state.index);
 
-    if (T.pass === 0 && lay.black)  return;
-    if (T.pass === 1 && !lay.black) return;
+    if (state.pass === 0 && lay.black)  return;
+    if (state.pass === 1 && !lay.black) return;
 
     if (lay.black) {
       let fill = '#1a1a18';
-      if (T.isSelected)      fill = HIGHLIGHT;
-      else if (T.isHovered)  fill = '#3a3830';
+      if (state.isSelected)      fill = HIGHLIGHT;
+      else if (state.isHovered)  fill = '#3a3830';
       ctx.fillStyle = fill;
       rrPath(ctx, lay.x, lay.y, lay.w, lay.h, 0, 0, 3, 3);
       ctx.fill();
-      ctx.fillStyle = T.isSelected ? '#E8B840' : '#2a2a28';
+      ctx.fillStyle = state.isSelected ? '#E8B840' : '#2a2a28';
       ctx.fillRect(lay.x + 1, lay.y, lay.w - 2, lay.h * 0.04);
     } else {
       let fill = '#F0EDE4';
-      if (T.isSelected)      fill = HIGHLIGHT;
-      else if (T.isHovered)  fill = '#D8D0C0';
+      if (state.isSelected)      fill = HIGHLIGHT;
+      else if (state.isHovered)  fill = '#D8D0C0';
       ctx.fillStyle = fill;
       rrPath(ctx, lay.x + 0.5, lay.y, lay.w - 1, lay.h, 0, 0, 3, 3);
       ctx.fill();
@@ -416,23 +426,25 @@ class PianoKeyZone {
 
   static hit_test(ctxMix, node, params) {
     const pt = ctxMix.hitPoint;
-    const T  = ctxMix.T;
     if (!pt) return;
-    const lay = keyLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lay = keyLayout(W,H, node, state.index);
     if (pt.x >= lay.x && pt.x <= lay.x + lay.w &&
         pt.y >= lay.y && pt.y <= lay.y + lay.h) {
-      ctxMix.hitResult = { node, zoneIndex: T.index };
+      ctxMix.hitResult = { node, zoneIndex: state.index };
     }
   }
 
   static getZoneInfo(ctxMix, node, params) {
-    const lay  = keyLayout(ctxMix, node, ctxMix.T.index);
-    const name = NOTE_NAMES[lay.midi % 12];
-    const oct  = Math.floor(lay.midi / 12) - 1;
+    const state = ctxMix.state;
+    const { midi, black }  = noteOfIndex( node.data, state.index )
+    const name = NOTE_NAMES[midi % 12];
+    const oct  = Math.floor(midi / 12) - 1;
     return {
       name:   name + oct,
-      detail: 'MIDI ' + lay.midi,
-      extra:  lay.black ? 'black key' : 'white key',
+      detail: 'MIDI ' + midi,
+      extra:  black ? 'black key' : 'white key',
     };
   }
 }
@@ -448,7 +460,7 @@ class PianoKeyZone {
 //  ZONE CLASS 3 — BGAZone (Ball Grid Array)
 //
 //  node.data:  { rows, cols, pins[] }
-//  T.index:    row * cols + col → lookup pin type
+//  state.index:    row * cols + col → lookup pin type
 // ═══════════════════════════════════════════════════════════════
 
 const ROW_LETTERS = 'ABCDEFGHJKLMNPRTUVWY';
@@ -457,18 +469,17 @@ const BGA_COLORS  = {
   signal: '#27ae60', nc: '#3a3828',
 };
 
-function pinLayout(ctxMix, node, idx) {
-  const data    = node.data;
+function pinLayout(W,H, data, idx) {
   const cols    = data.cols;
   const row     = Math.floor(idx / cols);
   const col     = idx % cols;
   const margin  = 30;
-  const spacing = Math.min((ctxMix.W - margin * 2) / cols,
-                           (ctxMix.H - margin * 2) / data.rows);
+  const spacing = Math.min((W - margin * 2) / cols,
+                           (H - margin * 2) / data.rows);
   const gridW   = spacing * cols;
   const gridH   = spacing * data.rows;
-  const ox      = (ctxMix.W - gridW) / 2 + spacing / 2;
-  const oy      = (ctxMix.H - gridH) / 2 + spacing / 2;
+  const ox      = (W - gridW) / 2 + spacing / 2;
+  const oy      = (H - gridH) / 2 + spacing / 2;
   return {
     cx: ox + col * spacing, cy: oy + row * spacing,
     r: spacing * 0.32, row, col,
@@ -485,7 +496,10 @@ class BGAZone {
 
   static drawBackground(ctxMix, node, params) {
     const ctx = ctxMix.ctx;
-    const lo  = pinLayout(ctxMix, node, 0);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+
+    const lo  = pinLayout(W,H, node.data, 0);
     const pad = lo.spacing * 0.45;
 
     ctx.fillStyle   = '#1a1918';
@@ -508,20 +522,21 @@ class BGAZone {
 
   static draw2d(ctxMix, node, params) {
     const ctx = ctxMix.ctx;
-    const T   = ctxMix.T;
-    const lo  = pinLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = pinLayout(W,H, node.data, state.index);
     if (!lo.pin) return;
 
     let fill = BGA_COLORS[lo.pin.type] || '#555';
-    if (T.isSelected)      fill = HIGHLIGHT;
-    else if (T.isHovered)  fill = '#B0A070';
+    if (state.isSelected)      fill = HIGHLIGHT;
+    else if (state.isHovered)  fill = '#B0A070';
 
     ctx.beginPath();
     ctx.arc(lo.cx, lo.cy, lo.r, 0, Math.PI * 2);
     ctx.fillStyle = fill;
     ctx.fill();
 
-    if (!T.isSelected) {
+    if (!state.isSelected) {
       const g = ctx.createRadialGradient(
         lo.cx - lo.r * 0.3, lo.cy - lo.r * 0.3, 0,
         lo.cx, lo.cy, lo.r);
@@ -534,18 +549,21 @@ class BGAZone {
 
   static hit_test(ctxMix, node, params) {
     const pt = ctxMix.hitPoint;
-    const T  = ctxMix.T;
     if (!pt) return;
-    const lo = pinLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = pinLayout(W,H, node.data, state.index);
     if (!lo.pin) return;
     const dx = pt.x - lo.cx, dy = pt.y - lo.cy;
     if (dx * dx + dy * dy <= lo.r * lo.r) {
-      ctxMix.hitResult = { node, zoneIndex: T.index };
+      ctxMix.hitResult = { node, zoneIndex: state.index };
     }
   }
 
   static getZoneInfo(ctxMix, node, params) {
-    const lo = pinLayout(ctxMix, node, ctxMix.T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = pinLayout(W,H, node.data, state.index);
     if (!lo.pin) return { name: lo.name, detail: 'no connect' };
     return {
       name:   lo.name,
@@ -566,15 +584,14 @@ class BGAZone {
 //  ZONE CLASS 4 — TreeRingZone
 //
 //  node.data:  { rings[{ innerR, outerR, width, year, lightness }], totalR }
-//  T.index:    ring number, 0 = innermost (oldest)
+//  state.index:    ring number, 0 = innermost (oldest)
 // ═══════════════════════════════════════════════════════════════
 
-function ringLayout(ctxMix, node, idx) {
-  const data  = node.data;
+function ringLayout(W,H, data, idx) {
   const ring  = data.rings[idx];
-  const cx    = ctxMix.W / 2;
-  const cy    = ctxMix.H / 2;
-  const maxR  = Math.min(ctxMix.W, ctxMix.H) / 2 - 16;
+  const cx    = W / 2;
+  const cy    = H / 2;
+  const maxR  = Math.min(W, H) / 2 - 16;
   const scale = maxR / data.totalR;
   return { cx, cy, innerR: ring.innerR * scale,
            outerR: ring.outerR * scale, ring, maxR, scale };
@@ -592,24 +609,27 @@ class TreeRingZone {
 
   static drawBackground(ctxMix, node, params) {
     const ctx  = ctxMix.ctx;
-    const cx   = ctxMix.W / 2, cy = ctxMix.H / 2;
-    const maxR = Math.min(ctxMix.W, ctxMix.H) / 2 - 16;
+    const state= ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
+
     ctx.fillStyle = '#3a2818';
     ctx.beginPath();
-    ctx.arc(cx, cy, maxR + 4, 0, Math.PI * 2);
+    ctx.arc(lo.cx, lo.cy, lo.maxR + 4, 0, Math.PI * 2);
     ctx.fill();
   }
 
   static draw2d(ctxMix, node, params) {
     const ctx = ctxMix.ctx;
-    const T   = ctxMix.T;
-    const lo  = ringLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
     const L   = lo.ring.lightness || 0.5;
 
     let earlyCol, lateCol;
-    if (T.isSelected) {
+    if (state.isSelected) {
       earlyCol = '#E8B840'; lateCol = '#B08020';
-    } else if (T.isHovered) {
+    } else if (state.isHovered) {
       earlyCol = '#907850'; lateCol = '#685838';
     } else {
       earlyCol = `rgb(${140 + L * 80 | 0},${110 + L * 65 | 0},${60 + L * 40 | 0})`;
@@ -635,32 +655,35 @@ class TreeRingZone {
 
   static drawOverlay(ctxMix, node, params) {
     const ctx   = ctxMix.ctx;
-    const cx    = ctxMix.W / 2, cy = ctxMix.H / 2;
-    const maxR  = Math.min(ctxMix.W, ctxMix.H) / 2 - 16;
-    const pithR = (node.data.rings[0]?.innerR || 3) * maxR / node.data.totalR;
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
+    const pithR = (node.data.rings[0]?.innerR || 3) * lo.maxR / node.data.totalR;
     ctx.fillStyle = '#6a4828';
     ctx.beginPath();
-    ctx.arc(cx, cy, pithR, 0, Math.PI * 2);
+    ctx.arc(lo.cx, lo.cy, pithR, 0, Math.PI * 2);
     ctx.fill();
   }
 
   static hit_test(ctxMix, node, params) {
     const pt = ctxMix.hitPoint;
-    const T  = ctxMix.T;
     if (!pt) return;
-    const lo   = ringLayout(ctxMix, node, T.index);
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getWH( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
+
     const dx   = pt.x - lo.cx, dy = pt.y - lo.cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist >= lo.innerR && dist <= lo.outerR) {
-      ctxMix.hitResult = { node, zoneIndex: T.index };
+      ctxMix.hitResult = { node, zoneIndex: state.index };
     }
   }
 
   static getZoneInfo(ctxMix, node, params) {
-    const ring = node.data.rings[ctxMix.T.index];
+    const ring = node.data.rings[ctxMix.state.index];
     return {
       name:   'Year ' + ring.year,
-      detail: 'Ring ' + (ctxMix.T.index + 1) + ' · ' + ring.width.toFixed(1) + ' mm',
+      detail: 'Ring ' + (ctxMix.state.index + 1) + ' · ' + ring.width.toFixed(1) + ' mm',
       extra:  ring.note || '',
     };
   }
@@ -749,12 +772,11 @@ function treeRingData(count) {
 //
 //  In the real scene graph, replace this with:
 //    ctxMix.ctx       → ctxMix.directCtx()   (balanced by restore)
-//    ctxMix.T         → the scene's transform (already has .sx, .toScreen…)
-//    ctxMix.W / .H    → already on ctxMix
+//    ctxMix.state     → transient state
 //    ctxMix.hitPoint  → already on ctxMix
 //    ctxMix.hitResult → already on ctxMix
 //    node.data        → populated from scene data
-//    node.value       → instance state on the scene node
+//    node.value       → enduring instance state on the scene node
 // ═══════════════════════════════════════════════════════════════
 
 const ttEl = document.getElementById('tooltip');
@@ -802,14 +824,25 @@ class DemoHarness {
 
   // ── ctxMix shim ──
   _ctxMix(hitPoint) {
-    return {
+    const state = { index: 0, pass: 0, isHovered: false, isSelected: false }
+
+    // getWH() indirect access to the size information 
+    //
+    // getWH() is the simplest contract a node offers, namely the node's
+    // offer is to draw in a rectangular area of those dimensions, 
+    // without itself doing zooming or any offset from (0,0) or storing
+    // its own size
+    //
+    const ctxMix = {
       ctx:       this.rawCtx,
-      T:         { index: 0, pass: 0, isHovered: false, isSelected: false },
+      state:     state,
+      getWH : (( ctxMix, node, params ) => { return { W: ctxMix.W, H: ctxMix.H}}), 
       W:         this.W,
       H:         this.H,
       hitPoint:  hitPoint || null,
       hitResult: null,
     };
+    return ctxMix;
   }
 
   draw() {
@@ -818,9 +851,9 @@ class DemoHarness {
   }
 
   hitTest(mx, my) {
-    const mix = this._ctxMix({ x: mx, y: my });
-    ZonedNode.hit_test(mix, this.node, this.params);
-    return mix.hitResult;
+    const ctxMix = this._ctxMix({ x: mx, y: my });
+    ZonedNode.hit_test(ctxMix, this.node, this.params);
+    return ctxMix.hitResult;
   }
 
   _listen() {
@@ -841,9 +874,9 @@ class DemoHarness {
       this.canvas.style.cursor = idx >= 0 ? 'pointer' : 'default';
       if (idx >= 0) {
         const Zone = this.node.value.zoneClass;
-        const mix  = this._ctxMix();
-        mix.T.index = idx;
-        const info = Zone.getZoneInfo(mix, this.node, this.params);
+        const ctxMix  = this._ctxMix();
+        ctxMix.state.index = idx;
+        const info = Zone.getZoneInfo(ctxMix, this.node, this.params);
         info.selected = this.node.value.selected.has(idx);
         showTooltip(ex, ey, info);
       } else hideTooltip();

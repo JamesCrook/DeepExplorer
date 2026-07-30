@@ -21,7 +21,7 @@ These functions may wrap seemingly trivial functions. The point is to capture th
 
 ---
 
-## 1. Child Coordinate space #node/spec/prompt
+## 1. Child Coordinate space #node
 
 Composition order of pan, zoom, rotate, scale can vary, with different results in how objects move when panning zooming. Also zooming may or may not affect text size and line widths scales or not, how separately-authored leaves and child nodes interpret raw transform state.
 
@@ -39,7 +39,7 @@ The convention about the kind of box is explicit.
 
 ---
 
-## 2. Node Rendering (node2d / node3d / nodehtml) #node/spec/prompt
+## 2. Node Rendering (node2d / node3d / nodehtml) #node
 
 Here the interface is on each node, saying what it supplies. 
 
@@ -52,7 +52,7 @@ Each of these additionally can have a before_ and after_ method. Nodes may not r
 
 ---
 
-## 3. Do / Undo / Redo #editor/spec/prompt
+## 3. Do / Undo / Redo #editor
 
 
 There are multiple implementations possible of do, undo, redo.
@@ -63,7 +63,7 @@ The interface on each operation states what it supplies.
 
 ---
 
-## 4. Select / Mod-Selection / Edit #editor/spec/prompt
+## 4. Select / Mod-Selection / Edit #editor
 
 **What's occult:** what "selected" looks like for different node types, and what operations a node supports — which varies wildly (text nodes support character-range selection and insertion; shape nodes support handle-dragging; groups support child reordering).
 

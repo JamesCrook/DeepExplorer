@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mouse Bindings Configurator</title>
+    <!--script src="https://cdn.tailwindcss.com"></script-->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f1115; /* Dark premium background */
+            color: #e2e8f0;
+            overflow: hidden; /* Prevent scrolling, app is full screen */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        header {
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(15, 17, 21, 1), rgba(15, 17, 21, 0));
+            z-index: 10;
+        }
+
+        .title-glow {
+            text-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+        }
+
+        #canvas-container {
+            position: relative;
+            flex-grow: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            /* Canvas takes full size of container handled by JS */
+        }
+        
+        .binding-input-container {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            transform: translateY(-50%); /* Center vertically at the connection point */
+            z-index: 20;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+        }
+
+        .binding-input-container:hover {
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        .binding-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .binding-input {
+            background-color: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: #fff;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 1rem;
+            font-weight: 500;
+            width: 160px;
+            outline: none;
+            backdrop-filter: blur(4px);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .binding-input:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+            background-color: rgba(30, 41, 59, 0.9);
+        }
+        
+        .binding-input.active-glow {
+             border-color: #10b981;
+             box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .align-right { align-items: flex-end; }
+        .align-right .binding-input { text-align: right; }
+        .align-left { align-items: flex-start; }
+        
+        /* Footer controls */
+        #controls {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1rem;
+            z-index: 10;
+        }
+
+        button.btn {
+            background-color: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #e2e8f0;
+            padding: 0.5rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+        }
+
+        button.btn:hover {
+            background-color: #6366f1;
+            color: white;
+            border-color: #6366f1;
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <header>
+            <div>
+                <h1 class="text-2xl font-bold title-glow text-white tracking-tight">Viper V2 Pro Setup</h1>
+                <p class="text-sm text-slate-400">Configure mouse bindings</p>
+            </div>
+            <div class="flex items-center gap-2">
+                 <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                 <span class="text-sm text-slate-300 font-medium">Device Connected</span>
+            </div>
+        </header>
+
+        <div id="canvas-container">
+            <canvas id="mouseCanvas"></canvas>
+            
+            <!-- Input overlays injected via JS to ensure they align with canvas drawing -->
+            <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                <!-- Inputs will be appended here -->
+            </div>
+        </div>
+        
+        <div id="controls">
+            <button class="btn" id="btnReset">Reset Defaults</button>
+            <button class="btn" id="btnSave" style="background-color: #4f46e5; border-color: #4f46e5;">Save Profile</button>
+        </div>
+    </div>
+
+    <!-- Notification system -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2 border border-slate-600">
+        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-msg">Settings Saved</span>
+    </div>
+
+    <script>
+        // Configuration for the bindings
+        const defaultBindings = {
+            leftClick: { id: 'leftClick', label: 'Left Click', value: 'Primary Fire', align: 'left' },
+            shiftLeftClick: { id: 'shiftLeftClick', label: 'Shift + L-Click', value: 'Heavy Attack', align: 'left' },
+            rightClick: { id: 'rightClick', label: 'Right Click', value: 'Aim Down Sights', align: 'right' },
+            shiftRightClick: { id: 'shiftRightClick', label: 'Shift + R-Click', value: 'Alt Fire', align: 'right' },
+            middleClick: { id: 'middleClick', label: 'Scroll Wheel', value: 'Ping Location', align: 'left' },
+            sideForward: { id: 'sideForward', label: 'Side Button 1', value: 'Melee', align: 'left' },
+            sideBack: { id: 'sideBack', label: 'Side Button 2', value: 'Throw Grenade', align: 'left' },
+            dpiButton: { id: 'dpiButton', label: 'DPI Cycle', value: 'Cycle Sensitivity', align: 'right' }
+        };
+
+        // Deep copy for current state
+        let currentBindings = JSON.parse(JSON.stringify(defaultBindings));
+
+        // State for active interactions (hovering over inputs to highlight canvas parts)
+        let activeBindingId = null;
+
+        const canvas = document.getElementById('mouseCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize by disabling alpha if background is drawn
+        const container = document.getElementById('canvas-container');
+        const uiLayer = document.getElementById('ui-layer');
+        
+        let width, height;
+        let centerX, centerY;
+        let scale = 1;
+        let mouseX = 0, mouseY = 0;
+        
+        // Define mouse graphical properties
+        const mouseConfig = {
+            baseWidth: 160,
+            baseHeight: 280,
+            colorBase: '#1a1d24',
+            colorHighlight: '#2a2f3a',
+            colorAccent: '#6366f1',
+            colorHover: '#818cf8',
+            colorActive: '#10b981', // Green when input is active
+            lineColor: 'rgba(99, 102, 241, 0.7)',
+            lineWidth: 2
+        };
+
+        // Store calculated layout positions for drawing lines to UI
+        let layoutData = {};
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            
+            // Handle high DPI displays for crisp rendering
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.scale(dpr, dpr);
+            
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+            
+            centerX = width / 2;
+            centerY = height / 2;
+            
+            // Adjust scale based on screen size, keep mouse proportional
+            scale = Math.min(width / 600, height / 500, 1.2);
+            
+            calculateLayout();
+            positionUIElements();
+            draw();
+        }
+
+        window.addEventListener('resize', resize);
+
+        function createUIElements() {
+            uiLayer.innerHTML = '';
+            
+            for (const key in currentBindings) {
+                const binding = currentBindings[key];
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = `binding-input-container ${binding.align === 'left' ? 'align-left' : 'align-right'}`;
+                wrapper.id = `ui-${binding.id}`;
+                
+                const label = document.createElement('div');
+                label.className = 'binding-label';
+                label.innerText = binding.label;
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'binding-input';
+                input.value = binding.value;
+                input.dataset.id = binding.id;
+                
+                // Event Listeners for Interaction
+                input.addEventListener('focus', () => {
+                    activeBindingId = binding.id;
+                    input.classList.add('active-glow');
+                    draw(); // Redraw canvas to highlight part
+                });
+                
+                input.addEventListener('blur', () => {
+                    activeBindingId = null;
+                    input.classList.remove('active-glow');
+                    draw();
+                });
+                
+                input.addEventListener('input', (e) => {
+                    currentBindings[key].value = e.target.value;
+                });
+                
+                // Hover effects
+                wrapper.addEventListener('mouseenter', () => {
+                     if(!activeBindingId) {
+                         activeBindingId = binding.id;
+                         draw();
+                     }
+                });
+                
+                wrapper.addEventListener('mouseleave', () => {
+                    if(document.activeElement !== input) {
+                        activeBindingId = null;
+                        draw();
+                    }
+                });
+
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                uiLayer.appendChild(wrapper);
+            }
+        }
+
+        function calculateLayout() {
+            const mw = mouseConfig.baseWidth * scale;
+            const mh = mouseConfig.baseHeight * scale;
+            
+            // Distance of inputs from center - reduced to bring labels closer
+            const xOffset = mw * 1.0 + 20; 
+            
+            // Define attachment points on the mouse graphic relative to center
+            // and target UI positions
+            layoutData = {
+                leftClick: {
+                    pointX: centerX - mw * 0.25,
+                    pointY: centerY - mh * 0.35,
+                    targetX: centerX - xOffset,
+                    targetY: centerY - mh * 0.45,
+                    align: 'left'
+                },
+                shiftLeftClick: {
+                    pointX: centerX - mw * 0.25,
+                    pointY: centerY - mh * 0.20,
+                    targetX: centerX - xOffset,
+                    targetY: centerY - mh * 0.25,
+                    align: 'left'
+                },
+                rightClick: {
+                    pointX: centerX + mw * 0.25,
+                    pointY: centerY - mh * 0.35,
+                    targetX: centerX + xOffset,
+                    targetY: centerY - mh * 0.35,
+                    align: 'right'
+                },
+                shiftRightClick: {
+                    pointX: centerX + mw * 0.25,
+                    pointY: centerY - mh * 0.20,
+                    targetX: centerX + xOffset,
+                    targetY: centerY - mh * 0.15,
+                    align: 'right'
+                },
+                middleClick: {
+                    pointX: centerX,
+                    pointY: centerY - mh * 0.1,
+                    targetX: centerX - xOffset,
+                    targetY: centerY - mh * 0.05,
+                    align: 'left'
+                },
+                sideForward: {
+                    pointX: centerX - mw * 0.45,
+                    pointY: centerY + mh * 0.05,
+                    targetX: centerX - xOffset,
+                    targetY: centerY + mh * 0.15,
+                    align: 'left'
+                },
+                sideBack: {
+                    pointX: centerX - mw * 0.45,
+                    pointY: centerY + mh * 0.2,
+                    targetX: centerX - xOffset,
+                    targetY: centerY + mh * 0.35,
+                    align: 'left'
+                },
+                dpiButton: {
+                    pointX: centerX,
+                    pointY: centerY + mh * 0.05,
+                    targetX: centerX + xOffset,
+                    targetY: centerY + mh * 0.05,
+                    align: 'right'
+                }
+            };
+        }
+
+        function positionUIElements() {
+            for (const key in layoutData) {
+                const layout = layoutData[key];
+                const el = document.getElementById(`ui-${key}`);
+                if (el) {
+                    if (layout.align === 'left') {
+                        // Position right edge of container at targetX
+                        el.style.right = `${width - layout.targetX}px`;
+                        el.style.left = 'auto';
+                    } else {
+                        // Position left edge of container at targetX
+                        el.style.left = `${layout.targetX}px`;
+                        el.style.right = 'auto';
+                    }
+                    el.style.top = `${layout.targetY}px`;
+                }
+            }
+        }
+
+        function draw() {
+            // Fill background
+            ctx.fillStyle = '#0f1115';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw radial gradient background behind mouse
+            const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, mouseConfig.baseHeight * scale * 1.5);
+            gradient.addColorStop(0, 'rgba(30, 41, 59, 0.4)');
+            gradient.addColorStop(1, 'rgba(15, 17, 21, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw graphic first, lines after so they sit on top
+            drawMouseGraphic();
+            drawConnectingLines();
+            drawConnectionDots();
+        }
+
+        function drawConnectingLines() {
+            ctx.lineWidth = mouseConfig.lineWidth;
+            
+            for (const key in layoutData) {
+                const layout = layoutData[key];
+                const isActive = activeBindingId === key;
+                
+                ctx.strokeStyle = isActive ? mouseConfig.colorActive : mouseConfig.lineColor;
+                if(isActive) ctx.lineWidth = mouseConfig.lineWidth * 1.5;
+                else ctx.lineWidth = mouseConfig.lineWidth;
+                
+                ctx.beginPath();
+                ctx.moveTo(layout.pointX, layout.pointY);
+                
+                // Draw a sleek segmented line
+                // Go horizontally a bit from point
+                const midX1 = layout.pointX + (layout.align === 'left' ? -20 : 20) * scale;
+                ctx.lineTo(midX1, layout.pointY);
+                
+                // Go diagonally to match target Y
+                // Find horizontal point where slope is 45 deg or just straight logic
+                // Simple approach: go to target Y, keeping some X distance
+                const midX2 = layout.targetX + (layout.align === 'left' ? 20 : -20);
+                
+                // Use bezier for smooth techy curve
+                ctx.bezierCurveTo(
+                    midX1 + (layout.align === 'left' ? -40 : 40), layout.pointY,
+                    midX2 + (layout.align === 'left' ? 40 : -40), layout.targetY,
+                    midX2, layout.targetY
+                );
+                
+                ctx.lineTo(layout.targetX, layout.targetY);
+                
+                // Add a drop shadow for high contrast when drawing over the mouse
+                ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                ctx.shadowBlur = 4;
+                ctx.stroke();
+                
+                // Add glow if active
+                if(isActive) {
+                    ctx.shadowColor = mouseConfig.colorActive;
+                    ctx.shadowBlur = 12;
+                    ctx.stroke();
+                }
+                ctx.shadowBlur = 0; // reset
+            }
+        }
+        
+        function drawConnectionDots() {
+             for (const key in layoutData) {
+                const layout = layoutData[key];
+                const isActive = activeBindingId === key;
+                
+                // Small shadow to ensure dots pop off the mouse body
+                ctx.shadowColor = 'rgba(0,0,0,0.7)';
+                ctx.shadowBlur = 3;
+
+                // Dot on mouse
+                ctx.fillStyle = isActive ? mouseConfig.colorActive : mouseConfig.colorAccent;
+                ctx.beginPath();
+                ctx.arc(layout.pointX, layout.pointY, isActive ? 5 : 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Dot at UI start
+                ctx.beginPath();
+                ctx.arc(layout.targetX, layout.targetY, isActive ? 4 : 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                 if(isActive) {
+                    ctx.shadowColor = mouseConfig.colorActive;
+                    ctx.shadowBlur = 8;
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // reset
+                }
+             }
+        }
+
+        function drawMouseGraphic() {
+            const mw = mouseConfig.baseWidth * scale;
+            const mh = mouseConfig.baseHeight * scale;
+            const x = centerX - mw / 2;
+            const y = centerY - mh / 2;
+
+            ctx.save();
+            ctx.translate(x, y);
+
+            // Shadow
+            ctx.shadowColor = 'rgba(0,0,0,0.8)';
+            ctx.shadowBlur = 30 * scale;
+            ctx.shadowOffsetY = 10 * scale;
+
+            // 1. Main Body Base
+            drawPath(
+                ctx,
+                [[mw*0.3, 0], [mw*0.7, 0], [mw*0.9, mh*0.2], [mw, mh*0.6], [mw*0.8, mh], [mw*0.2, mh], [0, mh*0.6], [mw*0.1, mh*0.2]],
+                true,
+                mouseConfig.colorBase
+            );
+            ctx.shadowBlur = 0; // Reset shadow for internal details
+            ctx.shadowOffsetY = 0;
+
+            // Add inner subtle gradient to body for 3D feel
+            const bodyGrad = ctx.createLinearGradient(0, 0, mw, mh);
+            bodyGrad.addColorStop(0, '#2d3342');
+            bodyGrad.addColorStop(1, '#111317');
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+
+            // 2. Left Button
+            const leftActive = activeBindingId === 'leftClick' || activeBindingId === 'shiftLeftClick';
+            drawButtonPath(
+                ctx,
+                [[mw*0.05, mh*0.05], [mw*0.48, mh*0.02], [mw*0.45, mh*0.4], [mw*0.05, mh*0.4]],
+                leftActive,
+                mw, mh
+            );
+
+            // 3. Right Button
+            const rightActive = activeBindingId === 'rightClick' || activeBindingId === 'shiftRightClick';
+            drawButtonPath(
+                ctx,
+                [[mw*0.52, mh*0.02], [mw*0.95, mh*0.05], [mw*0.95, mh*0.4], [mw*0.55, mh*0.4]],
+                rightActive,
+                mw, mh
+            );
+
+            // 4. Middle Area (Scroll + DPI) Panel
+            ctx.fillStyle = '#0a0b0e';
+            ctx.beginPath();
+            ctx.roundRect(mw*0.45, mh*0.05, mw*0.1, mh*0.35, 10 * scale);
+            ctx.fill();
+
+            // 5. Scroll Wheel (Middle Click)
+            const midActive = activeBindingId === 'middleClick';
+            ctx.fillStyle = midActive ? mouseConfig.colorActive : '#334155';
+            ctx.shadowColor = midActive ? mouseConfig.colorActive : 'transparent';
+            ctx.shadowBlur = midActive ? 15 : 0;
+            ctx.beginPath();
+            ctx.roundRect(mw*0.47, mh*0.1, mw*0.06, mh*0.15, 5 * scale);
+            ctx.fill();
+            // Scroll treads
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#1e293b';
+            for(let i=0; i<4; i++) {
+                ctx.fillRect(mw*0.47, mh*(0.12 + i*0.03), mw*0.06, mh*0.01);
+            }
+
+            // 6. DPI Button
+            const dpiActive = activeBindingId === 'dpiButton';
+            ctx.fillStyle = dpiActive ? mouseConfig.colorActive : '#475569';
+            ctx.shadowColor = dpiActive ? mouseConfig.colorActive : 'transparent';
+            ctx.shadowBlur = dpiActive ? 15 : 0;
+            ctx.beginPath();
+            ctx.roundRect(mw*0.48, mh*0.28, mw*0.04, mh*0.06, 3 * scale);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // 7. Side Buttons (Left side)
+            // Forward
+            const sfActive = activeBindingId === 'sideForward';
+            ctx.fillStyle = sfActive ? mouseConfig.colorActive : mouseConfig.colorHighlight;
+            ctx.shadowColor = sfActive ? mouseConfig.colorActive : 'transparent';
+            ctx.shadowBlur = sfActive ? 15 : 0;
+            ctx.beginPath();
+            // Distort rect slightly for contour
+            ctx.moveTo(0, mh*0.4);
+            ctx.lineTo(mw*0.1, mh*0.4);
+            ctx.lineTo(mw*0.08, mh*0.55);
+            ctx.lineTo(-mw*0.02, mh*0.55);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Back
+            const sbActive = activeBindingId === 'sideBack';
+            ctx.fillStyle = sbActive ? mouseConfig.colorActive : mouseConfig.colorHighlight;
+            ctx.shadowColor = sbActive ? mouseConfig.colorActive : 'transparent';
+            ctx.shadowBlur = sbActive ? 15 : 0;
+            ctx.beginPath();
+            ctx.moveTo(-mw*0.02, mh*0.57);
+            ctx.lineTo(mw*0.08, mh*0.57);
+            ctx.lineTo(mw*0.06, mh*0.7);
+            ctx.lineTo(-mw*0.04, mh*0.68);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // 8. Palm logo / Accent
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+            ctx.beginPath();
+            ctx.arc(mw*0.5, mh*0.75, mw*0.15, 0, Math.PI*2);
+            ctx.fill();
+            // Glow core
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.8)';
+            ctx.shadowColor = '#6366f1';
+            ctx.shadowBlur = 10 * scale;
+            ctx.beginPath();
+            ctx.arc(mw*0.5, mh*0.75, mw*0.08, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Add subtle grid texture or lines for tech look
+            ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(mw*0.5, mh*0.5);
+            ctx.lineTo(mw*0.5, mh*0.95);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawPath(ctx, points, close, color) {
+            ctx.beginPath();
+            ctx.moveTo(points[0][0], points[0][1]);
+            // Use quadratic curves to smooth out the polygon points
+            for (let i = 1; i < points.length - 1; i++) {
+                const xc = (points[i][0] + points[i + 1][0]) / 2;
+                const yc = (points[i][1] + points[i + 1][1]) / 2;
+                ctx.quadraticCurveTo(points[i][0], points[i][1], xc, yc);
+            }
+            // curve to last point
+            ctx.quadraticCurveTo(
+                points[points.length - 1][0], 
+                points[points.length - 1][1], 
+                points[0][0], 
+                points[0][1]
+            );
+            
+            if (close) ctx.closePath();
+            if (color) {
+                ctx.fillStyle = color;
+                ctx.fill();
+            }
+            
+            // Draw a subtle border outline
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1 * scale;
+            ctx.stroke();
+        }
+
+        function drawButtonPath(ctx, points, isActive, mw, mh) {
+            ctx.beginPath();
+            ctx.moveTo(points[0][0], points[0][1]);
+            // Slightly curve buttons
+            ctx.quadraticCurveTo(points[1][0], points[1][1] - (mh*0.05), points[1][0], points[1][1]);
+            ctx.lineTo(points[2][0], points[2][1]);
+            ctx.quadraticCurveTo(points[3][0], points[3][1] + (mh*0.02), points[3][0], points[3][1]);
+            ctx.closePath();
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, mh*0.4);
+            if (isActive) {
+                gradient.addColorStop(0, mouseConfig.colorActive);
+                gradient.addColorStop(1, '#064e3b'); // Dark green
+                ctx.shadowColor = mouseConfig.colorActive;
+                ctx.shadowBlur = 20 * scale;
+            } else {
+                gradient.addColorStop(0, '#2d3342');
+                gradient.addColorStop(1, '#1e232d');
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Highlight edge
+            ctx.strokeStyle = isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.15)';
+            ctx.lineWidth = 1.5 * scale;
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0; // Reset
+        }
+
+        function init() {
+            createUIElements();
+            resize(); // This handles layout calculation and initial draw
+
+            // Mouse tracking for generic canvas interaction (optional subtle effects)
+            canvas.addEventListener('mousemove', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+                // In a more complex app, could detect intersection with mouse parts here
+                // For now, hovering HTML inputs drives the logic.
+            });
+            
+            // Button handlers
+            document.getElementById('btnReset').addEventListener('click', () => {
+                currentBindings = JSON.parse(JSON.stringify(defaultBindings));
+                createUIElements(); // Re-render inputs to reflect defaults
+                positionUIElements();
+                draw();
+                showToast("Settings Reset to Defaults");
+            });
+
+            document.getElementById('btnSave').addEventListener('click', () => {
+                // In a real app, send `currentBindings` to backend/local storage
+                console.log("Saving bindings:", currentBindings);
+                showToast("Profile Saved Successfully");
+            });
+        }
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const msgEl = document.getElementById('toast-msg');
+            msgEl.innerText = message;
+            
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            toast.style.transform = "translate(-50%, 10px)";
+            
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+                toast.style.transform = "translate(-50%, 0)";
+            }, 3000);
+        }
+
+        // Run
+        window.onload = init;
+
+    </script>
+</body>
+</html>

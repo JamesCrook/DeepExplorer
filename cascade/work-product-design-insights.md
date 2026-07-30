@@ -5,7 +5,7 @@
 
 # Product Design — Elicited Insights
 
-## Moderation and Permissions (Discord Alternative) #dplus/perms/prompt
+## [x] Moderation and Permissions (Discord Alternative) #dplus/perms
 
 ### Core Insight: Program Fragments as the Universal Configuration Surface
 
@@ -31,19 +31,19 @@ deny manage_role if target_role above own_role
 - A structured editor that only produces valid programs (Scratch-style).
 - Claude as authoring assistant: users describe intent in natural language, Claude generates the program fragment, users review in the dry-run matrix.
 
-### Permisison tags as Named Functions, Displayed on Channels #dplus/perms/prompt
+### [x] Permisison tags as Named Functions, Displayed on Channels #dplus/perms
 
 Named rules such as `judges-only`, `read-only-announcements`, `nsfw-gated` are displayed on the channels they apply to as tags. When exploring permsiions, the channel list becomes a readable summary of the permission state.
 
 This solves Discord's category sync problem: instead of a binary "synced/not synced" state, you see the tags. If a channel has the same tags as its category, it's effectively synced. If someone added an extra tag, you see it immediately — no hidden desync.
 
-### Dry-Run Matrix for Inspection #dplus/perms/prompt
+### [x] Dry-Run Matrix for Inspection #dplus/perms
 
 A matrix view where you probe with particular users and see what they are allowed and not allowed to do. This replaces Discord's limited "View as Role" (which only shows one role, not a specific user's role combination).
 
 **Scaling the matrix:** The naive grid of (users × channels × 40+ permission types) is unusable. The solution is sorting by tag importance. Some tags are critical (`mod`), some are minor (`emoji-curator`). Sort outcomes by tag with high-importance tags first. For any intelligently configured permission set, this produces legible groupings automatically. Edge cases where the admin goes baroque produce a noisy sorted matrix — which is fine, because that admin presumably knows what they are doing.
 
-## Per-User and Per-Server Customisation (Discord Alternative) #dplus/perms/prompt
+## [x] Per-User and Per-Server Customisation (Discord Alternative) #dplus/perms
 
 ### Program Everywhere
 
@@ -66,7 +66,7 @@ The primary failure mode is **accidental configuration** — the user changes th
 - Intermediate users who get confused can ask Claude for help — the program fragment is a legible artifact inspectable by both humans and AI.
 
 
-## MSA ↔ Molam Integration #mol/msa/prompt
+## [x] MSA ↔ Molam Integration #mol/msa
 
 ### Bidirectional Highlighting Through Proximity
 
@@ -81,12 +81,12 @@ Both displays (MSA and 3D Molam) exist. The integration is about how they connec
 **Selection architecture integration:** The scattered islands on the MSA are a selection — a non-contiguous subset of residues derived from a spatial query. This is a first-class selection object that can receive local params, be named, be saved, and serve as input to the overlayer colouring. The proximity query is a **selection generator**, not just a highlighting effect.
 
 
-## Blocks-Based Interpreter (Molam Animation) #mol/blocks/prompt
+## [x] Blocks-Based Interpreter (Molam Animation) #mol/blocks
 
 A Scratch-based animation language for molecules. The design follows standard Scratch/blocks paradigms adapted to the molecular scene graph. Straightforward application of the blocks infrastructure.
 
 
-## Coarse-Graining Strategy Refinement (Charts) #chart/coarseg
+## [x] Coarse-Graining Strategy Refinement (Charts) #chart/coarseg
 
 ### Automatic Coarse-Graining by Data Type
 
@@ -107,7 +107,7 @@ The output is a coarse-grained graph of the high-dimensional point cloud — dir
 **HDBSCAN** as the clustering engine within each Mapper interval: produces density-based cluster hierarchies, doesn't force every point into a cluster, handles sparse outliers gracefully.
 
 
-## Slicer Design (Ultrasound) #bio/slicer/prompt
+## [x] Slicer Design (Ultrasound) #bio/ultrasound/slicer
 
 **Core Insight:** The Slicer's Input is a Program, Not Geometry
 
@@ -138,7 +138,7 @@ Branches interacting — important for space-filling structures — acts as a la
 As the user drags the slice plane, the cross-section evolves smoothly: branches appear as dots, grow into circles, merge at bifurcations, split again.
 
 
-## GGUF Reader (CAGs) #cag/prompt #sql/algo/prompt
+## [x] GGUF Reader (CAGs) #cag USES #util/rr
 * Display involves queries against data too large to materialise
 
 ### Presentation, Not Raw Display
@@ -162,7 +162,12 @@ GGUF display involves queries against data too large to materialise, sharing the
 
 Extension to KaiTai's model: annotate where bytes live — disk, RAM, VRAM — turning KaiTai from a parser into a data access planner. Informs caching decisions through the random replacement cache.
 
-## KaiTai Reader (CAGs) #cag/prompt
+### Graphing Compute Cost Through Data Flow
+
+Graphing the compute cost function through the data flow (time and data movements) is high value. This motivates the data flow diagram as a reusable scene graph element beyond gguf — also applicable to the WSI pipeline visualisation (mapping kernels to wafer pipeline, counting cycles).
+
+
+## [x] KaiTai Reader (CAGs) #kaitai
 
 ### Unifying Insight: Variable-Length String as Primitive
 
@@ -174,23 +179,24 @@ This is the grammar/typedef isomorphism made concrete: a grammar gives you SerDe
 
 Any format with a grammar gets a vanilla display automatically — productions in the grammar are types, and scene graph elements exist to display and edit types. Selective augmentation replaces vanilla elements with richer visualisers where warranted. The gguf reader is not a bespoke tool — it is a KaiTai grammar for gguf plus selective augmentation (data flow diagram, MechInterp probe panel).
 
-### GGUF Implemented Through KaiTai
+### [x] GGUF Implemented Through KaiTai #cag/gguf
 
 The gguf reader should be implemented as a KaiTai grammar, not as standalone code. This validates the KaiTai infrastructure and establishes the augmentation pattern.
 
-### IDE-Style Data Exploration
+### [x] IDE-Style Data Exploration #kaitai
 
 KaiTai is the data exploring and editing system analogous to a debugger's data view in an IDE. It provides the vanilla display of any binary data. Productions in the grammar are types; scene graph elements display and edit types. Selective augmentation layers richer visualisers on top.
 
-### SQL Expression Duality
+### [x] SQL Expression Duality #sql
 
 When working on SQLite code, expressions should exist in both text and binary form — the grammar bridges between them. This connects to the grammar/typedef isomorphism: the SQL expression grammar gives you parsing (text→binary), serialisation (binary→text), and editing (via type-aware scene graph elements).
 
-### Architectural Note on Random Replacement Cache
+### [x] Architectural Note on Random Replacement Cache #util/rr
 
 The random replacement cache is a foundational utility (like vectors or node/edge graphs). Wherever it appears in use, ask: "Does the extended infrastructure that includes KaiTai apply?" The cache often signals a data access pattern that KaiTai can formalise.
 
-## Cellular Citadel (Biome, Packman, Histone) #citadel/read/prompt
+
+## [x] Cellular Citadel (Biome, Packman, Histone) #citadel/read
 
 ### Design-Research vs Reading-Research
 
@@ -206,11 +212,12 @@ These three features are **reading-research** items, not design-research. The di
 - **Packman chase dynamics:** Need more reading on the ubiquitin tagging and HSP70 process to design the chase/tag/capture mechanic.
 
 
-## Data Flow Diagram #util/dflow/prompt
+## [x] Data Flow Diagram #util/dataflow
 
 A scene graph element representing operations as nodes with metadata (tensor shapes, dtypes, quantisation, compute cost) and data movement as edges with cost annotations. Reusable across:
 
 - GGUF reader (model architecture visualisation)
+- WSI pipeline (kernel mapping onto wafer, cycle counting)
 - Any system where graphing compute cost through a dataflow is valuable
 
 Should support interactive cost annotation — clicking a node or edge shows detailed breakdown of FLOPs, memory reads/writes, and latency.

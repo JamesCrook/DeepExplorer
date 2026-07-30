@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Placing</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e1a; color: #bbb;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  #controls {
+    height: auto; min-height: 42px; background: #111122; border-bottom: 1px solid #252540;
+    display: flex; align-items: center; padding: 6px 14px; gap: 12px 18px;
+    font-size: 12px; flex-wrap: wrap;
+  }
+  .cg { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .cg label { color: #778; white-space: nowrap; }
+  .cg .val { color: #99a; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 64px; height: 18px; background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #3a3a5c; border-radius: 2px; }
+  input[type=range]::-moz-range-track { height: 4px; background: #3a3a5c; border-radius: 2px; border: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd; margin-top: -5px;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  canvas { display: block; }
+  #help {
+    position: fixed; top: 54px; right: 14px; width: 280px;
+    background: rgba(18,18,42,0.94); border: 1px solid #333;
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    line-height: 1.5; color: #aab; z-index: 20; backdrop-filter: blur(6px);
+  }
+  .help-btn {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: none; border: 1px solid #334; color: #778;
+    cursor: pointer; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .help-btn:hover, .help-btn.on { color: #ccd; border-color: #668; }
+  .help-btn.on { background: #252545; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <div class="cg"><label>Opacity</label><input type="range" id="sOpacity" min="0" max="100" value="80"><span class="val" id="vOpacity">80</span></div>
+  <button class="help-btn on" id="helpToggle">?</button>
+</div>
+<div id="help">
+  <p><strong>Drag</strong> from stock strip to place. <strong>Drag</strong> tiles to move. <strong>Drop</strong> on strip to delete. <strong>Scroll</strong> to zoom, drag empty space to pan.</p>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const R = 30;
+
+// ═══════════════════════════════════════════════════════════════
+//  Geo — pure geometry utilities (all static)
+// ═══════════════════════════════════════════════════════════════
+
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      p.push({ x: (vs[i].x + vs[j].x) / 2, y: (vs[i].y + vs[j].y) / 2 });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — PippedPolygonNode
+//
+//  Single polygon tile with edge-midpoint pips.
+//
+//  value: { id, x, y, n, tilt, color? }
+//
+//  Contract methods:
+//    getCentreXY(ctxMix, node, params) → { x, y }
+//    getHW(ctxMix, node, params)       → { W, H }
+//    getPips(ctxMix, node, params)     → [{ x, y }, ...]
+//    draw2d / hit_test
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//-- file: ./pipped-polygon-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { PippedPolygonNode };
+
+class PippedPolygonNode {
+
+  static getCentreXY(ctxMix, node, params) {
+    return { x: node.value.x, y: node.value.y };
+  }
+
+  static getHW(ctxMix, node, params) {
+    return { W: R * 2, H: R * 2 };
+  }
+
+  static getPips(ctxMix, node, params) {
+    const v = node.value;
+    return Geo.pips(v.n, v.x, v.y, v.r, v.tilt);
+  }
+
+  static getVerts(ctxMix, node, params) {
+    const v = node.value;
+    return Geo.verts(v.n, v.x, v.y, v.r, v.tilt);
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const v = node.value;
+    const verts = PippedPolygonNode.getVerts(ctxMix, node, params);
+    const pal = (params.colors || {})[v.n] || { fill: '#888', stroke: '#666' };
+
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = v.color || pal.fill;
+    ctx.fill();
+    ctx.strokeStyle = pal.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    if (!Geo.ptInPoly(pt.x, pt.y, PippedPolygonNode.getVerts(ctxMix, node, params))) return;
+    const dx = pt.x - node.value.x, dy = pt.y - node.value.y;
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) { node.value.x = wx - dx; node.value.y = wy - dy; },
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — BasicCollectionNode
+//
+//  Collection of PippedPolygonNode children.  Draws children,
+//  draws pips as open grey circles, wraps child interactions
+//  with bring-to-front and delete-on-strip.
+//
+//  value: {}
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//-- file: ./basic-collection-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> export { BasicCollectionNode };
+
+class BasicCollectionNode {
+
+  static PIP_R = 3.5;
+
+  static draw2d(ctxMix, node, params) {
+    for (const child of node.subtree)
+      PippedPolygonNode.draw2d(ctxMix, child, params);
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const pr = BasicCollectionNode.PIP_R;
+    for (const child of node.subtree) {
+      for (const p of PippedPolygonNode.getPips(ctxMix, child, params)) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, pr, 0, Geo.TAU);
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const subtree = node.subtree;
+    for (let i = subtree.length - 1; i >= 0; i--) {
+      ctxMix.hitResult = null;
+      PippedPolygonNode.hit_test(ctxMix, subtree[i], params);
+      if (ctxMix.hitResult) {
+        BasicCollectionNode._wrapDrag(ctxMix, node, subtree[i]);
+        return;
+      }
+    }
+  }
+
+  static _wrapDrag(ctxMix, collNode, child) {
+    const subtree = collNode.subtree;
+    const inner = ctxMix.hitResult.interactions;
+
+    // bring to front
+    const idx = subtree.indexOf(child);
+    if (idx >= 0) { subtree.splice(idx, 1); subtree.push(child); }
+
+    ctxMix.hitResult.interactions = {
+      applyDrag: inner.applyDrag,
+      endDrag(onStockStrip) {
+        if (onStockStrip) {
+          const i = subtree.indexOf(child);
+          if (i >= 0) subtree.splice(i, 1);
+        }
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — StockStripNode
+//
+//  Screen-space strip of prototype PippedPolygonNodes.
+//  params.opacity (0–100) controls the strip background fill.
+//
+//  value: { height }
+//  subtree: prototype PippedPolygonNode children
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { StockStripNode } from './stock-strip-node.js';
+//-- file: ./stock-strip-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> export { StockStripNode };
+
+class StockStripNode {
+
+  static _layout(node, W, H) {
+    const stripH = node.value.height;
+    const protos = node.subtree;
+    const y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1));
+    const x0 = (W - gap * (protos.length - 1)) / 2;
+    return protos.map((p, i) => ({ node: p, cx: x0 + gap * i, cy: y }));
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H } = ctxMix;
+    const stripH = node.value.height;
+    const opacity = (params.opacity ?? 100) / 100;
+
+    // strip background — controlled by params.opacity
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = '#16163a';
+    ctx.fillRect(0, H - stripH, W, stripH);
+    ctx.restore();
+
+    ctx.strokeStyle = '#282850';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H - stripH); ctx.lineTo(W, H - stripH); ctx.stroke();
+
+    // prototypes
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const proto = slot.node;
+      const displayR = R * 0.55;
+      const origX = proto.value.x, origY = proto.value.y, origR = proto.value.r;
+      proto.value.x = slot.cx;
+      proto.value.y = slot.cy;
+      proto.value.r = displayR;
+
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      PippedPolygonNode.draw2d(ctxMix, proto, params);
+      ctx.restore();
+
+      ctx.fillStyle = '#556'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(proto.value.label || '', slot.cx, slot.cy + displayR + 13);
+
+      proto.value.x = origX; proto.value.y = origY; proto.value.r = origR;
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const { W, H } = ctxMix;
+    if (pt.y < H - node.value.height) return;
+
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const displayR = R * 0.55;
+      const verts = Geo.verts(slot.node.value.n, slot.cx, slot.cy, displayR, slot.node.value.tilt);
+      if (Geo.ptInPoly(pt.x, pt.y, verts)) {
+        ctxMix.hitResult = { node: slot.node, isStockPrototype: true };
+        return;
+      }
+    }
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — Camera, node factory, App
+//
+//  Not part of the deliverables. Wires scene nodes together,
+//  handles camera, input, and the stock → collection handoff.
+// ═══════════════════════════════════════════════════════════════
+
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z;
+    this.oy = wp.y - sy / this.z;
+  }
+}
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+function cloneProto(proto, overrides) {
+  const { id: _, ...rest } = proto.value;
+  return makeNode(proto.type, { ...rest, ...overrides });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  App
+// ═══════════════════════════════════════════════════════════════
+
+class App {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.cam    = new Camera();
+    this.W = 0; this.H = 0;
+    this.TOP = document.getElementById('controls').offsetHeight;
+    this.panState = null;
+    this.dragHit  = null;
+
+    this.params = {
+      opacity: 80,
+      colors: {
+        4: { fill: '#c08428', stroke: '#9a6a1e' },
+        6: { fill: '#2890a8', stroke: '#1e7088' },
+      },
+    };
+
+    // ── build scene ──
+    this.stockNode = makeNode('stock-strip', { height: 78 }, [
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 4, tilt: Math.PI / 4, label: 'Square' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 4, tilt: 0,           label: 'Diamond' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 6, tilt: 0,           label: 'Pointy Hex' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 6, tilt: Math.PI / 6, label: 'Flat Hex' }),
+    ]);
+    this.collNode = makeNode('basic-collection', {});
+
+    this.resize();
+    this.bindSliders();
+    this.bindInput();
+    this.seed();
+    this.loop();
+  }
+
+  resize() {
+    this.TOP = document.getElementById('controls').offsetHeight;
+    this.W = this.canvas.width  = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight - this.TOP;
+  }
+
+  bindSliders() {
+    const P = this.params;
+    for (const [key, id] of [['opacity', 'sOpacity']]) {
+      const el = document.getElementById(id);
+      const vl = document.getElementById(id.replace('s', 'v'));
+      el.addEventListener('input', () => { P[key] = +el.value; vl.textContent = el.value; });
+    }
+    const helpEl = document.getElementById('help'), btn = document.getElementById('helpToggle');
+    btn.addEventListener('click', () => {
+      const show = helpEl.style.display === 'none';
+      helpEl.style.display = show ? 'block' : 'none';
+      btn.classList.toggle('on', show);
+    });
+  }
+
+  // ── coordinate helpers ──
+
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY - this.TOP }; }
+    return { x: e.clientX, y: e.clientY - this.TOP };
+  }
+  stockCtxMix(sp) {
+    return { ctx: this.ctx, hitPoint: sp, hitResult: null, W: this.W, H: this.H };
+  }
+  worldCtxMix(sp) {
+    const wp = sp ? this.cam.toWorld(sp.x, sp.y) : null;
+    return { ctx: this.ctx, hitPoint: wp, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+  }
+
+  // ── input ──
+
+  onDown(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    // stock strip hit → clone into collection and start drag
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) {
+      const proto = stockMix.hitResult.node;
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      const clone = cloneProto(proto, { x: wp.x, y: wp.y, r: R });
+      this.collNode.subtree.push(clone);
+
+      const wmix = this.worldCtxMix(sp);
+      wmix.hitPoint = wp;
+      PippedPolygonNode.hit_test(wmix, clone, this.params);
+      if (wmix.hitResult) {
+        BasicCollectionNode._wrapDrag(wmix, this.collNode, clone);
+        this.dragHit = wmix.hitResult;
+      }
+      return;
+    }
+
+    // collection hit
+    const wmix = this.worldCtxMix(sp);
+    BasicCollectionNode.hit_test(wmix, this.collNode, this.params);
+    if (wmix.hitResult) { this.dragHit = wmix.hitResult; return; }
+
+    // empty space → pan
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      this.dragHit.interactions.applyDrag(wp.x, wp.y);
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (this.panState) {
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move';
+      return;
+    }
+
+    // hover cursor
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) { this.canvas.style.cursor = 'grab'; return; }
+
+    const wp = this.cam.toWorld(sp.x, sp.y);
+    let hovered = false;
+    for (let i = this.collNode.subtree.length - 1; i >= 0; i--) {
+      if (Geo.ptInPoly(wp.x, wp.y, PippedPolygonNode.getVerts(null, this.collNode.subtree[i], this.params))) {
+        hovered = true; break;
+      }
+    }
+    this.canvas.style.cursor = hovered ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    e.preventDefault();
+    if (this.dragHit) {
+      const sp = this.screenPos(e);
+      const onStrip = sp.y > this.H - this.stockNode.value.height;
+      this.dragHit.interactions.endDrag(onStrip);
+      this.dragHit = null;
+    }
+    this.panState = null;
+    this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY - this.TOP };
+    if (sp.y > this.H - this.stockNode.value.height) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    c.addEventListener('mousedown',  e => this.onDown(e));
+    c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));
+    c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  // ── seed ──
+
+  seed() {
+    const tilt = Math.PI / 4;
+    const step = R * Math.cos(Math.PI / 4) * 2;
+    const wc = this.cam.toWorld(this.W / 2, (this.H - this.stockNode.value.height) / 2);
+    for (let row = -1; row <= 1; row++)
+      for (let col = -1; col <= 1; col++)
+        this.collNode.subtree.push(
+          makeNode('pipped-polygon', { x: wc.x + col * step, y: wc.y + row * step, r: R, n: 4, tilt })
+        );
+  }
+
+  // ── render loop ──
+
+  loop() {
+    const c = this.ctx;
+    const P = this.params;
+
+    // screen-space background + stock strip
+    this.cam.reset(c);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, this.W, this.H);
+    StockStripNode.draw2d({ ctx: c, W: this.W, H: this.H }, this.stockNode, P);
+
+    // world-space grid dots
+    this.cam.apply(c);
+    const spacing = 40;
+    const l = this.cam.ox, t = this.cam.oy;
+    const r = l + this.W / this.cam.z;
+    const b = t + (this.H - this.stockNode.value.height) / this.cam.z;
+    c.fillStyle = '#1c1c38';
+    const ds = 1 / this.cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+
+    // world-space collection
+    const wmix = { ctx: c, hitPoint: null, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+    BasicCollectionNode.draw2d(wmix, this.collNode, P);
+    BasicCollectionNode.after_draw2d(wmix, this.collNode, P);
+
+    this.cam.reset(c);
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+// ─── Boot ────────────────────────────────────────────────
+new App(document.getElementById('c'));
+
+</script>
+</body>
+</html>

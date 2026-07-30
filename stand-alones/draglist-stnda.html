@@ -266,9 +266,20 @@ class EventBus {
   emit(event, ...args) { (this._listeners[event] || []).forEach(fn => fn(...args)); }
 }
 
-// ════════════════════════════════════════════════════════════════
-// SimilarityEngine — tokenization & similarity math (unchanged)
-// ════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — SimilarityEngine
+//
+//  Tokenisation and pairwise similarity computation.  Used by
+//  the DSM node to colour cells and compute marginals.
+//
+//  To integrate: copy this class into a .js file, add the
+//  import/export lines.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { SimilarityEngine } from './similarity-engine.js';
+//-- file: ./similarity-engine.js --
+//>> export { SimilarityEngine };
 
 class SimilarityEngine {
   constructor() {
@@ -294,70 +305,323 @@ class SimilarityEngine {
   wordCount(text) { return (text.match(/\S+/g)||[]).length; }
 }
 
-// ════════════════════════════════════════════════════════════════
-// DSMRenderer — canvas-based matrix rendering (unchanged)
-// ════════════════════════════════════════════════════════════════
+//-- endfile --
 
-class DSMRenderer {
-  constructor(canvas, callbacks) {
-    this.canvas=canvas; this.ctx=canvas.getContext('2d'); this.cb=callbacks;
-    this.DRAG_W=14; this.ANNOT_W=7; this.GAP=3; this.ANNOT_H=7;
-    this.MARGINAL_W=52; this.MAX_CELL=16; this.MIN_CELL=8; this.MAX_MATRIX_PX=520;
-    this.ACCENT=[108,99,255];
-    this.data=null; this.rowStarts=[]; this.rowHeights=[]; this.gridPx=0;
-    this.cellSize=0; this.divSize=0; this.matrixX=0; this.matrixY=0;
-    this.marginalX=0; this.totalW=0; this.totalH=0;
-    this.hovered=null; this.drag=null;
-    this._bind();
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — DSMNode
+//
+//  Canvas-based Design Structure Matrix.  Draws a similarity
+//  grid with drag-handles, colour-banded annotations, cell
+//  colouring, divider bands, marginal bars, hover highlight,
+//  and drag-reorder indicator.
+//
+//  Convention (matching ButtonNode / ZonedNode):
+//    ctxMix  — context bag:  .directCtx(), .T, .hitPoint, .hitResult
+//    node    — { value: { items, matrix, marginal, threshLow,
+//                         threshHigh, hovered, drag, _layout } }
+//    params  — DSM_DEFAULTS overrides
+//
+//  To integrate: copy this class into a .js file, add the
+//  import/export lines, call registerNodeClass.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { DSMNode, DSM_DEFAULTS } from './dsm-node.js';
+//-- file: ./dsm-node.js --
+//>> import { sceneRegistry } from '../deep-explorer/js/omni-support/scene.js';
+//>> export { DSMNode, DSM_DEFAULTS };
+
+const DSM_DEFAULTS = Object.freeze({
+  DRAG_W:        14,
+  ANNOT_W:        7,
+  GAP:            3,
+  ANNOT_H:        7,
+  MARGINAL_W:    52,
+  MAX_CELL:      16,
+  MIN_CELL:       8,
+  MAX_MATRIX_PX: 520,
+  ACCENT:        [108, 99, 255],
+});
+
+
+class DSMNode {
+
+  // ── Layout — compute row geometry, store in node.value._layout ──
+
+  static computeLayout(node, params) {
+    const p = { ...DSM_DEFAULTS, ...params };
+    const v = node.value;
+    const items = v.items;
+    const bc = items.filter(it => it.type === 'block').length;
+    if (bc < 2) { v._layout = { gridPx: 0 }; return; }
+
+    const cellSize = Math.max(p.MIN_CELL, Math.min(p.MAX_CELL, Math.floor(p.MAX_MATRIX_PX / bc)));
+    const divSize  = Math.max(4, Math.round(cellSize * 0.3));
+    const rowStarts = []; const rowHeights = []; let pos = 0;
+    for (const item of items) {
+      rowStarts.push(pos);
+      const h = item.type === 'block' ? cellSize : divSize;
+      rowHeights.push(h);
+      pos += h;
+    }
+    const gridPx  = pos;
+    const matrixX = p.DRAG_W + p.ANNOT_W + p.GAP;
+    const matrixY = p.ANNOT_H + p.GAP;
+    const marginalX = matrixX + gridPx + p.GAP;
+    const totalW  = marginalX + p.MARGINAL_W;
+    const totalH  = matrixY + gridPx;
+
+    v._layout = { cellSize, divSize, rowStarts, rowHeights, gridPx,
+                  matrixX, matrixY, marginalX, totalW, totalH };
   }
-  update(data) { this.data=data; this._layout(); this.render(); }
-  _layout() {
-    const items=this.data.items, bc=items.filter(it=>it.type==='block').length;
-    if(bc<2){this.gridPx=0;return;}
-    this.cellSize=Math.max(this.MIN_CELL,Math.min(this.MAX_CELL,Math.floor(this.MAX_MATRIX_PX/bc)));
-    this.divSize=Math.max(4,Math.round(this.cellSize*0.3));
-    this.rowStarts=[]; this.rowHeights=[]; let pos=0;
-    for(const item of items){this.rowStarts.push(pos);const h=item.type==='block'?this.cellSize:this.divSize;this.rowHeights.push(h);pos+=h;}
-    this.gridPx=pos;
-    this.matrixX=this.DRAG_W+this.ANNOT_W+this.GAP; this.matrixY=this.ANNOT_H+this.GAP;
-    this.marginalX=this.matrixX+this.gridPx+this.GAP;
-    this.totalW=this.marginalX+this.MARGINAL_W; this.totalH=this.matrixY+this.gridPx;
+
+  // ── Draw ──────────────────────────────────────────────────────
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value;
+    const L = v._layout;
+    if (!L || !L.gridPx) return;
+    const p   = { ...DSM_DEFAULTS, ...params };
+    const ctx = ctxMix.directCtx();
+
+    DSMNode._drawDragHandles(ctx, v, L, p);
+    DSMNode._drawAnnotations(ctx, v, L, p);
+    DSMNode._drawCells(ctx, v, L, p);
+    DSMNode._drawDividerBands(ctx, v, L, p);
+    DSMNode._drawGrid(ctx, v, L, p);
+    DSMNode._drawMarginal(ctx, v, L, p);
+    DSMNode._drawHover(ctx, v, L, p);
+    DSMNode._drawDragIndicator(ctx, v, L, p);
+
+    ctx.restore();
   }
-  render() {
-    const{canvas,ctx}=this;
-    if(!this.gridPx){canvas.width=canvas.height=0;canvas.style.width=canvas.style.height='0';return;}
-    const dpr=devicePixelRatio||1;
-    canvas.width=this.totalW*dpr; canvas.height=this.totalH*dpr;
-    canvas.style.width=this.totalW+'px'; canvas.style.height=this.totalH+'px';
-    ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,this.totalW,this.totalH);
-    this._drawDragHandles(); this._drawAnnotations(); this._drawCells();
-    this._drawDividerBands(); this._drawGrid(); this._drawMarginal();
-    this._drawHover(); this._drawDragIndicator();
+
+  // ── Hit test ──────────────────────────────────────────────────
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = node.value;
+    const L = v._layout;
+    if (!L || !L.gridPx) return;
+    const p = { ...DSM_DEFAULTS, ...params };
+
+    const rowAt = DSMNode._rowAt(pt.y, L);
+
+    // Drag-handle zone (left gutter)
+    if (pt.x < p.DRAG_W + p.ANNOT_W + p.GAP && rowAt >= 0) {
+      ctxMix.hitResult = {
+        node,
+        zone: 'handle',
+        row: rowAt,
+        cursor: 'grab',
+        interactions: {
+          applyDrag(canvasX, canvasY) {
+            node.value.drag = {
+              srcRow: rowAt,
+              insertRow: DSMNode._insertAt(canvasY, L),
+            };
+          },
+        },
+      };
+      return;
+    }
+
+    // Matrix cell zone
+    const mxL = L.matrixX, mxR = L.matrixX + L.gridPx;
+    const myT = L.matrixY, myB = L.matrixY + L.gridPx;
+    if (pt.x >= mxL && pt.x < mxR && pt.y >= myT && pt.y < myB) {
+      const col = DSMNode._colAt(pt.x, L);
+      if (rowAt >= 0 && col >= 0) {
+        ctxMix.hitResult = {
+          node,
+          zone: 'cell',
+          cell: { row: rowAt, col },
+          cursor: 'crosshair',
+        };
+      }
+    }
   }
-  _alpha(sim){const lo=this.data.threshLow,hi=this.data.threshHigh;if(sim<=lo)return 0;if(hi<=lo)return sim>lo?1:0;return Math.min(1,(sim-lo)/(hi-lo));}
-  _drawCells(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,ACCENT}=this;const items=data.items;const[ar,ag,ab]=ACCENT;for(let r=0;r<items.length;r++){if(items[r].type!=='block')continue;for(let c=0;c<items.length;c++){if(items[c].type!=='block')continue;const bi=items[r].blockIdx,bj=items[c].blockIdx;const x=matrixX+rowStarts[c],y=matrixY+rowStarts[r];const w=rowHeights[c],h=rowHeights[r];if(bi===bj){ctx.fillStyle='rgba(255,255,255,0.06)';}else{const a=this._alpha(data.matrix[bi][bj]);if(a<0.01)continue;ctx.fillStyle=`rgba(${ar},${ag},${ab},${a})`;}ctx.fillRect(x,y,w,h);}}}
-  _drawDividerBands(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='divider')continue;const color=data.items[i].color;const y=matrixY+rowStarts[i],x=matrixX+rowStarts[i],h=rowHeights[i];ctx.fillStyle=color;ctx.globalAlpha=0.08;ctx.fillRect(matrixX,y,gridPx,h);ctx.fillRect(x,matrixY,h,gridPx);ctx.globalAlpha=1;ctx.strokeStyle=color;ctx.globalAlpha=0.5;ctx.lineWidth=1;const cy=y+h/2,cx=x+h/2;ctx.beginPath();ctx.moveTo(matrixX,cy);ctx.lineTo(matrixX+gridPx,cy);ctx.stroke();ctx.beginPath();ctx.moveTo(cx,matrixY);ctx.lineTo(cx,matrixY+gridPx);ctx.stroke();ctx.globalAlpha=1;}}
-  _drawGrid(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=0.5;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='block')continue;const s=rowStarts[i],e=s+rowHeights[i];ctx.beginPath();ctx.moveTo(matrixX,matrixY+s);ctx.lineTo(matrixX+gridPx,matrixY+s);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX,matrixY+e);ctx.lineTo(matrixX+gridPx,matrixY+e);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX+s,matrixY);ctx.lineTo(matrixX+s,matrixY+gridPx);ctx.stroke();ctx.beginPath();ctx.moveTo(matrixX+e,matrixY);ctx.lineTo(matrixX+e,matrixY+gridPx);ctx.stroke();}}
-  _drawAnnotations(){const{ctx,data,matrixX,matrixY,rowStarts,rowHeights,DRAG_W,ANNOT_W,ANNOT_H}=this;for(let i=0;i<data.items.length;i++){ctx.fillStyle=data.items[i].color||'#6c8fff';const h=rowHeights[i];ctx.fillRect(DRAG_W,matrixY+rowStarts[i]+0.5,ANNOT_W,h-1);ctx.fillRect(matrixX+rowStarts[i]+0.5,0,h-1,ANNOT_H);}}
-  _drawDragHandles(){const{ctx,data,matrixY,rowStarts,rowHeights,DRAG_W}=this;for(let i=0;i<data.items.length;i++){const cy=matrixY+rowStarts[i]+rowHeights[i]/2;if(data.items[i].type==='block'){const cx=DRAG_W/2;ctx.fillStyle='rgba(255,255,255,0.18)';for(const dx of[-2.5,2.5])for(const dy of[-3.5,0,3.5]){ctx.beginPath();ctx.arc(cx+dx,cy+dy,1,0,Math.PI*2);ctx.fill();}}else{const cx=DRAG_W/2+2;ctx.fillStyle=data.items[i].color||'rgba(255,255,255,0.25)';ctx.globalAlpha=0.5;for(const dx of[-1.5,1.5])for(const dy of[-1.5,1.5]){ctx.beginPath();ctx.arc(cx+dx,cy+dy,0.8,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;}}}
-  _drawMarginal(){const{ctx,data,matrixY,rowStarts,rowHeights,marginalX,MARGINAL_W,ACCENT}=this;if(!data.marginal||!data.marginal.length)return;const maxVal=Math.max(...data.marginal,1);const[r,g,b]=ACCENT;const barMax=MARGINAL_W-6;let bi=0;for(let i=0;i<data.items.length;i++){if(data.items[i].type!=='block')continue;const barW=(data.marginal[bi]/maxVal)*barMax;ctx.fillStyle=`rgba(${r},${g},${b},0.3)`;ctx.fillRect(marginalX+3,matrixY+rowStarts[i]+1,barW,rowHeights[i]-2);bi++;}}
-  _drawHover(){if(!this.hovered||this.drag)return;const{ctx,hovered,matrixX,matrixY,rowStarts,rowHeights,gridPx}=this;const{row,col}=hovered;if(row>=rowStarts.length||col>=rowStarts.length)return;ctx.fillStyle='rgba(255,255,255,0.035)';ctx.fillRect(matrixX,matrixY+rowStarts[row],gridPx,rowHeights[row]);ctx.fillRect(matrixX+rowStarts[col],matrixY,rowHeights[col],gridPx);ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;ctx.strokeRect(matrixX+rowStarts[col],matrixY+rowStarts[row],rowHeights[col],rowHeights[row]);}
-  _drawDragIndicator(){if(!this.drag)return;const{ctx,drag,matrixY,rowStarts,rowHeights,totalW,gridPx}=this;ctx.fillStyle='rgba(255,255,255,0.07)';ctx.fillRect(0,matrixY+rowStarts[drag.srcRow],totalW,rowHeights[drag.srcRow]);const insertPx=matrixY+(drag.insertRow<rowStarts.length?rowStarts[drag.insertRow]:gridPx);ctx.strokeStyle='rgba(235,111,146,0.9)';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(0,insertPx);ctx.lineTo(totalW,insertPx);ctx.stroke();}
-  _local(e){const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
-  _rowAt(y){const rel=y-this.matrixY;if(rel<0||rel>=this.gridPx)return -1;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i])return i;return -1;}
-  _colAt(x){const rel=x-this.matrixX;if(rel<0||rel>=this.gridPx)return -1;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i])return i;return -1;}
-  _insertAt(y){const rel=y-this.matrixY;for(let i=0;i<this.rowStarts.length;i++)if(rel<this.rowStarts[i]+this.rowHeights[i]/2)return i;return this.rowStarts.length;}
-  _inDragZone(x){return x<this.DRAG_W+this.ANNOT_W+this.GAP;}
-  _inMatrix(x,y){return x>=this.matrixX&&x<this.matrixX+this.gridPx&&y>=this.matrixY&&y<this.matrixY+this.gridPx;}
-  _bind(){const c=this.canvas;c.addEventListener('mousemove',e=>this._onMove(e));c.addEventListener('mousedown',e=>this._onDown(e));c.addEventListener('mouseup',e=>this._onUp(e));c.addEventListener('mouseleave',()=>this._onLeave());}
-  _onMove(e){const{x,y}=this._local(e);if(this.drag){this.drag.insertRow=this._insertAt(y);this.canvas.style.cursor='grabbing';this.render();return;}if(this._inDragZone(x)&&this._rowAt(y)>=0){this.canvas.style.cursor='grab';if(this.hovered){this.hovered=null;this.render();this.cb.onCellHover(null);}return;}if(this._inMatrix(x,y)){const row=this._rowAt(y),col=this._colAt(x);if(row>=0&&col>=0&&(!this.hovered||this.hovered.row!==row||this.hovered.col!==col)){this.hovered={row,col};this.render();this.cb.onCellHover(this.hovered);}this.canvas.style.cursor='crosshair';return;}this.canvas.style.cursor='default';}
-  _onDown(e){const{x,y}=this._local(e);if(this._inDragZone(x)){const row=this._rowAt(y);if(row>=0){this.drag={srcRow:row,insertRow:row};e.preventDefault();}}}
-  _onUp(){if(!this.drag)return;const{srcRow,insertRow}=this.drag;this.drag=null;this.canvas.style.cursor='default';this.render();if(srcRow!==insertRow&&srcRow!==insertRow-1){const fromIdx=this.data.items[srcRow].itemIdx;const toIdx=insertRow<this.data.items.length?this.data.items[insertRow].itemIdx:this.data.items[this.data.items.length-1].itemIdx+1;this.cb.onReorder(fromIdx,toIdx);}}
-  _onLeave(){if(this.drag){this.drag=null;this.render();}this.canvas.style.cursor='default';}
+
+  // ── Private drawing helpers ───────────────────────────────────
+
+  static _alpha(sim, v) {
+    const lo = v.threshLow, hi = v.threshHigh;
+    if (sim <= lo) return 0;
+    if (hi <= lo) return sim > lo ? 1 : 0;
+    return Math.min(1, (sim - lo) / (hi - lo));
+  }
+
+  static _drawCells(ctx, v, L, p) {
+    const { matrixX, matrixY, rowStarts, rowHeights } = L;
+    const items = v.items;
+    const [ar, ag, ab] = p.ACCENT;
+    for (let r = 0; r < items.length; r++) {
+      if (items[r].type !== 'block') continue;
+      for (let c = 0; c < items.length; c++) {
+        if (items[c].type !== 'block') continue;
+        const bi = items[r].blockIdx, bj = items[c].blockIdx;
+        const x = matrixX + rowStarts[c], y = matrixY + rowStarts[r];
+        const w = rowHeights[c], h = rowHeights[r];
+        if (bi === bj) {
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        } else {
+          const a = DSMNode._alpha(v.matrix[bi][bj], v);
+          if (a < 0.01) continue;
+          ctx.fillStyle = `rgba(${ar},${ag},${ab},${a})`;
+        }
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+
+  static _drawDividerBands(ctx, v, L, p) {
+    const { matrixX, matrixY, rowStarts, rowHeights, gridPx } = L;
+    for (let i = 0; i < v.items.length; i++) {
+      if (v.items[i].type !== 'divider') continue;
+      const color = v.items[i].color;
+      const y = matrixY + rowStarts[i], x = matrixX + rowStarts[i], h = rowHeights[i];
+      ctx.fillStyle = color; ctx.globalAlpha = 0.08;
+      ctx.fillRect(matrixX, y, gridPx, h);
+      ctx.fillRect(x, matrixY, h, gridPx);
+      ctx.globalAlpha = 1; ctx.strokeStyle = color; ctx.globalAlpha = 0.5; ctx.lineWidth = 1;
+      const cy = y + h / 2, cx = x + h / 2;
+      ctx.beginPath(); ctx.moveTo(matrixX, cy); ctx.lineTo(matrixX + gridPx, cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, matrixY); ctx.lineTo(cx, matrixY + gridPx); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  static _drawGrid(ctx, v, L, p) {
+    const { matrixX, matrixY, rowStarts, rowHeights, gridPx } = L;
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.5;
+    for (let i = 0; i < v.items.length; i++) {
+      if (v.items[i].type !== 'block') continue;
+      const s = rowStarts[i], e = s + rowHeights[i];
+      ctx.beginPath(); ctx.moveTo(matrixX, matrixY + s); ctx.lineTo(matrixX + gridPx, matrixY + s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(matrixX, matrixY + e); ctx.lineTo(matrixX + gridPx, matrixY + e); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(matrixX + s, matrixY); ctx.lineTo(matrixX + s, matrixY + gridPx); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(matrixX + e, matrixY); ctx.lineTo(matrixX + e, matrixY + gridPx); ctx.stroke();
+    }
+  }
+
+  static _drawAnnotations(ctx, v, L, p) {
+    const { matrixX, matrixY, rowStarts, rowHeights } = L;
+    for (let i = 0; i < v.items.length; i++) {
+      ctx.fillStyle = v.items[i].color || '#6c8fff';
+      const h = rowHeights[i];
+      ctx.fillRect(p.DRAG_W, matrixY + rowStarts[i] + 0.5, p.ANNOT_W, h - 1);
+      ctx.fillRect(matrixX + rowStarts[i] + 0.5, 0, h - 1, p.ANNOT_H);
+    }
+  }
+
+  static _drawDragHandles(ctx, v, L, p) {
+    const { matrixY, rowStarts, rowHeights } = L;
+    for (let i = 0; i < v.items.length; i++) {
+      const cy = matrixY + rowStarts[i] + rowHeights[i] / 2;
+      if (v.items[i].type === 'block') {
+        const cx = p.DRAG_W / 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        for (const dx of [-2.5, 2.5]) for (const dy of [-3.5, 0, 3.5]) {
+          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 1, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        const cx = p.DRAG_W / 2 + 2;
+        ctx.fillStyle = v.items[i].color || 'rgba(255,255,255,0.25)';
+        ctx.globalAlpha = 0.5;
+        for (const dx of [-1.5, 1.5]) for (const dy of [-1.5, 1.5]) {
+          ctx.beginPath(); ctx.arc(cx + dx, cy + dy, 0.8, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  static _drawMarginal(ctx, v, L, p) {
+    if (!v.marginal || !v.marginal.length) return;
+    const { matrixY, rowStarts, rowHeights, marginalX } = L;
+    const maxVal = Math.max(...v.marginal, 1);
+    const [r, g, b] = p.ACCENT;
+    const barMax = p.MARGINAL_W - 6;
+    let bi = 0;
+    for (let i = 0; i < v.items.length; i++) {
+      if (v.items[i].type !== 'block') continue;
+      const barW = (v.marginal[bi] / maxVal) * barMax;
+      ctx.fillStyle = `rgba(${r},${g},${b},0.3)`;
+      ctx.fillRect(marginalX + 3, matrixY + rowStarts[i] + 1, barW, rowHeights[i] - 2);
+      bi++;
+    }
+  }
+
+  static _drawHover(ctx, v, L, p) {
+    if (!v.hovered || v.drag) return;
+    const { matrixX, matrixY, rowStarts, rowHeights, gridPx } = L;
+    const { row, col } = v.hovered;
+    if (row >= rowStarts.length || col >= rowStarts.length) return;
+    ctx.fillStyle = 'rgba(255,255,255,0.035)';
+    ctx.fillRect(matrixX, matrixY + rowStarts[row], gridPx, rowHeights[row]);
+    ctx.fillRect(matrixX + rowStarts[col], matrixY, rowHeights[col], gridPx);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(matrixX + rowStarts[col], matrixY + rowStarts[row], rowHeights[col], rowHeights[row]);
+  }
+
+  static _drawDragIndicator(ctx, v, L, p) {
+    if (!v.drag) return;
+    const { matrixY, rowStarts, rowHeights, gridPx } = L;
+    const { totalW } = L;
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(0, matrixY + rowStarts[v.drag.srcRow], totalW, rowHeights[v.drag.srcRow]);
+    const insertPx = matrixY + (v.drag.insertRow < rowStarts.length ? rowStarts[v.drag.insertRow] : gridPx);
+    ctx.strokeStyle = 'rgba(235,111,146,0.9)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, insertPx); ctx.lineTo(totalW, insertPx); ctx.stroke();
+  }
+
+  // ── Geometry queries (used by hit_test and applyDrag) ─────────
+
+  static _rowAt(y, L) {
+    const rel = y - L.matrixY;
+    if (rel < 0 || rel >= L.gridPx) return -1;
+    for (let i = 0; i < L.rowStarts.length; i++)
+      if (rel < L.rowStarts[i] + L.rowHeights[i]) return i;
+    return -1;
+  }
+
+  static _colAt(x, L) {
+    const rel = x - L.matrixX;
+    if (rel < 0 || rel >= L.gridPx) return -1;
+    for (let i = 0; i < L.rowStarts.length; i++)
+      if (rel < L.rowStarts[i] + L.rowHeights[i]) return i;
+    return -1;
+  }
+
+  static _insertAt(y, L) {
+    const rel = y - L.matrixY;
+    for (let i = 0; i < L.rowStarts.length; i++)
+      if (rel < L.rowStarts[i] + L.rowHeights[i] / 2) return i;
+    return L.rowStarts.length;
+  }
 }
 
+//>> sceneRegistry.registerNodeClass('dsm', DSMNode);
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — all remaining code is throwaway app infrastructure.
+//
+//  Session, InputParser, DraggableCard, CardContainer,
+//  SimilarityMatrix (adapter), SessionManager, AppController.
+//
+//  In the real scene graph, DSMNode.draw2d / hit_test are called
+//  by the scene's phase runner and hit-test pipeline.  The
+//  ctxMix shim below (directCtx, hitPoint, hitResult) matches
+//  the real scene's interface.
+// ═══════════════════════════════════════════════════════════════
+
+
 // ════════════════════════════════════════════════════════════════
-// Session — namespaced localStorage store (unchanged)
+// Session — namespaced localStorage store
 // ════════════════════════════════════════════════════════════════
 
 class Session {
@@ -449,7 +713,6 @@ class DraggableCard {
       c.innerHTML = DraggableCard.renderCheckboxes(this.item.text, this.index);
       el.append(h, n, c);
 
-      // Checkbox click
       c.addEventListener('click', e => {
         const cb = e.target.closest('.cb');
         if (!cb) return;
@@ -457,7 +720,6 @@ class DraggableCard {
         this._onCheckboxToggle(parseInt(cb.dataset.item), parseInt(cb.dataset.cb));
       });
 
-      // Disable drag while clicking a checkbox
       c.addEventListener('mousedown', e => {
         if (e.target.closest('.cb')) {
           el.draggable = false;
@@ -466,13 +728,11 @@ class DraggableCard {
         }
       });
 
-      // Detect truncation
       requestAnimationFrame(() => c.classList.toggle('truncated', c.scrollHeight > c.clientHeight));
     }
     return el;
   }
 
-  /** Refresh checkbox display after toggle */
   refreshCheckboxes() {
     const c = this.el.querySelector('.block-text');
     if (c) c.innerHTML = DraggableCard.renderCheckboxes(this.item.text, this.index);
@@ -524,7 +784,6 @@ class CardContainer {
         onCheckboxToggle: (ii, ci) => this.bus.emit('checkbox:toggle', ii, ci),
       });
 
-      // Click to select (blocks only)
       if (item.type === 'block') {
         card.el.addEventListener('click', () => this._select(i));
       }
@@ -542,8 +801,6 @@ class CardContainer {
     this.el.querySelectorAll('.block-text').forEach(c =>
       c.classList.toggle('truncated', c.scrollHeight > c.clientHeight));
   }
-
-  // ── Selection ──
 
   _select(idx) {
     this.el.querySelectorAll('.block-item.selected').forEach(el => el.classList.remove('selected'));
@@ -565,8 +822,6 @@ class CardContainer {
     this.selectedRect = null;
     this.el.classList.remove('has-selection');
   }
-
-  // ── Drag & Drop ──
 
   _attachDrag(el, i, items) {
     el.addEventListener('dragstart', e => {
@@ -654,8 +909,6 @@ class CardContainer {
       el.classList.remove('drag-over-above', 'drag-over-below'));
   }
 
-  // ── Global keyboard & mouse-leave ──
-
   _bindGlobal() {
     document.addEventListener('mousemove', e => {
       const moved = this.lastMouse.x !== -1 && (e.clientX !== this.lastMouse.x || e.clientY !== this.lastMouse.y);
@@ -672,7 +925,6 @@ class CardContainer {
     });
   }
 
-  /** Called by AppController after an arrow-key move resolves */
   focusAfterMove(newIdx) {
     this._select(newIdx);
     this.lastMouse = { x: -1, y: -1 };
@@ -681,27 +933,53 @@ class CardContainer {
 }
 
 // ════════════════════════════════════════════════════════════════
-// SimilarityMatrix — DSM canvas + controls + detail panel
+// SimilarityMatrix — DSM canvas adapter + controls + detail panel
+//
+// Wraps DSMNode with a ctxMix shim, mouse event routing, and
+// the detail-panel hover display.  In the real scene graph all
+// of this is handled by the scene's draw loop and hit pipeline.
 // ════════════════════════════════════════════════════════════════
 
 class SimilarityMatrix {
   constructor({ canvasEl, detailPanelEl }, bus, engine) {
     this.bus = bus;
     this.engine = engine;
+    this.canvas = canvasEl;
+    this.ctx = canvasEl.getContext('2d');
     this.detailPanel = detailPanelEl;
     this.metric = 'jaccard';
     this.marginalMode = 'unique';
     this.blocks = [];
-    this.items = [];
 
-    this.dsm = new DSMRenderer(canvasEl, {
-      onCellHover: cell => this._onCellHover(cell),
-      onReorder: (from, to) => bus.emit('items:reorder-dsm', from, to),
-    });
+    // ── Node shim matching the scene-graph interface ──
+    this.node = {
+      value: {
+        items: [], matrix: [], marginal: [],
+        threshLow: 0, threshHigh: 0.5,
+        hovered: null, drag: null,
+        _layout: { gridPx: 0 },
+      },
+    };
+
+    this._drag = null;   // active drag interaction (from hitResult)
+    this._bindMouse();
   }
 
+  // ── ctxMix shim ──
+
+  _ctxMix(hitPoint) {
+    const ctx = this.ctx;
+    return {
+      directCtx() { ctx.save(); return ctx; },
+      T:         {},
+      hitPoint:  hitPoint || null,
+      hitResult: null,
+    };
+  }
+
+  // ── Data update ──
+
   update(items) {
-    this.items = items;
     this.blocks = getBlocks(items);
     const texts = this.blocks.map(b => b.text);
     const matrix = this.engine.buildMatrix(texts, this.metric);
@@ -709,11 +987,18 @@ class SimilarityMatrix {
       ? this.blocks.map(x => this.engine.uniqueCount(x.text))
       : this.blocks.map(x => this.engine.wordCount(x.text));
 
-    this.dsm.update({
-      items: this._buildDSMItems(items), matrix, marginal,
-      threshLow: parseInt(document.getElementById('thresh-low').value) / 100,
-      threshHigh: parseInt(document.getElementById('thresh-high').value) / 100,
-    });
+    const v = this.node.value;
+    v.items = this._buildDSMItems(items);
+    v.matrix = matrix;
+    v.marginal = marginal;
+    v.threshLow = parseInt(document.getElementById('thresh-low').value) / 100;
+    v.threshHigh = parseInt(document.getElementById('thresh-high').value) / 100;
+    v.hovered = null;
+    v.drag = null;
+
+    DSMNode.computeLayout(this.node, {});
+    this._sizeCanvas();
+    this._render();
   }
 
   _buildDSMItems(items) {
@@ -722,6 +1007,129 @@ class SimilarityMatrix {
       ? { type: 'divider', color: dividerColor(items, i), itemIdx: i }
       : { type: 'block', blockIdx: bi++, color: sc[bi - 1], itemIdx: i });
   }
+
+  _sizeCanvas() {
+    const L = this.node.value._layout;
+    if (!L || !L.gridPx) {
+      this.canvas.width = this.canvas.height = 0;
+      this.canvas.style.width = this.canvas.style.height = '0';
+      return;
+    }
+    const dpr = devicePixelRatio || 1;
+    this.canvas.width = L.totalW * dpr; this.canvas.height = L.totalH * dpr;
+    this.canvas.style.width = L.totalW + 'px'; this.canvas.style.height = L.totalH + 'px';
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  _render() {
+    const L = this.node.value._layout;
+    if (!L || !L.gridPx) return;
+    this.ctx.clearRect(0, 0, L.totalW, L.totalH);
+    DSMNode.draw2d(this._ctxMix(), this.node, {});
+  }
+
+  // ── Mouse event routing (delegates to DSMNode.hit_test) ──
+
+  _local(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  _bindMouse() {
+    const c = this.canvas;
+
+    c.addEventListener('mousemove', e => {
+      const { x, y } = this._local(e);
+
+      // Active drag — update via interaction
+      if (this._drag) {
+        this._drag.interactions.applyDrag(x, y);
+        c.style.cursor = 'grabbing';
+        this._render();
+        return;
+      }
+
+      // Hit test
+      const mix = this._ctxMix({ x, y });
+      DSMNode.hit_test(mix, this.node, {});
+      const hr = mix.hitResult;
+
+      if (hr && hr.zone === 'handle') {
+        c.style.cursor = hr.cursor;
+        if (this.node.value.hovered) {
+          this.node.value.hovered = null;
+          this._render();
+          this._onCellHover(null);
+        }
+        return;
+      }
+
+      if (hr && hr.zone === 'cell') {
+        const { row, col } = hr.cell;
+        const prev = this.node.value.hovered;
+        if (!prev || prev.row !== row || prev.col !== col) {
+          this.node.value.hovered = { row, col };
+          this._render();
+          this._onCellHover({ row, col });
+        }
+        c.style.cursor = hr.cursor;
+        return;
+      }
+
+      // No hit
+      if (this.node.value.hovered) {
+        this.node.value.hovered = null;
+        this._render();
+        this._onCellHover(null);
+      }
+      c.style.cursor = 'default';
+    });
+
+    c.addEventListener('mousedown', e => {
+      const { x, y } = this._local(e);
+      const mix = this._ctxMix({ x, y });
+      DSMNode.hit_test(mix, this.node, {});
+      if (mix.hitResult && mix.hitResult.zone === 'handle') {
+        this._drag = mix.hitResult;
+        // Initialise drag state
+        this.node.value.drag = { srcRow: mix.hitResult.row, insertRow: mix.hitResult.row };
+        e.preventDefault();
+      }
+    });
+
+    c.addEventListener('mouseup', () => {
+      if (!this._drag) return;
+      const d = this.node.value.drag;
+      this._drag = null;
+      this.node.value.drag = null;
+      c.style.cursor = 'default';
+      this._render();
+      if (d && d.srcRow !== d.insertRow && d.srcRow !== d.insertRow - 1) {
+        const items = this.node.value.items;
+        const fromIdx = items[d.srcRow].itemIdx;
+        const toIdx = d.insertRow < items.length
+          ? items[d.insertRow].itemIdx
+          : items[items.length - 1].itemIdx + 1;
+        this.bus.emit('items:reorder-dsm', fromIdx, toIdx);
+      }
+    });
+
+    c.addEventListener('mouseleave', () => {
+      if (this._drag) {
+        this._drag = null;
+        this.node.value.drag = null;
+        this._render();
+      }
+      if (this.node.value.hovered) {
+        this.node.value.hovered = null;
+        this._render();
+        this._onCellHover(null);
+      }
+      c.style.cursor = 'default';
+    });
+  }
+
+  // ── Settings ──
 
   cycleMetric() {
     this.metric = this.metric === 'jaccard' ? 'overlap' : 'jaccard';
@@ -762,13 +1170,13 @@ class SimilarityMatrix {
     if (s.threshHigh != null) { document.getElementById('thresh-high').value = s.threshHigh; document.getElementById('thresh-high-val').textContent = (s.threshHigh/100).toFixed(2); }
   }
 
-  clearHover() { this.dsm.hovered = null; }
+  clearHover() { this.node.value.hovered = null; }
 
   // ── Detail panel ──
 
   _onCellHover(cell) {
     const panel = this.detailPanel;
-    const di = this.dsm.data ? this.dsm.data.items : [];
+    const di = this.node.value.items;
     if (!cell || cell.row >= di.length || cell.col >= di.length) {
       panel.innerHTML = '<span style="opacity:0.5">Hover a cell in the matrix.</span>'; return;
     }
@@ -784,7 +1192,7 @@ class SimilarityMatrix {
       panel.innerHTML = `<div class="detail-blocks"><b>${rI.blockIdx+1}</b> ${preview(this.blocks[rI.blockIdx].text,90)}</div><div style="color:var(--text-muted)">${tok.size} unique word${tok.size!==1?'s':''}</div>`;
       return;
     }
-    const sim = this.dsm.data.matrix[rI.blockIdx][cI.blockIdx];
+    const sim = this.node.value.matrix[rI.blockIdx][cI.blockIdx];
     const shared = this.engine.sharedWords(this.blocks[rI.blockIdx].text, this.blocks[cI.blockIdx].text);
     panel.innerHTML =
       `<div class="detail-blocks"><b>${rI.blockIdx+1}</b> ${preview(this.blocks[rI.blockIdx].text,55)}</div>` +
@@ -873,7 +1281,6 @@ class AppController {
     this.phase = 'input';
     this.bus = new EventBus();
 
-    // Create widgets
     this.cardContainer = new CardContainer(document.getElementById('block-list'), this.bus);
     this.matrix = new SimilarityMatrix(
       { canvasEl: document.getElementById('dsm-canvas'), detailPanelEl: document.getElementById('detail-panel') },
@@ -881,7 +1288,6 @@ class AppController {
     );
     this.sessionManager = new SessionManager(document.getElementById('session-list'), this.bus);
 
-    // Wire up events
     this.bus.on('items:reorder', (fi, ins) => this._applyReorder(fi, ins));
     this.bus.on('items:reorder-dsm', (from, to) => this._applyDSMReorder(from, to));
     this.bus.on('items:arrow-move', (idx, dir) => this._applyArrowMove(idx, dir));
@@ -932,11 +1338,7 @@ class AppController {
     else { inp.style.display = 'none'; reo.style.display = 'block'; reo.setAttribute('data-view', view); }
   }
 
-  // ── Phase management ──
-
   _showPhase(phase) { this.phase = phase; if (this.view !== 'sessions') this.setView(this.view); }
-
-  // ── Parsing ──
 
   _parseInput() {
     const raw = document.getElementById('raw-input').value;
@@ -946,8 +1348,6 @@ class AppController {
     this._showPhase('reorder');
     this._saveState();
   }
-
-  // ── Item mutations ──
 
   _ensureSentinel() { if (!this.items.length || this.items[0].type !== 'divider') this.items.unshift({ type: 'divider' }); }
 
@@ -1131,8 +1531,6 @@ class AppController {
     this.setView('both');
   }
 
-  // ── Input-area events ──
-
   _bindInputEvents() {
     const ta = document.getElementById('raw-input');
     ta.addEventListener('paste', () => {
@@ -1141,7 +1539,6 @@ class AppController {
     });
     ta.addEventListener('blur', () => this._saveState());
 
-    // Cross-tab sync
     window.addEventListener('storage', e => {
       if (!this.session || !e.key?.startsWith(this.session.prefix)) return;
       const state = this.session.load();
@@ -1149,8 +1546,6 @@ class AppController {
     });
     window.addEventListener('beforeunload', () => this._saveState());
   }
-
-  // ── Toast ──
 
   _toast(msg) {
     const t = document.getElementById('toast');

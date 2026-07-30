@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tile Snapper</title>
+<title>Block Fracture — Refactored</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -19,14 +19,30 @@
   .cg { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
   .cg label { color: #778; white-space: nowrap; }
   .cg .val { color: #99a; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
-  input[type=range] { width: 64px; accent-color: #5580bb; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 64px; height: 18px; background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #3a3a5c; border-radius: 2px; }
+  input[type=range]::-moz-range-track { height: 4px; background: #3a3a5c; border-radius: 2px; border: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd; margin-top: -5px;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  input[type=range]:hover::-webkit-slider-thumb { background: #55a0ee; border-color: #6cb4ff; }
+  input[type=range]:hover::-moz-range-thumb { background: #55a0ee; border-color: #6cb4ff; }
   canvas { display: block; }
   #help {
     position: fixed; top: 54px; right: 14px; width: 280px;
     background: rgba(18,18,42,0.94); border: 1px solid #333;
     border-radius: 8px; padding: 12px 14px; font-size: 12px;
     line-height: 1.5; color: #aab; z-index: 20; backdrop-filter: blur(6px);
-    display: block;
   }
   .help-btn {
     width: 22px; height: 22px; border-radius: 50%;
@@ -54,9 +70,10 @@
 <canvas id="c"></canvas>
 
 <script>
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  Geo — pure geometry & angle utilities (all static)
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
 class Geo {
   static TAU = Math.PI * 2;
   static PI  = Math.PI;
@@ -92,132 +109,78 @@ class Geo {
     return ins;
   }
 
-  static norm(a) { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
-  static adiff(a, b) { return Math.abs(Geo.norm(a - b)); }
-  static dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  static norm(a)        { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
+  static adiff(a, b)    { return Math.abs(Geo.norm(a - b)); }
+  static dist(a, b)     { return Math.hypot(b.x - a.x, b.y - a.y); }
   static dist2(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
-  static pipsOpposite(a, b) { return Geo.adiff(a, b) > Geo.PI * 0.85; }
-  static sameType(a, b) { return a.n === b.n && Math.abs(Geo.norm(a.tilt - b.tilt)) < 0.01; }
+  static pipsOpposite(a, b)    { return Geo.adiff(a, b) > Geo.PI * 0.85; }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Camera — pan / zoom, coordinate transforms
-// ═══════════════════════════════════════════════════════════
-class Camera {
-  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+// ═══════════════════════════════════════════════════════════════
+//  ConnHelper — pure static functions over a connections array
+//
+//  Each connection: { a: nodeId, pipA: int, b: nodeId, pipB: int }
+//  The array lives on collectionNode.value.connections.
+// ═══════════════════════════════════════════════════════════════
 
-  toWorld(sx, sy) {
-    return { x: sx / this.z + this.ox, y: sy / this.z + this.oy };
+class ConnHelper {
+  static pipUsed(conns, id, pi) {
+    return conns.some(c =>
+      (c.a === id && c.pipA === pi) || (c.b === id && c.pipB === pi));
   }
-  toScreen(wx, wy) {
-    return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z };
-  }
-  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
-  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
 
-  pan(dsx, dsy) {
-    this.ox -= dsx / this.z;
-    this.oy -= dsy / this.z;
-  }
-  zoomAt(sx, sy, factor) {
-    const wp = this.toWorld(sx, sy);
-    this.z = Math.max(0.15, Math.min(5, this.z * factor));
-    this.ox = wp.x - sx / this.z;
-    this.oy = wp.y - sy / this.z;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Tile — single polygon tile
-// ═══════════════════════════════════════════════════════════
-class Tile {
-  static _id = 0;
-  constructor(n, cx, cy, r, tilt) {
-    this.id = ++Tile._id;
-    this.n = n; this.cx = cx; this.cy = cy; this.r = r; this.tilt = tilt;
-    this.sx = cx; this.sy = cy;                     // saved position
-  }
-  get verts() { return Geo.verts(this.n, this.cx, this.cy, this.r, this.tilt); }
-  get pips()  { return Geo.pips(this.n, this.cx, this.cy, this.r, this.tilt); }
-  savePos()   { this.sx = this.cx; this.sy = this.cy; }
-  restore()   { this.cx = this.sx; this.cy = this.sy; }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  TileStore — ordered collection of tiles
-// ═══════════════════════════════════════════════════════════
-class TileStore {
-  constructor() { this.items = []; }
-
-  add(t)      { this.items.push(t); return t; }
-  find(id)    { return this.items.find(t => t.id === id); }
-  remove(id)  { const i = this.items.findIndex(t => t.id === id); if (i >= 0) this.items.splice(i, 1); }
-
-  hitTest(wx, wy) {
-    for (let i = this.items.length - 1; i >= 0; i--)
-      if (Geo.ptInPoly(wx, wy, this.items[i].verts)) return this.items[i];
-    return null;
-  }
-  bringToFront(ids) {
-    const back = [], front = [];
-    for (const t of this.items) (ids.has(t.id) ? front : back).push(t);
-    this.items = [...back, ...front];
-  }
-  saveAll()    { for (const t of this.items) t.savePos(); }
-  restoreAll() { for (const t of this.items) t.restore(); }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Connections — pip-to-pip connection graph
-// ═══════════════════════════════════════════════════════════
-class Connections {
-  constructor() { this.list = []; }
-
-  add(aId, aP, bId, bP) {
-    if (this.pipUsed(aId, aP) || this.pipUsed(bId, bP)) return false;
-    this.list.push({ a: aId, pipA: aP, b: bId, pipB: bP });
-    return true;
-  }
-  pipUsed(tid, pi) {
-    return this.list.some(c =>
-      (c.a === tid && c.pipA === pi) || (c.b === tid && c.pipB === pi));
-  }
-  forTile(tid) {
+  static forNode(conns, id) {
     const out = [];
-    for (const c of this.list) {
-      if (c.a === tid) out.push({ other: c.b, myPip: c.pipA, otherPip: c.pipB });
-      else if (c.b === tid) out.push({ other: c.a, myPip: c.pipB, otherPip: c.pipA });
+    for (const c of conns) {
+      if (c.a === id) out.push({ other: c.b, myPip: c.pipA, otherPip: c.pipB });
+      else if (c.b === id) out.push({ other: c.a, myPip: c.pipB, otherPip: c.pipA });
     }
     return out;
   }
-  removeFor(tid) {
-    for (let i = this.list.length - 1; i >= 0; i--)
-      if (this.list[i].a === tid || this.list[i].b === tid) this.list.splice(i, 1);
+
+  static add(conns, aId, aPip, bId, bPip) {
+    if (ConnHelper.pipUsed(conns, aId, aPip) || ConnHelper.pipUsed(conns, bId, bPip)) return false;
+    conns.push({ a: aId, pipA: aPip, b: bId, pipB: bPip });
+    return true;
   }
-  breakBoundary(groupIds) {
-    for (let i = this.list.length - 1; i >= 0; i--) {
-      const c = this.list[i];
-      if (groupIds.has(c.a) !== groupIds.has(c.b)) this.list.splice(i, 1);
+
+  static removeFor(conns, id) {
+    for (let i = conns.length - 1; i >= 0; i--)
+      if (conns[i].a === id || conns[i].b === id) conns.splice(i, 1);
+  }
+
+  static breakBoundary(conns, groupIds) {
+    for (let i = conns.length - 1; i >= 0; i--) {
+      const c = conns[i];
+      if (groupIds.has(c.a) !== groupIds.has(c.b)) conns.splice(i, 1);
     }
   }
-  breakStrained(tiles, maxDist) {
-    for (let i = this.list.length - 1; i >= 0; i--) {
-      const c = this.list[i];
-      const ta = tiles.find(c.a), tb = tiles.find(c.b);
-      if (!ta || !tb) { this.list.splice(i, 1); continue; }
-      if (Geo.dist(ta.pips[c.pipA], tb.pips[c.pipB]) > maxDist) this.list.splice(i, 1);
+
+  static breakStrained(conns, getPipsFn, subtree, maxDist) {
+    const nodeMap = new Map(subtree.map(c => [c.value.id, c]));
+    for (let i = conns.length - 1; i >= 0; i--) {
+      const c = conns[i];
+      const na = nodeMap.get(c.a), nb = nodeMap.get(c.b);
+      if (!na || !nb) { conns.splice(i, 1); continue; }
+      const pa = getPipsFn(na)[c.pipA], pb = getPipsFn(nb)[c.pipB];
+      if (Geo.dist(pa, pb) > maxDist) conns.splice(i, 1);
     }
   }
-  component(tid) {
-    const vis = new Set([tid]), q = [tid];
-    while (q.length) { for (const c of this.forTile(q.shift())) if (!vis.has(c.other)) { vis.add(c.other); q.push(c.other); } }
+
+  static component(conns, startId) {
+    const vis = new Set([startId]), q = [startId];
+    while (q.length) {
+      for (const c of ConnHelper.forNode(conns, q.shift()))
+        if (!vis.has(c.other)) { vis.add(c.other); q.push(c.other); }
+    }
     return vis;
   }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  ConeEngine — light-cone direction & group walk (static)
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
 class ConeEngine {
   static compute(n, tilt, angle) {
     let bestA = 0, bestD = Infinity, bestType = 'edge';
@@ -232,16 +195,17 @@ class ConeEngine {
     return { center: bestA, half: bestType === 'corner' ? Geo.PI / n : Geo.TAU / n };
   }
 
-  static walkGroup(dragId, cone, tiles, conns) {
-    const dt = tiles.find(dragId);
+  static walkGroup(dragId, cone, subtree, conns) {
+    const findNode = id => subtree.find(c => c.value.id === id);
+    const dt = findNode(dragId);
     if (!dt) return new Set([dragId]);
     const group = new Set([dragId]), q = [dragId];
     while (q.length) {
-      for (const c of conns.forTile(q.shift())) {
+      for (const c of ConnHelper.forNode(conns, q.shift())) {
         if (group.has(c.other)) continue;
-        const ot = tiles.find(c.other);
+        const ot = findNode(c.other);
         if (!ot) continue;
-        const a = Math.atan2(ot.sy - dt.sy, ot.sx - dt.sx);
+        const a = Math.atan2(ot._sy - dt._sy, ot._sx - dt._sx);
         if (Geo.adiff(cone.center, a) <= cone.half + 0.01) { group.add(c.other); q.push(c.other); }
       }
     }
@@ -249,26 +213,29 @@ class ConeEngine {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 //  SnapEngine — find & apply pip snaps (static)
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+
 class SnapEngine {
-  static find(groupIds, maxDist, tiles, conns) {
+  static find(groupIds, maxDist, subtree, conns, getPipsFn) {
     const snaps = [];
-    for (const gid of groupIds) {
-      const gt = tiles.find(gid);  if (!gt) continue;
-      const gps = gt.pips;
+    for (const gn of subtree) {
+      if (!groupIds.has(gn.value.id)) continue;
+      const gps = getPipsFn(gn);
       for (let gi = 0; gi < gps.length; gi++) {
-        if (conns.pipUsed(gid, gi)) continue;
-        for (const ot of tiles.items) {
-          if (groupIds.has(ot.id)) continue;
-          const ops = ot.pips;
+        if (ConnHelper.pipUsed(conns, gn.value.id, gi)) continue;
+        for (const on of subtree) {
+          if (groupIds.has(on.value.id)) continue;
+          const ops = getPipsFn(on);
           for (let oi = 0; oi < ops.length; oi++) {
-            if (conns.pipUsed(ot.id, oi)) continue;
+            if (ConnHelper.pipUsed(conns, on.value.id, oi)) continue;
             if (!Geo.pipsOpposite(gps[gi].out, ops[oi].out)) continue;
             const d = Geo.dist(gps[gi], ops[oi]);
-            if (d < maxDist) snaps.push({ gTile: gid, gPip: gi, oTile: ot.id, oPip: oi,
-              dx: ops[oi].x - gps[gi].x, dy: ops[oi].y - gps[gi].y, dist: d });
+            if (d < maxDist) snaps.push({
+              gId: gn.value.id, gPip: gi, oId: on.value.id, oPip: oi,
+              dx: ops[oi].x - gps[gi].x, dy: ops[oi].y - gps[gi].y, dist: d,
+            });
           }
         }
       }
@@ -276,28 +243,33 @@ class SnapEngine {
     return snaps.sort((a, b) => a.dist - b.dist);
   }
 
-  static apply(groupIds, snapDist, tiles, conns) {
-    const snaps = SnapEngine.find(groupIds, snapDist, tiles, conns);
+  static apply(groupIds, snapDist, subtree, conns, getPipsFn) {
+    const snaps = SnapEngine.find(groupIds, snapDist, subtree, conns, getPipsFn);
     if (!snaps.length) return false;
     const s = snaps[0];
-    for (const tid of groupIds) { const t = tiles.find(tid); if (t) { t.cx += s.dx; t.cy += s.dy; } }
-    conns.add(s.gTile, s.gPip, s.oTile, s.oPip);
+    for (const n of subtree) {
+      if (groupIds.has(n.value.id)) { n.value.x += s.dx; n.value.y += s.dy; }
+    }
+    ConnHelper.add(conns, s.gId, s.gPip, s.oId, s.oPip);
     // secondary snaps — pips now aligned after primary
     let again = true;
     while (again) {
       again = false;
-      for (const gid of groupIds) {
-        const gt = tiles.find(gid); if (!gt) continue;
-        const gps = gt.pips;
+      for (const gn of subtree) {
+        if (!groupIds.has(gn.value.id)) continue;
+        const gps = getPipsFn(gn);
         for (let gi = 0; gi < gps.length; gi++) {
-          if (conns.pipUsed(gid, gi)) continue;
-          for (const ot of tiles.items) {
-            if (groupIds.has(ot.id)) continue;
-            const ops = ot.pips;
+          if (ConnHelper.pipUsed(conns, gn.value.id, gi)) continue;
+          for (const on of subtree) {
+            if (groupIds.has(on.value.id)) continue;
+            const ops = getPipsFn(on);
             for (let oi = 0; oi < ops.length; oi++) {
-              if (conns.pipUsed(ot.id, oi)) continue;
+              if (ConnHelper.pipUsed(conns, on.value.id, oi)) continue;
               if (!Geo.pipsOpposite(gps[gi].out, ops[oi].out)) continue;
-              if (Geo.dist(gps[gi], ops[oi]) < 2) { conns.add(gid, gi, ot.id, oi); again = true; }
+              if (Geo.dist(gps[gi], ops[oi]) < 2) {
+                ConnHelper.add(conns, gn.value.id, gi, on.value.id, oi);
+                again = true;
+              }
             }
           }
         }
@@ -307,258 +279,540 @@ class SnapEngine {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  DragController — drag lifecycle (preLock → locked)
-// ═══════════════════════════════════════════════════════════
-class DragController {
-  constructor(settings, tiles, conns) {
-    this.S = settings; this.tiles = tiles; this.conns = conns;
-    this.state = null;
-  }
-  get active() { return !!this.state; }
 
-  start(tile, wx, wy) {
-    this.tiles.saveAll();
-    this.tiles.bringToFront(this.conns.component(tile.id));
-    this.state = {
-      tileId: tile.id,
-      ox: wx - tile.cx, oy: wy - tile.cy,
-      startWx: wx, startWy: wy,
-      phase: 'preLock',
-      group: new Set([tile.id]),
-      cone: null, previewGroup: null,
-      fromStock: false,
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — PippedPolygonNode
+//
+//  Single polygon tile with edge-midpoint pips.
+//
+//  value: { id, x, y, r, n, tilt, color? }
+//
+//  Contract methods:
+//    getCentreXY(ctxMix, node, params) → { x, y }
+//    getHW(ctxMix, node, params)       → { W, H }
+//    getPips(ctxMix, node, params)     → [{ x, y, out }, ...]
+//    draw2d / hit_test
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//-- file: ./pipped-polygon-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { PippedPolygonNode };
+
+class PippedPolygonNode {
+
+  static getCentreXY(ctxMix, node, params) {
+    return { x: node.value.x, y: node.value.y };
+  }
+
+  static getHW(ctxMix, node, params) {
+    const r = node.value.r;
+    return { W: r * 2, H: r * 2 };
+  }
+
+  static getPips(ctxMix, node, params) {
+    const v = node.value;
+    const { x, y } = PippedPolygonNode.getCentreXY(ctxMix, node, params);
+    return Geo.pips(v.n, x, y, v.r, v.tilt);
+  }
+
+  static getVerts(ctxMix, node, params) {
+    const v = node.value;
+    const { x, y } = PippedPolygonNode.getCentreXY(ctxMix, node, params);
+    return Geo.verts(v.n, x, y, v.r, v.tilt);
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const v = node.value;
+    const verts = PippedPolygonNode.getVerts(ctxMix, node, params);
+    const pal = (params.colors || {})[v.n] || { fill: '#888', stroke: '#666' };
+
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = v.color || pal.fill;
+    ctx.fill();
+    ctx.strokeStyle = pal.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const verts = PippedPolygonNode.getVerts(ctxMix, node, params);
+    if (!Geo.ptInPoly(pt.x, pt.y, verts)) return;
+
+    const { x, y } = PippedPolygonNode.getCentreXY(ctxMix, node, params);
+    const dx = pt.x - x, dy = pt.y - y;
+
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) {
+          node.value.x = wx - dx;
+          node.value.y = wy - dy;
+        },
+      },
     };
   }
-
-  update(wx, wy, zoom) {
-    const s = this.state;  if (!s) return;
-    const dt = this.tiles.find(s.tileId);  if (!dt) return;
-    const totalDist = Geo.dist2(wx, wy, s.startWx, s.startWy);
-    const ws = 1 / zoom;  // screen-pixel → world-unit conversion
-
-    if (s.phase === 'preLock') {
-      dt.cx = wx - s.ox;  dt.cy = wy - s.oy;
-      if (totalDist > 3 * ws) {
-        const a = Math.atan2(wy - s.startWy, wx - s.startWx);
-        s.cone = ConeEngine.compute(dt.n, dt.tilt, a);
-        s.previewGroup = ConeEngine.walkGroup(s.tileId, s.cone, this.tiles, this.conns);
-      }
-      if (totalDist > this.S.lockIn * ws) {
-        const a = Math.atan2(wy - s.startWy, wx - s.startWx);
-        s.cone = ConeEngine.compute(dt.n, dt.tilt, a);
-        s.group = ConeEngine.walkGroup(s.tileId, s.cone, this.tiles, this.conns);
-        s.previewGroup = null;
-        s.phase = 'locked';
-        this.conns.breakBoundary(s.group);
-      }
-      return;
-    }
-    // locked — move the whole raft
-    const dx = wx - s.ox - dt.sx, dy = wy - s.oy - dt.sy;
-    for (const t of this.tiles.items) {
-      if (s.group.has(t.id)) { t.cx = t.sx + dx; t.cy = t.sy + dy; }
-      else t.restore();
-    }
-  }
-
-  end(onStockStrip, zoom) {
-    const s = this.state;  if (!s) return;
-    const ws = 1 / zoom;
-    if (onStockStrip) {
-      for (const tid of s.group) { this.conns.removeFor(tid); this.tiles.remove(tid); }
-      this.state = null; return;
-    }
-    const snapped = SnapEngine.apply(s.group, this.S.snap * ws, this.tiles, this.conns);
-    if (!snapped && s.phase === 'preLock' && !s.fromStock) this.tiles.restoreAll();
-    this.conns.breakStrained(this.tiles, this.S.fracture * ws);
-    this.state = null;
-  }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  StockStrip — template bar (screen-space, not affected by camera)
-// ═══════════════════════════════════════════════════════════
-class StockStrip {
-  constructor() {
-    this.height = 78;
-    this.templates = [
-      { n: 4, tilt: Math.PI / 4, label: 'Square' },
-      { n: 4, tilt: 0,           label: 'Diamond' },
-      { n: 6, tilt: 0,           label: 'Pointy Hex' },
-      { n: 6, tilt: Math.PI / 6, label: 'Flat Hex' },
-    ];
-  }
-  slots(W, H, stockR) {
-    const y = H - this.height / 2;
-    const gap = Math.min(120, W / (this.templates.length + 1));
-    const x0 = (W - gap * (this.templates.length - 1)) / 2;
-    return this.templates.map((s, i) => ({ ...s, cx: x0 + gap * i, cy: y }));
-  }
-  hitTest(sx, sy, W, H, stockR) {
-    if (sy < H - this.height) return null;
-    const r = stockR * 0.55;
-    for (const s of this.slots(W, H, stockR))
-      if (Geo.ptInPoly(sx, sy, Geo.verts(s.n, s.cx, s.cy, r, s.tilt))) return s;
-    return null;
-  }
-}
+//-- endfile --
 
-// ═══════════════════════════════════════════════════════════
-//  Renderer — all canvas drawing
-// ═══════════════════════════════════════════════════════════
-class Renderer {
-  static COLORS = {
-    4: { fill: '#c08428', stroke: '#9a6a1e' },
-    6: { fill: '#2890a8', stroke: '#1e7088' },
-  };
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — ClickedCollectionNode
+//
+//  Collection of PippedPolygonNode children.  Owns connections,
+//  wraps child interactions with raft-aware drag logic, draws
+//  pips and connection lines in after_draw2d.
+//
+//  value: { connections: [{ a, pipA, b, pipB }, ...] }
+//  _drag: transient drag state (non-serialised)
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { ClickedCollectionNode } from './clicked-collection-node.js';
+//-- file: ./clicked-collection-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { ConnHelper } from './conn-helper.js';
+//>> import { ConeEngine } from './cone-engine.js';
+//>> import { SnapEngine } from './snap-engine.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> export { ClickedCollectionNode };
+
+class ClickedCollectionNode {
+
   static PIP_R = 3.5;
 
-  constructor(ctx) { this.ctx = ctx; }
-
-  poly(vs, fill, stroke, lw) {
-    const c = this.ctx;
-    c.beginPath(); c.moveTo(vs[0].x, vs[0].y);
-    for (let i = 1; i < vs.length; i++) c.lineTo(vs[i].x, vs[i].y);
-    c.closePath();
-    if (fill) { c.fillStyle = fill; c.fill(); }
-    if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw || 1.5; c.stroke(); }
+  static _findNode(subtree, id) {
+    return subtree.find(c => c.value.id === id);
   }
 
-  pip(x, y, r, fill, glowColor, glowR) {
-    const c = this.ctx;
-    if (glowColor && glowR > 0) {
-      c.beginPath(); c.arc(x, y, r + glowR, 0, Geo.TAU);
-      c.fillStyle = glowColor; c.fill();
+  static _getPipsFn(child) {
+    return PippedPolygonNode.getPips(null, child, {});
+  }
+
+  static _bringToFront(subtree, ids) {
+    const back = [], front = [];
+    for (const c of subtree) (ids.has(c.value.id) ? front : back).push(c);
+    subtree.length = 0;
+    subtree.push(...back, ...front);
+  }
+
+  // ── draw ────────────────────────────────────────────────
+
+  static draw2d(ctxMix, node, params) {
+    const subtree = node.subtree;
+    const drag = node._drag;
+
+    // draw order: non-group behind, group on top
+    const order = drag
+      ? [...subtree.filter(c => !drag.group.has(c.value.id)),
+         ...subtree.filter(c =>  drag.group.has(c.value.id))]
+      : subtree;
+
+    for (const child of order) {
+      PippedPolygonNode.draw2d(ctxMix, child, params);
     }
-    c.beginPath(); c.arc(x, y, r, 0, Geo.TAU);
-    c.fillStyle = fill; c.fill();
   }
 
-  render(W, H, cam, tiles, conns, dragState, stock, settings) {
-    const c = this.ctx;
-    const PR = Renderer.PIP_R;
-    const COL = Renderer.COLORS;
-    const glowR = settings.glow / 10;       // slider 0–80 → radius 0–8
-    const coneA = settings.coneAlpha / 100;  // slider 0–50 → alpha 0–0.5
+  static after_draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const subtree = node.subtree;
+    const conns = node.value.connections;
+    const drag = node._drag;
+    const PR = ClickedCollectionNode.PIP_R;
+    const glowR = (params.glow || 0) / 10;
 
-    // ── screen-space background ──
-    cam.reset(c);
-    c.fillStyle = '#12122a'; c.fillRect(0, 0, W, H);
-
-    // ── world-space content ──
-    cam.apply(c);
-
-    // grid dots
-    const spacing = 40;
-    const l = cam.ox, t = cam.oy, r = l + W / cam.z, b = t + (H - stock.height) / cam.z;
-    c.fillStyle = '#1c1c38';
-    const ds = 1 / cam.z;
-    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
-      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
-        c.fillRect(x, y, ds, ds);
-
-    // connections
-    for (const cn of conns.list) {
-      const ta = tiles.find(cn.a), tb = tiles.find(cn.b);
-      if (!ta || !tb) continue;
-      const pa = ta.pips[cn.pipA], pb = tb.pips[cn.pipB];
+    // ── connection lines (debug) ──
+    for (const cn of conns) {
+      const na = ClickedCollectionNode._findNode(subtree, cn.a);
+      const nb = ClickedCollectionNode._findNode(subtree, cn.b);
+      if (!na || !nb) continue;
+      const pa = ClickedCollectionNode._getPipsFn(na)[cn.pipA];
+      const pb = ClickedCollectionNode._getPipsFn(nb)[cn.pipB];
       const d = Geo.dist(pa, pb);
-      c.beginPath(); c.moveTo(pa.x, pa.y); c.lineTo(pb.x, pb.y);
-      c.strokeStyle = d > 1 ? 'rgba(255,200,40,0.4)' : 'rgba(68,220,68,0.25)';
-      c.lineWidth = 2; c.stroke();
+      ctx.beginPath(); ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+      ctx.strokeStyle = d > 1 ? 'rgba(255,200,40,0.4)' : 'rgba(68,220,68,0.25)';
+      ctx.lineWidth = 2; ctx.stroke();
     }
 
-    // collect snap-glow pips
+    // ── snap-glow set ──
     const glowSet = new Set();
-    if (dragState) {
-      for (const h of SnapEngine.find(dragState.group, settings.snap / cam.z, tiles, conns)) {
-        glowSet.add(h.gTile + ':' + h.gPip);
-        glowSet.add(h.oTile + ':' + h.oPip);
+    if (drag) {
+      const getPF = ClickedCollectionNode._getPipsFn;
+      for (const h of SnapEngine.find(drag.group, (params.snap || 12) / (ctxMix.zoom || 1), subtree, conns, getPF)) {
+        glowSet.add(h.gId + ':' + h.gPip);
+        glowSet.add(h.oId + ':' + h.oPip);
       }
     }
 
-    // tiles (non-group behind, group on top)
-    const order = dragState
-      ? [...tiles.items.filter(x => !dragState.group.has(x.id)), ...tiles.items.filter(x => dragState.group.has(x.id))]
-      : tiles.items;
-
-    for (const tile of order) {
-      const cl = COL[tile.n] || COL[4];
-      this.poly(tile.verts, cl.fill, cl.stroke, 2);
-      const ps = tile.pips;
-      for (let i = 0; i < ps.length; i++) {
-        const snap = glowSet.has(tile.id + ':' + i);
-        const used = conns.pipUsed(tile.id, i);
-        if (snap)       this.pip(ps[i].x, ps[i].y, PR, '#55ccff', 'rgba(85,204,255,0.35)', glowR);
-        else if (used)  this.pip(ps[i].x, ps[i].y, PR, '#44dd44', 'rgba(68,221,68,0.25)', glowR);
-        else            this.pip(ps[i].x, ps[i].y, PR, '#555', null, 0);
-      }
-    }
-
-    // cone preview OVER tiles (preLock only)
-    if (dragState && dragState.cone && dragState.phase === 'preLock' && coneA > 0) {
-      const dt = tiles.find(dragState.tileId);
-      if (dt) {
-        c.save(); c.globalAlpha = coneA;
-        c.beginPath(); c.moveTo(dt.sx, dt.sy);
-        c.arc(dt.sx, dt.sy, 140, dragState.cone.center - dragState.cone.half, dragState.cone.center + dragState.cone.half);
-        c.closePath(); c.fillStyle = '#6699ee'; c.fill(); c.restore();
-        if (dragState.previewGroup) {
-          for (const tid of dragState.previewGroup) {
-            if (tid === dragState.tileId) continue;
-            const pt = tiles.find(tid); if (!pt) continue;
-            c.save(); c.globalAlpha = coneA * 1.2;
-            this.poly(Geo.verts(pt.n, pt.sx, pt.sy, pt.r, pt.tilt), '#6699ee', null, 0);
-            c.restore();
-          }
+    // ── pips ──
+    for (const child of subtree) {
+      const pips = ClickedCollectionNode._getPipsFn(child);
+      const id = child.value.id;
+      for (let i = 0; i < pips.length; i++) {
+        const p = pips[i];
+        const snap = glowSet.has(id + ':' + i);
+        const used = ConnHelper.pipUsed(conns, id, i);
+        if (snap) {
+          ClickedCollectionNode._pip(ctx, p.x, p.y, PR, '#55ccff', 'rgba(85,204,255,0.35)', glowR);
+        } else if (used) {
+          ClickedCollectionNode._pip(ctx, p.x, p.y, PR, '#44dd44', 'rgba(68,221,68,0.25)', glowR);
+        } else {
+          ClickedCollectionNode._pip(ctx, p.x, p.y, PR, '#555', null, 0);
         }
       }
     }
+  }
 
-    // ── screen-space UI ──
-    cam.reset(c);
+  static _pip(ctx, x, y, r, fill, glowColor, glowR) {
+    if (glowColor && glowR > 0) {
+      ctx.beginPath(); ctx.arc(x, y, r + glowR, 0, Geo.TAU);
+      ctx.fillStyle = glowColor; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Geo.TAU);
+    ctx.fillStyle = fill; ctx.fill();
+  }
 
-    // stock strip
-    c.fillStyle = '#16163a'; c.fillRect(0, H - stock.height, W, stock.height);
-    c.strokeStyle = '#282850'; c.lineWidth = 1;
-    c.beginPath(); c.moveTo(0, H - stock.height); c.lineTo(W, H - stock.height); c.stroke();
+  // ── hit test + interaction wrapping ─────────────────────
 
-    for (const s of stock.slots(W, H, settings.stockR)) {
-      const sr = settings.stockR * 0.55;
-      c.globalAlpha = 0.5;
-      this.poly(Geo.verts(s.n, s.cx, s.cy, sr, s.tilt), (COL[s.n] || COL[4]).fill, (COL[s.n] || COL[4]).stroke, 1.5);
-      c.globalAlpha = 1;
-      c.fillStyle = '#556'; c.font = '10px system-ui'; c.textAlign = 'center';
-      c.fillText(s.label, s.cx, s.cy + sr + 13);
+  static hit_test(ctxMix, node, params) {
+    const subtree = node.subtree;
+    for (let i = subtree.length - 1; i >= 0; i--) {
+      ctxMix.hitResult = null;
+      PippedPolygonNode.hit_test(ctxMix, subtree[i], params);
+      if (ctxMix.hitResult) {
+        ClickedCollectionNode._wrapDrag(ctxMix, node, subtree[i], params);
+        return;
+      }
+    }
+  }
+
+  static _wrapDrag(ctxMix, collNode, childNode, params) {
+    const conns   = collNode.value.connections;
+    const subtree = collNode.subtree;
+    const hp      = ctxMix.hitPoint;
+
+    // save all positions
+    for (const c of subtree) { c._sx = c.value.x; c._sy = c.value.y; }
+
+    // bring connected component to front
+    const comp = ConnHelper.component(conns, childNode.value.id);
+    ClickedCollectionNode._bringToFront(subtree, comp);
+
+    const drag = {
+      nodeId:       childNode.value.id,
+      ox:           hp.x - childNode.value.x,
+      oy:           hp.y - childNode.value.y,
+      startWx:      hp.x,
+      startWy:      hp.y,
+      phase:        'preLock',
+      group:        new Set([childNode.value.id]),
+      cone:         null,
+      previewGroup: null,
+      fromStock:    false,
+    };
+    collNode._drag = drag;
+
+    const findN   = id => ClickedCollectionNode._findNode(subtree, id);
+    const getPF   = ClickedCollectionNode._getPipsFn;
+    const lockIn  = params.lockIn  || 8;
+    const snapD   = params.snap    || 12;
+    const fracD   = params.fracture || 5;
+
+    ctxMix.hitResult = {
+      node: childNode,
+      collectionNode: collNode,
+      interactions: {
+
+        applyDrag(wx, wy, zoom) {
+          const dt = findN(drag.nodeId);
+          if (!dt) return;
+          const totalDist = Geo.dist2(wx, wy, drag.startWx, drag.startWy);
+          const ws = 1 / (zoom || 1);
+
+          if (drag.phase === 'preLock') {
+            dt.value.x = wx - drag.ox;
+            dt.value.y = wy - drag.oy;
+
+            if (totalDist > 3 * ws) {
+              const a = Math.atan2(wy - drag.startWy, wx - drag.startWx);
+              drag.cone = ConeEngine.compute(dt.value.n, dt.value.tilt, a);
+              drag.previewGroup = ConeEngine.walkGroup(drag.nodeId, drag.cone, subtree, conns);
+            }
+            if (totalDist > lockIn * ws) {
+              const a = Math.atan2(wy - drag.startWy, wx - drag.startWx);
+              drag.cone = ConeEngine.compute(dt.value.n, dt.value.tilt, a);
+              drag.group = ConeEngine.walkGroup(drag.nodeId, drag.cone, subtree, conns);
+              drag.previewGroup = null;
+              drag.phase = 'locked';
+              ConnHelper.breakBoundary(conns, drag.group);
+            }
+            return;
+          }
+
+          // locked — move the whole raft
+          const dx = wx - drag.ox - dt._sx;
+          const dy = wy - drag.oy - dt._sy;
+          for (const c of subtree) {
+            if (drag.group.has(c.value.id)) {
+              c.value.x = c._sx + dx;
+              c.value.y = c._sy + dy;
+            } else {
+              c.value.x = c._sx;
+              c.value.y = c._sy;
+            }
+          }
+        },
+
+        endDrag(onStockStrip, zoom) {
+          const ws = 1 / (zoom || 1);
+          if (onStockStrip) {
+            for (const id of drag.group) {
+              ConnHelper.removeFor(conns, id);
+              const idx = subtree.findIndex(c => c.value.id === id);
+              if (idx >= 0) subtree.splice(idx, 1);
+            }
+            collNode._drag = null;
+            return;
+          }
+          const snapped = SnapEngine.apply(drag.group, snapD * ws, subtree, conns, getPF);
+          if (!snapped && drag.phase === 'preLock' && !drag.fromStock) {
+            for (const c of subtree) { c.value.x = c._sx; c.value.y = c._sy; }
+          }
+          ConnHelper.breakStrained(conns, getPF, subtree, fracD * ws);
+          collNode._drag = null;
+        },
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — FractureConeNode
+//
+//  Draws the directional cone preview.  The harness / collection
+//  drives its value directly.
+//
+//  value: { visible, cx, cy, center, half, alpha, previewTiles? }
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { FractureConeNode } from './fracture-cone-node.js';
+//-- file: ./fracture-cone-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { FractureConeNode };
+
+class FractureConeNode {
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value;
+    if (!v.visible || v.alpha <= 0) return;
+    const ctx = ctxMix.ctx;
+
+    // cone arc
+    ctx.save();
+    ctx.globalAlpha = v.alpha;
+    ctx.beginPath();
+    ctx.moveTo(v.cx, v.cy);
+    ctx.arc(v.cx, v.cy, 140, v.center - v.half, v.center + v.half);
+    ctx.closePath();
+    ctx.fillStyle = '#6699ee';
+    ctx.fill();
+
+    // preview group tile highlights
+    if (v.previewTiles) {
+      for (const t of v.previewTiles) {
+        ctx.globalAlpha = v.alpha * 1.2;
+        const verts = Geo.verts(t.n, t.x, t.y, t.r, t.tilt);
+        ctx.beginPath();
+        ctx.moveTo(verts[0].x, verts[0].y);
+        for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+        ctx.closePath();
+        ctx.fillStyle = '#6699ee';
+        ctx.fill();
+      }
     }
 
-    // phase indicator
-    if (dragState) {
-      c.fillStyle = '#334'; c.font = '10px system-ui'; c.textAlign = 'left';
-      const lbl = dragState.phase === 'preLock' ? 'aiming…' : 'raft ×' + dragState.group.size;
-      c.fillText(lbl, 10, 16);
+    ctx.restore();
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — StockStripNode
+//
+//  Screen-space strip of prototype PippedPolygonNodes.
+//  Children are positioned within the strip for display.
+//  Interaction wrapping clones a child on drag-out.
+//
+//  value: { height }
+//  subtree: prototype PippedPolygonNode children
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { StockStripNode } from './stock-strip-node.js';
+//-- file: ./stock-strip-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> export { StockStripNode };
+
+class StockStripNode {
+
+  static _layout(node, W, H) {
+    const stripH = node.value.height;
+    const protos = node.subtree;
+    const y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1));
+    const x0 = (W - gap * (protos.length - 1)) / 2;
+    return protos.map((p, i) => ({
+      node: p,
+      cx: x0 + gap * i,
+      cy: y,
+    }));
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H } = ctxMix;
+    const stripH = node.value.height;
+
+    // strip background
+    ctx.fillStyle = '#16163a';
+    ctx.fillRect(0, H - stripH, W, stripH);
+    ctx.strokeStyle = '#282850';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H - stripH);
+    ctx.lineTo(W, H - stripH);
+    ctx.stroke();
+
+    // prototypes
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const proto = slot.node;
+      const displayR = proto.value.r * 0.55;
+      // temporarily position the prototype for drawing
+      const origX = proto.value.x, origY = proto.value.y, origR = proto.value.r;
+      proto.value.x = slot.cx;
+      proto.value.y = slot.cy;
+      proto.value.r = displayR;
+
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      PippedPolygonNode.draw2d(ctxMix, proto, params);
+      ctx.restore();
+
+      // label
+      ctx.fillStyle = '#556';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(proto.value.label || '', slot.cx, slot.cy + displayR + 13);
+
+      proto.value.x = origX;
+      proto.value.y = origY;
+      proto.value.r = origR;
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const { W, H } = ctxMix;
+    if (pt.y < H - node.value.height) return;
+
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const proto = slot.node;
+      const displayR = proto.value.r * 0.55;
+      const verts = Geo.verts(proto.value.n, slot.cx, slot.cy, displayR, proto.value.tilt);
+      if (Geo.ptInPoly(pt.x, pt.y, verts)) {
+        // Return the prototype — the harness clones it
+        ctxMix.hitResult = { node: proto, isStockPrototype: true };
+        return;
+      }
     }
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-//  App — wires everything together, owns input & loop
-// ═══════════════════════════════════════════════════════════
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — Camera, node factory, App
+//
+//  Not part of the deliverables. Wires scene nodes together,
+//  handles camera, input, and the stock → collection handoff.
+// ═══════════════════════════════════════════════════════════════
+
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z;
+    this.oy = wp.y - sy / this.z;
+  }
+}
+
+// ── node factory ────────────────────────────────────────────
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+
+function cloneProto(proto, overrides) {
+  const { id: _, ...rest } = proto.value;
+  return makeNode(proto.type, { ...rest, ...overrides });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  App
+// ═══════════════════════════════════════════════════════════════
+
 class App {
   constructor(canvas) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
-    this.S = { lockIn: 8, fracture: 5, snap: 12, stockR: 30, glow: 25, coneAlpha: 12 };
-    this.camera   = new Camera();
-    this.tiles    = new TileStore();
-    this.conns    = new Connections();
-    this.drag     = new DragController(this.S, this.tiles, this.conns);
-    this.stock    = new StockStrip();
-    this.renderer = new Renderer(this.ctx);
-    this.panState = null;          // { lx, ly } when panning
+    this.ctx    = canvas.getContext('2d');
+    this.cam    = new Camera();
     this.W = 0; this.H = 0;
     this.TOP = document.getElementById('controls').offsetHeight;
+    this.panState  = null;
+    this.dragHit   = null;   // stored hitResult during drag
+
+    this.params = {
+      lockIn: 8, fracture: 5, snap: 12, stockR: 30, glow: 25, coneAlpha: 12,
+      colors: {
+        4: { fill: '#c08428', stroke: '#9a6a1e' },
+        6: { fill: '#2890a8', stroke: '#1e7088' },
+      },
+    };
+
+    // ── build scene ──
+    this.stockNode = makeNode('stock-strip', { height: 78 }, [
+      makeNode('pipped-polygon', { x: 0, y: 0, r: 30, n: 4, tilt: Math.PI / 4, label: 'Square' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: 30, n: 4, tilt: 0,           label: 'Diamond' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: 30, n: 6, tilt: 0,           label: 'Pointy Hex' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: 30, n: 6, tilt: Math.PI / 6, label: 'Flat Hex' }),
+    ]);
+
+    this.collNode = makeNode('clicked-collection', { connections: [] });
+    this.coneNode = makeNode('fracture-cone', {
+      visible: false, cx: 0, cy: 0, center: 0, half: 0, alpha: 0, previewTiles: null,
+    });
 
     this.resize();
     this.bindSliders();
@@ -567,19 +821,28 @@ class App {
     this.loop();
   }
 
-  // ── sizing ──
   resize() {
     this.TOP = document.getElementById('controls').offsetHeight;
-    this.W = this.canvas.width = window.innerWidth;
+    this.W = this.canvas.width  = window.innerWidth;
     this.H = this.canvas.height = window.innerHeight - this.TOP;
   }
 
-  // ── settings sliders ──
   bindSliders() {
-    for (const [key, id] of [['lockIn','sLockIn'],['fracture','sFracture'],['snap','sSnap'],['stockR','sSize'],['glow','sGlow'],['coneAlpha','sCone']]) {
-      const el = document.getElementById(id), vl = document.getElementById(id.replace('s','v'));
-      el.addEventListener('input', () => { this.S[key] = +el.value; vl.textContent = el.value; });
+    const P = this.params;
+    for (const [key, id] of [
+      ['lockIn','sLockIn'],['fracture','sFracture'],['snap','sSnap'],
+      ['stockR','sSize'],['glow','sGlow'],['coneAlpha','sCone'],
+    ]) {
+      const el = document.getElementById(id);
+      const vl = document.getElementById(id.replace('s','v'));
+      el.addEventListener('input', () => { P[key] = +el.value; vl.textContent = el.value; });
     }
+    // sync stock prototype radii when stockR changes
+    const sizeEl = document.getElementById('sSize');
+    sizeEl.addEventListener('input', () => {
+      for (const p of this.stockNode.subtree) p.value.r = P.stockR;
+    });
+
     const helpEl = document.getElementById('help'), btn = document.getElementById('helpToggle');
     btn.addEventListener('click', () => {
       const show = helpEl.style.display === 'none';
@@ -588,30 +851,59 @@ class App {
     });
   }
 
-  // ── input ──
+  // ── coordinate helpers ──
+
   screenPos(e) {
     if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY - this.TOP }; }
     return { x: e.clientX, y: e.clientY - this.TOP };
   }
 
+  stockCtxMix(sp) {
+    return { ctx: this.ctx, hitPoint: sp, hitResult: null, W: this.W, H: this.H };
+  }
+
+  worldCtxMix(sp) {
+    const wp = sp ? this.cam.toWorld(sp.x, sp.y) : null;
+    return { ctx: this.ctx, hitPoint: wp, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+  }
+
+  // ── input ──
+
   onDown(e) {
     e.preventDefault();
     const sp = this.screenPos(e);
 
-    // stock strip (screen-space hit test)
-    const tmpl = this.stock.hitTest(sp.x, sp.y, this.W, this.H, this.S.stockR);
-    if (tmpl) {
-      const wp = this.camera.toWorld(sp.x, sp.y);
-      const tile = this.tiles.add(new Tile(tmpl.n, wp.x, wp.y, this.S.stockR, tmpl.tilt));
-      this.drag.start(tile, wp.x, wp.y);
-      this.drag.state.fromStock = true;
+    // stock strip hit? (screen space)
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) {
+      // clone the prototype into the collection
+      const proto = stockMix.hitResult.node;
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      const clone = cloneProto(proto, { x: wp.x, y: wp.y, r: this.params.stockR });
+      this.collNode.subtree.push(clone);
+
+      // start a drag on the new node via the collection
+      const wmix = this.worldCtxMix(sp);
+      wmix.hitPoint = wp;
+      // directly simulate a hit on the clone
+      PippedPolygonNode.hit_test(wmix, clone, this.params);
+      if (wmix.hitResult) {
+        ClickedCollectionNode._wrapDrag(wmix, this.collNode, clone, this.params);
+        wmix.hitResult.interactions._fromStock = true;
+        this.collNode._drag.fromStock = true;
+        this.dragHit = wmix.hitResult;
+      }
       return;
     }
 
-    // tile (world-space hit test)
-    const wp = this.camera.toWorld(sp.x, sp.y);
-    const tile = this.tiles.hitTest(wp.x, wp.y);
-    if (tile) { this.drag.start(tile, wp.x, wp.y); return; }
+    // collection hit? (world space)
+    const wmix = this.worldCtxMix(sp);
+    ClickedCollectionNode.hit_test(wmix, this.collNode, this.params);
+    if (wmix.hitResult) {
+      this.dragHit = wmix.hitResult;
+      return;
+    }
 
     // empty space → pan
     this.panState = { lx: sp.x, ly: sp.y };
@@ -621,28 +913,44 @@ class App {
     e.preventDefault();
     const sp = this.screenPos(e);
 
-    if (this.drag.active) {
-      const wp = this.camera.toWorld(sp.x, sp.y);
-      this.drag.update(wp.x, wp.y, this.camera.z);
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      this.dragHit.interactions.applyDrag(wp.x, wp.y, this.cam.z);
+      this._updateConeNode();
       this.canvas.style.cursor = 'grabbing';
       return;
     }
     if (this.panState) {
-      this.camera.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
       this.panState.lx = sp.x; this.panState.ly = sp.y;
       this.canvas.style.cursor = 'move';
       return;
     }
-    // hover
-    const wp = this.camera.toWorld(sp.x, sp.y);
-    const over = this.tiles.hitTest(wp.x, wp.y) || this.stock.hitTest(sp.x, sp.y, this.W, this.H, this.S.stockR);
-    this.canvas.style.cursor = over ? 'grab' : 'default';
+
+    // hover cursor — lightweight, no side effects
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) { this.canvas.style.cursor = 'grab'; return; }
+
+    const wp = this.cam.toWorld(sp.x, sp.y);
+    let hovered = false;
+    for (let i = this.collNode.subtree.length - 1; i >= 0; i--) {
+      if (Geo.ptInPoly(wp.x, wp.y, PippedPolygonNode.getVerts(null, this.collNode.subtree[i], this.params))) {
+        hovered = true; break;
+      }
+    }
+    this.canvas.style.cursor = hovered ? 'grab' : 'default';
   }
 
   onUp(e) {
     e.preventDefault();
     const sp = this.screenPos(e);
-    if (this.drag.active) this.drag.end(sp.y > this.H - this.stock.height, this.camera.z);
+    if (this.dragHit) {
+      const onStrip = sp.y > this.H - this.stockNode.value.height;
+      this.dragHit.interactions.endDrag(onStrip, this.cam.z);
+      this.dragHit = null;
+      this.coneNode.value.visible = false;
+    }
     this.panState = null;
     this.canvas.style.cursor = 'default';
   }
@@ -650,54 +958,127 @@ class App {
   onWheel(e) {
     e.preventDefault();
     const sp = { x: e.clientX, y: e.clientY - this.TOP };
-    // don't zoom if cursor is on stock strip
-    if (sp.y > this.H - this.stock.height) return;
-    this.camera.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+    if (sp.y > this.H - this.stockNode.value.height) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
   }
 
   bindInput() {
     const c = this.canvas;
-    const on = (el, ev, fn, opts) => el.addEventListener(ev, fn, opts);
-    on(c, 'mousedown',  e => this.onDown(e));
-    on(c, 'mousemove',  e => this.onMove(e));
-    on(c, 'mouseup',    e => this.onUp(e));
-    on(c, 'mouseleave', e => this.onUp(e));
-    on(c, 'wheel',      e => this.onWheel(e), { passive: false });
-    on(c, 'touchstart', e => this.onDown(e),  { passive: false });
-    on(c, 'touchmove',  e => this.onMove(e),  { passive: false });
-    on(c, 'touchend',   e => this.onUp(e),    { passive: false });
-    on(window, 'resize', () => this.resize());
+    c.addEventListener('mousedown',  e => this.onDown(e));
+    c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));
+    c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  // ── cone node sync ──
+
+  _updateConeNode() {
+    const drag = this.collNode._drag;
+    const cv = this.coneNode.value;
+    if (!drag || !drag.cone || drag.phase !== 'preLock') {
+      cv.visible = false;
+      return;
+    }
+    const coneA = this.params.coneAlpha / 100;
+    if (coneA <= 0) { cv.visible = false; return; }
+
+    const dt = ClickedCollectionNode._findNode(this.collNode.subtree, drag.nodeId);
+    if (!dt) { cv.visible = false; return; }
+
+    cv.visible = true;
+    cv.cx = dt._sx;
+    cv.cy = dt._sy;
+    cv.center = drag.cone.center;
+    cv.half   = drag.cone.half;
+    cv.alpha  = coneA;
+
+    // preview tiles (saved positions)
+    if (drag.previewGroup) {
+      cv.previewTiles = [];
+      for (const id of drag.previewGroup) {
+        if (id === drag.nodeId) continue;
+        const pn = ClickedCollectionNode._findNode(this.collNode.subtree, id);
+        if (pn) cv.previewTiles.push({ n: pn.value.n, x: pn._sx, y: pn._sy, r: pn.value.r, tilt: pn.value.tilt });
+      }
+    } else {
+      cv.previewTiles = null;
+    }
   }
 
   // ── seed ──
+
   seed() {
-    const r = this.S.stockR, tilt = Math.PI / 4, n = 4;
+    const r = this.params.stockR, tilt = Math.PI / 4, n = 4;
     const step = r * Math.cos(Math.PI / n) * 2;
-    const wc = this.camera.toWorld(this.W / 2, (this.H - this.stock.height) / 2);
-    const made = [];
+    const wc = this.cam.toWorld(this.W / 2, (this.H - this.stockNode.value.height) / 2);
+    const nodes = [];
     for (let row = -1; row <= 1; row++)
-      for (let col = -1; col <= 1; col++)
-        made.push(this.tiles.add(new Tile(n, wc.x + col * step, wc.y + row * step, r, tilt)));
+      for (let col = -1; col <= 1; col++) {
+        const nd = makeNode('pipped-polygon', { x: wc.x + col * step, y: wc.y + row * step, r, n, tilt });
+        this.collNode.subtree.push(nd);
+        nodes.push(nd);
+      }
     // auto-connect adjacent
-    for (let i = 0; i < made.length; i++)
-      for (let j = i + 1; j < made.length; j++) {
-        const ap = made[i].pips, bp = made[j].pips;
+    const conns = this.collNode.value.connections;
+    const getPF = ClickedCollectionNode._getPipsFn;
+    for (let i = 0; i < nodes.length; i++)
+      for (let j = i + 1; j < nodes.length; j++) {
+        const ap = getPF(nodes[i]), bp = getPF(nodes[j]);
         for (let ai = 0; ai < ap.length; ai++)
           for (let bi = 0; bi < bp.length; bi++)
             if (Geo.pipsOpposite(ap[ai].out, bp[bi].out) && Geo.dist(ap[ai], bp[bi]) < 2)
-              this.conns.add(made[i].id, ai, made[j].id, bi);
+              ConnHelper.add(conns, nodes[i].value.id, ai, nodes[j].value.id, bi);
       }
   }
 
   // ── render loop ──
+
   loop() {
-    this.renderer.render(this.W, this.H, this.camera, this.tiles, this.conns, this.drag.state, this.stock, this.S);
+    const c = this.ctx;
+    const P = this.params;
+
+    // ── screen-space background + stock strip (behind world content) ──
+    this.cam.reset(c);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, this.W, this.H);
+    StockStripNode.draw2d({ ctx: c, W: this.W, H: this.H }, this.stockNode, P);
+
+    // ── world-space grid dots ──
+    this.cam.apply(c);
+    const spacing = 40;
+    const l = this.cam.ox, t = this.cam.oy;
+    const r = l + this.W / this.cam.z, b = t + (this.H - this.stockNode.value.height) / this.cam.z;
+    c.fillStyle = '#1c1c38';
+    const ds = 1 / this.cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+
+    // ── world-space scene nodes (on top of strip) ──
+    const wmix = { ctx: c, hitPoint: null, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+    ClickedCollectionNode.draw2d(wmix, this.collNode, P);
+    ClickedCollectionNode.after_draw2d(wmix, this.collNode, P);
+    FractureConeNode.draw2d(wmix, this.coneNode, P);
+
+    // ── screen-space overlay ──
+    this.cam.reset(c);
+    const drag = this.collNode._drag;
+    if (drag) {
+      c.fillStyle = '#334'; c.font = '10px system-ui'; c.textAlign = 'left';
+      c.fillText(drag.phase === 'preLock' ? 'aiming…' : 'raft ×' + drag.group.size, 10, 16);
+    }
+
     requestAnimationFrame(() => this.loop());
   }
 }
 
 // ─── Boot ────────────────────────────────────────────────
 new App(document.getElementById('c'));
+
 </script>
 </body>
 </html>

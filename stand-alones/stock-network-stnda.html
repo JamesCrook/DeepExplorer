@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Network</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e1a; color: #bbb;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  #controls {
+    height: auto; min-height: 42px; background: #111122; border-bottom: 1px solid #252540;
+    display: flex; align-items: center; padding: 6px 14px; gap: 12px 18px;
+    font-size: 12px; flex-wrap: wrap;
+  }
+  .cg { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+  .cg label { color: #778; white-space: nowrap; }
+  .cg .val { color: #99a; min-width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 64px; height: 18px; background: transparent; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #3a3a5c; border-radius: 2px; }
+  input[type=range]::-moz-range-track { height: 4px; background: #3a3a5c; border-radius: 2px; border: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd; margin-top: -5px;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: #4488cc; border: 2px solid #5aa0dd;
+    box-shadow: 0 0 3px rgba(68,136,204,0.4);
+  }
+  canvas { display: block; }
+  #help {
+    position: fixed; top: 54px; right: 14px; width: 280px;
+    background: rgba(18,18,42,0.94); border: 1px solid #333;
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    line-height: 1.5; color: #aab; z-index: 20; backdrop-filter: blur(6px);
+  }
+  .help-btn {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: none; border: 1px solid #334; color: #778;
+    cursor: pointer; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .help-btn:hover, .help-btn.on { color: #ccd; border-color: #668; }
+  .help-btn.on { background: #252545; }
+</style>
+</head>
+<body>
+<div id="controls">
+  <div class="cg"><label>Opacity</label><input type="range" id="sOpacity" min="0" max="100" value="80"><span class="val" id="vOpacity">80</span></div>
+  <div class="cg"><label>Edge</label><input type="range" id="sEdgeWidth" min="1" max="12" value="2"><span class="val" id="vEdgeWidth">2</span></div>
+  <div class="cg"><label>Outline</label><input type="range" id="sEdgeOutline" min="0" max="6" value="0"><span class="val" id="vEdgeOutline">0</span></div>
+  <button class="help-btn on" id="helpToggle">?</button>
+</div>
+<div id="help">
+  <p><strong>Drag</strong> from stock strip to place tiles, edges, or junctions. <strong>Connect:</strong> drop a tile so its pip overlaps another pip — an edge auto-creates. Or drag a stock edge and drop its pips near other pips. <strong>Green</strong> pips = connected. <strong>Drop</strong> on strip to delete (tiles delete their edges too). <strong>Scroll</strong> to zoom, drag empty space to pan.</p>
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const R = 30;
+
+// ═══════════════════════════════════════════════════════════════
+//  Geo — pure geometry utilities (all static)
+// ═══════════════════════════════════════════════════════════════
+
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      p.push({ x: (vs[i].x + vs[j].x) / 2, y: (vs[i].y + vs[j].y) / 2 });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — PippedPolygonNode
+//
+//  Single polygon tile with edge-midpoint pips.
+//
+//  value: { id, x, y, r, n, tilt, color?, label? }
+//
+//  Contract methods:
+//    getCentreXY / getHW / getPips / getVerts / draw2d / hit_test
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//-- file: ./pipped-polygon-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { PippedPolygonNode };
+
+class PippedPolygonNode {
+
+  static getCentreXY(ctxMix, node, params) {
+    return { x: node.value.x, y: node.value.y };
+  }
+
+  static getHW(ctxMix, node, params) {
+    return { W: R * 2, H: R * 2 };
+  }
+
+  static getPips(ctxMix, node, params) {
+    const v = node.value;
+    return Geo.pips(v.n, v.x, v.y, v.r, v.tilt);
+  }
+
+  static getVerts(ctxMix, node, params) {
+    const v = node.value;
+    return Geo.verts(v.n, v.x, v.y, v.r, v.tilt);
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const v = node.value;
+    const verts = PippedPolygonNode.getVerts(ctxMix, node, params);
+    const pal = (params.colors || {})[v.n] || { fill: '#888', stroke: '#666' };
+
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = v.color || pal.fill;
+    ctx.fill();
+    ctx.strokeStyle = pal.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    if (!Geo.ptInPoly(pt.x, pt.y, PippedPolygonNode.getVerts(ctxMix, node, params))) return;
+    const dx = pt.x - node.value.x, dy = pt.y - node.value.y;
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) { node.value.x = wx - dx; node.value.y = wy - dy; },
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — PippedEdgeRefNode
+//
+//  A line segment with a pip at each end.  Endpoints are stored
+//  directly as (x1,y1)–(x2,y2).  BasicCollectionNode updates
+//  these when the pips are connected to other nodes.
+//
+//  value: { id, x1, y1, x2, y2, label? }
+//
+//  Contract: getPips / setPipPos / draw2d / hit_test
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { PippedEdgeRefNode } from './pipped-edge-ref-node.js';
+//-- file: ./pipped-edge-ref-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { PippedEdgeRefNode };
+
+class PippedEdgeRefNode {
+
+  static getPips(ctxMix, node, params) {
+    const v = node.value;
+    return [{ x: v.x1, y: v.y1 }, { x: v.x2, y: v.y2 }];
+  }
+
+  static setPipPos(node, idx, x, y) {
+    if (idx === 0) { node.value.x1 = x; node.value.y1 = y; }
+    else           { node.value.x2 = x; node.value.y2 = y; }
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const v = node.value;
+    const w = params.edgeWidth ?? 2;
+    const outline = params.edgeOutline ?? 0;
+
+    if (outline > 0) {
+      ctx.beginPath();
+      ctx.moveTo(v.x1, v.y1);
+      ctx.lineTo(v.x2, v.y2);
+      ctx.strokeStyle = '#445';
+      ctx.lineWidth = w + outline * 2;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(v.x1, v.y1);
+    ctx.lineTo(v.x2, v.y2);
+    ctx.strokeStyle = '#778';
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = node.value;
+    const dx = v.x2 - v.x1, dy = v.y2 - v.y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1) return;
+
+    const t = Math.max(0, Math.min(1,
+      ((pt.x - v.x1) * dx + (pt.y - v.y1) * dy) / lenSq));
+
+    // Exclude pip zones at endpoints so tile/junction hit wins
+    const len = Math.sqrt(lenSq);
+    const exclude = 10 / len;
+    if (t < exclude || t > 1 - exclude) return;
+
+    const px = v.x1 + t * dx, py = v.y1 + t * dy;
+    const hitW = Math.max((params.edgeWidth ?? 2) / 2 + 4, 8);
+    if (Math.hypot(pt.x - px, pt.y - py) > hitW) return;
+
+    const mx = (v.x1 + v.x2) / 2, my = (v.y1 + v.y2) / 2;
+    const ox = pt.x - mx, oy = pt.y - my;
+    const hdx = dx / 2, hdy = dy / 2;
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) {
+          const cx = wx - ox, cy = wy - oy;
+          node.value.x1 = cx - hdx; node.value.y1 = cy - hdy;
+          node.value.x2 = cx + hdx; node.value.y2 = cy + hdy;
+        },
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — DragPointNode
+//
+//  A draggable junction point with one pip at its centre.
+//  Use as a free vertex for edge endpoints.
+//
+//  value: { id, x, y, label? }
+//
+//  Contract: getPips / draw2d / hit_test
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { DragPointNode } from './drag-point-node.js';
+//-- file: ./drag-point-node.js --
+//>> import { Geo } from './geo.js';
+//>> export { DragPointNode };
+
+class DragPointNode {
+
+  static RADIUS = 5;
+
+  static getPips(ctxMix, node, params) {
+    return [{ x: node.value.x, y: node.value.y }];
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const r = DragPointNode.RADIUS;
+    ctx.beginPath();
+    ctx.arc(node.value.x, node.value.y, r, 0, Geo.TAU);
+    ctx.fillStyle = '#334';
+    ctx.fill();
+    ctx.strokeStyle = '#556';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const dx = pt.x - node.value.x, dy = pt.y - node.value.y;
+    if (dx * dx + dy * dy > 12 * 12) return;
+    const ox = dx, oy = dy;
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) { node.value.x = wx - ox; node.value.y = wy - oy; },
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — BasicCollectionNode
+//
+//  Manages a mixed subtree of PippedPolygonNode, PippedEdgeRefNode,
+//  and DragPointNode children, plus a connections array.
+//
+//  Connections:  [{ a: nodeId, pipA: idx, b: nodeId, pipB: idx }]
+//
+//  Edge endpoints follow connected polygon / drag-point pips.
+//  On mouse-up, nearby pips auto-form connections (auto-creating
+//  a PippedEdgeRefNode between two non-edge pips).
+//
+//  Pips: grey open circle = free, green filled = connected.
+//
+//  value: { connections: [] }
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//-- file: ./basic-collection-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> import { PippedEdgeRefNode } from './pipped-edge-ref-node.js';
+//>> import { DragPointNode } from './drag-point-node.js';
+//>> export { BasicCollectionNode };
+
+class BasicCollectionNode {
+
+  static PIP_R = 3.5;
+  static SNAP_DIST = 12;
+
+  // ── type dispatch ──
+
+  static _cls(node) {
+    if (node.type === 'pipped-polygon') return PippedPolygonNode;
+    if (node.type === 'pipped-edge')    return PippedEdgeRefNode;
+    if (node.type === 'drag-point')     return DragPointNode;
+    return null;
+  }
+
+  static _getPips(node, params) {
+    const cls = BasicCollectionNode._cls(node);
+    return cls ? cls.getPips(null, node, params) : [];
+  }
+
+  static _findNode(subtree, id) {
+    return subtree.find(c => c.value.id === id);
+  }
+
+  // ── connection queries ──
+
+  static _pipUsed(conns, id, pip) {
+    return conns.some(c =>
+      (c.a === id && c.pipA === pip) || (c.b === id && c.pipB === pip));
+  }
+
+  static _connExists(conns, idA, pipA, idB, pipB) {
+    return conns.some(c =>
+      (c.a === idA && c.pipA === pipA && c.b === idB && c.pipB === pipB) ||
+      (c.a === idB && c.pipA === pipB && c.b === idA && c.pipB === pipA));
+  }
+
+  // ── connection resolution (edges follow non-edges) ──
+
+  static resolveConnections(node, params) {
+    const conns = node.value.connections;
+    const sub = node.subtree;
+    // Two passes to propagate through edge-to-edge chains
+    for (let pass = 0; pass < 2; pass++) {
+      for (const c of conns) {
+        const na = BasicCollectionNode._findNode(sub, c.a);
+        const nb = BasicCollectionNode._findNode(sub, c.b);
+        if (!na || !nb) continue;
+        const pA = BasicCollectionNode._getPips(na, params)[c.pipA];
+        const pB = BasicCollectionNode._getPips(nb, params)[c.pipB];
+        if (!pA || !pB) continue;
+
+        const aIsEdge = na.type === 'pipped-edge';
+        const bIsEdge = nb.type === 'pipped-edge';
+
+        if (aIsEdge && !bIsEdge) {
+          PippedEdgeRefNode.setPipPos(na, c.pipA, pB.x, pB.y);
+        } else if (bIsEdge && !aIsEdge) {
+          PippedEdgeRefNode.setPipPos(nb, c.pipB, pA.x, pA.y);
+        } else if (aIsEdge && bIsEdge) {
+          const mx = (pA.x + pB.x) / 2, my = (pA.y + pB.y) / 2;
+          PippedEdgeRefNode.setPipPos(na, c.pipA, mx, my);
+          PippedEdgeRefNode.setPipPos(nb, c.pipB, mx, my);
+        }
+        // non-edge ↔ non-edge: no position change, just green pips
+      }
+    }
+  }
+
+  // ── form connections on mouse-up ──
+
+  static formConnections(node, params, movedId) {
+    const conns = node.value.connections;
+    const sub = node.subtree;
+    const moved = BasicCollectionNode._findNode(sub, movedId);
+    if (!moved) return;
+
+    const pipsM = BasicCollectionNode._getPips(moved, params);
+    const newEdges = [], newConns = [];
+
+    for (let mi = 0; mi < pipsM.length; mi++) {
+      // Edge pips: only one connection each
+      if (moved.type === 'pipped-edge' &&
+          BasicCollectionNode._pipUsed(conns, movedId, mi)) continue;
+
+      let bestD = BasicCollectionNode.SNAP_DIST;
+      let bestNode = null, bestPip = -1;
+
+      for (const other of sub) {
+        if (other.value.id === movedId) continue;
+        const pipsO = BasicCollectionNode._getPips(other, params);
+        for (let oi = 0; oi < pipsO.length; oi++) {
+          // Edge pips: skip if occupied
+          if (other.type === 'pipped-edge' &&
+              BasicCollectionNode._pipUsed(conns, other.value.id, oi)) continue;
+          // Skip if this exact pair already connected
+          if (BasicCollectionNode._connExists(conns, movedId, mi, other.value.id, oi)) continue;
+
+          const d = Math.hypot(pipsM[mi].x - pipsO[oi].x, pipsM[mi].y - pipsO[oi].y);
+          if (d < bestD) { bestD = d; bestNode = other; bestPip = oi; }
+        }
+      }
+
+      if (bestNode) {
+        const bothNonEdge = moved.type !== 'pipped-edge' && bestNode.type !== 'pipped-edge';
+        if (bothNonEdge) {
+          // Auto-create a PippedEdgeRefNode between two non-edge pips
+          const pA = pipsM[mi];
+          const pB = BasicCollectionNode._getPips(bestNode, params)[bestPip];
+          const edge = makeNode('pipped-edge', { x1: pA.x, y1: pA.y, x2: pB.x, y2: pB.y });
+          newEdges.push(edge);
+          newConns.push({ a: movedId,            pipA: mi,       b: edge.value.id, pipB: 0 });
+          newConns.push({ a: bestNode.value.id,  pipA: bestPip,  b: edge.value.id, pipB: 1 });
+        } else {
+          newConns.push({ a: movedId, pipA: mi, b: bestNode.value.id, pipB: bestPip });
+        }
+      }
+    }
+
+    for (const e of newEdges) sub.push(e);
+    for (const c of newConns) conns.push(c);
+  }
+
+  // ── removal helpers ──
+
+  static _removeConns(conns, id) {
+    for (let i = conns.length - 1; i >= 0; i--)
+      if (conns[i].a === id || conns[i].b === id) conns.splice(i, 1);
+  }
+
+  static _deleteWithEdges(node, childId) {
+    const conns = node.value.connections;
+    const sub = node.subtree;
+    // Find edges connected to this node before removing anything
+    const edgeIds = new Set();
+    for (const c of conns) {
+      const otherId = c.a === childId ? c.b : c.b === childId ? c.a : null;
+      if (otherId == null) continue;
+      const other = BasicCollectionNode._findNode(sub, otherId);
+      if (other && other.type === 'pipped-edge') edgeIds.add(otherId);
+    }
+    // Remove connections then node
+    BasicCollectionNode._removeConns(conns, childId);
+    const ci = sub.findIndex(c => c.value.id === childId);
+    if (ci >= 0) sub.splice(ci, 1);
+    // Cascade: remove connected edges and their connections
+    for (const eid of edgeIds) {
+      BasicCollectionNode._removeConns(conns, eid);
+      const ei = sub.findIndex(c => c.value.id === eid);
+      if (ei >= 0) sub.splice(ei, 1);
+    }
+  }
+
+  // ── proximity scanning (blue highlight during drag) ──
+
+  static _scanNearPips(collNode, params, movedId) {
+    const conns = collNode.value.connections;
+    const sub = collNode.subtree;
+    const moved = BasicCollectionNode._findNode(sub, movedId);
+    const near = new Set();
+    collNode.value._nearPips = near;
+    if (!moved) return;
+
+    const pipsM = BasicCollectionNode._getPips(moved, params);
+    const snap = BasicCollectionNode.SNAP_DIST;
+
+    for (let mi = 0; mi < pipsM.length; mi++) {
+      if (moved.type === 'pipped-edge' &&
+          BasicCollectionNode._pipUsed(conns, movedId, mi)) continue;
+
+      for (const other of sub) {
+        if (other.value.id === movedId) continue;
+        const pipsO = BasicCollectionNode._getPips(other, params);
+        for (let oi = 0; oi < pipsO.length; oi++) {
+          if (other.type === 'pipped-edge' &&
+              BasicCollectionNode._pipUsed(conns, other.value.id, oi)) continue;
+          if (BasicCollectionNode._connExists(conns, movedId, mi, other.value.id, oi)) continue;
+
+          if (Math.hypot(pipsM[mi].x - pipsO[oi].x, pipsM[mi].y - pipsO[oi].y) < snap) {
+            near.add(`${movedId}:${mi}`);
+            near.add(`${other.value.id}:${oi}`);
+          }
+        }
+      }
+    }
+  }
+
+  // ── junction-on-edge scanning (green snap preview) ──
+
+  static _scanSnapEdge(collNode, params, junctionId) {
+    const sub = collNode.subtree;
+    const junction = BasicCollectionNode._findNode(sub, junctionId);
+    collNode.value._snapEdge = null;
+    if (!junction || junction.type !== 'drag-point') return;
+
+    const jx = junction.value.x, jy = junction.value.y;
+    const threshold = 10;
+    let bestDist = threshold, bestSnap = null;
+
+    for (const child of sub) {
+      if (child.type !== 'pipped-edge') continue;
+      const v = child.value;
+      const dx = v.x2 - v.x1, dy = v.y2 - v.y1;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq < 1) continue;
+
+      const t = Math.max(0, Math.min(1,
+        ((jx - v.x1) * dx + (jy - v.y1) * dy) / lenSq));
+
+      // Exclude zones near endpoints
+      const len = Math.sqrt(lenSq);
+      const exclude = 8 / len;
+      if (t < exclude || t > 1 - exclude) continue;
+
+      const px = v.x1 + t * dx, py = v.y1 + t * dy;
+      const dist = Math.hypot(jx - px, jy - py);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestSnap = { edgeId: child.value.id, t, x: px, y: py, junctionId };
+      }
+    }
+
+    collNode.value._snapEdge = bestSnap;
+  }
+
+  // ── split edge at junction drop point ──
+
+  static _splitEdgeAtJunction(collNode, params, junction, snap) {
+    const conns = collNode.value.connections;
+    const sub = collNode.subtree;
+    const edge = BasicCollectionNode._findNode(sub, snap.edgeId);
+    if (!edge) return;
+
+    const jId = junction.value.id;
+    const eId = edge.value.id;
+
+    // Snap junction to the line
+    junction.value.x = snap.x;
+    junction.value.y = snap.y;
+
+    // Collect what was connected to the original edge's pips
+    let pip0Target = null, pip1Target = null;
+    for (const c of conns) {
+      if      (c.a === eId && c.pipA === 0) pip0Target = { id: c.b, pip: c.pipB };
+      else if (c.b === eId && c.pipB === 0) pip0Target = { id: c.a, pip: c.pipA };
+      if      (c.a === eId && c.pipA === 1) pip1Target = { id: c.b, pip: c.pipB };
+      else if (c.b === eId && c.pipB === 1) pip1Target = { id: c.a, pip: c.pipA };
+    }
+
+    // Remove original edge and its connections
+    BasicCollectionNode._removeConns(conns, eId);
+    const ei = sub.indexOf(edge);
+    if (ei >= 0) sub.splice(ei, 1);
+
+    // Create two replacement edges
+    const edgeA = makeNode('pipped-edge', {
+      x1: edge.value.x1, y1: edge.value.y1, x2: snap.x, y2: snap.y
+    });
+    const edgeB = makeNode('pipped-edge', {
+      x1: snap.x, y1: snap.y, x2: edge.value.x2, y2: edge.value.y2
+    });
+    sub.push(edgeA, edgeB);
+
+    // Wire up: original connections transfer, junction bridges the split
+    if (pip0Target)
+      conns.push({ a: edgeA.value.id, pipA: 0, b: pip0Target.id, pipB: pip0Target.pip });
+    conns.push({ a: edgeA.value.id, pipA: 1, b: jId, pipB: 0 });
+    conns.push({ a: edgeB.value.id, pipA: 0, b: jId, pipB: 0 });
+    if (pip1Target)
+      conns.push({ a: edgeB.value.id, pipA: 1, b: pip1Target.id, pipB: pip1Target.pip });
+  }
+
+  // ── endpoint drag wrapper (single free end of an edge) ──
+
+  static _wrapEndpointDrag(ctxMix, collNode, edge, pipIdx, params) {
+    const conns = collNode.value.connections;
+    const sub = collNode.subtree;
+    const edgeId = edge.value.id;
+    const inner = ctxMix.hitResult.interactions;
+
+    ctxMix.hitResult.interactions = {
+      applyDrag(wx, wy) {
+        inner.applyDrag(wx, wy);
+        BasicCollectionNode.resolveConnections(collNode, params);
+        BasicCollectionNode._scanNearPips(collNode, params, edgeId);
+      },
+      endDrag(onStockStrip) {
+        collNode.value._nearPips = null;
+        if (onStockStrip) {
+          BasicCollectionNode._removeConns(conns, edgeId);
+          const ci = sub.indexOf(edge);
+          if (ci >= 0) sub.splice(ci, 1);
+        } else {
+          BasicCollectionNode.formConnections(collNode, params, edgeId);
+          BasicCollectionNode.resolveConnections(collNode, params);
+        }
+      },
+    };
+  }
+
+  // ── drawing ──
+
+  static draw2d(ctxMix, node, params) {
+    BasicCollectionNode.resolveConnections(node, params);
+
+    // Edges first (underneath)
+    for (const child of node.subtree)
+      if (child.type === 'pipped-edge')
+        PippedEdgeRefNode.draw2d(ctxMix, child, params);
+
+    // Non-edges on top
+    for (const child of node.subtree) {
+      if (child.type === 'pipped-edge') continue;
+      const cls = BasicCollectionNode._cls(child);
+      if (cls) cls.draw2d(ctxMix, child, params);
+    }
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const pr = BasicCollectionNode.PIP_R;
+    const conns = node.value.connections;
+    const nearPips = node.value._nearPips;
+    const snapEdge = node.value._snapEdge;
+
+    for (const child of node.subtree) {
+      const pips = BasicCollectionNode._getPips(child, params);
+      for (let i = 0; i < pips.length; i++) {
+        const key = `${child.value.id}:${i}`;
+        const near = nearPips && nearPips.has(key);
+        const snapping = snapEdge && child.value.id === snapEdge.junctionId && i === 0;
+        const connected = BasicCollectionNode._pipUsed(conns, child.value.id, i);
+        ctx.beginPath();
+        ctx.arc(pips[i].x, pips[i].y, (near || snapping) ? pr + 1.5 : pr, 0, Geo.TAU);
+        if (snapping) {
+          ctx.fillStyle = '#4d4';
+          ctx.fill();
+        } else if (near) {
+          ctx.fillStyle = '#48f';
+          ctx.fill();
+        } else if (connected) {
+          ctx.fillStyle = '#4a4';
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = '#666';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Preview dot on edge at snap point
+    if (snapEdge) {
+      ctx.beginPath();
+      ctx.arc(snapEdge.x, snapEdge.y, pr + 1, 0, Geo.TAU);
+      ctx.fillStyle = '#4d4';
+      ctx.fill();
+    }
+  }
+
+  // ── hit testing ──
+  //  Three passes: non-edges → free edge endpoints → edge middles.
+  //  ctxMix.hoverOnly skips wrap/disconnect so hover doesn't mutate.
+
+  static hit_test(ctxMix, node, params) {
+    const sub = node.subtree;
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const hover = ctxMix.hoverOnly;
+
+    // 1. Non-edges (tiles, junctions) — visually on top
+    for (let i = sub.length - 1; i >= 0; i--) {
+      if (sub[i].type === 'pipped-edge') continue;
+      ctxMix.hitResult = null;
+      BasicCollectionNode._cls(sub[i]).hit_test(ctxMix, sub[i], params);
+      if (ctxMix.hitResult) {
+        if (!hover) BasicCollectionNode._wrapDrag(ctxMix, node, sub[i], params);
+        return;
+      }
+    }
+
+    // 2. Free edge endpoints — draggable individually
+    for (let i = sub.length - 1; i >= 0; i--) {
+      if (sub[i].type !== 'pipped-edge') continue;
+      const edge = sub[i];
+      const pips = PippedEdgeRefNode.getPips(null, edge, params);
+      for (let pi = 0; pi < pips.length; pi++) {
+        if (BasicCollectionNode._pipUsed(node.value.connections, edge.value.id, pi)) continue;
+        if (Math.hypot(pt.x - pips[pi].x, pt.y - pips[pi].y) > 10) continue;
+        // Hit a free endpoint
+        const ox = pt.x - pips[pi].x, oy = pt.y - pips[pi].y;
+        ctxMix.hitResult = {
+          node: edge,
+          interactions: {
+            applyDrag(wx, wy) {
+              PippedEdgeRefNode.setPipPos(edge, pi, wx - ox, wy - oy);
+            },
+          },
+        };
+        if (!hover) BasicCollectionNode._wrapEndpointDrag(ctxMix, node, edge, pi, params);
+        return;
+      }
+    }
+
+    // 3. Edge middles (segment body)
+    for (let i = sub.length - 1; i >= 0; i--) {
+      if (sub[i].type !== 'pipped-edge') continue;
+      ctxMix.hitResult = null;
+      PippedEdgeRefNode.hit_test(ctxMix, sub[i], params);
+      if (ctxMix.hitResult) {
+        if (!hover) BasicCollectionNode._wrapDrag(ctxMix, node, sub[i], params);
+        return;
+      }
+    }
+  }
+
+  // ── drag wrapper ──
+
+  static _wrapDrag(ctxMix, collNode, child, params) {
+    const sub = collNode.subtree;
+    const conns = collNode.value.connections;
+    const inner = ctxMix.hitResult.interactions;
+    const childId = child.value.id;
+
+    // Bring non-edges to front
+    if (child.type !== 'pipped-edge') {
+      const idx = sub.indexOf(child);
+      if (idx >= 0) { sub.splice(idx, 1); sub.push(child); }
+    }
+
+    // Disconnect edge on drag start (it will re-connect on drop if close)
+    if (child.type === 'pipped-edge') {
+      BasicCollectionNode._removeConns(conns, childId);
+    }
+
+    ctxMix.hitResult.interactions = {
+      applyDrag(wx, wy) {
+        inner.applyDrag(wx, wy);
+        BasicCollectionNode.resolveConnections(collNode, params);
+        BasicCollectionNode._scanNearPips(collNode, params, childId);
+        if (child.type === 'drag-point')
+          BasicCollectionNode._scanSnapEdge(collNode, params, childId);
+      },
+      endDrag(onStockStrip) {
+        collNode.value._nearPips = null;
+        const snapEdge = collNode.value._snapEdge;
+        collNode.value._snapEdge = null;
+        if (onStockStrip) {
+          if (child.type === 'pipped-edge') {
+            BasicCollectionNode._removeConns(conns, childId);
+            const ci = sub.indexOf(child);
+            if (ci >= 0) sub.splice(ci, 1);
+          } else {
+            BasicCollectionNode._deleteWithEdges(collNode, childId);
+          }
+        } else if (snapEdge && child.type === 'drag-point') {
+          BasicCollectionNode._splitEdgeAtJunction(collNode, params, child, snapEdge);
+          BasicCollectionNode.resolveConnections(collNode, params);
+        } else {
+          BasicCollectionNode.formConnections(collNode, params, childId);
+          BasicCollectionNode.resolveConnections(collNode, params);
+        }
+      },
+    };
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — StockStripNode
+//
+//  Screen-space strip of prototypes.  Handles polygons, edges,
+//  and drag-points.  params.opacity (0–100) controls strip fill.
+//
+//  value: { height }
+//  subtree: prototype nodes
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { StockStripNode } from './stock-strip-node.js';
+//-- file: ./stock-strip-node.js --
+//>> import { Geo } from './geo.js';
+//>> import { PippedPolygonNode } from './pipped-polygon-node.js';
+//>> import { PippedEdgeRefNode } from './pipped-edge-ref-node.js';
+//>> import { DragPointNode } from './drag-point-node.js';
+//>> export { StockStripNode };
+
+class StockStripNode {
+
+  static _layout(node, W, H) {
+    const stripH = node.value.height;
+    const protos = node.subtree;
+    const y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1));
+    const x0 = (W - gap * (protos.length - 1)) / 2;
+    return protos.map((p, i) => ({ node: p, cx: x0 + gap * i, cy: y }));
+  }
+
+  static _positionProto(proto, slot) {
+    if (proto.type === 'pipped-polygon') {
+      proto.value.x = slot.cx; proto.value.y = slot.cy; proto.value.r = R * 0.55;
+    } else if (proto.type === 'pipped-edge') {
+      proto.value.x1 = slot.cx - 18; proto.value.y1 = slot.cy;
+      proto.value.x2 = slot.cx + 18; proto.value.y2 = slot.cy;
+    } else if (proto.type === 'drag-point') {
+      proto.value.x = slot.cx; proto.value.y = slot.cy;
+    }
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H } = ctxMix;
+    const stripH = node.value.height;
+    const opacity = (params.opacity ?? 100) / 100;
+
+    // strip background — controlled by params.opacity
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = '#16163a';
+    ctx.fillRect(0, H - stripH, W, stripH);
+    ctx.restore();
+
+    ctx.strokeStyle = '#282850'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H - stripH); ctx.lineTo(W, H - stripH); ctx.stroke();
+
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const proto = slot.node;
+      const saved = { ...proto.value };
+
+      StockStripNode._positionProto(proto, slot);
+
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+
+      // Draw the node
+      const cls = BasicCollectionNode._cls(proto);
+      if (cls) cls.draw2d(ctxMix, proto, params);
+
+      // Draw pips
+      const pips = cls ? cls.getPips(ctxMix, proto, params) : [];
+      for (const p of pips) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Geo.TAU);
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // Restore values before label (label uses saved position for y offset)
+      Object.assign(proto.value, saved);
+
+      ctx.fillStyle = '#556'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      const labelY = proto.type === 'pipped-polygon'
+        ? slot.cy + R * 0.55 + 13
+        : slot.cy + 20;
+      ctx.fillText(proto.value.label || '', slot.cx, labelY);
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const { W, H } = ctxMix;
+    if (pt.y < H - node.value.height) return;
+
+    const slots = StockStripNode._layout(node, W, H);
+    for (const slot of slots) {
+      const proto = slot.node;
+      let hit = false;
+
+      if (proto.type === 'pipped-polygon') {
+        const displayR = R * 0.55;
+        const verts = Geo.verts(proto.value.n, slot.cx, slot.cy, displayR, proto.value.tilt);
+        hit = Geo.ptInPoly(pt.x, pt.y, verts);
+      } else {
+        hit = Math.hypot(pt.x - slot.cx, pt.y - slot.cy) < 22;
+      }
+
+      if (hit) {
+        ctxMix.hitResult = { node: proto, isStockPrototype: true };
+        return;
+      }
+    }
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — Camera, node factory, App
+// ═══════════════════════════════════════════════════════════════
+
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z;
+    this.oy = wp.y - sy / this.z;
+  }
+}
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+function cloneProto(proto, overrides) {
+  const { id: _, ...rest } = proto.value;
+  return makeNode(proto.type, { ...rest, ...overrides });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  App
+// ═══════════════════════════════════════════════════════════════
+
+class App {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx    = canvas.getContext('2d');
+    this.cam    = new Camera();
+    this.W = 0; this.H = 0;
+    this.TOP = document.getElementById('controls').offsetHeight;
+    this.panState = null;
+    this.dragHit  = null;
+
+    this.params = {
+      opacity: 80,
+      edgeWidth: 2,
+      edgeOutline: 0,
+      colors: {
+        4: { fill: '#c08428', stroke: '#9a6a1e' },
+        6: { fill: '#2890a8', stroke: '#1e7088' },
+      },
+    };
+
+    // ── build scene ──
+    this.stockNode = makeNode('stock-strip', { height: 78 }, [
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 4, tilt: Math.PI / 4, label: 'Square' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 4, tilt: 0,           label: 'Diamond' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 6, tilt: 0,           label: 'Pointy Hex' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: R, n: 6, tilt: Math.PI / 6, label: 'Flat Hex' }),
+      makeNode('pipped-edge',    { x1: 0, y1: 0, x2: 40, y2: 0, label: 'Edge' }),
+      makeNode('drag-point',     { x: 0, y: 0, label: 'Junction' }),
+    ]);
+    this.collNode = makeNode('basic-collection', { connections: [] });
+
+    this.resize();
+    this.bindSliders();
+    this.bindInput();
+    this.seed();
+    this.loop();
+  }
+
+  resize() {
+    this.TOP = document.getElementById('controls').offsetHeight;
+    this.W = this.canvas.width  = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight - this.TOP;
+  }
+
+  bindSliders() {
+    const P = this.params;
+    for (const [key, id] of [['opacity', 'sOpacity'], ['edgeWidth', 'sEdgeWidth'], ['edgeOutline', 'sEdgeOutline']]) {
+      const el = document.getElementById(id);
+      const vl = document.getElementById(id.replace('s', 'v'));
+      el.addEventListener('input', () => { P[key] = +el.value; vl.textContent = el.value; });
+    }
+    const helpEl = document.getElementById('help'), btn = document.getElementById('helpToggle');
+    btn.addEventListener('click', () => {
+      const show = helpEl.style.display === 'none';
+      helpEl.style.display = show ? 'block' : 'none';
+      btn.classList.toggle('on', show);
+    });
+  }
+
+  // ── coordinate helpers ──
+
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY - this.TOP }; }
+    return { x: e.clientX, y: e.clientY - this.TOP };
+  }
+  stockCtxMix(sp) {
+    return { ctx: this.ctx, hitPoint: sp, hitResult: null, W: this.W, H: this.H };
+  }
+  worldCtxMix(sp) {
+    const wp = sp ? this.cam.toWorld(sp.x, sp.y) : null;
+    return { ctx: this.ctx, hitPoint: wp, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+  }
+
+  // ── input ──
+
+  onDown(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    // stock strip hit → clone into collection and start drag
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) {
+      const proto = stockMix.hitResult.node;
+      const wp = this.cam.toWorld(sp.x, sp.y);
+
+      let overrides;
+      if (proto.type === 'pipped-polygon') {
+        overrides = { x: wp.x, y: wp.y, r: R };
+      } else if (proto.type === 'pipped-edge') {
+        overrides = { x1: wp.x - 25, y1: wp.y, x2: wp.x + 25, y2: wp.y };
+      } else if (proto.type === 'drag-point') {
+        overrides = { x: wp.x, y: wp.y };
+      }
+      const clone = cloneProto(proto, overrides);
+      this.collNode.subtree.push(clone);
+
+      // Start drag on the clone
+      const wmix = this.worldCtxMix(sp);
+      wmix.hitPoint = wp;
+      const cls = BasicCollectionNode._cls(clone);
+      cls.hit_test(wmix, clone, this.params);
+      if (wmix.hitResult) {
+        BasicCollectionNode._wrapDrag(wmix, this.collNode, clone, this.params);
+        this.dragHit = wmix.hitResult;
+      }
+      return;
+    }
+
+    // collection hit
+    const wmix = this.worldCtxMix(sp);
+    BasicCollectionNode.hit_test(wmix, this.collNode, this.params);
+    if (wmix.hitResult) { this.dragHit = wmix.hitResult; return; }
+
+    // empty space → pan
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      this.dragHit.interactions.applyDrag(wp.x, wp.y);
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (this.panState) {
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move';
+      return;
+    }
+
+    // hover cursor — hoverOnly prevents _wrapDrag side-effects
+    const stockMix = this.stockCtxMix(sp);
+    StockStripNode.hit_test(stockMix, this.stockNode, this.params);
+    if (stockMix.hitResult) { this.canvas.style.cursor = 'grab'; return; }
+
+    const wmix = this.worldCtxMix(sp);
+    wmix.hoverOnly = true;
+    BasicCollectionNode.hit_test(wmix, this.collNode, this.params);
+    this.canvas.style.cursor = wmix.hitResult ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    e.preventDefault();
+    if (this.dragHit) {
+      const sp = this.screenPos(e);
+      const onStrip = sp.y > this.H - this.stockNode.value.height;
+      this.dragHit.interactions.endDrag(onStrip);
+      this.dragHit = null;
+    }
+    this.panState = null;
+    this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY - this.TOP };
+    if (sp.y > this.H - this.stockNode.value.height) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    c.addEventListener('mousedown',  e => this.onDown(e));
+    c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));
+    c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  // ── seed ──
+
+  seed() {
+    const step = R * 2.5;
+    const wc = this.cam.toWorld(this.W / 2, (this.H - this.stockNode.value.height) / 2);
+    for (let i = -1; i <= 1; i++)
+      this.collNode.subtree.push(
+        makeNode('pipped-polygon', { x: wc.x + i * step, y: wc.y, r: R, n: 4, tilt: Math.PI / 4 })
+      );
+  }
+
+  // ── render loop ──
+
+  loop() {
+    const c = this.ctx;
+    const P = this.params;
+
+    // screen-space background + stock strip
+    this.cam.reset(c);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, this.W, this.H);
+    StockStripNode.draw2d({ ctx: c, W: this.W, H: this.H }, this.stockNode, P);
+
+    // world-space grid dots
+    this.cam.apply(c);
+    const spacing = 40;
+    const l = this.cam.ox, t = this.cam.oy;
+    const r = l + this.W / this.cam.z;
+    const b = t + (this.H - this.stockNode.value.height) / this.cam.z;
+    c.fillStyle = '#1c1c38';
+    const ds = 1 / this.cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+
+    // world-space collection
+    const wmix = { ctx: c, hitPoint: null, hitResult: null, zoom: this.cam.z, W: this.W, H: this.H };
+    BasicCollectionNode.draw2d(wmix, this.collNode, P);
+    BasicCollectionNode.after_draw2d(wmix, this.collNode, P);
+
+    this.cam.reset(c);
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+// ─── Boot ────────────────────────────────────────────────
+new App(document.getElementById('c'));
+
+</script>
+</body>
+</html>

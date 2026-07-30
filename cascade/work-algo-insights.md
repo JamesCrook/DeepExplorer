@@ -9,7 +9,7 @@
 These are the algorithmic cores for each item in the Algorithm Design section of the BOM.
 
 
-## SMILEs → 2D Structure #mol/smiles/prompt
+## [x] SMILEs → 2D Structure #mol/smiles
 
 **Goal:** Render a 2D structural diagram of a small molecule from a SMILES string.
 
@@ -24,8 +24,9 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 
 **Scope:** Handles 99% of real-world small molecules. No attempt to handle all difficult cases. Atoms are rendered as circles, no label concerns. Bond types (single, double, aromatic, etc.) are carried as edge metadata and handled entirely by the renderer. 2D only.
 
+Note that we have a graph library that we MUST use for this.
 
-## Auto-Chart of Table Structure (SQLite) #sql/algo/prompt
+## [x] Auto-Chart of Table Structure (SQLite) #sql/structure
 
 **Goal:** Given a SQLite database, automatically produce a visual diagram of its table structure.
 
@@ -38,7 +39,7 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 **Notes:** This is a straightforward wiring of existing capabilities. The algorithm work is minimal; the value is in getting the schema introspection right and choosing sensible default box sizes.
 
 
-## Multiscroller on Any Table (SQLite) #sql/algo/prompt
+## [x] Multiscroller on Any Table (SQLite) #sql/multi
 
 **Goal:** Bind the existing multiscroller (which works on in-memory tree-structured data) to a SQLite table.
 
@@ -54,7 +55,7 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 **Caching:** Both the multiscroller and the infinite-scroll (see below) will share a random-replacement cache for row data.
 
 
-## Block ↔ Ribbon Thawing / Freezing Transforms #block/algo/prompt
+## [x] Block ↔ Ribbon Thawing / Freezing Transforms #block/thaw
 
 **Goal:** Convert freely between two representations of the same structure — a tiled block layout and a node-and-ribbon graph.
 
@@ -73,7 +74,7 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 - Twisty/Penrose diagrams: cropping is around a drawn permutation.
 
 
-## Map ↔ Route Interface with Data Routing Shown (D+ Open Source) #map/route/prompt
+## [x] Map ↔ Route Interface with Data Routing Shown (D+ Open Source) #map/route
 
 **Goal:** Show a full data-flow diagram (the "map") alongside a single highlighted path through it (the "route"), with the ability to tween between the two views.
 
@@ -90,7 +91,7 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 - The tween is linear interpolation of node positions — nodes slide from their map coordinates to their route-layout coordinates.
 
 
-## Metro-Map Ribbon Router (45°/90° Pathing) #ribbon/metro/algo/prompt
+## [x] Metro-Map Ribbon Router (45°/90° Pathing) #ribbon/metro
 
 **Goal:** Route ribbons between pip endpoints on blocks using only 45° and 90° segments, metro-map style.
 
@@ -103,7 +104,7 @@ These are the algorithmic cores for each item in the Algorithm Design section of
 Same A* algorithm in both cases; the only change is the cost function.
 
 
-## Stretchable Tile System for Blocks #block/algo/prompt
+## [x] Stretchable Tile System for Blocks #block/stretch
 
 **Goal:** Allow blocks (tiles) to be resized while preserving connection points and internal structure.
 
@@ -115,7 +116,7 @@ Same A* algorithm in both cases; the only change is the cost function.
 **Conceptual Model:** This is actually a micro-thaw of a single tile. The user can drag tile size and internal contents, then the result is re-frozen. From the user's perspective, they are using a "tile tweaking tool" that surfaces normally-hidden affordances. From the code's perspective, it is thaw-edit-freeze on a single block.
 
 
-## Click-Together and Joining Movement of Blocks #block/algo/prompt
+## [x] Click-Together and Joining Movement of Blocks #block/fracture USES #spike
 
 **Goal:** Allow blocks to snap together at compatible pips, and then move as connected groups with physically intuitive behaviour.
 
@@ -132,7 +133,7 @@ When multiple tiles are clicked together and you drag one, what moves depends on
 **Implementation:** On drag start, compute the direction cone. Walk the pip-connection graph, including only blocks whose connection direction falls within the cone. That connected subset moves as a rigid body; everything else is stationary.
 
 
-## Infinite-Scroll with Partial Caching (Discord) #dplus/scroll/algo/prompt
+## [x] Infinite-Scroll with Partial Caching (Discord) #dplus/scroll
 
 **Goal:** Scrollable chat/message view that handles arbitrarily long histories without loading everything.
 
@@ -143,7 +144,7 @@ When multiple tiles are clicked together and you drag one, what moves depends on
 **See also:** *Delayed availability information* — handling graceful display when the server is slow or data is not yet available. To be addressed in a separate session.
 
 
-## Cut-and-Paste Sankey / Rearrangement Diff Using MST (Obsidian) #git/algo/prompt
+## [x] Cut-and-Paste Sankey / Rearrangement Diff Using MST (Obsidian) #git/sankey
 
 **Goal:** Detect that chunks of text were cut-and-pasted (reordered) between document versions, and visualise the rearrangement as a Sankey/stream-graph diagram. Designed for multiway diffs (A→B→C→D, a sequence of document versions).
 
@@ -157,7 +158,7 @@ When multiple tiles are clicked together and you drag one, what moves depends on
 **Result:** The stream graph shows text that flowed forward in order; the out-of-band Sankey crossings show the rearrangements. Together they give a visual map of how a document was restructured over time. The nodes are the same sequence in the diff-aligned texts, so the two layers (in-band and out-of-band) share a common backbone.
 
 
-## Overlayer Controls over Chain Colouring (Molam) #mol/color/prompt
+## [x] Overlayer Controls over Chain Colouring (Molam) #mol/color
 
 **Goal:** Layer alternative colouring schemes (electrostatic potential, transmembrane regions, etc.) over the existing per-residue chain colouring in Molam.
 
@@ -168,7 +169,7 @@ When multiple tiles are clicked together and you drag one, what moves depends on
 **Note:** Understanding the existing PRESETS control design is prerequisite. The generalisation from binary-apply to slider-blend should then be clear.
 
 
-## Local Params — Per-Range and Per-Selection Support (Molam) #mol/color/prompt
+## [x] Local Params — Per-Range and Per-Selection Support (Molam) #mol/color
 
 **Goal:** Allow parameter settings to apply to selections within a model, not just to the entire model.
 

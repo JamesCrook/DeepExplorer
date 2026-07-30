@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Path Editor Harness</title>
+<style>
+  :root {
+    --bg: #0e1117; --surface: #161b22; --border: #30363d;
+    --text: #c9d1d9; --text-muted: #8b949e; --accent: #58a6ff;
+    --accent-dim: #1f3a5f; --green: #3fb950; --green-dim: #1a3a2a;
+    --orange: #d29922; --red: #f85149; --purple: #bc8cff;
+    --mono: 'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+    --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:var(--sans); background:var(--bg); color:var(--text); height:100vh; overflow:hidden; }
+  .page { display:flex; height:100vh; }
+
+  /* ── Left panel ──────────────────────────────────── */
+  .panel {
+    width:240px; min-width:200px; flex-shrink:0;
+    border-right:1px solid var(--border); background:var(--surface);
+    overflow-y:auto; padding:14px 14px 20px; display:flex; flex-direction:column; gap:6px;
+  }
+  .panel::-webkit-scrollbar { width:4px; }
+  .panel::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  .panel h1 { font-size:15px; font-weight:700; color:var(--accent); font-family:var(--mono); margin-bottom:2px; }
+  .panel .subtitle { font-size:11px; color:var(--text-muted); margin-bottom:10px; }
+
+  .section-label {
+    font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-muted); margin-top:10px; padding-bottom:4px;
+    border-bottom:1px solid var(--border);
+  }
+  .section-label:first-child { margin-top:0; }
+
+  .ctrl { display:flex; flex-direction:column; gap:2px; }
+  .ctrl-head { display:flex; justify-content:space-between; align-items:baseline; }
+  .ctrl-head label { font-size:11px; color:var(--text-muted); }
+  .ctrl-head .val { font-size:10px; font-family:var(--mono); color:var(--text-muted); }
+
+  .ctrl select, .ctrl input[type="range"], .ctrl input[type="color"] {
+    width:100%; appearance:none; -webkit-appearance:none;
+    background:var(--bg); border:1px solid var(--border);
+    border-radius:4px; color:var(--text); font-size:11px; outline:none;
+  }
+  .ctrl select { padding:3px 6px; cursor:pointer; font-family:var(--mono); }
+  .ctrl select:focus { border-color:var(--accent); }
+  .ctrl input[type="range"] { height:6px; border-radius:3px; cursor:pointer; }
+  .ctrl input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:12px; height:12px;
+    background:var(--text); border-radius:50%; border:none; margin-top:-3px;
+  }
+  .ctrl input[type="color"] {
+    height:24px; padding:2px; cursor:pointer; border-radius:4px;
+  }
+
+  .btn {
+    padding:6px 0; border:1px solid var(--border); border-radius:4px;
+    background:var(--bg); color:#ffffff; font-size:11px; font-family:var(--mono);
+    cursor:pointer; text-align:center; transition:background .15s,border-color .15s;
+  }
+  .btn:hover { border-color:var(--accent); background:var(--accent-dim); }
+  .btn:active { background:#2a3a5f; }
+  .btn.green { color:var(--green); }
+  .btn.green:hover { border-color:var(--green); background:var(--green-dim); }
+  .btn.danger { color:var(--red); }
+  .btn.danger:hover { border-color:var(--red); background:#3d1a1a; }
+
+  /* ── Main area ───────────────────────────────────── */
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+  .toolbar {
+    display:flex; align-items:center; gap:8px; padding:10px 16px;
+    border-bottom:1px solid var(--border); background:var(--surface);
+    flex-wrap:wrap; flex-shrink:0;
+  }
+  .toolbar .group { display:flex; gap:4px; align-items:center; }
+  .toolbar .sep { width:1px; height:24px; background:var(--border); margin:0 4px; }
+  .toolbar button {
+    font-family:var(--mono); font-size:11px; padding:5px 10px;
+    border:1px solid var(--border); border-radius:4px;
+    background:var(--surface); color:var(--text); cursor:pointer;
+    transition:background .15s,border-color .15s;
+  }
+  .toolbar button:hover { border-color:var(--accent); background:var(--accent-dim); }
+  .toolbar button.active { border-color:var(--accent); background:var(--accent-dim); color:var(--accent); }
+  .toolbar button.green:hover { border-color:var(--green); background:var(--green-dim); }
+  .toolbar button.danger:hover { border-color:var(--red); background:#3d1a1a; }
+  .mode-indicator { font-family:var(--mono); font-size:11px; color:var(--text-muted); margin-left:auto; }
+  .mode-indicator .mode-name { color:var(--orange); }
+
+  .canvas-wrap { flex:1; position:relative; overflow:hidden; }
+  canvas { display:block; width:100%; height:100%; }
+
+  .console-panel {
+    height:100px; min-height:50px; border-top:1px solid var(--border);
+    background:var(--surface); overflow-y:auto; padding:10px 16px;
+    font-family:var(--mono); font-size:11px; color:var(--text-muted); line-height:1.7; flex-shrink:0;
+  }
+  .console-panel .log-entry { padding:1px 0; }
+  .console-panel .log-entry.info { color:var(--accent); }
+  .console-panel .log-entry.success { color:var(--green); }
+  .console-panel .log-entry.warn { color:var(--orange); }
+  .console-panel .log-entry.error { color:var(--red); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div id="panel" class="panel">
+    <h1>Path Editor</h1>
+    <div class="subtitle">DragPointNode · SVG path editing</div>
+  </div>
+  <div class="main">
+    <div class="toolbar" id="toolbar"></div>
+    <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+    <div id="console-panel" class="console-panel"></div>
+  </div>
+</div>
+<script>
+
+// ═══════════════════════════════════════════════════════════════
+//  SHIMS
+// ═══════════════════════════════════════════════════════════════
+
+//-- file: ./shim-transform.js --
+class Transform {
+  constructor(sx=1,panX=0,panY=0) { this.sx=sx; this.panX=panX; this.panY=panY; }
+  toScreen({x,y}) { return {x:x*this.sx+this.panX, y:y*this.sx+this.panY}; }
+  toLocal({x,y})  { return {x:(x-this.panX)/this.sx, y:(y-this.panY)/this.sx}; }
+  clone() { return new Transform(this.sx,this.panX,this.panY); }
+}
+//-- endfile --
+
+//-- file: ./shim-vector2d.js --
+class Vector2D {
+  constructor(x,y) { this.x=x; this.y=y; }
+  sub(v)  { return new Vector2D(this.x-v.x, this.y-v.y); }
+  add(v)  { return new Vector2D(this.x+v.x, this.y+v.y); }
+  perp()  { return new Vector2D(-this.y, this.x); }
+  rot(a)  { const c=Math.cos(a),s=Math.sin(a); return new Vector2D(this.x*c-this.y*s, this.x*s+this.y*c); }
+  normalize(len) { const m=Math.sqrt(this.x*this.x+this.y*this.y)||1; return new Vector2D(this.x/m*len, this.y/m*len); }
+}
+//-- endfile --
+
+//-- file: ./shim-warped-polygon-curve.js --
+class WarpedPolygon {
+  static path(corners, bends) {
+    if (!corners || corners.length < 2) return '';
+    let d = `M ${corners[0].x} ${corners[0].y}`;
+    for (let i = 0; i < corners.length; i++) {
+      const next = corners[(i + 1) % corners.length];
+      const b = bends ? (bends[i] || 0) : 0;
+      if (Math.abs(b) > 3 || Math.abs(b) < 0.001) {
+        d += ` L ${next.x} ${next.y}`;
+      } else {
+        const curr = corners[i];
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        const ex = next.x - curr.x, ey = next.y - curr.y;
+        const len = Math.sqrt(ex * ex + ey * ey) || 1;
+        const bulge = len * Math.tan(b / 2) / 2;
+        const cx = mx + (-ey / len) * bulge, cy = my + (ex / len) * bulge;
+        d += ` Q ${cx} ${cy} ${next.x} ${next.y}`;
+      }
+    }
+    return d + ' Z';
+  }
+}
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGETS
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { DragPointNode } from '../nodes2d/drag-point-node.js';
+//-- file: ../nodes2d/drag-point-node.js --
+//>> import { sceneRegistry } from '../omni-support/scene.js';
+//>> import { Transform }     from '../omni-support/transform.js';
+
+// ═══════════════════════════════════════════════════════
+//  DRAG POINT — migrated to T + directCtx
+// T is a Transform
+//
+//  draw2d: uses directCtx() to draw at T.toScreen positions.
+//    Point radius and labels are zoom-independent (fixed screen px).
+//  hit_test: compares screen hitPoint against T.toScreen.
+//    applyDrag uses T.toLocal to convert back.
+// ═══════════════════════════════════════════════════════
+
+class DragPointNode {
+
+  static draw2d(ctxMix, node, params) {
+    const T = ctxMix.T;
+    if (!T) return;
+    const v = node.value || {};
+    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const r = params.pointRadius || 6;
+    const color = v.color || params.pointColor || '#4fc3f7';
+
+    const ctx = ctxMix.directCtx();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
+    ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = '#ffffffaa'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    if (ctxMix.highlighted?.has(node)) {
+      ctx.beginPath(); ctx.arc(s.x, s.y, r + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (v.name) {
+      ctx.fillStyle = '#ffffffcc'; ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(v.name, s.x, s.y - r - 3);
+    }
+    if (v.emoji) {
+      ctx.fillStyle = '#000000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = (2 * r - 1) + 'px Arial';
+      const fd = r / 6;
+      ctx.fillText(v.emoji, s.x + fd * 0.33, s.y + fd);
+    }
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
+    const v = node.value || {};
+    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const dx = pt.x - s.x, dy = pt.y - s.y;
+    if (dx * dx + dy * dy > ((params.pointRadius || 6) + 5) ** 2) return;
+
+    const Ts = T.clone();
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(screenX, screenY) {
+          const local = Ts.toLocal({ x: screenX - dx, y: screenY - dy });
+          node.value.x = local.x;
+          node.value.y = local.y;
+        },
+      },
+    };
+  }
+}
+
+//>> sceneRegistry.registerNodeClass('drag-point', DragPointNode);
+//-- endfile --
+
+//<< import { EdgeRefNode } from '../nodes2d/edge-ref-node.js';
+//-- file: ../nodes2d/edge-ref-node.js --
+//>> import { sceneRegistry } from '../omni-support/scene.js';
+//>> import { Vector2D } from '../2d-support/vector2d.js';
+//>> import { WarpedPolygon } from '../nodes2d/warped-polygon.js';
+
+/**
+ * edge-ref-node.js — edge that references two drag-point nodes
+ *
+ * value.fromNode / value.toNode — live references to drag-point MiniAstNodes
+ * value.from / value.to — stable uid strings (for display / serialisation)
+ *
+ * Place in: nodes2d/edge-ref-node.js
+ */
+
+class EdgeRefNode {
+
+  static draw2d(ctxMix, node, params) {
+    const T = ctxMix.T;
+    if (!T) return;
+    const v  = node.value || {};
+    const fn = v.fromNode, tn = v.toNode;
+    if (!fn || !tn) return;
+
+    const zoom = T.sx;
+    const s0 = T.toScreen({ x: fn.value?.x || 0, y: fn.value?.y || 0 });
+    const s1 = T.toScreen({ x: tn.value?.x || 0, y: tn.value?.y || 0 });
+
+    const selected = ctxMix.highlighted?.has(node);
+    const width = ((params.pathWidth || 2) + (selected ? 2 : 0)) * zoom;
+    const strokeWidth = (params.strokeWidth ?? 1) * zoom;
+    const p0 = new Vector2D(s0.x, s0.y);
+    const p1 = new Vector2D(s1.x, s1.y);
+    const bend = params.bend ?? 0;
+    const perp1 = p1.sub(p0).perp().rot(bend / 2).normalize(width);
+    const perp2 = p1.sub(p0).perp().rot(-bend / 2).normalize(width);
+    const corners = [p0.sub(perp1), p0.add(perp1), p1.add(perp2), p1.sub(perp2)];
+    const bends = [-3.14, bend, -3.14, -bend];
+    const pathD = WarpedPolygon.path(corners, bends);
+    const path2D = new Path2D(pathD);
+
+    const ctx = ctxMix.directCtx();
+
+    ctx.globalAlpha = params.fillOpacity ?? 0.7;
+    ctx.fillStyle   = params.pathColor || '#ffffffaa';
+    ctx.fill(path2D);
+
+    if (strokeWidth > 0) {
+      ctx.globalAlpha = 1;
+      ctx.lineWidth   = strokeWidth;
+      ctx.lineCap     = 'round';
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke(path2D);
+    }
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
+    const v  = node.value || {};
+    const fn = v.fromNode, tn = v.toNode;
+    if (!fn || !tn) return;
+
+    const s0 = T.toScreen({ x: fn.value?.x || 0, y: fn.value?.y || 0 });
+    const s1 = T.toScreen({ x: tn.value?.x || 0, y: tn.value?.y || 0 });
+
+    const dx = s1.x - s0.x, dy = s1.y - s0.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1) return;
+
+    const t = Math.max(0, Math.min(1,
+      ((pt.x - s0.x) * dx + (pt.y - s0.y) * dy) / lenSq));
+
+    const len     = Math.sqrt(lenSq);
+    const exclude = ((params.pointRadius || 6) + 5) / len;
+    if (t < exclude || t > 1 - exclude) return;
+
+    const px = s0.x + t * dx, py = s0.y + t * dy;
+    const dist = Math.sqrt((pt.x - px) ** 2 + (pt.y - py) ** 2);
+
+    const threshold = Math.max(params.pathWidth || 2, 4) + 5;
+    if (dist > threshold) return;
+
+    ctxMix.hitResult = { node, cursor: node };
+  }
+}
+
+//>> sceneRegistry.registerNodeClass('edge-ref', EdgeRefNode);
+//>> export { EdgeRefNode };
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — console, network editor, panel, data
+// ═══════════════════════════════════════════════════════════════
+
+class ConsolePanel {
+  constructor(el) { this.el = typeof el === 'string' ? document.getElementById(el) : el; }
+  log(msg, cls='') {
+    const div = document.createElement('div');
+    div.className = 'log-entry ' + cls; div.innerHTML = msg;
+    this.el.appendChild(div); this.el.scrollTop = this.el.scrollHeight;
+  }
+  clear() { this.el.innerHTML = ''; }
+}
+
+
+// ── NetworkEditor ─────────────────────────────────────────────
+//  Parameterised by NodeClass — works with DragPointNode or any
+//  class with static draw2d / hit_test matching the ctxMix sig.
+// ──────────────────────────────────────────────────────────────
+
+class NetworkEditor {
+  constructor({ canvasId, toolbarId, console,
+                NodeClass, nodeType = 'drag-point',
+                nodeParams = {}, edgeParams = {}, defaultNodeValue = {} }) {
+    this.canvas  = document.getElementById(canvasId);
+    this.ctx     = this.canvas.getContext('2d');
+    this.toolbarEl = document.getElementById(toolbarId);
+    this.console = console;
+
+    this.NodeClass = NodeClass;
+    this.nodeType  = nodeType;
+    this.nodeParams = { ...nodeParams };
+    this.edgeParams = { pathWidth:2, strokeWidth:0.8, pathColor:'#ffffff66',
+                        fillOpacity:0.5, pointRadius:7, ...edgeParams };
+    this.defaultNodeValue = defaultNodeValue;
+
+    this.T = new Transform(1,0,0);
+    this.highlighted = new Set();
+    this.sceneNodes = [];
+    this.sceneEdges = [];
+    this._nodeMap   = new Map();
+    this._nextId = 0;
+    this.mode = 'pointer';
+    this._edgeStart = null;
+    this._dragResult = null;
+    this.onExtraDraw = null;
+
+    this._buildToolbar();
+    this._bindEvents();
+    this._resize();
+  }
+
+  addNode(localX, localY, overrides = {}) {
+    const id = overrides.id || ('n' + this._nextId++);
+    const value = { x:localX, y:localY, ...this.defaultNodeValue, ...overrides };
+    delete value.id;
+    if (!value.name && !value.label) value.name = id;
+    const node = { type:this.nodeType, id, value };
+    this.sceneNodes.push(node);
+    this._nodeMap.set(id, node);
+    return node;
+  }
+
+  addEdge(fromNode, toNode, overrides = {}) {
+    const dup = this.sceneEdges.find(e =>
+      (e.value.fromNode===fromNode && e.value.toNode===toNode) ||
+      (e.value.fromNode===toNode   && e.value.toNode===fromNode));
+    if (dup) return null;
+    const id = overrides.id || ('e' + this._nextId++);
+    const edge = { type:'edge-ref', id, value:{
+      fromNode:fromNode, toNode:toNode,
+      from:fromNode.id, to:toNode.id, ...overrides,
+    }};
+    delete edge.value.id;
+    this.sceneEdges.push(edge);
+    return edge;
+  }
+
+  removeNode(node) {
+    const rm = this.sceneEdges.filter(e => e.value.fromNode===node||e.value.toNode===node);
+    for (const e of rm) this.removeEdge(e);
+    const i = this.sceneNodes.indexOf(node);
+    if (i>=0) this.sceneNodes.splice(i,1);
+    this._nodeMap.delete(node.id);
+    this.highlighted.delete(node);
+  }
+
+  removeEdge(edge) {
+    const i = this.sceneEdges.indexOf(edge);
+    if (i>=0) this.sceneEdges.splice(i,1);
+    this.highlighted.delete(edge);
+  }
+
+  nodeById(id) { return this._nodeMap.get(id); }
+  allNodes()   { return this.sceneNodes; }
+  allEdges()   { return this.sceneEdges; }
+
+  setMode(name) {
+    this.mode = name; this._edgeStart = null;
+    this._updateModeLabel(); this.draw();
+  }
+
+  clearAll() {
+    this.sceneEdges.length = 0; this.sceneNodes.length = 0;
+    this._nodeMap.clear(); this.highlighted.clear();
+    this._nextId = 0; this._edgeStart = null; this._dragResult = null;
+  }
+
+  _makeCtxMix(hitPoint) {
+    const self = this;
+    return { ctx:self.ctx, T:self.T, W:self._W, H:self._H,
+      hitPoint:hitPoint||null, hitResult:null, highlighted:self.highlighted,
+      directCtx() { self.ctx.save(); return self.ctx; } };
+  }
+
+  draw() {
+    this.ctx.clearRect(0,0,this._W,this._H);
+    const eMix = this._makeCtxMix();
+    for (const e of this.sceneEdges) EdgeRefNode.draw2d(eMix, e, this.edgeParams);
+    if (this.onExtraDraw) this.onExtraDraw(eMix);
+    const nMix = this._makeCtxMix();
+    for (const n of this.sceneNodes) this.NodeClass.draw2d(nMix, n, this.nodeParams);
+    if (this._edgeStart) {
+      const s = this.T.toScreen({x:this._edgeStart.value.x||0, y:this._edgeStart.value.y||0});
+      this.ctx.save();
+      this.ctx.beginPath(); this.ctx.arc(s.x, s.y, 30, 0, Math.PI*2);
+      this.ctx.strokeStyle='#58a6ff'; this.ctx.lineWidth=2;
+      this.ctx.setLineDash([4,4]); this.ctx.stroke(); this.ctx.setLineDash([]);
+      this.ctx.restore();
+    }
+  }
+
+  _hitTest(mx, my) {
+    for (let i=this.sceneNodes.length-1; i>=0; i--) {
+      const mix = this._makeCtxMix({x:mx,y:my});
+      this.NodeClass.hit_test(mix, this.sceneNodes[i], this.nodeParams);
+      if (mix.hitResult) return {kind:'node', result:mix.hitResult};
+    }
+    for (let i=this.sceneEdges.length-1; i>=0; i--) {
+      const mix = this._makeCtxMix({x:mx,y:my});
+      EdgeRefNode.hit_test(mix, this.sceneEdges[i], this.edgeParams);
+      if (mix.hitResult) return {kind:'edge', result:mix.hitResult};
+    }
+    return null;
+  }
+
+  _buildToolbar() {
+    this.toolbarEl.innerHTML = `
+      <div class="group">
+        <button id="btn-pointer" class="active">Pointer</button>
+        <button id="btn-add-node">+ Point</button>
+        <button id="btn-add-edge">+ Edge</button>
+        <button id="btn-delete" class="danger">Delete</button>
+      </div>
+      <div class="mode-indicator">mode: <span class="mode-name" id="mode-label">pointer</span></div>`;
+    for (const [bid,m] of [['btn-pointer','pointer'],['btn-add-node','add-node'],['btn-add-edge','add-edge'],['btn-delete','delete']])
+      document.getElementById(bid).onclick = () => this.setMode(m);
+  }
+
+  _updateModeLabel() {
+    const el = document.getElementById('mode-label');
+    if (el) el.textContent = this.mode;
+    for (const [bid,m] of [['btn-pointer','pointer'],['btn-add-node','add-node'],['btn-add-edge','add-edge'],['btn-delete','delete']]) {
+      const b = document.getElementById(bid);
+      if (b) b.classList.toggle('active', this.mode===m);
+    }
+  }
+
+  _bindEvents() {
+    const cv = this.canvas;
+    cv.addEventListener('mousedown', e => { const r=cv.getBoundingClientRect(); this._onDown(e.clientX-r.left, e.clientY-r.top); });
+    cv.addEventListener('mousemove', e => { const r=cv.getBoundingClientRect(); this._onMove(e.clientX-r.left, e.clientY-r.top); });
+    cv.addEventListener('mouseup', () => { this._dragResult=null; });
+    cv.addEventListener('mouseleave', () => { this._dragResult=null; });
+    new ResizeObserver(() => { this._resize(); this.draw(); }).observe(cv.parentElement);
+  }
+
+  _onDown(mx, my) {
+    const hit = this._hitTest(mx, my);
+    switch (this.mode) {
+      case 'pointer':
+        if (hit?.kind==='node') { this._dragResult=hit.result; const n=hit.result.node; this.highlighted.has(n)?this.highlighted.delete(n):this.highlighted.add(n); this.draw(); }
+        else if (hit?.kind==='edge') { const e=hit.result.node; this.highlighted.has(e)?this.highlighted.delete(e):this.highlighted.add(e); this.draw(); }
+        break;
+      case 'add-node':
+        if (!hit) { const l=this.T.toLocal({x:mx,y:my}); const n=this.addNode(l.x,l.y); this.console.log(`+ <b>${n.id}</b>`,'info'); this.draw(); }
+        else if (hit.kind==='node') this._dragResult=hit.result;
+        break;
+      case 'add-edge':
+        if (hit?.kind==='node') {
+          const n=hit.result.node;
+          if (!this._edgeStart) { this._edgeStart=n; this.console.log(`edge from <b>${n.id}</b>`,'info'); this.draw(); }
+          else if (n!==this._edgeStart) { const e=this.addEdge(this._edgeStart,n); if(e) this.console.log(`+ edge <b>${e.value.from}</b>→<b>${e.value.to}</b>`,'info'); else this.console.log('exists','warn'); this._edgeStart=null; this.draw(); }
+        }
+        break;
+      case 'delete':
+        if (hit?.kind==='node') { this.console.log(`− <b>${hit.result.node.id}</b>`,'warn'); this.removeNode(hit.result.node); this.draw(); }
+        else if (hit?.kind==='edge') { const e=hit.result.node; this.console.log(`− edge <b>${e.value.from}</b>→<b>${e.value.to}</b>`,'warn'); this.removeEdge(e); this.draw(); }
+        break;
+    }
+  }
+
+  _onMove(mx, my) {
+    if (this._dragResult) { this._dragResult.interactions.applyDrag(mx,my); this.draw(); return; }
+    this.canvas.style.cursor = this._hitTest(mx,my) ? 'pointer' : (this.mode==='add-node'?'crosshair':'default');
+  }
+
+  _resize() {
+    const dpr=devicePixelRatio||1, rect=this.canvas.parentElement.getBoundingClientRect();
+    this._W=rect.width; this._H=rect.height;
+    this.canvas.width=this._W*dpr; this.canvas.height=this._H*dpr;
+    this.canvas.style.width=this._W+'px'; this.canvas.style.height=this._H+'px';
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.T.panX=this._W/2; this.T.panY=this._H/2;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  SILHOUETTE DATA  (normalised 0–1, from heatmap-node.js)
+// ═══════════════════════════════════════════════════════════════
+
+const BODY_SILHOUETTE = [
+  [.50,.03],[.55,.035],[.58,.05],[.59,.08],[.585,.11],[.57,.135],[.55,.15],
+  [.54,.16],[.545,.19],
+  [.62,.20],[.68,.21],[.72,.23],[.74,.28],[.745,.35],[.74,.42],[.735,.50],
+  [.73,.55],[.72,.58],
+  [.725,.60],[.73,.62],[.72,.63],[.70,.62],[.695,.59],
+  [.64,.26],
+  [.63,.52],[.63,.56],[.62,.62],[.61,.66],[.60,.70],
+  [.59,.73],[.58,.78],[.575,.84],[.57,.90],[.565,.94],[.575,.96],[.585,.97],
+  [.575,.98],[.555,.975],[.54,.96],
+  [.535,.90],[.53,.82],[.525,.76],[.51,.62],
+  [.49,.62],[.475,.76],[.47,.82],[.465,.90],
+  [.46,.96],[.445,.975],[.425,.98],[.415,.97],[.425,.96],[.435,.94],
+  [.43,.90],[.425,.84],[.42,.78],[.41,.73],
+  [.40,.70],[.39,.66],[.38,.62],[.37,.56],[.375,.52],
+  [.35,.26],
+  [.305,.59],[.30,.62],[.28,.63],[.27,.62],[.275,.60],
+  [.28,.58],[.27,.55],[.265,.50],[.26,.42],[.255,.35],[.26,.28],
+  [.28,.23],[.32,.21],[.38,.20],
+  [.455,.19],[.46,.16],
+  [.45,.15],[.43,.135],[.415,.11],[.41,.08],[.42,.05],[.45,.035],
+];
+
+// Mapping: normalised [0,1] ↔ local coords centred at origin
+const NORM_W = 500, NORM_H = 700;
+function normToLocal(nx, ny) { return { x: (nx - 0.5) * NORM_W, y: (ny - 0.5) * NORM_H }; }
+function localToNorm(lx, ly) { return [+(lx / NORM_W + 0.5).toFixed(4), +(ly / NORM_H + 0.5).toFixed(4)]; }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  PANEL — procedural control builder (shared with node/edge params)
+// ═══════════════════════════════════════════════════════════════
+
+function buildControls(parentEl, controls, target, onChanged) {
+  for (const c of controls) {
+    if (c.section) {
+      const el = document.createElement('div');
+      el.className = 'section-label'; el.textContent = c.section;
+      parentEl.appendChild(el); continue;
+    }
+    if (c.type === 'button') {
+      const btn = document.createElement('button');
+      btn.className = 'btn' + (c.cls ? ' ' + c.cls : '');
+      btn.textContent = c.label;
+      btn.addEventListener('click', c.action);
+      parentEl.appendChild(btn); continue;
+    }
+
+    const wrap = document.createElement('div'); wrap.className = 'ctrl';
+    const head = document.createElement('div'); head.className = 'ctrl-head';
+    const lbl = document.createElement('label'); lbl.textContent = c.label;
+    head.appendChild(lbl);
+
+    let valSpan;
+    if (c.type === 'range') {
+      valSpan = document.createElement('span'); valSpan.className = 'val';
+      head.appendChild(valSpan);
+    }
+    wrap.appendChild(head);
+
+    if (c.type === 'select') {
+      const sel = document.createElement('select');
+      for (const o of c.options) { const opt = document.createElement('option'); opt.value = o; opt.textContent = o; sel.appendChild(opt); }
+      sel.value = target[c.key] ?? c.def;
+      target[c.key] = target[c.key] ?? c.def;
+      sel.addEventListener('change', () => { target[c.key] = sel.value; onChanged(); });
+      wrap.appendChild(sel);
+    }
+    if (c.type === 'range') {
+      const inp = document.createElement('input');
+      inp.type = 'range'; inp.min = c.min; inp.max = c.max; inp.step = c.step;
+      inp.value = target[c.key] ?? c.def;
+      target[c.key] = target[c.key] ?? c.def;
+      const fmt = v => c.unit ? v + c.unit : v;
+      valSpan.textContent = fmt(inp.value);
+      inp.addEventListener('input', () => {
+        target[c.key] = parseFloat(inp.value);
+        valSpan.textContent = fmt(inp.value);
+        onChanged();
+      });
+      wrap.appendChild(inp);
+    }
+    if (c.type === 'color') {
+      const inp = document.createElement('input');
+      inp.type = 'color'; inp.value = target[c.key] ?? c.def;
+      target[c.key] = target[c.key] ?? c.def;
+      inp.addEventListener('input', () => { target[c.key] = inp.value; onChanged(); });
+      wrap.appendChild(inp);
+    }
+    parentEl.appendChild(wrap);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
+const con = new ConsolePanel('console-panel');
+const panelEl = document.getElementById('panel');
+
+const nodeParams = { pointRadius: 5, pointColor: '#4fc3f7' };
+const edgeParams = { pathWidth: 1.5, strokeWidth: 0.6, pathColor: '#8b949eaa',
+                     fillOpacity: 0.45, bend: 0, pointRadius: 7 };
+
+const editor = new NetworkEditor({
+  canvasId: 'canvas', toolbarId: 'toolbar', console: con,
+  NodeClass: DragPointNode, nodeType: 'drag-point',
+  nodeParams, edgeParams,
+  defaultNodeValue: {},
+});
+
+// ── Load / copy ─────────────────────────────────────────────
+
+function loadSilhouette() {
+  editor.clearAll();
+  con.clear();
+  const nodes = BODY_SILHOUETTE.map((pt, i) => {
+    const { x, y } = normToLocal(pt[0], pt[1]);
+    return editor.addNode(x, y, { id: 'p' + i, name: '' });
+  });
+  // Connect sequentially + close the loop
+  for (let i = 0; i < nodes.length; i++)
+    editor.addEdge(nodes[i], nodes[(i + 1) % nodes.length]);
+  con.log(`Loaded silhouette — <b>${nodes.length}</b> points, closed loop`, 'success');
+  editor.draw();
+}
+
+function copyPoints() {
+  const pts = editor.allNodes().map(n => localToNorm(n.value.x, n.value.y));
+  const lines = pts.map(p => `  [${p[0]},${p[1]}],`);
+  const text = '[\n' + lines.join('\n') + '\n]';
+  // textarea fallback — navigator.clipboard needs secure context
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    con.log(`Copied <b>${pts.length}</b> points to clipboard`, 'success');
+  } catch (e) {
+    con.log('Clipboard write failed — select from console', 'error');
+    con.log('<pre style="user-select:all;white-space:pre-wrap;font-size:10px">' + text.replace(/</g,'&lt;') + '</pre>', '');
+  }
+  document.body.removeChild(ta);
+}
+
+// ── Build panel controls ────────────────────────────────────
+// NOTE: buildControls targets are editor.nodeParams / editor.edgeParams
+// (the live objects the editor reads each frame), not the init-time locals.
+
+const redraw = () => editor.draw();
+
+buildControls(panelEl, [
+  { section: 'Data' },
+  { type: 'button', label: 'Load Silhouette',  action: loadSilhouette },
+  { type: 'button', label: 'Copy Points',      action: copyPoints },
+  { type: 'button', label: 'Clear All',        action: () => { editor.clearAll(); con.clear(); con.log('Cleared.','warn'); editor.draw(); } },
+], {}, redraw);
+
+buildControls(panelEl, [
+  { section: 'Points' },
+  { key: 'pointRadius', label: 'Radius',  type: 'range', min: 2,  max: 20,  step: 0.5, def: 5,         unit: 'px' },
+  { key: 'pointColor',  label: 'Color',   type: 'color', def: '#4fc3f7' },
+], editor.nodeParams, redraw);
+
+buildControls(panelEl, [
+  { section: 'Edges' },
+  { key: 'pathWidth',    label: 'Width',    type: 'range', min: 0.5, max: 8,   step: 0.5, def: 1.5,  unit: 'px' },
+  { key: 'strokeWidth',  label: 'Stroke',   type: 'range', min: 0,   max: 3,   step: 0.1, def: 0.6,  unit: 'px' },
+  { key: 'fillOpacity',  label: 'Opacity',  type: 'range', min: 0,   max: 1,   step: 0.05, def: 0.45 },
+  { key: 'pathColor',    label: 'Color',    type: 'color', def: '#8b949e' },
+], editor.edgeParams, redraw);
+
+con.log('Load a silhouette or add points manually.', 'info');
+editor.draw();
+
+</script>
+</body>
+</html>

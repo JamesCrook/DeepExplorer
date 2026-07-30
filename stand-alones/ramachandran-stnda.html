@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ramachandran Chart Editor</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: system-ui, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; border-bottom: 1px solid #2a2824;
+    background: #17160f; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; }
+  header .tag {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+    background: #222018; padding: 2px 7px; border-radius: 4px;
+    border: 1px solid #2a2824;
+  }
+
+  .main { display: flex; flex: 1; min-height: 0; }
+
+  /* ── Panel ─────────────────────────────────────────── */
+  .panel {
+    width: 240px; flex-shrink: 0;
+    background: #17160f; border-right: 1px solid #2a2824;
+    overflow-y: auto; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-thumb { background: #2a2824; border-radius: 2px; }
+
+  .section-label {
+    font-size: 9px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: #6a6256;
+    margin-top: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid #222018;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  .ctrl { display: flex; flex-direction: column; gap: 2px; }
+  .ctrl-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .ctrl-head label { font-size: 11px; color: #a09880; }
+  .ctrl-head .val {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+  }
+
+  .ctrl select, .ctrl input[type="range"] {
+    width: 100%; appearance: none; -webkit-appearance: none;
+    background: #222018; border: 1px solid #2a2824;
+    border-radius: 4px; color: #c8c0b0; font-size: 11px;
+    outline: none;
+  }
+  .ctrl select { padding: 3px 6px; cursor: pointer; }
+  .ctrl select:focus { border-color: #4a4434; }
+
+  .ctrl input[type="range"] {
+    height: 6px; border-radius: 3px; cursor: pointer;
+  }
+  .ctrl input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px;
+    background: #c8c0b0; border-radius: 50%; border: none;
+    margin-top: -3px;
+  }
+
+  .btn {
+    padding: 5px 0; border: 1px solid #2a2824; border-radius: 4px;
+    background: #222018; color: #c8c0b0; font-size: 11px;
+    cursor: pointer; text-align: center;
+  }
+  .btn:hover { background: #2a2824; }
+  .btn:active { background: #333028; }
+
+  /* ── Canvas ────────────────────────────────────────── */
+  .canvas-wrap { flex: 1; min-width: 0; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Ramachandran Chart Editor</h1>
+  <span class="tag">throwaway · shims ctxMix + T</span>
+</header>
+
+<div class="main">
+  <div class="panel" id="panel"></div>
+  <div class="canvas-wrap">
+    <canvas id="cv"></canvas>
+  </div>
+</div>
+
+<script>
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — RamachandranChartNode
+//
+//  This is the deliverable. It is identical to
+//  ramachandran-chart-node.js except import/export and
+//  sceneRegistry.registerNodeClass are commented out.
+//
+//  To integrate: copy this class and its helpers into a .js file,
+//  add the import/export lines, call registerNodeClass.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { RamachandranChartNode, RC_DEFAULTS, REGION_SETS } from '../deep-explorer/js/nodes2d/ramachandran-chart-node.js';
+//-- file: ./ramachandran-chart-node.js --
+//>> import { sceneRegistry } from '../omni-support/scene.js';
+//>> export { RamachandranChartNode, RC_DEFAULTS, REGION_SETS };
+
+// ═══════════════════════════════════════════════════════
+//  REGION SETS
+//
+//  Each region: { cx, cy, rx, ry, rot, label? }
+//  cx/cy in degrees (φ/ψ), rx/ry semi-axes in degrees,
+//  rot in radians.  Favored drawn on top of allowed.
+// ═══════════════════════════════════════════════════════
+
+const REGION_SETS = {
+
+  general: {
+    favored: [
+      { label: 'β',   cx: -119, cy:  133, rx: 53, ry: 38, rot: -0.61 },
+      { label: 'α',   cx:  -66, cy:  -42, rx: 32, ry: 26, rot: -0.17 },
+      { label: 'Lα',  cx:   58, cy:   42, rx: 21, ry: 19, rot:  0.17 },
+    ],
+    allowed: [
+      { cx: -105, cy:  135, rx: 78, ry: 56, rot: -0.52 },
+      { cx:  -66, cy:  -42, rx: 50, ry: 40, rot: -0.17 },
+      { cx:   58, cy:   42, rx: 35, ry: 30, rot:  0.17 },
+      // bridge between β and α
+      { cx:  -85, cy:    5, rx: 22, ry: 55, rot:  0.30 },
+    ],
+  },
+
+  glycine: {
+    favored: [
+      { label: 'β',   cx: -119, cy:  133, rx: 53, ry: 38, rot: -0.61 },
+      { label: 'α',   cx:  -66, cy:  -42, rx: 32, ry: 26, rot: -0.17 },
+      { label: 'Lα',  cx:   58, cy:   42, rx: 32, ry: 26, rot:  0.17 },
+      { label: 'Lβ',  cx:  119, cy: -133, rx: 53, ry: 38, rot:  0.61 },
+    ],
+    allowed: [
+      { cx: -105, cy:  135, rx: 78, ry: 56, rot: -0.52 },
+      { cx:  -66, cy:  -42, rx: 50, ry: 40, rot: -0.17 },
+      { cx:   58, cy:   42, rx: 50, ry: 40, rot:  0.17 },
+      { cx:  105, cy: -135, rx: 78, ry: 56, rot:  0.52 },
+    ],
+  },
+
+  proline: {
+    favored: [
+      { label: 'β', cx: -63, cy:  148, rx: 13, ry: 32, rot: 0 },
+      { label: 'α', cx: -63, cy:  -30, rx: 13, ry: 28, rot: 0 },
+    ],
+    allowed: [
+      { cx: -63, cy:  148, rx: 20, ry: 42, rot: 0 },
+      { cx: -63, cy:  -30, rx: 20, ry: 40, rot: 0 },
+    ],
+  },
+
+  preProline: {
+    favored: [
+      { label: 'β', cx: -125, cy:  148, rx: 48, ry: 26, rot: -0.35 },
+      { label: 'α', cx:  -63, cy:  -30, rx: 26, ry: 20, rot: -0.17 },
+    ],
+    allowed: [
+      { cx: -125, cy:  148, rx: 68, ry: 40, rot: -0.35 },
+      { cx:  -63, cy:  -30, rx: 42, ry: 33, rot: -0.17 },
+    ],
+  },
+};
+
+
+// ═══════════════════════════════════════════════════════
+//  DEFAULTS
+// ═══════════════════════════════════════════════════════
+
+const RC_DEFAULTS = Object.freeze({
+  // Chart spans in local-space units (1 unit = 1 degree)
+  chartWidth:       360,
+  chartHeight:      360,
+
+  // Background
+  bgFill:           '#16150f',
+  borderColor:      '#2a2824',
+  borderWidth:      1,
+  cornerRadius:     0,
+
+  // Regions
+  showRegions:      true,
+  regionSet:        'general',
+  favoredFill:      'rgba(72, 148, 96, 0.28)',
+  favoredStroke:    'rgba(72, 148, 96, 0.50)',
+  allowedFill:      'rgba(72, 148, 96, 0.10)',
+  allowedStroke:    'rgba(72, 148, 96, 0.22)',
+  regionLineWidth:  1.0,
+
+  // Region labels
+  showRegionLabels: true,
+  regionLabelColor: 'rgba(200, 220, 200, 0.55)',
+  regionLabelSize:  18,
+
+  // Grid
+  showGrid:         true,
+  gridStep:         30,
+  gridColor:        'rgba(200, 192, 176, 0.07)',
+  gridLineWidth:    0.5,
+
+  // Axes
+  axisColor:        'rgba(200, 192, 176, 0.25)',
+  axisLineWidth:    1,
+
+  // Tick labels
+  showTicks:        true,
+  tickStep:         60,
+  tickLength:       4,
+  tickLabelColor:   '#5a5446',
+  tickLabelSize:    9,
+
+  // Axis titles
+  axisTitleColor:   '#7a7262',
+  axisTitleSize:    13,
+
+  // Diagonal (optional ψ = -φ reference line)
+  showDiagonal:     false,
+  diagonalColor:    'rgba(200, 192, 176, 0.06)',
+});
+
+
+// ═══════════════════════════════════════════════════════
+//  COORDINATE HELPERS
+// ═══════════════════════════════════════════════════════
+
+function phiPsiToLocal(phi, psi, v, p) {
+  const cw = p.chartWidth  || 360;
+  const ch = p.chartHeight || 360;
+  return {
+    x: (v.x || 0) + phi * (cw / 360),
+    y: (v.y || 0) - psi * (ch / 360),
+  };
+}
+
+function phiPsiToScreen(phi, psi, v, p, T) {
+  return T.toScreen(phiPsiToLocal(phi, psi, v, p));
+}
+
+function screenToPhiPsi(sx, sy, v, p, T) {
+  const local = T.toLocal({ x: sx, y: sy });
+  const cw = p.chartWidth  || 360;
+  const ch = p.chartHeight || 360;
+  return {
+    phi:  (local.x - (v.x || 0)) / (cw / 360),
+    psi: -(local.y - (v.y || 0)) / (ch / 360),
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  DRAWING HELPERS
+// ═══════════════════════════════════════════════════════
+
+function drawEllipseRegion(ctx, region, v, p, T, zoom) {
+  const cw = p.chartWidth  || 360;
+  const ch = p.chartHeight || 360;
+  const srx = Math.abs(region.rx * (cw / 360) * zoom);
+  const sry = Math.abs(region.ry * (ch / 360) * zoom);
+  if (srx < 0.5 || sry < 0.5) return;
+
+  // Draw at original position and ±360° in ψ for wrap-around
+  for (const dPsi of [0, 360, -360]) {
+    const shifted = phiPsiToScreen(region.cx, region.cy + dPsi, v, p, T);
+    ctx.beginPath();
+    ctx.ellipse(shifted.x, shifted.y, srx, sry, -(region.rot || 0), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  RAMACHANDRAN CHART NODE
+// ═══════════════════════════════════════════════════════
+
+class RamachandranChartNode {
+
+  static draw2d(ctxMix, node, params) {
+    const T = ctxMix.T;
+    if (!T) return;
+
+    const v = node.value || {};
+    const p = { ...RC_DEFAULTS, ...params };
+    const zoom = T.sx;
+
+    const cw = p.chartWidth  || 360;
+    const ch = p.chartHeight || 360;
+
+    // Chart corners in screen space
+    const topLeft     = phiPsiToScreen(-180,  180, v, p, T);
+    const bottomRight = phiPsiToScreen( 180, -180, v, p, T);
+    const sw = bottomRight.x - topLeft.x;
+    const sh = bottomRight.y - topLeft.y;
+
+    const ctx = ctxMix.directCtx();
+
+    // ── Background ───────────────────────────────────
+
+    ctx.fillStyle = p.bgFill;
+    const r = (p.cornerRadius || 0) * zoom;
+    if (r > 0 && ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(topLeft.x, topLeft.y, sw, sh, r);
+      ctx.fill();
+    } else {
+      ctx.fillRect(topLeft.x, topLeft.y, sw, sh);
+    }
+
+    // ── Clip to chart area ───────────────────────────
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(topLeft.x, topLeft.y, sw, sh);
+    ctx.clip();
+
+    // ── Regions ──────────────────────────────────────
+
+    if (p.showRegions) {
+      const regions = REGION_SETS[p.regionSet] || REGION_SETS.general;
+
+      // Allowed (draw first, underneath)
+      ctx.fillStyle   = p.allowedFill;
+      ctx.strokeStyle = p.allowedStroke;
+      ctx.lineWidth   = (p.regionLineWidth || 1) * zoom;
+      for (const reg of regions.allowed) {
+        drawEllipseRegion(ctx, reg, v, p, T, zoom);
+      }
+
+      // Favored (on top)
+      ctx.fillStyle   = p.favoredFill;
+      ctx.strokeStyle = p.favoredStroke;
+      ctx.lineWidth   = (p.regionLineWidth || 1) * zoom;
+      for (const reg of regions.favored) {
+        drawEllipseRegion(ctx, reg, v, p, T, zoom);
+      }
+    }
+
+    // ── Grid ─────────────────────────────────────────
+
+    if (p.showGrid) {
+      const step = p.gridStep || 30;
+      ctx.strokeStyle = p.gridColor;
+      ctx.lineWidth   = (p.gridLineWidth || 0.5) * zoom;
+
+      for (let deg = -180 + step; deg < 180; deg += step) {
+        if (deg === 0) continue; // axis drawn separately
+        // vertical lines (constant φ)
+        const vTop = phiPsiToScreen(deg,  180, v, p, T);
+        const vBot = phiPsiToScreen(deg, -180, v, p, T);
+        ctx.beginPath(); ctx.moveTo(vTop.x, vTop.y);
+        ctx.lineTo(vBot.x, vBot.y); ctx.stroke();
+
+        // horizontal lines (constant ψ)
+        const hLt = phiPsiToScreen(-180, deg, v, p, T);
+        const hRt = phiPsiToScreen( 180, deg, v, p, T);
+        ctx.beginPath(); ctx.moveTo(hLt.x, hLt.y);
+        ctx.lineTo(hRt.x, hRt.y); ctx.stroke();
+      }
+    }
+
+    // ── Diagonal ψ = -φ ──────────────────────────────
+
+    if (p.showDiagonal) {
+      const d0 = phiPsiToScreen(-180,  180, v, p, T);
+      const d1 = phiPsiToScreen( 180, -180, v, p, T);
+      ctx.strokeStyle = p.diagonalColor;
+      ctx.lineWidth   = 1 * zoom;
+      ctx.beginPath(); ctx.moveTo(d0.x, d0.y);
+      ctx.lineTo(d1.x, d1.y); ctx.stroke();
+    }
+
+    // ── Axes (φ=0 and ψ=0) ──────────────────────────
+
+    ctx.strokeStyle = p.axisColor;
+    ctx.lineWidth   = (p.axisLineWidth || 1) * zoom;
+
+    // φ = 0 (vertical)
+    const ax0t = phiPsiToScreen(0,  180, v, p, T);
+    const ax0b = phiPsiToScreen(0, -180, v, p, T);
+    ctx.beginPath(); ctx.moveTo(ax0t.x, ax0t.y);
+    ctx.lineTo(ax0b.x, ax0b.y); ctx.stroke();
+
+    // ψ = 0 (horizontal)
+    const ax0l = phiPsiToScreen(-180, 0, v, p, T);
+    const ax0r = phiPsiToScreen( 180, 0, v, p, T);
+    ctx.beginPath(); ctx.moveTo(ax0l.x, ax0l.y);
+    ctx.lineTo(ax0r.x, ax0r.y); ctx.stroke();
+
+    // ── Region labels ────────────────────────────────
+
+    if (p.showRegionLabels) {
+      const regions = REGION_SETS[p.regionSet] || REGION_SETS.general;
+      const rlSize = (p.regionLabelSize || 18) * zoom;
+      ctx.font         = `700 italic ${rlSize.toFixed(1)}px system-ui, sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Shadow pass for legibility
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      for (const reg of regions.favored) {
+        if (!reg.label) continue;
+        const ls = phiPsiToScreen(reg.cx, reg.cy, v, p, T);
+        ctx.fillText(reg.label, ls.x + 1, ls.y + 1);
+      }
+
+      // Foreground pass
+      ctx.fillStyle = p.regionLabelColor;
+      for (const reg of regions.favored) {
+        if (!reg.label) continue;
+        const ls = phiPsiToScreen(reg.cx, reg.cy, v, p, T);
+        ctx.fillText(reg.label, ls.x, ls.y);
+      }
+    }
+
+    ctx.restore(); // pop clip
+
+    // ── Border ───────────────────────────────────────
+
+    if ((p.borderWidth || 0) > 0) {
+      ctx.strokeStyle = p.borderColor;
+      ctx.lineWidth   = (p.borderWidth || 1) * zoom;
+      ctx.strokeRect(topLeft.x, topLeft.y, sw, sh);
+    }
+
+    // ── Tick marks and labels ────────────────────────
+
+    if (p.showTicks) {
+      const step  = p.tickStep || 60;
+      const tLen  = (p.tickLength || 4) * zoom;
+      const tSize = (p.tickLabelSize || 9) * zoom;
+
+      ctx.strokeStyle = p.axisColor;
+      ctx.lineWidth   = 1 * zoom;
+      ctx.fillStyle   = p.tickLabelColor;
+      ctx.font        = `${tSize.toFixed(1)}px monospace`;
+
+      // Along bottom edge (φ ticks)
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'top';
+      for (let deg = -180; deg <= 180; deg += step) {
+        const tp = phiPsiToScreen(deg, -180, v, p, T);
+        ctx.beginPath();
+        ctx.moveTo(tp.x, tp.y);
+        ctx.lineTo(tp.x, tp.y + tLen);
+        ctx.stroke();
+        ctx.fillText(deg + '°', tp.x, tp.y + tLen + 2 * zoom);
+      }
+
+      // Along left edge (ψ ticks)
+      ctx.textAlign    = 'right';
+      ctx.textBaseline = 'middle';
+      for (let deg = -180; deg <= 180; deg += step) {
+        const tp = phiPsiToScreen(-180, deg, v, p, T);
+        ctx.beginPath();
+        ctx.moveTo(tp.x, tp.y);
+        ctx.lineTo(tp.x - tLen, tp.y);
+        ctx.stroke();
+        ctx.fillText(deg + '°', tp.x - tLen - 3 * zoom, tp.y);
+      }
+    }
+
+    // ── Axis titles ──────────────────────────────────
+
+    const atSize = (p.axisTitleSize || 13) * zoom;
+    ctx.fillStyle = p.axisTitleColor;
+    ctx.font      = `italic ${atSize.toFixed(1)}px system-ui, sans-serif`;
+
+    // φ title — below bottom-centre
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    const phiPos = phiPsiToScreen(0, -180, v, p, T);
+    ctx.fillText('φ (phi)', phiPos.x, phiPos.y + 22 * zoom);
+
+    // ψ title — left of centre, rotated
+    ctx.save();
+    const psiPos = phiPsiToScreen(-180, 0, v, p, T);
+    ctx.translate(psiPos.x - 28 * zoom, psiPos.y);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ψ (psi)', 0, 0);
+    ctx.restore();
+
+    // ── Highlight ────────────────────────────────────
+
+    if (ctxMix.highlighted?.has(node)) {
+      ctx.setLineDash([4 * zoom, 4 * zoom]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 2 * zoom;
+      ctx.strokeRect(topLeft.x - 4 * zoom, topLeft.y - 4 * zoom,
+                     sw + 8 * zoom, sh + 8 * zoom);
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore(); // balance directCtx
+  }
+
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
+
+    const v = node.value || {};
+    const p = { ...RC_DEFAULTS, ...params };
+
+    const topLeft     = phiPsiToScreen(-180,  180, v, p, T);
+    const bottomRight = phiPsiToScreen( 180, -180, v, p, T);
+
+    if (pt.x < topLeft.x || pt.x > bottomRight.x ||
+        pt.y < topLeft.y || pt.y > bottomRight.y) return;
+
+    // Compute φ/ψ under cursor for tooltip / readout
+    const angles = screenToPhiPsi(pt.x, pt.y, v, p, T);
+    const Ts = T.clone();
+    const dx = pt.x - T.toScreen({ x: v.x || 0, y: v.y || 0 }).x;
+    const dy = pt.y - T.toScreen({ x: v.x || 0, y: v.y || 0 }).y;
+
+    ctxMix.hitResult = {
+      node,
+      phi: angles.phi,
+      psi: angles.psi,
+      interactions: {
+        applyDrag(screenX, screenY) {
+          const local = Ts.toLocal({ x: screenX - dx, y: screenY - dy });
+          node.value.x = local.x;
+          node.value.y = local.y;
+        },
+      },
+    };
+  }
+}
+
+//>> sceneRegistry.registerNodeClass('ramachandran-chart', RamachandranChartNode);
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — throwaway shims for ctxMix, T, mouse events,
+//  a simplified DragPointNode, and a control panel.
+//
+//  This is NOT part of the deliverable. It exists only to prove
+//  the nugget works. In the real scene graph, replace:
+//
+//    MiniT          → the scene's Transform
+//    DragPointMini  → import DragPointNode from drag-point-node.js
+//    the draw loop  → sceneRegistry.runPhases(...)
+//    mouse handlers → the scene's hit-test + drag infrastructure
+//    the panel      → whatever param UI the host provides
+// ═══════════════════════════════════════════════════════════════
+
+class MiniT {
+  constructor(sx = 1, panX = 0, panY = 0) {
+    this.sx = sx;
+    this.panX = panX;
+    this.panY = panY;
+  }
+  toScreen({ x, y }) {
+    return { x: x * this.sx + this.panX, y: y * this.sx + this.panY };
+  }
+  toLocal({ x, y }) {
+    return { x: (x - this.panX) / this.sx, y: (y - this.panY) / this.sx };
+  }
+  clone() { return new MiniT(this.sx, this.panX, this.panY); }
+}
+
+
+// ── Mini DragPointNode (stripped from drag-point-node.js) ────
+
+class DragPointMini {
+  static draw2d(ctxMix, node, params) {
+    const T = ctxMix.T;
+    if (!T) return;
+    const v = node.value || {};
+    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const r = params.pointRadius || 5;
+    const color = v.color || params.pointColor || '#4fc3f7';
+
+    const ctx = ctxMix.directCtx();
+
+    // Shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+
+    // Outline
+    ctx.strokeStyle = '#ffffffaa';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Highlight ring
+    if (ctxMix.highlighted?.has(node)) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r + 4, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Name tooltip
+    if (v.name) {
+      ctx.fillStyle = '#ffffffcc';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(v.name, s.x, s.y - r - 3);
+    }
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
+    const v = node.value || {};
+    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const dx = pt.x - s.x, dy = pt.y - s.y;
+    if (dx * dx + dy * dy > ((params.pointRadius || 5) + 5) ** 2) return;
+
+    const Ts = T.clone();
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(screenX, screenY) {
+          const local = Ts.toLocal({ x: screenX - dx, y: screenY - dy });
+          node.value.x = local.x;
+          node.value.y = local.y;
+        },
+      },
+    };
+  }
+}
+
+
+// ── Canvas & transform ──────────────────────────────────────
+
+const cv  = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let W, H;
+
+const T = new MiniT(1, 0, 0);
+const highlighted = new Set();
+
+function makeCtxMix(hitPoint) {
+  return {
+    ctx, T, W, H,
+    hitPoint:  hitPoint || null,
+    hitResult: null,
+    highlighted,
+    directCtx() { ctx.save(); return ctx; },
+  };
+}
+
+
+// ── Chart node and params ───────────────────────────────────
+
+const chartNode = { type: 'ramachandran-chart', value: { x: 0, y: 0 } };
+const params = { ...RC_DEFAULTS };
+
+
+// ── Demo residue data ───────────────────────────────────────
+// Positions: x = φ, y = -ψ  (local coords match degrees)
+
+const residues = [
+  // α-helix cluster
+  { type: 'drag-point', value: { x: -62, y:  47, name: 'ALA-12', color: '#4fc3f7' } },
+  { type: 'drag-point', value: { x: -57, y:  48, name: 'LEU-13', color: '#4fc3f7' } },
+  { type: 'drag-point', value: { x: -68, y:  39, name: 'GLU-14', color: '#4fc3f7' } },
+  { type: 'drag-point', value: { x: -72, y:  43, name: 'LYS-15', color: '#4fc3f7' } },
+  { type: 'drag-point', value: { x: -60, y:  35, name: 'ALA-16', color: '#4fc3f7' } },
+  { type: 'drag-point', value: { x: -65, y:  50, name: 'MET-17', color: '#4fc3f7' } },
+
+  // β-sheet cluster
+  { type: 'drag-point', value: { x: -120, y: -130, name: 'VAL-32', color: '#ffa726' } },
+  { type: 'drag-point', value: { x: -135, y: -118, name: 'ILE-33', color: '#ffa726' } },
+  { type: 'drag-point', value: { x: -110, y: -140, name: 'PHE-34', color: '#ffa726' } },
+  { type: 'drag-point', value: { x: -125, y: -125, name: 'TYR-35', color: '#ffa726' } },
+  { type: 'drag-point', value: { x: -140, y: -145, name: 'THR-36', color: '#ffa726' } },
+
+  // Left-handed helix (glycine)
+  { type: 'drag-point', value: { x: 60, y: -40, name: 'GLY-58', color: '#ab47bc' } },
+
+  // Outlier
+  { type: 'drag-point', value: { x: -30, y:  90, name: 'ASN-71', color: '#ef5350' } },
+];
+
+
+// ── Readout overlay ─────────────────────────────────────────
+
+let hoverPhi = null, hoverPsi = null, hoverName = null;
+
+function drawReadout() {
+  if (hoverPhi == null) return;
+  const margin = 10;
+  const text = (hoverName ? hoverName + '  ' : '') +
+               'φ=' + hoverPhi.toFixed(1) + '°  ψ=' + hoverPsi.toFixed(1) + '°';
+  ctx.font = '11px monospace';
+  ctx.fillStyle = 'rgba(23,22,15,0.85)';
+  const m = ctx.measureText(text);
+  const bw = m.width + 12;
+  const bh = 20;
+  ctx.fillRect(W - bw - margin, margin, bw, bh);
+  ctx.strokeStyle = '#2a2824';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(W - bw - margin, margin, bw, bh);
+  ctx.fillStyle = '#c8c0b0';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, W - margin - 6, margin + bh / 2);
+}
+
+
+// ── Draw ────────────────────────────────────────────────────
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Chart background
+  const mix = makeCtxMix();
+  RamachandranChartNode.draw2d(mix, chartNode, params);
+
+  // Data points
+  for (const res of residues) {
+    const pmix = makeCtxMix();
+    DragPointMini.draw2d(pmix, res, { pointRadius: 5 });
+  }
+
+  // Readout
+  drawReadout();
+}
+
+
+// ── Hit test (points first, then chart) ─────────────────────
+
+function hitTest(mx, my) {
+  // Points take priority (top to bottom in visual order)
+  for (let i = residues.length - 1; i >= 0; i--) {
+    const mix = makeCtxMix({ x: mx, y: my });
+    DragPointMini.hit_test(mix, residues[i], { pointRadius: 5 });
+    if (mix.hitResult) return mix.hitResult;
+  }
+  // Then the chart itself
+  const mix = makeCtxMix({ x: mx, y: my });
+  RamachandranChartNode.hit_test(mix, chartNode, params);
+  if (mix.hitResult) return mix.hitResult;
+  return null;
+}
+
+
+// ── Mouse interaction ───────────────────────────────────────
+
+let dragResult = null;
+
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+
+  if (dragResult) {
+    dragResult.interactions.applyDrag(mx, my);
+
+    // Update readout for dragged point
+    if (dragResult.node !== chartNode) {
+      const nv = dragResult.node.value;
+      hoverPhi = nv.x;
+      hoverPsi = -nv.y;
+      hoverName = nv.name || null;
+    }
+
+    draw();
+    return;
+  }
+
+  // Hover readout — always show φ/ψ when over chart
+  const chartMix = makeCtxMix({ x: mx, y: my });
+  RamachandranChartNode.hit_test(chartMix, chartNode, params);
+  if (chartMix.hitResult) {
+    hoverPhi = chartMix.hitResult.phi;
+    hoverPsi = chartMix.hitResult.psi;
+    // Check if hovering a specific point
+    const ptHit = hitTest(mx, my);
+    hoverName = (ptHit && ptHit.node !== chartNode) ? ptHit.node.value.name : null;
+    cv.style.cursor = (ptHit && ptHit.node !== chartNode) ? 'grab' : 'crosshair';
+  } else {
+    hoverPhi = hoverPsi = hoverName = null;
+    cv.style.cursor = 'default';
+  }
+
+  draw();
+});
+
+cv.addEventListener('mousedown', e => {
+  const r = cv.getBoundingClientRect();
+  const hit = hitTest(e.clientX - r.left, e.clientY - r.top);
+  if (hit && hit.node !== chartNode) {
+    dragResult = hit;
+    cv.style.cursor = 'grabbing';
+    draw();
+  }
+});
+
+cv.addEventListener('mouseup', () => {
+  if (dragResult) {
+    cv.style.cursor = 'grab';
+    dragResult = null;
+  }
+});
+cv.addEventListener('mouseleave', () => {
+  dragResult = null;
+  hoverPhi = hoverPsi = hoverName = null;
+  draw();
+});
+
+
+// ── Resize ──────────────────────────────────────────────────
+
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  const wrap = cv.parentElement;
+  const r = wrap.getBoundingClientRect();
+  W = r.width; H = r.height;
+  cv.width  = W * dpr;
+  cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Fit chart: scale so 360 + margin fits in viewport
+  const margin = 80;
+  const fitW = (W - margin * 2) / 360;
+  const fitH = (H - margin * 2) / 360;
+  T.sx = Math.max(0.1, Math.min(fitW, fitH));
+  T.panX = W / 2;
+  T.panY = H / 2;
+}
+
+
+// ── Panel ───────────────────────────────────────────────────
+
+const CONTROLS = [
+  { section: 'Regions' },
+  { key: 'regionSet',     label: 'Region set',  type: 'select',
+    options: ['general', 'glycine', 'proline', 'preProline'], def: 'general' },
+  { key: 'showRegions',   label: 'Show regions', type: 'select',
+    options: ['true', 'false'], def: 'true', parse: v => v === 'true' },
+  { key: 'showRegionLabels', label: 'Region labels', type: 'select',
+    options: ['true', 'false'], def: 'true', parse: v => v === 'true' },
+  { key: 'regionLabelSize', label: 'Label size', type: 'range',
+    min: 8, max: 36, step: 1, def: 18, unit: 'px' },
+
+  { section: 'Appearance' },
+  { key: 'favoredOpacity', label: 'Favored opacity', type: 'range',
+    min: 0, max: 100, step: 1, def: 28, unit: '%',
+    apply: v => { params.favoredFill = `rgba(72,148,96,${(v/100).toFixed(2)})`; } },
+  { key: 'allowedOpacity', label: 'Allowed opacity', type: 'range',
+    min: 0, max: 100, step: 1, def: 10, unit: '%',
+    apply: v => { params.allowedFill = `rgba(72,148,96,${(v/100).toFixed(2)})`; } },
+  { key: 'regionLineWidth', label: 'Contour width', type: 'range',
+    min: 0, max: 4, step: 0.1, def: 1.0 },
+  { key: 'cornerRadius',    label: 'Corner radius', type: 'range',
+    min: 0, max: 20, step: 1, def: 0, unit: 'px' },
+
+  { section: 'Grid & Axes' },
+  { key: 'showGrid', label: 'Show grid', type: 'select',
+    options: ['true', 'false'], def: 'true', parse: v => v === 'true' },
+  { key: 'gridStep', label: 'Grid step', type: 'range',
+    min: 10, max: 90, step: 5, def: 30, unit: '°' },
+  { key: 'showTicks', label: 'Show ticks', type: 'select',
+    options: ['true', 'false'], def: 'true', parse: v => v === 'true' },
+  { key: 'tickStep', label: 'Tick step', type: 'range',
+    min: 30, max: 90, step: 15, def: 60, unit: '°' },
+  { key: 'showDiagonal', label: 'ψ = -φ line', type: 'select',
+    options: ['true', 'false'], def: 'false', parse: v => v === 'true' },
+
+  { section: 'Points' },
+  { key: '_scramble', type: 'button', label: 'Scramble points' },
+  { key: '_reset',    type: 'button', label: 'Reset points' },
+];
+
+// Keep original positions for reset
+const origPositions = residues.map(r => ({ x: r.value.x, y: r.value.y }));
+
+function buildPanel() {
+  const panel = document.getElementById('panel');
+  const valSpans = {};
+
+  for (const c of CONTROLS) {
+    if (c.section) {
+      const el = document.createElement('div');
+      el.className = 'section-label';
+      el.textContent = c.section;
+      panel.appendChild(el);
+      continue;
+    }
+
+    if (c.type === 'button') {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = c.label;
+      btn.addEventListener('click', () => {
+        if (c.key === '_scramble') {
+          for (const r of residues) {
+            r.value.x = (Math.random() - 0.5) * 340;
+            r.value.y = (Math.random() - 0.5) * 340;
+          }
+          draw();
+        }
+        if (c.key === '_reset') {
+          residues.forEach((r, i) => {
+            r.value.x = origPositions[i].x;
+            r.value.y = origPositions[i].y;
+          });
+          draw();
+        }
+      });
+      panel.appendChild(btn);
+      continue;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'ctrl';
+
+    const head = document.createElement('div');
+    head.className = 'ctrl-head';
+
+    const lbl = document.createElement('label');
+    lbl.textContent = c.label;
+    head.appendChild(lbl);
+
+    if (c.type === 'range') {
+      const val = document.createElement('span');
+      val.className = 'val';
+      head.appendChild(val);
+      valSpans[c.key] = val;
+    }
+
+    wrap.appendChild(head);
+
+    if (c.type === 'select') {
+      const sel = document.createElement('select');
+      for (const o of c.options) {
+        const opt = document.createElement('option');
+        opt.value = o; opt.textContent = o;
+        sel.appendChild(opt);
+      }
+      sel.value = String(c.def);
+      sel.addEventListener('change', () => {
+        const v = c.parse ? c.parse(sel.value) : sel.value;
+        params[c.key] = v;
+        draw();
+      });
+      wrap.appendChild(sel);
+    }
+
+    if (c.type === 'range') {
+      const inp = document.createElement('input');
+      inp.type = 'range';
+      inp.min = c.min; inp.max = c.max; inp.step = c.step;
+      inp.value = c.def;
+      const fmt = v => c.unit ? v + c.unit : v;
+      valSpans[c.key].textContent = fmt(inp.value);
+      inp.addEventListener('input', () => {
+        const v = parseFloat(inp.value);
+        valSpans[c.key].textContent = fmt(inp.value);
+        if (c.apply) { c.apply(v); }
+        else { params[c.key] = v; }
+        draw();
+      });
+      wrap.appendChild(inp);
+    }
+
+    panel.appendChild(wrap);
+  }
+}
+
+
+// ── Init ────────────────────────────────────────────────────
+
+buildPanel();
+resize();
+draw();
+new ResizeObserver(() => { resize(); draw(); }).observe(cv.parentElement);
+
+</script>
+</body>
+</html>

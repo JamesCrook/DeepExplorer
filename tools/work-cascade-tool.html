@@ -7,158 +7,437 @@
   <link rel="icon" type="image/x-icon" href="../wheel.ico">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
-      --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
-      --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
-      --accent: #f59e0b; --accent-dim: #b45309;
-      --success: #22c55e; --danger: #ef4444; --warning: #eab308;
-      --role-todo: #f59e0b; --role-prompt: #a855f7; --role-spec: #3b82f6; --role-code: #06b6d4;
-      --font-mono: 'JetBrains Mono', monospace; --font-sans: 'Space Grotesk', sans-serif;
-    }
-    html, body { height: 100%; }
-    body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
-    .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
-    header { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); }
-    h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
-    h1 span { color: var(--accent); }
-    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
-    .stat-badge { display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono); font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border); }
-    .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
-    main { display: grid; grid-template-columns: 280px 1fr 380px; overflow: hidden; }
-    .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-    .panel:last-child { border-right: none; }
-    .panel-header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; }
-    .panel-header .count { background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; }
-    .panel-tabs { display: flex; gap: 0.25rem; }
-    .panel-tab { background: none; border: none; padding: 0.2rem 0.5rem; font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; color: var(--text-muted); cursor: pointer; border-radius: 3px; }
-    .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
-    .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
-    .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
-    .drop-zone { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
-    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245,158,11,0.05); }
-    .drop-zone.secondary { border-style: dotted; opacity: 0.7; padding: 1rem; }
-    .drop-zone.secondary:hover { opacity: 1; }
-    .drop-zone-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--text-muted); }
-    .drop-zone p { font-size: 0.85rem; color: var(--text-secondary); text-align: center; }
-    .drop-zone small { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; }
-    .filter-row { display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
-    .filter-input { flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-primary); outline: none; }
-    .filter-input:focus { border-color: var(--accent); }
-    .filter-input::placeholder { color: var(--text-muted); }
 
-    .tag-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.78rem; min-height: 26px; user-select: none; }
-    .tag-row:hover { background: var(--bg-hover); }
-    .tag-row.selected { background: rgba(245,158,11,0.12); border-left: 2px solid var(--accent); margin-left: -2px; }
-    .tag-arrow { width: 14px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; font-size: 0.6rem; text-align: center; }
-    .tag-arrow.expanded { transform: rotate(90deg); }
-    .tag-arrow.leaf { visibility: hidden; }
-    .tag-name { font-family: var(--font-mono); font-size: 0.75rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tag-frac { font-family: var(--font-mono); font-size: 0.55rem; color: var(--text-muted); min-width: 28px; text-align: right; flex-shrink: 0; }
-    .tag-frac.all-done { color: var(--success); }
-    .tag-frac.none-done { color: var(--danger); }
-    .tag-idio-mark { color: var(--accent); font-size: 0.6rem; flex-shrink: 0; margin-right: 1px; }
-    .tag-maturity { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
-    .mat-dot { width: 9px; height: 9px; border-radius: 50%; position: relative; opacity: 0.15; flex-shrink: 0; }
-    .mat-dot.active { opacity: 1; }
-    .mat-dot.todo { background: var(--role-todo); }
-    .mat-dot.prompt { background: var(--role-prompt); }
-    .mat-dot.spec { background: var(--role-spec); }
-    .mat-dot.code { background: var(--role-code); }
-    .mat-dot.has-checked::after { content: ''; position: absolute; width: 3px; height: 3px; background: var(--bg-primary); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-    .tag-children { margin-left: 14px; }
-    .tag-children.collapsed { display: none; }
+/* ═══════════════════════════════════════════════════════════════
+   omni-theme.css — shared design system
+   Variables, shell layout, panel system, buttons, drop zone,
+   stat badges, preview modal, status bar, scrollbar.
+   Tools extend this with their own domain-specific classes
+   and override --panel-columns for their layout.
+   ═══════════════════════════════════════════════════════════════ */
 
-    .file-list { border-top: 1px solid var(--border); padding: 0.4rem; }
-    .file-entry { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.4rem; font-size: 0.7rem; border-radius: 3px; }
-    .file-entry:hover { background: var(--bg-hover); }
-    .file-entry .fname { font-family: var(--font-mono); font-size: 0.65rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-role { font-family: var(--font-mono); font-size: 0.5rem; text-transform: uppercase; padding: 0.05rem 0.25rem; border-radius: 2px; flex-shrink: 0; }
-    .file-role.todo { background: rgba(245,158,11,0.15); color: var(--role-todo); }
-    .file-role.prompt { background: rgba(168,85,247,0.15); color: var(--role-prompt); }
-    .file-role.spec { background: rgba(59,130,246,0.15); color: var(--role-spec); }
-    .file-role.code { background: rgba(6,182,212,0.15); color: var(--role-code); }
-    .file-role.idiolect { background: rgba(152,152,164,0.15); color: var(--text-secondary); }
-    .file-role.prefix { background: rgba(236,72,153,0.15); color: #ec4899; }
+/*<< @import url('./omni-theme.css'); */
+/*-- file: ./omni-theme.css --*/
 
-    .role-group { margin-bottom: 0.75rem; }
-    .role-header { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.3rem 0.5rem; margin-bottom: 0.2rem; border-radius: 3px; font-weight: 600; }
-    .role-header.todo { color: var(--role-todo); background: rgba(245,158,11,0.08); }
-    .role-header.prompt { color: var(--role-prompt); background: rgba(168,85,247,0.08); }
-    .role-header.spec { color: var(--role-spec); background: rgba(59,130,246,0.08); }
-    .role-header.code { color: var(--role-code); background: rgba(6,182,212,0.08); }
-    .item { padding: 0.4rem 0.5rem; border-radius: 4px; margin-bottom: 0.2rem; border: 1px solid transparent; font-size: 0.78rem; }
-    .item:hover { background: var(--bg-hover); border-color: var(--border); }
-    .item-top { display: flex; align-items: center; gap: 0.4rem; }
-    .item-dots { display: flex; gap: 3px; flex-shrink: 0; align-items: center; }
-    .item-dot { width: 8px; height: 8px; border-radius: 50%; position: relative; opacity: 0.15; flex-shrink: 0; }
-    .item-dot.active { opacity: 1; }
-    .item-dot.todo { background: var(--role-todo); }
-    .item-dot.prompt { background: var(--role-prompt); }
-    .item-dot.spec { background: var(--role-spec); }
-    .item-dot.code { background: var(--role-code); }
-    .item-dot.has-checked::after { content: ''; position: absolute; width: 3px; height: 3px; background: var(--bg-primary); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-    .item-text { flex: 1; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-    .item-tag-right { font-family: var(--font-mono); font-size: 0.6rem; color: var(--accent); flex-shrink: 0; margin-left: auto; white-space: nowrap; }
-    .item-sub { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 0.15rem; margin-left: 31px; }
-    .item-warn { font-family: var(--font-mono); font-size: 0.55rem; color: var(--warning); margin-top: 0.15rem; margin-left: 31px; }
-    .item-classes { font-family: var(--font-mono); font-size: 0.6rem; color: var(--role-code); margin-top: 0.2rem; margin-left: 31px; }
-    .item-content { margin-top: 0.4rem; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow-y: auto; color: var(--text-secondary); }
-    .item-content.expanded { max-height: none; }
-    .item-expand { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.65rem; font-family: var(--font-sans); padding: 0.1rem 0; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .idio-term { display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 3px; margin-bottom: 0.15rem; font-size: 0.75rem; }
-    .idio-term.lit { background: rgba(245,158,11,0.08); border-left: 2px solid var(--accent); }
-    .idio-term.dim { opacity: 0.35; }
-    .idio-term input[type="checkbox"] { accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; cursor: pointer; }
-    .idio-term-body { flex: 1; min-width: 0; }
-    .idio-term-name { font-weight: 600; font-family: var(--font-mono); font-size: 0.72rem; }
-    .idio-term-def { color: var(--text-muted); font-size: 0.68rem; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :root {
+    --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
+    --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
+    --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
+    --accent: #f59e0b; --accent-dim: #b45309;
+    --success: #22c55e; --success-dim: rgba(34, 197, 94, 0.15);
+    --danger: #ef4444; --danger-dim: rgba(239, 68, 68, 0.15);
+    --warning: #eab308; --warning-dim: rgba(234, 179, 8, 0.15);
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Space Grotesk', sans-serif;
+    --panel-columns: 260px 1fr 1fr;
+  }
 
-    .bundle-actions { display: flex; gap: 0.4rem; padding: 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
-    .bundle-preview { flex: 1; overflow-y: auto; padding: 0.5rem; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary); }
-    .report-section { margin-bottom: 1rem; }
-    .report-label { font-family: var(--font-mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 0.3rem; font-weight: 600; }
-    .report-item { font-family: var(--font-mono); font-size: 0.68rem; padding: 0.2rem 0.4rem; color: var(--text-secondary); border-radius: 3px; margin-bottom: 0.1rem; }
-    .report-item:hover { background: var(--bg-hover); }
-    .report-item .ri-tag { color: var(--accent); }
-    .report-item .ri-warn { color: var(--warning); }
-    .report-item .ri-ok { color: var(--success); }
-    .report-item .ri-err { color: var(--danger); }
-    .report-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 0.2rem 0 0.4rem; background: var(--bg-tertiary); }
-    .report-bar span { height: 100%; }
+  html, body { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
 
-    .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-    .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
-    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .btn svg { width: 14px; height: 14px; }
-    .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
-    .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
-    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem; text-align: center; height: 100%; }
-    .status { font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 1rem; border-top: 1px solid var(--border); background: var(--bg-secondary); font-family: var(--font-mono); }
-    .status.success { color: var(--success); }
-    .status.error { color: var(--danger); }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: var(--bg-primary); }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+  /* ── Shell layout ──────────────────────────────────────────── */
+
+  .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+
+  header {
+    padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary);
+  }
+  header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
+  header h1 span { color: var(--accent); }
+  .header-left  { display: flex; align-items: center; gap: 0.75rem; }
+  .header-right { display: flex; gap: 0.75rem; align-items: center; }
+
+  main { display: grid; grid-template-columns: var(--panel-columns); overflow: hidden; }
+
+  /* ── Panels ────────────────────────────────────────────────── */
+
+  .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .count {
+    background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 0.7rem;
+  }
+  .panel-tabs { display: flex; gap: 0.25rem; }
+  .panel-tab {
+    background: none; border: none; padding: 0.2rem 0.5rem;
+    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; border-radius: 3px; transition: all 0.15s;
+  }
+  .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+  .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
+  .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
+
+  /* ── Filter row ────────────────────────────────────────────── */
+
+  .filter-row {
+    display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+  }
+  .filter-input {
+    flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px;
+    padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-primary); outline: none;
+  }
+  .filter-input:focus { border-color: var(--accent); }
+  .filter-input::placeholder { color: var(--text-muted); }
+  .filter-input.active { border-color: var(--accent); background: rgba(245, 158, 11, 0.1); }
+  .filter-clear {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 1rem; cursor: pointer; padding: 0 0.25rem; line-height: 1;
+  }
+  .filter-clear:hover { color: var(--text-primary); }
+
+  /* ── Buttons ───────────────────────────────────────────────── */
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.45rem 0.85rem; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-tertiary); color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+  .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; border-color: #dc2626; }
+
+  /* ── Toggle switch ─────────────────────────────────────────── */
+
+  .toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
+  .toggle-track {
+    width: 36px; height: 20px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: 10px; position: relative; transition: all 0.2s;
+  }
+  .toggle-track::after {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    background: var(--text-muted); border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s;
+  }
+  .toggle.active .toggle-track { background: var(--accent); border-color: var(--accent); }
+  .toggle.active .toggle-track::after { background: #000; left: 18px; }
+
+  /* ── Drop zone ─────────────────────────────────────────────── */
+
+  .drop-zone {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245,158,11,0.05); }
+  .drop-zone.secondary { border-style: dotted; opacity: 0.7; padding: 1rem; }
+  .drop-zone.secondary:hover { opacity: 1; }
+  .drop-zone-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--text-muted); }
+  .drop-zone p { font-size: 0.85rem; color: var(--text-secondary); text-align: center; }
+  .drop-zone small { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+  /* ── Stat badges ───────────────────────────────────────────── */
+
+  .stat-badge {
+    display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono); font-size: 0.65rem;
+    padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    position: relative; cursor: default;
+  }
+  .stat-badge[data-tip]::after {
+    content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%); white-space: nowrap;
+    background: var(--bg-hover); color: var(--text-primary); border: 1px solid var(--border-focus);
+    font-family: var(--font-sans); font-size: 0.7rem; font-weight: 400;
+    padding: 0.3rem 0.6rem; border-radius: 4px;
+    opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    z-index: 100;
+  }
+  .stat-badge[data-tip]:hover::after { opacity: 1; }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .stat-badge.ok     { color: var(--success); border-color: rgba(34,197,94,0.3); }
+  .stat-badge.broken { color: var(--danger);  border-color: rgba(239,68,68,0.3); }
+  .stat-badge.warn   { color: var(--warning); border-color: rgba(234,179,8,0.3); }
+  .stat-badge.info   { color: var(--accent);  border-color: rgba(245,158,11,0.3); }
+
+  /* ── File / list items ─────────────────────────────────────── */
+
+  .file-item {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem;
+    border-radius: 4px; font-size: 0.8rem; cursor: pointer;
+  }
+  .file-item:hover { background: var(--bg-hover); }
+  .file-item.active { background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--accent); margin-left: -2px; }
+  .file-item .filename {
+    font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .file-item .filename:hover { color: var(--accent); }
+  .file-item .ext { color: var(--accent); font-size: 0.65rem; text-transform: uppercase; flex-shrink: 0; }
+
+  .list-item {
+    display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem;
+    border-radius: 4px; font-size: 0.8rem; border: 1px solid transparent; margin-bottom: 0.15rem;
+  }
+  .list-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .list-item .item-label {
+    font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-primary);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .list-item .item-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); flex-shrink: 0; }
+
+  /* ── Empty state ───────────────────────────────────────────── */
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; color: var(--text-muted); font-size: 0.8rem; text-align: center; height: 100%;
+  }
+
+  /* ── Preview modal ─────────────────────────────────────────── */
+
+  .preview-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s;
+  }
+  .preview-overlay.visible { opacity: 1; visibility: visible; }
+  .preview-modal {
+    background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+    width: 90%; max-width: 800px; height: 85vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .preview-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .preview-header h3 { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; }
+  .preview-actions { display: flex; gap: 0.4rem; align-items: center; }
+  .preview-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.25rem; }
+  .preview-close:hover { color: var(--text-primary); }
+  .preview-content {
+    padding: 1rem; overflow: auto; flex: 1;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; white-space: pre;
+  }
+  .preview-line { display: flex; }
+  .preview-line.highlight { background: rgba(245,158,11,0.15); margin: 0 -1rem; padding: 0 1rem; }
+  .preview-line-num {
+    color: var(--text-muted); width: 4ch; text-align: right;
+    margin-right: 1rem; user-select: none; flex-shrink: 0;
+  }
+  .preview-line-text { white-space: pre; }
+  .preview-editor-wrap {
+    flex: 1; display: flex; overflow: hidden;
+  }
+  .preview-gutter {
+    min-width: 3rem; padding: 1rem 0.5rem 1rem 0.75rem; text-align: right;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6;
+    color: var(--text-muted); background: var(--bg-tertiary); user-select: none;
+    overflow: hidden; flex-shrink: 0; border-right: 1px solid var(--border);
+    box-sizing: content-box;
+  }
+  .preview-gutter div { line-height: 1.6; box-sizing: border-box; }
+  .preview-editor {
+    flex: 1; width: 0; padding: 1rem; min-height: 0;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6;
+    background: var(--bg-primary); color: var(--text-primary);
+    border: none; outline: none; resize: none; tab-size: 2;
+    overflow: auto; white-space: pre-wrap; word-wrap: break-word;
+  }
+  .preview-mirror {
+    position: absolute; visibility: hidden; pointer-events: none;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6;
+    tab-size: 2; white-space: pre-wrap; word-wrap: break-word;
+    padding: 0; border: none; overflow: hidden;
+  }
+
+  /* ── Status bar ────────────────────────────────────────────── */
+
+  .status {
+    font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 1rem;
+    border-top: 1px solid var(--border); background: var(--bg-secondary); font-family: var(--font-mono);
+  }
+  .status.success { color: var(--success); }
+  .status.error   { color: var(--danger); }
+
+  /* ── Scrollbar ─────────────────────────────────────────────── */
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+/*-- endfile --*/
+
+
+/* ═══════════════════════════════════════════════════════════════
+   dot-status.css — reusable multi-dot status indicator
+   Size and gap configurable via --ds-size and --ds-gap custom
+   properties on the container. Dot colour via --dot-color on
+   each dot.
+   ═══════════════════════════════════════════════════════════════ */
+
+/*<< @import url('./dot-status.css'); */
+/*-- file: ./dot-status.css --*/
+
+  .ds { display: flex; gap: var(--ds-gap, 3px); flex-shrink: 0; align-items: center; }
+  .ds-dot {
+    width: var(--ds-size, 9px); height: var(--ds-size, 9px);
+    border-radius: 50%; position: relative; flex-shrink: 0;
+    background: var(--dot-color, var(--text-muted)); opacity: 0.15;
+  }
+  .ds-dot.active { opacity: 1; }
+  .ds-dot.has-checked::after {
+    content: ''; position: absolute;
+    width: calc(var(--ds-size, 9px) * 0.33); height: calc(var(--ds-size, 9px) * 0.33);
+    background: var(--bg-primary); border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+  .ds-dot.excluded { opacity: 0.55; }
+  .ds-dot.excluded::after {
+    content: ''; position: absolute;
+    width: calc(var(--ds-size, 9px) * 0.78); height: calc(var(--ds-size, 9px) * 0.17);
+    min-height: 1.5px;
+    background: var(--bg-primary);
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+  }
+
+/*-- endfile --*/
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Cascade-specific styles
+   ═══════════════════════════════════════════════════════════════ */
+
+  :root {
+    --panel-columns: 280px 1fr 380px;
+  }
+
+  .tag-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem; border-radius: 3px; cursor: pointer; font-size: 0.78rem; min-height: 26px; user-select: none; }
+  .tag-row:hover { background: var(--bg-hover); }
+  .tag-row.selected { background: rgba(245,158,11,0.12); border-left: 2px solid var(--accent); margin-left: -2px; }
+  .tag-row.dep-target { background: rgba(59,130,246,0.10); }
+  .tag-row.dep-target .tag-name { color: var(--accent); }
+  .tag-arrow { width: 14px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; font-size: 0.6rem; text-align: center; }
+  .tag-arrow.expanded { transform: rotate(90deg); }
+  .tag-arrow.leaf { visibility: hidden; }
+  .tag-name { font-family: var(--font-mono); font-size: 0.75rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent); }
+  .tag-frac { font-family: var(--font-mono); font-size: 0.55rem; color: var(--text-muted); min-width: 28px; text-align: right; flex-shrink: 0; }
+  .tag-frac.all-done { color: var(--success); }
+  .tag-frac.none-done { color: var(--danger); }
+  .tag-idio-mark { color: var(--accent); font-size: 0.6rem; flex-shrink: 0; margin-right: 1px; }
+  .tag-children { margin-left: 14px; }
+  .tag-children.collapsed { display: none; }
+
+  .file-list { flex: 1; overflow: hidden; padding: 0.4rem; display: flex; flex-direction: column; }
+  .stnda-item { padding: 0.4rem 0.5rem; border-radius: 4px; margin-bottom: 0.2rem; cursor: pointer; border: 1px solid transparent; font-size: 0.78rem; }
+  .stnda-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .stnda-item.selected { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
+  .stnda-item-name { font-weight: 500; margin-bottom: 0.25rem; }
+  .stnda-item-tag-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.1rem 0; }
+  .stnda-item-tag-name { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-secondary); flex: 1; }
+  .stnda-item-desc { font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .st-header { display: flex; gap: 0.4rem; padding: 0.25rem 0.4rem; border-bottom: 1px solid var(--border); user-select: none; }
+  .st-hcell { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; color: var(--text-muted); cursor: pointer; letter-spacing: 0.04em; }
+  .st-hcell:hover { color: var(--text-primary); }
+  .st-body { overflow-y: auto; flex: 1; }
+  .st-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.4rem; font-size: 0.7rem; border-radius: 3px; cursor: pointer; }
+  .st-row:hover { background: var(--bg-hover); }
+  .st-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-entry { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.4rem; font-size: 0.7rem; border-radius: 3px; }
+  .file-entry:hover { background: var(--bg-hover); }
+  .file-entry .fname { font-family: var(--font-mono); font-size: 0.65rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-role { font-family: var(--font-mono); font-size: 0.5rem; text-transform: uppercase; padding: 0.05rem 0.25rem; border-radius: 2px; flex-shrink: 0; }
+  /* .file-role.{stage} and .role-header.{stage} injected dynamically from pipeline config */
+  .file-role.idiolect { background: rgba(152,152,164,0.15); color: var(--text-secondary); }
+  .file-role.prefix { background: rgba(236,72,153,0.15); color: #ec4899; }
+  .file-role.manifest { background: rgba(152,152,164,0.15); color: var(--text-secondary); }
+
+  .role-group { margin-bottom: 0.75rem; }
+  .role-header { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.3rem 0.5rem; margin-bottom: 0.2rem; border-radius: 3px; font-weight: 600; }
+  /* role-header styles injected dynamically */
+
+  .item { padding: 0.4rem 0.5rem; border-radius: 4px; margin-bottom: 0.2rem; border: 1px solid transparent; font-size: 0.78rem; }
+  .item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .item-top { display: flex; align-items: center; gap: 0.4rem; }
+  .item-text { flex: 1; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .item-tag-right { font-family: var(--font-mono); font-size: 0.6rem; color: var(--accent); flex-shrink: 0; margin-left: auto; white-space: nowrap; }
+  .item-sub { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 0.15rem; margin-left: 31px; }
+  .item-sub.clickable { cursor: pointer; }
+  .item-sub.clickable:hover { color: var(--accent); text-decoration: underline; }
+  .item-uses { font-family: var(--font-mono); font-size: 0.6rem; color: var(--accent); margin-top: 0.15rem; margin-left: 31px; }
+  .item-no { font-family: var(--font-mono); font-size: 0.55rem; color: var(--text-muted); margin-top: 0.1rem; margin-left: 31px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .item-warn { font-family: var(--font-mono); font-size: 0.55rem; color: var(--warning); margin-top: 0.15rem; margin-left: 31px; }
+  .item-classes { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-secondary); margin-top: 0.2rem; margin-left: 31px; }
+  .item-content { margin-top: 0.4rem; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow-y: auto; color: var(--text-secondary); }
+  .item-content.expanded { max-height: none; }
+  .item-expand { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.65rem; font-family: var(--font-sans); padding: 0.1rem 0; }
+
+  .idio-term { display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 3px; margin-bottom: 0.15rem; font-size: 0.75rem; }
+  .idio-term.lit { background: rgba(245,158,11,0.08); border-left: 2px solid var(--accent); }
+  .idio-term.dim { opacity: 0.35; }
+  .idio-term input[type="checkbox"] { accent-color: var(--accent); margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+  .idio-toolbar { display: flex; gap: 0.3rem; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-wrap: wrap; align-items: center; }
+  .idio-toolbar .btn { padding: 0.2rem 0.5rem; font-size: 0.65rem; }
+  .idio-toolbar .sep { width: 1px; height: 16px; background: var(--border); flex-shrink: 0; }
+  .idio-term-body { flex: 1; min-width: 0; }
+  .idio-term-name { font-weight: 600; font-family: var(--font-mono); font-size: 0.72rem; }
+  .idio-term-def { color: var(--text-muted); font-size: 0.68rem; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .queue-item { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem; border: 1px solid transparent; cursor: pointer; }
+  .queue-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .queue-item-top { display: flex; align-items: center; gap: 0.4rem; }
+  .queue-item-text { flex: 1; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queue-item-tag { font-family: var(--font-mono); font-size: 0.6rem; color: var(--accent); flex-shrink: 0; }
+  .queue-item-meta { display: flex; gap: 0.5rem; margin-left: 0.2rem; font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); }
+  .queue-item-meta .has-spec { color: var(--accent); }
+  .queue-item-meta .blocked { color: var(--danger); }
+  .queue-item-meta .clear { color: var(--success); }
+  .queue-group-label { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.4rem 0.5rem 0.2rem; font-weight: 600; }
+  .queue-group-label.ready { color: var(--success); }
+  .queue-group-label.blocked { color: var(--text-muted); }
+
+  .bundle-actions { display: flex; gap: 0.4rem; padding: 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+  .bundle-preview { flex: 1; overflow-y: auto; padding: 0.5rem; font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary); }
+  .report-section { margin-bottom: 1rem; }
+  .report-label { font-family: var(--font-mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin-bottom: 0.3rem; font-weight: 600; }
+  .report-item { font-family: var(--font-mono); font-size: 0.68rem; padding: 0.2rem 0.4rem; color: var(--text-secondary); border-radius: 3px; margin-bottom: 0.1rem; }
+  .report-item:hover { background: var(--bg-hover); }
+  .report-item[data-nav-tag] { cursor: pointer; }
+  .report-item[data-nav-tag]:hover .ri-tag { text-decoration: underline; }
+  .report-item .ri-tag { color: var(--accent); }
+  .report-item .ri-warn { color: var(--warning); }
+  .report-item .ri-ok { color: var(--success); }
+  .report-item .ri-err { color: var(--danger); }
+  .report-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 0.2rem 0 0.4rem; background: var(--bg-tertiary); }
+  .report-bar span { height: 100%; }
+
   </style>
 </head>
 <body>
   <div class="app">
     <header>
       <h1>Work <span>Cascade</span></h1>
-      <div class="header-actions" id="headerActions">
+      <div class="header-right" id="headerRight">
         <button class="btn" id="btnRescan" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>Rescan</button>
         <button class="btn btn-primary" id="btnCopy" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy Bundle</button>
       </div>
     </header>
     <main>
       <div class="panel">
-        <div class="panel-header">Tags <span class="count" id="tagCount">0</span></div>
+        <div class="panel-header">
+          <div class="panel-tabs" id="leftTabs">
+            <button class="panel-tab active" data-tab="tags">Tags</button>
+            <button class="panel-tab" data-tab="files">Files</button>
+          </div>
+          <span class="count" id="tagCount">0</span>
+        </div>
         <div class="filter-row" id="filterRow" style="display:none">
           <input type="text" class="filter-input" id="treeFilter" placeholder="filter tags...">
+          <button class="filter-clear" id="filterClear">✕</button>
         </div>
         <div class="panel-content" id="treeContent">
           <div class="drop-zone" id="dropMd">
@@ -171,6 +450,7 @@
           </div>
         </div>
         <div class="file-list" id="fileList" style="display:none"></div>
+        <div class="panel-content" id="custom1Content" style="display:none"></div>
       </div>
       <div class="panel">
         <div class="panel-header">
@@ -190,7 +470,6 @@
           </div>
         </div>
         <div class="bundle-actions" id="bundleActions">
-          <button class="btn btn-primary" id="btnCopyBundle" disabled>Copy to clipboard</button>
         </div>
         <div class="panel-content" id="rightContent"><div class="empty-state">Select a tag to build a bundle</div></div>
       </div>
@@ -199,17 +478,488 @@
   </div>
 
   <script type="module">
+
+    // ═══════════════════════════════════════════════════════════════
+    // omni-fs — File System Access API helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { setupDropZone, suppressBrowserDragDrop, walkDirectory, readFileContent, writeFileContent } from './omni-fs.js';
+    //-- file: ./omni-fs.js --
+    //>> export { setupDropZone, suppressBrowserDragDrop, walkDirectory, readFileContent, writeFileContent };
+
+    /** Prevent the browser's default drag-drop behaviour on the whole page. */
+    function suppressBrowserDragDrop() {
+      document.addEventListener('dragover', e => e.preventDefault());
+      document.addEventListener('drop', e => e.preventDefault());
+    }
+
+    /**
+     * Wire a drop-zone element: drag-over highlight, drop → directory handle,
+     * click → showDirectoryPicker() fallback.
+     * @param {HTMLElement} el         The drop-zone element.
+     * @param {function}    onDir      async callback(directoryHandle).
+     * @param {function}    [onError]  optional error reporter; receives a message string.
+     */
+    function setupDropZone(el, onDir, onError) {
+      if (!el) return;
+      el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', async e => {
+        e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
+        for (const item of e.dataTransfer.items) {
+          if (item.kind === 'file') {
+            const handle = await item.getAsFileSystemHandle();
+            if (handle.kind === 'directory') { await onDir(handle); return; }
+          }
+        }
+        if (onError) onError('Please drop a folder, not individual files');
+      });
+      el.addEventListener('click', async () => {
+        try { const handle = await window.showDirectoryPicker(); await onDir(handle); }
+        catch (err) { if (err.name !== 'AbortError' && onError) onError(err.message); }
+      });
+    }
+
+    /**
+     * Recursively walk a directory, returning { handle, path } entries.
+     * @param {FileSystemDirectoryHandle} dirHandle
+     * @param {object} [opts]
+     * @param {RegExp} [opts.extensions]   Only include files matching this.
+     * @param {string[]} [opts.skipDirs]   Extra directory names to skip.
+     * @param {string} [opts._prefix]      Internal accumulated path.
+     */
+    async function walkDirectory(dirHandle, opts = {}) {
+      const extensions = opts.extensions || null;
+      const skipDirs   = opts.skipDirs   || null;
+      const prefix     = opts._prefix    || '';
+      const entries    = [];
+      for await (const entry of dirHandle.values()) {
+        if (entry.name.startsWith('.')) continue;
+        const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.kind === 'directory') {
+          if (entry.name === 'node_modules') continue;
+          if (skipDirs && skipDirs.includes(entry.name)) continue;
+          entries.push(...await walkDirectory(entry, { extensions, skipDirs, _prefix: entryPath }));
+        } else if (entry.kind === 'file') {
+          if (extensions && !extensions.test(entry.name)) continue;
+          entries.push({ handle: entry, path: entryPath });
+        }
+      }
+      return entries;
+    }
+
+    /** Read a file handle to a string. */
+    async function readFileContent(fileHandle) {
+      const file = await fileHandle.getFile();
+      return file.text();
+    }
+
+    /** Overwrite a file handle with new content. */
+    async function writeFileContent(fileHandle, content) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // omni-shell — shared UI helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { escapeHtml, setStatus, renderStatBadges, setupTabs, setupFilter } from './omni-shell.js';
+    //-- file: ./omni-shell.js --
+    //>> export { escapeHtml, setStatus, renderStatBadges, setupTabs, setupFilter };
+
+    /** Escape a string for safe insertion into HTML. */
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    /**
+     * Set the status bar text and optional type class.
+     * @param {HTMLElement} statusEl
+     * @param {string}      msg
+     * @param {string}      [type]  'success' | 'error' | ''
+     */
+    function setStatus(statusEl, msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    /**
+     * Render stat badges in a container.
+     * Each stat: { label, count, type?, color? }.
+     * type: 'ok'|'broken'|'warn'|'info'|''
+     * color: optional inline colour for the dot (overrides type).
+     */
+    function renderStatBadges(container, stats, insertBefore) {
+      container.querySelectorAll('.stat-badge').forEach(el => el.remove());
+      for (const stat of stats) {
+        const badge = document.createElement('div');
+        badge.className = 'stat-badge' + (stat.type ? ' ' + stat.type : '');
+        const dotStyle = stat.color ? ` style="background:${stat.color}"` : '';
+        const countStr = stat.checked ? `${stat.checked}/${stat.count}` : String(stat.count);
+        if (stat.description) badge.dataset.tip = stat.description;
+        badge.innerHTML = `<span class="stat-dot"${dotStyle}></span>${escapeHtml(countStr)} ${escapeHtml(stat.label)}`;
+        if (insertBefore) container.insertBefore(badge, insertBefore);
+        else container.appendChild(badge);
+      }
+    }
+
+    /**
+     * Wire tab buttons: clicking a tab activates it and calls the callback.
+     * @param {HTMLElement} container   Element containing .panel-tab buttons.
+     * @param {function}    callback    Receives the data-tab string.
+     */
+    function setupTabs(container, callback) {
+      container.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          container.querySelectorAll('.panel-tab').forEach(t =>
+            t.classList.toggle('active', t === tab));
+          callback(tab.dataset.tab);
+        });
+      });
+    }
+
+    /**
+     * Wire a filter input and its clear button.
+     * @param {HTMLInputElement} inputEl
+     * @param {HTMLElement}      clearEl
+     * @param {function}         callback  Receives the current filter string.
+     */
+    function setupFilter(inputEl, clearEl, callback) {
+      inputEl.addEventListener('input', () => {
+        inputEl.classList.toggle('active', inputEl.value !== '');
+        callback(inputEl.value);
+      });
+      clearEl.addEventListener('click', () => {
+        inputEl.value = '';
+        inputEl.classList.remove('active');
+        callback('');
+      });
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // DotStatus — reusable multi-dot status indicator
+    //
+    // Constructor takes a stages array describing each dot position:
+    //   [{ name: 'todo', color: 'var(--role-todo)', label: 'Todo' }, ...]
+    //
+    // render(maturity) produces HTML where maturity maps stage names
+    // to { count, checked, excluded }.
+    //
+    // The number and meaning of stages is not baked in — the same
+    // class works for a 4-dot cascade pipeline, a 6-dot server
+    // health strip, or a 3-dot facility indicator.
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { DotStatus } from './dot-status.js';
+    //-- file: ./dot-status.js --
+    //>> export { DotStatus };
+
+    class DotStatus {
+      /**
+       * @param {Array<{name:string, color:string, label?:string}>} stages
+       * @param {object} [opts]
+       * @param {number} [opts.size]  Dot diameter in px (default: CSS --ds-size, 9px).
+       * @param {number} [opts.gap]   Gap between dots in px (default: CSS --ds-gap, 3px).
+       */
+      constructor(stages, opts = {}) {
+        this.stages = stages;
+        this.size = opts.size || null;
+        this.gap  = opts.gap  || null;
+      }
+
+      /**
+       * Render dot strip as an HTML string.
+       * @param {object} maturity  { stageName: { count, checked, excluded } }
+       * @returns {string}
+       */
+      render(maturity) {
+        const style = [];
+        if (this.size) style.push(`--ds-size:${this.size}px`);
+        if (this.gap)  style.push(`--ds-gap:${this.gap}px`);
+        const attr = style.length ? ` style="${style.join(';')}"` : '';
+
+        let h = `<span class="ds"${attr}>`;
+        for (const s of this.stages) {
+          const m = maturity?.[s.name] || {};
+          const active   = m.count > 0;
+          const checked  = m.checked > 0;
+          const excluded = m.excluded && !active;
+          const cls = 'ds-dot'
+            + (active   ? ' active'      : '')
+            + (checked  ? ' has-checked'  : '')
+            + (excluded ? ' excluded'     : '');
+          const label = s.label || s.name;
+          const title = `${label}: ${m.count || 0}`
+            + (m.checked ? ` (${m.checked}✓)` : '')
+            + (excluded  ? ' (excluded)' : '');
+          h += `<span class="${cls}" style="--dot-color:${s.color}" title="${title}"></span>`;
+        }
+        return h + '</span>';
+      }
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // PreviewModal — source preview overlay with optional edit mode
+    //
+    // Creates its own DOM on construction. In read mode, shows
+    // numbered lines with an optional highlight. An Edit button
+    // toggles to a textarea; Save calls the onSave callback and
+    // closes.
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { PreviewModal } from './preview-modal.js';
+    //-- file: ./preview-modal.js --
+    //>> export { PreviewModal };
+
+    class PreviewModal {
+      /**
+       * @param {object} [opts]
+       * @param {function} [opts.onSave]  async (filename, newContent) => void.
+       *   If provided, the Save button is shown.
+       */
+      constructor(opts = {}) {
+        this.onSave = opts.onSave || null;
+        this._filename = '';
+        this._build();
+      }
+
+      _build() {
+        this.overlay = document.createElement('div');
+        this.overlay.className = 'preview-overlay';
+        this.overlay.innerHTML = `
+          <div class="preview-modal">
+            <div class="preview-header">
+              <h3></h3>
+              <div class="preview-actions">
+                <button class="btn btn-primary pm-save">Save</button>
+                <button class="preview-close">✕</button>
+              </div>
+            </div>
+            <div class="preview-editor-wrap">
+              <div class="preview-gutter"></div>
+              <textarea class="preview-editor"></textarea>
+              <div class="preview-mirror"></div>
+            </div>
+          </div>`;
+        document.body.appendChild(this.overlay);
+
+        this._titleEl  = this.overlay.querySelector('h3');
+        this._editorEl = this.overlay.querySelector('.preview-editor');
+        this._gutterEl = this.overlay.querySelector('.preview-gutter');
+        this._mirrorEl = this.overlay.querySelector('.preview-mirror');
+        this._saveBtn  = this.overlay.querySelector('.pm-save');
+
+        this._editorEl.addEventListener('scroll', () => {
+          this._gutterEl.scrollTop = this._editorEl.scrollTop;
+        });
+        this._editorEl.addEventListener('input', () => this._syncGutter());
+        this._resizeObs = new ResizeObserver(() => this._syncGutter());
+        this._resizeObs.observe(this._editorEl);
+
+        this.overlay.querySelector('.preview-close').addEventListener('click', () => this.hide());
+        this.overlay.addEventListener('click', e => { if (e.target === this.overlay) this.hide(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') this.hide(); });
+        this._saveBtn.addEventListener('click', () => this._save());
+      }
+
+      _syncGutter() {
+        const lines = this._editorEl.value.split('\n');
+        const mirror = this._mirrorEl;
+        // Match the textarea's *text* width (clientWidth includes padding; mirror has none)
+        const cs = getComputedStyle(this._editorEl);
+        const padL = parseFloat(cs.paddingLeft) || 0;
+        const padR = parseFloat(cs.paddingRight) || 0;
+        mirror.style.width = (this._editorEl.clientWidth - padL - padR) + 'px';
+        mirror.style.font = cs.font;
+        mirror.style.letterSpacing = cs.letterSpacing;
+
+        let html = '';
+        for (let i = 0; i < lines.length; i++) {
+          // Measure each line's rendered height via the mirror
+          mirror.textContent = lines[i] || '\u200b';
+          const h = mirror.getBoundingClientRect().height;
+          html += `<div style="height:${h}px;overflow:hidden">${i + 1}</div>`;
+        }
+        this._gutterEl.innerHTML = html;
+      }
+
+      /**
+       * Open the editor on a file, optionally scrolled to a line.
+       * @param {string}   filename        Identifier passed back to onSave.
+       * @param {string[]} lines           Array of source lines.
+       * @param {number}   [highlightLine] 1-based line to scroll to.
+       */
+      show(filename, lines, highlightLine) {
+        this._filename = filename;
+        this._titleEl.textContent = highlightLine ? `${filename} : ${highlightLine}` : filename;
+        this._saveBtn.style.display = this.onSave ? '' : 'none';
+        this._editorEl.value = lines.join('\n');
+        this._syncGutter();
+        this.overlay.classList.add('visible');
+        this._editorEl.focus();
+
+        if (highlightLine) {
+          const pos = lines.slice(0, highlightLine - 1).join('\n').length + 1;
+          this._editorEl.setSelectionRange(pos, pos);
+          const lh = parseFloat(getComputedStyle(this._editorEl).lineHeight) || 19;
+          this._editorEl.scrollTop = Math.max(0, highlightLine - 8) * lh;
+        }
+      }
+
+      async _save() {
+        if (this.onSave) await this.onSave(this._filename, this._editorEl.value);
+        this.hide();
+      }
+
+      hide() { this.overlay.classList.remove('visible'); }
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // SortableTable — reusable sortable table with click delegation
+    // ═══════════════════════════════════════════════════════════════
+
+    class SortableTable {
+      /**
+       * @param {HTMLElement} container
+       * @param {object} opts
+       * @param {Array<{key:string, label:string, flex?:number, render:(row)=>string}>} opts.columns
+       * @param {function} [opts.onRowClick]  (row) => void
+       */
+      constructor(container, opts) {
+        this.container = container;
+        this.columns = opts.columns;
+        this.onRowClick = opts.onRowClick || null;
+        this._rows = [];
+        this._sortKey = null;
+        this._sortAsc = true;
+      }
+
+      setData(rows) {
+        this._rows = rows.slice();
+        this._applySort();
+        this.render();
+      }
+
+      _applySort() {
+        if (!this._sortKey) return;
+        const key = this._sortKey, asc = this._sortAsc;
+        this._rows.sort((a, b) => {
+          const va = (typeof a[key] === 'string' ? a[key].toLowerCase() : a[key]) || '';
+          const vb = (typeof b[key] === 'string' ? b[key].toLowerCase() : b[key]) || '';
+          return va < vb ? (asc ? -1 : 1) : va > vb ? (asc ? 1 : -1) : 0;
+        });
+      }
+
+      render() {
+        let html = '<div class="st-header">';
+        for (const col of this.columns) {
+          const arrow = this._sortKey === col.key ? (this._sortAsc ? ' ▲' : ' ▼') : '';
+          html += `<span class="st-hcell" data-sort-key="${col.key}" style="flex:${col.flex || 1}">${col.label}${arrow}</span>`;
+        }
+        html += '</div><div class="st-body">';
+        for (let i = 0; i < this._rows.length; i++) {
+          html += `<div class="st-row" data-st-idx="${i}">`;
+          for (const col of this.columns) {
+            html += `<span class="st-cell" style="flex:${col.flex || 1}">${col.render(this._rows[i])}</span>`;
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        this.container.innerHTML = html;
+
+        this.container.querySelectorAll('.st-hcell').forEach(hcell => {
+          hcell.addEventListener('click', () => {
+            const key = hcell.dataset.sortKey;
+            if (this._sortKey === key) this._sortAsc = !this._sortAsc;
+            else { this._sortKey = key; this._sortAsc = true; }
+            this._applySort();
+            this.render();
+          });
+        });
+
+        if (this.onRowClick) {
+          this.container.querySelectorAll('.st-row').forEach(row => {
+            row.addEventListener('click', () => this.onRowClick(this._rows[parseInt(row.dataset.stIdx, 10)]));
+          });
+        }
+      }
+    }
+
+
     // ═══════════════════════════════════════════════════════════════
     // CascadeParse — tag extraction, role detection, markdown parsing
     // ═══════════════════════════════════════════════════════════════
     //-- file: ./cascade-parse.js --
     //>> export { CascadeParse };
+    // ── Pipeline configuration ──────────────────────────────────
+    const DEFAULT_CONFIG = {
+      pipeline: [
+        { name: 'TODO',   color: '#f59e0b', checkbox: true,  description: 'Work item identified' },
+        { name: 'PROMPT', color: '#58a6ff',                   description: 'Elicited design or algorithm prompt' },
+        { name: 'SPEC',   color: '#bc8cff',                   description: 'Detailed specification' },
+        { name: 'CODE',   color: '#3fb950',                   description: 'Implementation' },
+        { name: 'STNDA',  color: '#e8e8ec',                   description: 'Standalone normalised spike' },
+      ],
+      manifest: {
+        default_role: 'CODE',
+        patterns: [
+          { match: '-grammar', role: 'SPEC' },
+          { match: '-stnda',   role: 'STNDA' },
+        ],
+      },
+      tabs1: [{ title: 'STNDA', with: ['STNDA'], style: 'role' }],
+      tabs2: [{ title: 'Queue', with: ['PROMPT'], without: ['CODE'], style: 'queue' }],
+    };
+    let pipelineConfig = DEFAULT_CONFIG;
+
     class CascadeParse {
-      static ROLES = ['todo', 'prompt', 'spec', 'code'];
-      static ROLE_LABELS = { todo: 'Todo', prompt: 'Prompt', spec: 'Spec', code: 'Code' };
+      static get ROLES() { return pipelineConfig.pipeline.map(s => s.name.toLowerCase()); }
+      static get ROLE_LABELS() {
+        const m = {};
+        for (const s of pipelineConfig.pipeline) m[s.name.toLowerCase()] = s.name;
+        return m;
+      }
       static TAG_RE = /#([a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_]+)*)/g;
 
-      /** Extract all #tags from text. requireSlash filters to tags containing /. */
+      /**
+       * Find a pipeline config island (```json block with "pipeline" key) in file content.
+       * Returns { config, error, line } — error and line set if a plausible block failed to parse.
+       */
+      static extractPipelineConfig(content) {
+        const re = /```json\s*\n([\s\S]*?)```/gi;
+        let m;
+        while ((m = re.exec(content)) !== null) {
+          const blockLine = content.slice(0, m.index).split('\n').length;
+          const raw = m[1];
+          // Skip the simple role block (single-key object with "role")
+          if (/^\s*\{\s*"role"\s*:/.test(raw)) continue;
+          // Only attempt blocks that look like they might contain pipeline config
+          if (!raw.includes('"pipeline"')) continue;
+          try {
+            const obj = JSON.parse(raw);
+            if (obj.pipeline && Array.isArray(obj.pipeline)) return { config: obj, error: null, line: null };
+          } catch (e) {
+            return { config: null, error: e.message, line: blockLine };
+          }
+        }
+        return { config: null, error: null, line: null };
+      }
+
       static extractTags(text, requireSlash = false) {
         const tags = [], re = new RegExp(this.TAG_RE.source, 'g');
         let m; while ((m = re.exec(text)) !== null) {
@@ -222,58 +972,78 @@
         return text.replace(/#[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_]+)*/g, '').trim();
       }
 
-      /** Detect role from ```json { "role": "..." } ``` block in file content. Returns null if none found. */
+      static parseItemText(raw) {
+        let main = raw, uses = [];
+        const usesIdx = raw.search(/\s+USES\s+/);
+        if (usesIdx !== -1) {
+          main = raw.slice(0, usesIdx);
+          uses = this.extractTags(raw.slice(raw.indexOf('USES', usesIdx) + 4));
+        }
+        const noRoles = [];
+        const noRoleNames = pipelineConfig.pipeline.filter(s => !s.checkbox).map(s => s.name.toUpperCase());
+        if (noRoleNames.length) {
+          const noRe = new RegExp(`\\bNO-(${noRoleNames.join('|')})\\b`, 'gi');
+          let nm;
+          while ((nm = noRe.exec(main)) !== null) noRoles.push(nm[1].toLowerCase());
+          main = main.replace(new RegExp(`\\bNO-(${noRoleNames.join('|')})\\b`, 'gi'), '');
+        }
+        const tags = this.extractTags(main);
+        const text = this.stripTags(main).replace(/\s{2,}/g, ' ').trim();
+        return { text, tags, uses, noRoles };
+      }
+
       static detectRole(content) {
         const m = content.match(/```json\s*\n\s*\{[^}]*"role"\s*:\s*"([^"]+)"[^}]*\}\s*\n\s*```/i);
         if (!m) return null;
-        const raw = m[1].toLowerCase();
-        if (raw === 'manifest') return 'code';
-        return raw;
+        return m[1].toLowerCase();
       }
 
-      /** Parse a markdown file into tagged items. Returns { items, idiolectTerms, prefixItems }. */
       static parse(content, filename, role) {
         if (role === 'idiolect') return { items: [], idiolectTerms: this._parseIdiolect(content, filename), prefixItems: [] };
-        if (role === 'code') return { items: this._parseManifest(content, filename), idiolectTerms: [], prefixItems: [] };
+        if (role === 'manifest') return { items: this._parseManifest(content, filename), idiolectTerms: [], prefixItems: [] };
         if (role === 'prefix') return { items: [], idiolectTerms: [], prefixItems: this._parseMd(content, filename, role) };
         return { items: this._parseMd(content, filename, role), idiolectTerms: [], prefixItems: [] };
       }
 
       static _parseMd(content, filename, role) {
         const lines = content.split('\n'), items = [];
-        let secHead = null, secTags = [], secLines = [], secStart = 0, secLevel = 0;
+        let secHead = null, secTags = [], secUses = [], secNoRoles = [], secLines = [], secStart = 0, secLevel = 0, secChecked = null;
         const flush = () => {
-          if (secHead && secTags.length)
-            items.push({ type:'section', heading: this.stripTags(secHead), tags: secTags,
-              content: secLines.join('\n').trim(), line: secStart, file: filename, role });
-          secHead = null; secTags = []; secLines = []; secLevel = 0;
+          if (secHead && secTags.length) {
+            const item = { type:'section', heading: this.stripTags(secHead), tags: secTags,
+              uses: secUses, noRoles: secNoRoles,
+              content: secLines.join('\n').trim(), line: secStart, file: filename, role };
+            if (secChecked !== null) item.checked = secChecked;
+            items.push(item);
+          }
+          secHead = null; secTags = []; secUses = []; secNoRoles = []; secLines = []; secLevel = 0; secChecked = null;
         };
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const hm = line.match(/^(#{1,6})\s+(.+)/);
           if (hm) {
             const level = hm[1].length;
-            const tags = this.extractTags(hm[2]);
-            // Flush if: new tagged heading, OR same/higher level heading
-            if (tags.length || !secHead || level <= secLevel) {
+            let headText = hm[2];
+            let checked = null;
+            const cbm = headText.match(/^\[([xX ])\]\s+(.*)/);
+            if (cbm) { checked = cbm[1].toLowerCase() === 'x'; headText = cbm[2]; }
+            const p = this.parseItemText(headText);
+            if (p.tags.length || !secHead || level <= secLevel) {
               flush();
-              if (tags.length) { secHead = hm[2]; secTags = tags; secStart = i+1; secLevel = level; secLines = []; }
-            } else {
-              // Sub-heading within current section — include it as content
-              secLines.push(line);
-            }
+              if (p.tags.length) { secHead = headText; secTags = p.tags; secUses = p.uses; secNoRoles = p.noRoles; secStart = i+1; secLevel = level; secLines = []; secChecked = checked; }
+            } else { secLines.push(line); }
             continue;
           }
           const cm = line.match(/^\s*\[([xX ])\]\s+(.+)/);
-          if (cm) { const tags = this.extractTags(cm[2]); if (tags.length) items.push({ type:'checkbox', checked: cm[1].toLowerCase()==='x', text: this.stripTags(cm[2]), tags, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
+          if (cm) { const p = this.parseItemText(cm[2]); if (p.tags.length) items.push({ type:'checkbox', checked: cm[1].toLowerCase()==='x', text: p.text, tags: p.tags, uses: p.uses, noRoles: p.noRoles, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
           const bm = line.match(/^\s*[*\-]\s+(.+)/);
-          if (bm) { const tags = this.extractTags(bm[1]); if (tags.length) items.push({ type:'bullet', text: this.stripTags(bm[1]), tags, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
-          const ftags = this.extractTags(line);
-          if (ftags.length && !line.startsWith('#') && line.trim()) {
+          if (bm) { const p = this.parseItemText(bm[1]); if (p.tags.length) items.push({ type:'bullet', text: p.text, tags: p.tags, uses: p.uses, noRoles: p.noRoles, line: i+1, file: filename, role }); if (secHead) secLines.push(line); continue; }
+          const fp = this.parseItemText(line);
+          if (fp.tags.length && !line.startsWith('#') && line.trim()) {
             flush();
             const pLines = [line]; let j = i+1;
             while (j < lines.length && lines[j].trim() && !lines[j].match(/^#{1,6}\s/) && !lines[j].match(/^\s*\[/) && !(this.extractTags(lines[j]).length && !lines[j].startsWith(' '))) { pLines.push(lines[j]); j++; }
-            items.push({ type:'section', heading: this.stripTags(line), tags: ftags, content: pLines.slice(1).join('\n').trim(), line: i+1, file: filename, role });
+            items.push({ type:'section', heading: fp.text, tags: fp.tags, uses: fp.uses, noRoles: fp.noRoles, content: pLines.slice(1).join('\n').trim(), line: i+1, file: filename, role });
             i = j-1; continue;
           }
           if (secHead) secLines.push(line);
@@ -282,13 +1052,22 @@
         return items;
       }
 
+      static _manifestRole(filepath) {
+        const mcfg = pipelineConfig.manifest || {};
+        const patterns = mcfg.patterns || [];
+        for (const p of patterns) {
+          if (filepath.includes(p.match)) return p.role.toLowerCase();
+        }
+        return (mcfg.default_role || 'code').toLowerCase();
+      }
+
       static _parseManifest(content, filename) {
         const lines = content.split('\n'), items = []; let cur = null;
         const flush = () => { if (cur) items.push(cur); cur = null; };
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const cm = line.match(/^\[([xX ])\]\s+(\S+)\s*(.*)/);
-          if (cm) { flush(); cur = { type:'manifest', checked: cm[1].toLowerCase()==='x', path:cm[2], text:cm[2], tags: this.extractTags(cm[3]), classes:[], grammars:[], line:i+1, file:filename, role:'code' }; continue; }
+          if (cm) { flush(); cur = { type:'manifest', checked: cm[1].toLowerCase()==='x', path:cm[2], text:cm[2], tags: this.extractTags(cm[3]), classes:[], grammars:[], line:i+1, file:filename, role: this._manifestRole(cm[2]) }; continue; }
           if (cur) { const cl = line.match(/^Classes:\s*(.+)/i); if (cl) { cur.classes = cl[1].split(',').map(s=>s.trim()); continue; } const gr = line.match(/^Grammar:\s*(.+)/i); if (gr) { cur.grammars = gr[1].split(',').map(s=>s.trim()); continue; } }
           if (line.trim() === '') flush();
         }
@@ -298,20 +1077,20 @@
       static _parseIdiolect(content, filename) {
         const lines = content.split('\n'), terms = [];
         const skipH = new Set(['project idiolect', 'bijou', 'standard']);
-        let curH2 = null, curDef = [], curStart = 0, category = null;
+        let curH2 = null, curH2Tags = [], curDef = [], curStart = 0, category = null;
         const flush = () => {
           if (curH2 && !skipH.has(curH2.toLowerCase()))
-            terms.push({ term: curH2, definition: curDef.join('\n').trim(), category, line: curStart, file: filename });
-          curH2 = null; curDef = [];
+            terms.push({ term: curH2, tags: curH2Tags, definition: curDef.join('\n').trim(), category, line: curStart, file: filename });
+          curH2 = null; curH2Tags = []; curDef = [];
         };
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const hm = line.match(/^##\s+(.+)/);
-          if (hm) { flush(); curH2 = hm[1].trim(); curStart = i+1; continue; }
+          if (hm) { flush(); curH2Tags = this.extractTags(hm[1]); curH2 = this.stripTags(hm[1]).trim(); curStart = i+1; continue; }
           const bcat = line.match(/^\*\*(.+?)\*\*\s*$/);
           if (bcat) { category = bcat[1]; continue; }
           const dm = line.match(/^-\s+(?:\*\*(.+?)\*\*|(.+?))\s+—\s+(.+)/);
-          if (dm) { terms.push({ term: (dm[1]||dm[2]).trim(), definition: dm[3].trim(), category, line: i+1, file: filename }); continue; }
+          if (dm) { const raw = dm[0]; const tags = this.extractTags(raw); const termName = (dm[1]||dm[2]).trim(); const def = this.stripTags(dm[3]).trim(); terms.push({ term: termName, tags, definition: def, category, line: i+1, file: filename }); continue; }
           if (curH2) curDef.push(line);
         }
         flush(); return terms;
@@ -357,16 +1136,46 @@
 
       static getMaturity(node) {
         const mat = {};
-        for (const r of CascadeParse.ROLES) { const inR = node.allItems.filter(i => i.role === r); mat[r] = { count: inR.length, checked: inR.filter(i => i.checked).length }; }
+        for (const r of CascadeParse.ROLES) {
+          const inR = node.allItems.filter(i => i.role === r);
+          mat[r] = { count: inR.length, checked: inR.filter(i => i.checked).length,
+            excluded: node.allItems.some(i => i.noRoles?.includes(r)) };
+        }
         return mat;
       }
 
-      /** Which idiolect term names appear in a tag node's text content? */
+      static getDependencies(node) {
+        const deps = new Set();
+        if (!node) return deps;
+        for (const item of node.allItems)
+          if (item.uses) for (const u of item.uses) deps.add(u);
+        return deps;
+      }
+
+      static getUsedBy(root, tag, allItems) {
+        const results = [];
+        for (const item of allItems) {
+          if (!item.uses?.length) continue;
+          for (const u of item.uses) {
+            if (u === tag || u.startsWith(tag + '/') || tag.startsWith(u + '/'))
+              results.push({ tag: item.tags[0] || '?', text: item.text || item.heading || '', file: item.file });
+          }
+        }
+        return results;
+      }
+
       static relevantIdiolect(node, terms) {
         if (!node || !terms.length) return new Set();
+        const nodeTag = node.fullTag;
         const text = node.allItems.map(i => [i.text, i.heading, i.content].filter(Boolean).join(' ')).join(' ').toLowerCase();
         const hits = new Set();
         for (const t of terms) {
+          if (t.tags?.length && nodeTag) {
+            for (const tt of t.tags) {
+              if (tt === nodeTag || nodeTag.startsWith(tt + '/') || tt.startsWith(nodeTag + '/')) { hits.add(t.term); break; }
+            }
+            if (hits.has(t.term)) continue;
+          }
           const tl = t.term.toLowerCase();
           if (text.includes(tl) || tl.split(/[\s\/,]+/).some(w => w.length > 3 && text.includes(w)))
             hits.add(t.term);
@@ -374,18 +1183,25 @@
         return hits;
       }
 
-      /** Which tag fullPaths reference any of the given idiolect term names? */
       static idiolectTagHits(root, checkedNames, terms) {
         if (!checkedNames.size) return new Set();
+        const checkedTerms = terms.filter(x => checkedNames.has(x.term));
         const words = [];
-        for (const name of checkedNames) {
-          const t = terms.find(x => x.term === name);
-          if (t) { words.push(t.term.toLowerCase()); t.term.toLowerCase().split(/[\s\/,]+/).forEach(w => { if (w.length > 3) words.push(w); }); }
+        for (const t of checkedTerms) {
+          words.push(t.term.toLowerCase());
+          t.term.toLowerCase().split(/[\s\/,]+/).forEach(w => { if (w.length > 3) words.push(w); });
         }
         const hits = new Set();
         const walk = node => {
-          const text = node.allItems.map(i => [i.text, i.heading, i.content].filter(Boolean).join(' ')).join(' ').toLowerCase();
-          if (words.some(w => text.includes(w))) hits.add(node.fullTag);
+          for (const t of checkedTerms) {
+            if (t.tags?.length) for (const tt of t.tags) {
+              if (tt === node.fullTag || node.fullTag.startsWith(tt + '/') || tt.startsWith(node.fullTag + '/')) { hits.add(node.fullTag); break; }
+            }
+          }
+          if (!hits.has(node.fullTag)) {
+            const text = node.allItems.map(i => [i.text, i.heading, i.content].filter(Boolean).join(' ')).join(' ').toLowerCase();
+            if (words.some(w => text.includes(w))) hits.add(node.fullTag);
+          }
           for (const c of node.children.values()) walk(c);
         };
         for (const c of root.children.values()) walk(c);
@@ -404,50 +1220,51 @@
     //>> import { CascadeTree } from './cascade-tree.js';
     //>> export { CascadeReport };
     class CascadeReport {
-      /** [x] in todo but no prompt/spec/code exists for that tag. */
+      /** Find checked checkbox-stage items whose tag has no items in any other pipeline stage. */
       static cascadeGaps(items, tree) {
+        const cbRoles = new Set(pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase()));
+        if (!cbRoles.size) return [];
         const gaps = [];
         for (const item of items) {
-          if (item.role !== 'todo' || !item.checked) continue;
+          if (!cbRoles.has(item.role) || !item.checked) continue;
           for (const tag of item.tags) {
             const node = CascadeTree.find(tree, tag);
-            if (node && !node.allItems.some(i => i !== item && i.role !== 'todo'))
-              gaps.push({ tag, text: item.text || item.heading || tag, file: item.file });
+            if (!node) continue;
+            if (node.allItems.some(i => i !== item && !cbRoles.has(i.role))) continue;
+            const noRoles = new Set();
+            for (const ni of node.allItems) if (ni.noRoles) ni.noRoles.forEach(r => noRoles.add(r));
+            if (noRoles.size > 0) continue;
+            gaps.push({ tag, text: item.text || item.heading || tag, file: item.file, line: item.line });
           }
         }
         return gaps;
       }
 
-      /** [ ] in todo but deeper-maturity content exists. */
-      static staleCheckboxes(items, tree) {
-        const stale = [];
-        for (const item of items) {
-          if (item.role !== 'todo' || item.checked) continue;
-          for (const tag of item.tags) {
-            const node = CascadeTree.find(tree, tag);
-            if (node && node.allItems.some(i => i !== item && i.role !== 'todo'))
-              stale.push({ tag, text: item.text || tag, file: item.file });
-          }
-        }
-        return stale;
-      }
-
-      /** Tags with prompt content but no code entries. */
-      static readyToPrompt(items, tree) {
+      /**
+       * Find tags that have ALL withRoles and NONE of the withoutRoles.
+       * @param {string[]} withRoles    Role names (lowercase) that must be present.
+       * @param {string[]} withoutRoles Role names (lowercase) that must be absent.
+       */
+      static readyItems(items, tree, withRoles, withoutRoles) {
+        const withSet = new Set(withRoles.map(r => r.toLowerCase()));
+        const withoutSet = new Set((withoutRoles || []).map(r => r.toLowerCase()));
+        const cbRoles = new Set(pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase()));
         const allTags = [...new Set(items.flatMap(i => i.tags))], ready = [];
         for (const tag of allTags) {
           const node = CascadeTree.find(tree, tag);
           if (!node) continue;
           const roles = new Set(node.allItems.map(i => i.role));
-          if (roles.has('prompt') && !roles.has('code')) {
-            const todoItem = node.allItems.find(i => i.role === 'todo');
-            ready.push({ tag, hasSpec: roles.has('spec'), text: todoItem?.text || node.allItems[0]?.heading || tag });
+          const hasAll = [...withSet].every(r => roles.has(r));
+          const hasNone = ![...withoutSet].some(r => roles.has(r));
+          if (hasAll && hasNone) {
+            const cbItem = node.allItems.find(i => cbRoles.has(i.role));
+            const otherRoles = [...roles].filter(r => !withSet.has(r) && !cbRoles.has(r));
+            ready.push({ tag, otherRoles, text: cbItem?.text || node.allItems[0]?.heading || tag });
           }
         }
         return ready;
       }
 
-      /** Pairs of tags at edit distance 1 (full tags and root segments). */
       static tagTypos(items) {
         const allTags = [...new Set(items.flatMap(i => i.tags))].sort();
         const typos = [], seen = new Set();
@@ -460,13 +1277,15 @@
         return typos;
       }
 
-      /** Tags appearing in only one file. */
       static singleFileTags(items) {
         const allTags = [...new Set(items.flatMap(i => i.tags))];
         return allTags.filter(tag => {
           const files = new Set(items.filter(i => i.tags.includes(tag)).map(i => i.file));
           return files.size === 1;
-        }).map(tag => ({ tag, file: items.find(i => i.tags.includes(tag))?.file || '?' }));
+        }).map(tag => {
+          const first = items.find(i => i.tags.includes(tag));
+          return { tag, file: first?.file || '?', line: first?.line };
+        });
       }
 
       static _editDist(a, b) {
@@ -480,6 +1299,7 @@
     }
     //-- endfile --
 
+
     // ═══════════════════════════════════════════════════════════════
     // CascadeBundle — bundle generation
     // ═══════════════════════════════════════════════════════════════
@@ -490,30 +1310,83 @@
     //>> import { CascadeTree } from './cascade-tree.js';
     //>> export { CascadeBundle };
     class CascadeBundle {
-      /** Collect all unique tag segments from a set of items. */
-      static _collectSegments(items, selectedTag) {
-        const segs = new Set();
-        // Segments from the selected tag itself
-        for (const s of selectedTag.split('/')) segs.add(s);
-        // Segments from all items' tags
-        for (const item of items)
-          for (const tag of item.tags)
-            for (const s of tag.split('/')) segs.add(s);
-        return segs;
+
+      static _parseRoutes(files) {
+        const routes = [];
+        for (const [, finfo] of files) {
+          if (finfo.role !== 'prefix') continue;
+          const m = finfo.content.match(/```routes\n([\s\S]*?)```/);
+          if (!m) continue;
+          for (const line of m[1].split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const [lhs, rhs] = trimmed.split('→').map(s => s.trim());
+            if (lhs === undefined) continue;
+            const segments = lhs.split(',').map(s => s.trim()).filter(Boolean);
+            const prefixes = rhs ? rhs.split(',').map(s => s.trim()).filter(Boolean) : [];
+            if (segments.length) routes.push({ segments, prefixes });
+          }
+        }
+        return routes;
       }
 
-      /** Build a markdown bundle. prefixItems: tagged sections from PREFIX role files. */
-      static build(tree, tag, files, idiolectTerms, prefixItems) {
+      static _parseAttachments(files) {
+        const map = new Map();
+        for (const [, finfo] of files) {
+          if (finfo.role !== 'prefix') continue;
+          const m = finfo.content.match(/```attachments\n([\s\S]*?)```/);
+          if (!m) continue;
+          for (const line of m[1].split('\n')) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const colonIdx = trimmed.indexOf(':');
+            if (colonIdx < 1) continue;
+            const prefixTag = trimmed.slice(0, colonIdx).trim();
+            const rest = trimmed.slice(colonIdx + 1).trim();
+            const dashIdx = rest.indexOf('—');
+            const path = dashIdx >= 0 ? rest.slice(0, dashIdx).trim() : rest;
+            const reason = dashIdx >= 0 ? rest.slice(dashIdx + 1).trim() : '';
+            if (!map.has(prefixTag)) map.set(prefixTag, []);
+            map.get(prefixTag).push({ path, reason });
+          }
+        }
+        return map;
+      }
+
+      static _routePrefixes(tag, routes) {
+        const parts = tag.split('/');
+        for (const route of routes) {
+          for (let i = parts.length - 1; i >= 0; i--) {
+            if (route.segments.includes(parts[i])) return route.prefixes;
+          }
+        }
+        return [];
+      }
+
+      static _collectAttachments(prefixTags, attachmentsMap) {
+        const seen = new Set(), attachments = [];
+        for (const ptag of prefixTags) {
+          const entries = attachmentsMap.get(ptag);
+          if (!entries) continue;
+          for (const entry of entries) {
+            if (!seen.has(entry.path)) { seen.add(entry.path); attachments.push(entry); }
+          }
+        }
+        return attachments;
+      }
+
+      static build(tree, tag, files, idiolectTerms, prefixItems, checkedIdioTerms) {
         const node = CascadeTree.find(tree, tag);
         if (!node) return '';
         const items = node.allItems, parts = [];
 
-        // Match prefix items by tag segment overlap
-        if (prefixItems.length) {
-          const segments = this._collectSegments(items, tag);
-          const matched = prefixItems.filter(p =>
-            p.tags.some(ptag => ptag.split('/').some(seg => segments.has(seg)))
-          );
+        const routes = this._parseRoutes(files);
+        const attachmentsMap = this._parseAttachments(files);
+        const routedPrefixTags = this._routePrefixes(tag, routes);
+
+        if (prefixItems.length && routedPrefixTags.length) {
+          const wanted = new Set(routedPrefixTags);
+          const matched = prefixItems.filter(p => p.tags.some(ptag => wanted.has(ptag)));
           if (matched.length) {
             parts.push('## Prefix Instructions');
             for (const p of matched) {
@@ -524,115 +1397,303 @@
           }
         }
 
-        // Code file links
-        const codeItems = items.filter(i => i.role === 'code');
-        if (codeItems.length) {
-          parts.push('## Referenced Files');
-          for (const ci of codeItems) {
-            let line = `- [${ci.path || ci.text}](${ci.path || ci.text})`;
-            if (ci.classes?.length) line += ` — ${ci.classes.join(', ')}`;
-            if (ci.grammars?.length) line += ` | Grammar: ${ci.grammars.join(', ')}`;
-            parts.push(line);
+        const attachments = this._collectAttachments(routedPrefixTags, attachmentsMap);
+        const manifestItems = items.filter(i => i.type === 'manifest');
+        for (const ci of manifestItems) {
+          const p = ci.path || ci.text;
+          if (!attachments.find(a => a.path === p)) {
+            let reason = '';
+            if (ci.classes?.length) reason = ci.classes.join(', ');
+            if (ci.grammars?.length) reason += (reason ? ' | ' : '') + 'Grammar: ' + ci.grammars.join(', ');
+            attachments.push({ path: p, reason: reason || 'tagged code file' });
           }
+        }
+
+        if (attachments.length) {
+          parts.push('## Suggested Attachments');
+          parts.push('Paste these files into the chat session alongside this bundle:');
+          for (const a of attachments) parts.push(`- **${a.path}** — ${a.reason}`);
           parts.push('');
         }
 
-        // Content by file in pipeline order
+        // Exclude manifest items from inline bundle (they go in attachments)
         const byFile = new Map();
-        for (const i of items) { if (i.role === 'code') continue; if (!byFile.has(i.file)) byFile.set(i.file, []); byFile.get(i.file).push(i); }
+        for (const i of items) { if (i.type === 'manifest') continue; if (!byFile.has(i.file)) byFile.set(i.file, []); byFile.get(i.file).push(i); }
         const ROLES = CascadeParse.ROLES;
-        const sorted = [...byFile.entries()].sort((a,b) => ROLES.indexOf(files.get(a[0])?.role||'prompt') - ROLES.indexOf(files.get(b[0])?.role||'prompt'));
+        const sorted = [...byFile.entries()].sort((a,b) => ROLES.indexOf(files.get(a[0])?.role||ROLES[1]||'') - ROLES.indexOf(files.get(b[0])?.role||ROLES[1]||''));
         for (const [filename, fileItems] of sorted) {
           parts.push(`## From ${filename} (${files.get(filename)?.role || '?'})`);
           for (const i of fileItems) {
-            if (i.type === 'checkbox') parts.push(`[${i.checked?'x':' '}] ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}`);
-            else if (i.type === 'bullet') parts.push(`* ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}`);
+            const noStr = i.noRoles?.length ? ' ' + i.noRoles.map(r => 'NO-'+r.toUpperCase()).join(' ') : '';
+            const usesStr = i.uses?.length ? ' USES ' + i.uses.map(t => '#'+t).join(' ') : '';
+            if (i.type === 'checkbox') parts.push(`[${i.checked?'x':' '}] ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}${noStr}${usesStr}`);
+            else if (i.type === 'bullet') parts.push(`* ${i.text} ${i.tags.map(t=>'#'+t).join(' ')}${noStr}${usesStr}`);
             else if (i.type === 'section') { parts.push(`### ${i.heading}`); if (i.content) parts.push(i.content); }
             parts.push('');
           }
         }
 
-        // Relevant idiolect at END
+        const deps = CascadeTree.getDependencies(node);
+        if (deps.size) {
+          const ownItemKeys = new Set(items.map(i => i.file + ':' + i.line));
+          const cbRoles = new Set(pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase()));
+          const depSections = [];
+          for (const depTag of deps) {
+            const depNode = CascadeTree.find(tree, depTag);
+            if (!depNode) { depSections.push({ tag: depTag, items: [], missing: true }); continue; }
+            // Include non-checkbox, non-manifest items from dependencies
+            const depItems = depNode.allItems.filter(i => {
+              if (ownItemKeys.has(i.file + ':' + i.line)) return false;
+              if (cbRoles.has(i.role)) return false;
+              if (i.type === 'manifest') return false;
+              return true;
+            });
+            if (depItems.length) depSections.push({ tag: depTag, items: depItems, missing: false });
+            const depManifestItems = depNode.allItems.filter(i => i.type === 'manifest');
+            for (const ci of depManifestItems) {
+              const p = ci.path || ci.text;
+              if (!attachments.find(a => a.path === p)) {
+                let reason = 'dependency #' + depTag;
+                if (ci.classes?.length) reason += ' — ' + ci.classes.join(', ');
+                attachments.push({ path: p, reason });
+              }
+            }
+          }
+          if (depSections.length) {
+            parts.push('## Dependencies (from USES)');
+            for (const dep of depSections) {
+              if (dep.missing) { parts.push(`### #${dep.tag} — not found in work files`); parts.push(''); continue; }
+              parts.push(`### #${dep.tag}`);
+              for (const i of dep.items) {
+                if (i.type === 'section') { parts.push(`#### ${i.heading}`); if (i.content) parts.push(i.content); }
+                else if (i.type === 'checkbox') parts.push(`[${i.checked?'x':' '}] ${i.text}`);
+                else if (i.type === 'bullet') parts.push(`* ${i.text}`);
+                parts.push('');
+              }
+            }
+          }
+        }
+
         const relevant = CascadeTree.relevantIdiolect(node, idiolectTerms);
-        if (relevant.size) {
+        const ticked = checkedIdioTerms || new Set();
+        const tickedTerms = idiolectTerms.filter(t => ticked.has(t.term));
+        const untickedMatches = idiolectTerms.filter(t => relevant.has(t.term) && !ticked.has(t.term));
+        if (tickedTerms.length || untickedMatches.length) {
           parts.push('## Relevant Idiolect');
-          for (const t of idiolectTerms)
-            if (relevant.has(t.term)) parts.push(`**${t.term}** — ${(t.definition||'').split('\n')[0]}`);
-          parts.push('');
+          if (tickedTerms.length) {
+            for (const t of tickedTerms) {
+              const tagStr = t.tags?.length ? ' ' + t.tags.map(x=>'#'+x).join(' ') : '';
+              parts.push(`**${t.term}**${tagStr}`);
+              if (t.definition) parts.push(t.definition);
+              parts.push('');
+            }
+          }
+          if (untickedMatches.length) {
+            const summaries = untickedMatches.map(t => `**${t.term}** — ${(t.definition||'').split('\n')[0]}`);
+            parts.push(...summaries);
+            parts.push('');
+          }
         }
         return parts.join('\n');
       }
     }
     //-- endfile --
 
+
     // ═══════════════════════════════════════════════════════════════
-    // Harness — state, DOM, rendering, events
+    // Harness — state, rendering, events
     // ═══════════════════════════════════════════════════════════════
+
+    const esc = escapeHtml;
+
+    /** Render a clickable file:line reference. Used everywhere a source location appears. */
+    function fileLink(file, line) {
+      const label = line ? `${esc(file)}:${line}` : esc(file);
+      return `<span class="item-sub clickable" data-preview-file="${esc(file)}"${line ? ` data-preview-line="${line}"` : ''}>${label}</span>`;
+    }
+
+    // ── Cascade stage descriptors (drives DotStatus and stat badges) ──
+    let cascadeStages, treeDots, itemDots;
+
+    function rebuildStages() {
+      cascadeStages = pipelineConfig.pipeline.map(s => ({
+        name: s.name.toLowerCase(),
+        color: s.color,
+        label: s.name,
+        description: s.description || '',
+      }));
+      treeDots = new DotStatus(cascadeStages, { size: 9 });
+      itemDots = new DotStatus(cascadeStages, { size: 8 });
+    }
+    rebuildStages();
+
+    // ── State ──
     const state = {
       mdHandle: null, files: new Map(), items: [], idiolectTerms: [], prefixItems: [], tagTree: null,
-      selectedTag: null, expandedTags: new Set(), treeFilter: '',
-      checkedIdioTerms: new Set(), centerTab: 'items', rightTab: 'bundle',
+      selectedTag: null, selectedStnda: null, expandedTags: new Set(), treeFilter: '',
+      checkedIdioTerms: new Set(), leftTab: 'tags', centerTab: 'items', rightTab: 'bundle',
     };
 
+    // ── DOM cache ──
     const $ = id => document.getElementById(id);
-    const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const setStatus = (msg, type='') => { $('status').textContent = msg; $('status').className = 'status'+(type?' '+type:''); };
+    const dom = {
+      status: $('status'),
+      headerRight: $('headerRight'),
+      btnRescan: $('btnRescan'),
+      btnCopy: $('btnCopy'),
+      tagCount: $('tagCount'),
+      treeContent: $('treeContent'),
+      centerContent: $('centerContent'),
+      centerCount: $('centerCount'),
+      rightContent: $('rightContent'),
+      bundleActions: $('bundleActions'),
+      fileList: $('fileList'),
+      custom1Content: $('custom1Content'),
+      filterRow: $('filterRow'),
+    };
+    const status = (msg, type) => setStatus(dom.status, msg, type);
 
-    // ── File System ──
-    async function readDir(dh) {
-      const entries = [];
-      for await (const e of dh.values()) { if (!e.name.startsWith('.') && e.kind === 'file') entries.push(e); }
-      return entries;
-    }
-    async function readDirRecursive(dh, path='') {
-      const entries = [];
-      for await (const e of dh.values()) {
-        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
-        const p = path ? path+'/'+e.name : e.name;
-        if (e.kind === 'directory') entries.push(...await readDirRecursive(e, p));
-        else entries.push({ handle: e, path: p });
+    // ── Preview modal ──
+    const preview = new PreviewModal({
+      onSave: async (filename, newContent) => {
+        const fileInfo = state.files.get(filename);
+        if (!fileInfo?.handle) return;
+        await writeFileContent(fileInfo.handle, newContent);
+        status('Saved ' + filename, 'success');
+        await scanMdFiles();
       }
-      return entries;
+    });
+
+    // ── File table ──
+    const fileTable = new SortableTable(dom.fileList, {
+      columns: [
+        { key: 'name', label: 'File', flex: 3, render: r => `<span class="fname" title="${esc(r.name)}">${esc(r.name)}</span>` },
+        { key: 'role', label: 'Role', flex: 1, render: r => `<span class="file-role ${r.role}">${r.role}</span>` },
+      ],
+      onRowClick: r => {
+        const fileInfo = state.files.get(r.name);
+        if (fileInfo) preview.show(r.name, fileInfo.content.split('\n'));
+      },
+    });
+
+    // ── Config application ──
+    let _dynStyle = null;
+
+    function applyConfig(cfg) {
+      pipelineConfig = cfg;
+      rebuildStages();
+      _injectRoleCSS();
+      _buildCustomTabs();
+    }
+
+    /** Parse a hex colour to {r,g,b}. */
+    function hexToRgb(hex) {
+      const n = parseInt(hex.replace('#', ''), 16);
+      return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+
+    /** Inject CSS custom properties and role classes from pipeline config. */
+    function _injectRoleCSS() {
+      if (!_dynStyle) { _dynStyle = document.createElement('style'); document.head.appendChild(_dynStyle); }
+      let css = ':root {\n';
+      for (const s of pipelineConfig.pipeline) {
+        css += `  --role-${s.name.toLowerCase()}: ${s.color};\n`;
+      }
+      css += '}\n';
+      for (const s of pipelineConfig.pipeline) {
+        const r = s.name.toLowerCase();
+        const { r: cr, g: cg, b: cb } = hexToRgb(s.color);
+        css += `.file-role.${r} { background: rgba(${cr},${cg},${cb},0.15); color: var(--role-${r}); }\n`;
+        css += `.role-header.${r} { color: var(--role-${r}); background: rgba(${cr},${cg},${cb},0.08); }\n`;
+      }
+      _dynStyle.textContent = css;
+    }
+
+    /** Build custom tab buttons from tabs1/tabs2 config. */
+    function _buildCustomTabs() {
+      // Remove previously injected custom tabs
+      document.querySelectorAll('.panel-tab[data-custom]').forEach(el => el.remove());
+
+      const leftTabs = $('leftTabs');
+      for (let i = 0; i < (pipelineConfig.tabs1 || []).length; i++) {
+        const t = pipelineConfig.tabs1[i];
+        const btn = document.createElement('button');
+        btn.className = 'panel-tab';
+        btn.dataset.tab = `t1-${i}`;
+        btn.dataset.custom = '1';
+        btn.textContent = t.title;
+        leftTabs.appendChild(btn);
+      }
+      setupTabs(leftTabs, tab => { state.leftTab = tab; renderLeft(); });
+
+      const centerTabs = $('centerTabs');
+      for (let i = 0; i < (pipelineConfig.tabs2 || []).length; i++) {
+        const t = pipelineConfig.tabs2[i];
+        const btn = document.createElement('button');
+        btn.className = 'panel-tab';
+        btn.dataset.tab = `t2-${i}`;
+        btn.dataset.custom = '1';
+        btn.textContent = t.title;
+        centerTabs.appendChild(btn);
+      }
+      setupTabs(centerTabs, tab => { state.centerTab = tab; renderCenter(); });
     }
 
     // ── Scanning ──
     async function scanMdFiles() {
       if (!state.mdHandle) return;
-      setStatus('Scanning…');
+      status('Scanning…');
       state.files.clear(); state.items = []; state.idiolectTerms = []; state.prefixItems = [];
       try {
-        const entries = await readDir(state.mdHandle);
+        const entries = await walkDirectory(state.mdHandle, { extensions: /\.md$/i });
         let skipped = 0;
-        for (const handle of entries.filter(e => e.name.endsWith('.md')).sort((a,b) => a.name.localeCompare(b.name))) {
-          const content = await (await handle.getFile()).text();
+        for (const { handle, path } of entries.sort((a,b) => a.path.localeCompare(b.path))) {
+          const content = await readFileContent(handle);
           const role = CascadeParse.detectRole(content);
           if (!role) { skipped++; continue; }
-          state.files.set(handle.name, { content, role, handle });
-          const { items, idiolectTerms, prefixItems } = CascadeParse.parse(content, handle.name, role);
+          state.files.set(path, { content, role, handle });
+          const { items, idiolectTerms, prefixItems } = CascadeParse.parse(content, path, role);
           state.items.push(...items);
           if (idiolectTerms.length) state.idiolectTerms = idiolectTerms;
           if (prefixItems.length) state.prefixItems.push(...prefixItems);
         }
+        // Extract pipeline config from prefix files (first found wins)
+        let foundConfig = null;
+        let configError = null;
+        for (const [filename, finfo] of state.files) {
+          if (finfo.role === 'prefix' && !foundConfig && !configError) {
+            const result = CascadeParse.extractPipelineConfig(finfo.content);
+            if (result.config) { foundConfig = result.config; }
+            else if (result.error) {
+              configError = { file: filename, error: result.error, line: result.line };
+            }
+          }
+        }
+        applyConfig(foundConfig || DEFAULT_CONFIG);
+
         state.tagTree = CascadeTree.build(state.items);
         for (const k of state.tagTree.children.keys()) state.expandedTags.add(k);
-        $('filterRow').style.display = '';
-        $('fileList').style.display = '';
-        $('btnRescan').disabled = false;
+        dom.btnRescan.disabled = false;
         renderAll();
-        setStatus(`${state.files.size} files · ${state.items.length} items · ${CascadeTree.count(state.tagTree)} tags · ${state.idiolectTerms.length} idiolect · ${state.prefixItems.length} prefixes${skipped ? ' · '+skipped+' skipped (no role)' : ''}`, 'success');
-      } catch (err) { console.error(err); setStatus(`Error: ${err.message}`, 'error'); }
+        if (configError) {
+          status(`Pipeline config error in ${configError.file}: ${configError.error} — using defaults`, 'error');
+          const fileInfo = state.files.get(configError.file);
+          if (fileInfo) preview.show(configError.file, fileInfo.content.split('\n'), configError.line);
+        } else {
+          status(`${state.files.size} files · ${state.items.length} items · ${CascadeTree.count(state.tagTree)} tags · ${state.idiolectTerms.length} idiolect · ${state.prefixItems.length} prefixes${skipped ? ' · '+skipped+' skipped (no role)' : ''}`, 'success');
+        }
+      } catch (err) { console.error(err); status(`Error: ${err.message}`, 'error'); }
     }
 
     async function scanCodeDir(handle) {
-      setStatus('Scanning code directory…');
+      status('Scanning code directory…');
       try {
-        const entries = await readDirRecursive(handle);
-        const codeFiles = entries.filter(e => /\.(js|mjs|html|htm)$/i.test(e.path));
+        const entries = await walkDirectory(handle, { extensions: /\.(js|mjs|html|htm)$/i });
         let text = '# Code Manifest (generated)\n\n```json\n{ "role": "MANIFEST" }\n```\n\n', found = 0;
-        for (const { handle: fh, path } of codeFiles) {
+        for (const { handle: fh, path } of entries) {
           try {
-            const content = await (await fh.getFile()).text();
-            const tags = CascadeParse.extractTags(content.slice(0, 2000), true);
+            const content = await readFileContent(fh);
+            const tags = CascadeParse.extractTags(content.slice(0, 200000), true);
             const classes = [], grammars = []; let m;
             const cRe = /\bclass\s+([A-Z][a-zA-Z0-9_]*)/g;
             while ((m = cRe.exec(content)) !== null) classes.push(m[1]);
@@ -648,40 +1709,101 @@
           } catch(e) {}
         }
         state.rightTab = 'bundle'; renderRightTabs();
-        $('rightContent').innerHTML = `<div class="bundle-preview">${esc(text)}</div>`;
-        $('bundleActions').style.display = '';
-        $('btnCopyBundle').disabled = false;
-        $('btnCopyBundle').onclick = () => navigator.clipboard.writeText(text).then(() => setStatus('Manifest copied', 'success'));
-        setStatus(`Scanned ${codeFiles.length} files, ${found} with classes/tags`, 'success');
-      } catch(e) { if (e.name !== 'AbortError') setStatus(e.message, 'error'); }
+        dom.rightContent.innerHTML = `<div class="bundle-preview">${esc(text)}</div>`;
+        dom.bundleActions.style.display = '';
+        status(`Scanned ${entries.length} files, ${found} with classes/tags`, 'success');
+      } catch(e) { if (e.name !== 'AbortError') status(e.message, 'error'); }
     }
 
     // ── Rendering ──
-    function renderAll() { renderTree(); renderFileList(); renderHeaderStats(); renderCenter(); renderRight(); }
+    function renderAll() { renderLeft(); renderHeaderStats(); renderCenter(); renderRight(); }
 
     function renderHeaderStats() {
-      $('headerActions').querySelectorAll('.stat-badge').forEach(e => e.remove());
-      if (!state.items.length) return;
-      for (const role of CascadeParse.ROLES) {
-        const count = state.items.filter(i => i.role === role).length;
-        if (!count) continue;
-        const b = document.createElement('div'); b.className = 'stat-badge';
-        b.innerHTML = `<span class="stat-dot" style="background:var(--role-${role})"></span>${count} ${role}`;
-        $('headerActions').insertBefore(b, $('btnRescan'));
+      const stats = cascadeStages
+        .map(s => {
+          const roleItems = state.items.filter(i => i.role === s.name);
+          const checked = roleItems.filter(i => i.checked).length;
+          return { label: s.label, count: roleItems.length, checked, color: s.color, description: s.description };
+        })
+        .filter(s => s.count > 0);
+      renderStatBadges(dom.headerRight, stats, dom.btnRescan);
+    }
+
+    function renderLeft() {
+      const isCustom = state.leftTab.startsWith('t1-');
+      $('leftTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.leftTab));
+      dom.treeContent.style.display = state.leftTab === 'tags' ? '' : 'none';
+      dom.filterRow.style.display = state.leftTab === 'tags' && state.tagTree ? '' : 'none';
+      dom.fileList.style.display = state.leftTab === 'files' ? '' : 'none';
+      dom.custom1Content.style.display = isCustom ? '' : 'none';
+      if (state.leftTab === 'tags') { renderTree(); }
+      else if (state.leftTab === 'files') {
+        renderFileList();
+        dom.tagCount.textContent = state.files.size;
+      }
+      else if (isCustom) {
+        const idx = parseInt(state.leftTab.split('-')[1], 10);
+        const tabCfg = pipelineConfig.tabs1[idx];
+        if (tabCfg) {
+          if (tabCfg.style === 'role') renderRoleTab(dom.custom1Content, tabCfg);
+          else if (tabCfg.style === 'queue') renderQueueTab(dom.custom1Content, tabCfg);
+        }
       }
     }
 
     function renderFileList() {
-      $('fileList').innerHTML = [...state.files.entries()].map(([n,f]) =>
-        `<div class="file-entry"><span class="fname" title="${esc(n)}">${esc(n)}</span><span class="file-role ${f.role}">${f.role}</span></div>`
-      ).join('');
+      fileTable.setData([...state.files.entries()].map(([n, f]) => ({ name: n, role: f.role })));
+    }
+
+    /** Render a role-style tab: cards with tag sub-rows and per-tag dots. */
+    function renderRoleTab(el, tabCfg) {
+      const withSet = new Set((tabCfg.with || []).map(r => r.toLowerCase()));
+      const withoutSet = new Set((tabCfg.without || []).map(r => r.toLowerCase()));
+      const matchItems = state.items.filter(i => {
+        if (withSet.size && !withSet.has(i.role)) return false;
+        if (withoutSet.size && withoutSet.has(i.role)) return false;
+        return true;
+      });
+      const count = matchItems.length;
+      dom.tagCount.textContent = count;
+      if (!matchItems.length) { el.innerHTML = `<div class="empty-state">No ${esc(tabCfg.title)} items loaded</div>`; return; }
+      let html = '';
+      for (const item of matchItems) {
+        const sel = state.selectedStnda && state.selectedStnda.file === item.file && state.selectedStnda.line === item.line;
+        html += `<div class="stnda-item${sel ? ' selected' : ''}" data-stnda-idx="${matchItems.indexOf(item)}">`;
+        html += `<div class="stnda-item-name">${esc(item.heading || item.text || '')}</div>`;
+        for (const tag of item.tags) {
+          const node = CascadeTree.find(state.tagTree, tag);
+          const mat = node ? CascadeTree.getMaturity(node) : null;
+          html += `<div class="stnda-item-tag-row"><span class="stnda-item-tag-name" style="color:var(--accent)">#${esc(tag)}</span>${itemDots.render(mat)}</div>`;
+        }
+        if (item.content) html += `<div class="stnda-item-desc">${esc(item.content.split('\n')[0])}</div>`;
+        html += '</div>';
+      }
+      el.innerHTML = html;
+      el.querySelectorAll('.stnda-item').forEach(row => {
+        row.addEventListener('click', () => {
+          const idx = parseInt(row.dataset.stndaIdx, 10);
+          const item = matchItems[idx];
+          state.selectedStnda = item;
+          state.selectedTag = null;
+          state.centerTab = 'items';
+          dom.btnCopy.disabled = false;
+          renderLeft(); renderCenter(); renderRight();
+        });
+      });
     }
 
     function renderTree() {
-      const el = $('treeContent');
+      const el = dom.treeContent;
       if (!state.tagTree) return;
       const filter = state.treeFilter;
       const idioHits = CascadeTree.idiolectTagHits(state.tagTree, state.checkedIdioTerms, state.idiolectTerms);
+      const depTargets = new Set();
+      if (state.selectedTag) {
+        const selNode = CascadeTree.find(state.tagTree, state.selectedTag);
+        if (selNode) for (const d of CascadeTree.getDependencies(selNode)) depTargets.add(d);
+      }
 
       function matches(n) { if (!filter) return true; if (n.fullTag.toLowerCase().includes(filter)) return true; for (const c of n.children.values()) if (matches(c)) return true; return false; }
 
@@ -689,20 +1811,20 @@
         if (!matches(node)) return '';
         const mat = CascadeTree.getMaturity(node), hasKids = node.children.size > 0;
         const exp = state.expandedTags.has(node.fullTag), sel = state.selectedTag === node.fullTag;
-        const tt = mat.todo.count, td = mat.todo.checked;
+        const isDep = depTargets.has(node.fullTag);
+        // Sum across all checkbox-stage roles
+        const cbRoles = pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase());
+        let tt = 0, td = 0;
+        for (const r of cbRoles) { tt += (mat[r]?.count || 0); td += (mat[r]?.checked || 0); }
         const fracCls = tt ? (td === tt ? 'all-done' : td === 0 ? 'none-done' : '') : '';
 
-        let h = `<div class="tag-row${sel ? ' selected' : ''}" data-tag="${esc(node.fullTag)}">`;
+        let h = `<div class="tag-row${sel ? ' selected' : ''}${isDep ? ' dep-target' : ''}" data-tag="${esc(node.fullTag)}">`;
         h += `<span class="tag-arrow ${hasKids ? (exp ? 'expanded' : '') : 'leaf'}" data-toggle="${esc(node.fullTag)}">▸</span>`;
         h += `<span class="tag-name">${esc(node.name)}</span>`;
         if (idioHits.has(node.fullTag)) h += `<span class="tag-idio-mark" title="Matches checked idiolect">◆</span>`;
-        if (tt) h += `<span class="tag-frac ${fracCls}" title="${td} of ${tt} todo items checked">${td}/${tt}</span>`;
-        h += `<span class="tag-maturity">`;
-        for (const r of CascadeParse.ROLES) {
-          const a = mat[r].count > 0, c = mat[r].checked > 0;
-          h += `<span class="mat-dot ${r}${a ? ' active' : ''}${c ? ' has-checked' : ''}" title="${r}: ${mat[r].count} (${mat[r].checked}✓)"></span>`;
-        }
-        h += '</span></div>';
+        if (tt) h += `<span class="tag-frac ${fracCls}" title="${td} of ${tt} checked">${td}/${tt}</span>`;
+        h += treeDots.render(mat);
+        h += '</div>';
         if (hasKids) {
           const kidHtml = [...node.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(renderNode).join('');
           h += `<div class="tag-children${exp ? '' : ' collapsed'}">${kidHtml}</div>`;
@@ -711,68 +1833,130 @@
       }
 
       el.innerHTML = [...state.tagTree.children.values()].sort((a,b) => a.name.localeCompare(b.name)).map(renderNode).join('') || '<div class="empty-state">No tags found</div>';
-      $('tagCount').textContent = CascadeTree.count(state.tagTree);
+      dom.tagCount.textContent = CascadeTree.count(state.tagTree);
 
       el.querySelectorAll('.tag-arrow:not(.leaf)').forEach(a => {
         a.addEventListener('click', e => { e.stopPropagation(); const t = a.dataset.toggle; state.expandedTags.has(t) ? state.expandedTags.delete(t) : state.expandedTags.add(t); renderTree(); });
       });
       el.querySelectorAll('.tag-row').forEach(row => {
         row.addEventListener('click', () => {
-          state.selectedTag = row.dataset.tag === state.selectedTag ? null : row.dataset.tag;
+          state.selectedTag = row.dataset.tag;
+          state.selectedStnda = null;
           renderTree(); renderCenter(); renderRight();
-          $('btnCopy').disabled = !state.selectedTag; $('btnCopyBundle').disabled = !state.selectedTag;
+          dom.btnCopy.disabled = !state.selectedTag;
         });
       });
     }
 
     function renderCenter() {
       $('centerTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.centerTab));
-      state.centerTab === 'idiolect' ? renderIdiolect() : renderItems();
+      if (state.centerTab === 'idiolect') renderIdiolect();
+      else if (state.centerTab.startsWith('t2-')) {
+        const idx = parseInt(state.centerTab.split('-')[1], 10);
+        const tabCfg = pipelineConfig.tabs2[idx];
+        if (tabCfg) {
+          if (tabCfg.style === 'queue') renderQueueTab(dom.centerContent, tabCfg);
+          else if (tabCfg.style === 'role') renderRoleTab(dom.centerContent, tabCfg);
+        }
+      }
+      else renderItems();
     }
 
-    function renderItems() {
-      const el = $('centerContent');
-      if (!state.selectedTag) { el.innerHTML = '<div class="empty-state">Select a tag to see items</div>'; $('centerCount').textContent = '0'; return; }
-      const node = CascadeTree.find(state.tagTree, state.selectedTag);
-      if (!node) { el.innerHTML = '<div class="empty-state">Tag not found</div>'; return; }
-      const items = node.allItems;
-      $('centerCount').textContent = items.length;
-      const groups = Object.fromEntries(CascadeParse.ROLES.map(r => [r, []]));
+    function renderGroupedItems(el, items, warnMap) {
+      const roles = CascadeParse.ROLES;
+      const labels = CascadeParse.ROLE_LABELS;
+      const groups = Object.fromEntries(roles.map(r => [r, []]));
       for (const i of items) if (groups[i.role]) groups[i.role].push(i);
-      const warnMap = new Map();
-      for (const i of groups.todo) {
-        const hasDeeper = items.some(x => x !== i && x.role !== 'todo');
-        if (i.checked && !hasDeeper) warnMap.set(i.file+':'+i.line, '[x] but no prompt/spec found');
-        else if (!i.checked && hasDeeper) warnMap.set(i.file+':'+i.line, '[ ] but elaboration exists — checkbox may be stale');
-      }
       let html = '';
-      for (const role of CascadeParse.ROLES) {
+      for (const role of roles) {
         if (!groups[role].length) continue;
-        html += `<div class="role-group"><div class="role-header ${role}">${CascadeParse.ROLE_LABELS[role]} — ${groups[role].length}</div>`;
-        for (const item of groups[role]) html += renderItem(item, warnMap.get(item.file+':'+item.line));
+        html += `<div class="role-group"><div class="role-header ${role}">${esc(labels[role] || role)} — ${groups[role].length}</div>`;
+        for (const item of groups[role]) html += renderItem(item, warnMap?.get(item.file+':'+item.line));
         html += '</div>';
       }
-      el.innerHTML = html || '<div class="empty-state">No items</div>';
+      return html;
+    }
+
+    function wireExpanders(el) {
       el.querySelectorAll('.item-expand').forEach(btn => {
         btn.addEventListener('click', () => { const c = btn.previousElementSibling; c.classList.toggle('expanded'); btn.textContent = c.classList.contains('expanded') ? '▲ collapse' : '▼ expand'; });
       });
+    }
+
+    function renderItems() {
+      const el = dom.centerContent;
+
+      // Role-tab multi-tag mode (e.g. STNDA, CC)
+      if (state.selectedStnda) {
+        const selItem = state.selectedStnda;
+        const selRole = selItem.role;
+        const selColor = pipelineConfig.pipeline.find(s => s.name.toLowerCase() === selRole)?.color || 'var(--success)';
+        const { r: cr, g: cg, b: cb } = hexToRgb(selColor.startsWith('#') ? selColor : '#22c55e');
+        const allItems = [], seen = new Set();
+        for (const tag of selItem.tags) {
+          const node = CascadeTree.find(state.tagTree, tag);
+          if (!node) continue;
+          for (const it of node.allItems) {
+            const k = it.file + ':' + it.line;
+            if (!seen.has(k) && it.role !== selRole) { seen.add(k); allItems.push(it); }
+          }
+        }
+        dom.centerCount.textContent = allItems.length;
+        let html = `<div style="padding:0.5rem;margin-bottom:0.5rem;background:rgba(${cr},${cg},${cb},0.08);border:1px solid rgba(${cr},${cg},${cb},0.2);border-radius:4px">`;
+        html += `<div style="font-weight:600;font-size:0.82rem;margin-bottom:0.2rem;color:${selColor}">${esc(selRole.toUpperCase())}: ${esc(selItem.heading || selItem.text || '')}</div>`;
+        html += `<div style="font-family:var(--font-mono);font-size:0.65rem;color:${selColor};margin-bottom:0.3rem">${selItem.tags.map(t => '#' + esc(t)).join(' ')}</div>`;
+        if (selItem.content) html += `<div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.5">${esc(selItem.content)}</div>`;
+        html += fileLink(selItem.file, selItem.line);
+        html += '</div>';
+        html += renderGroupedItems(el, allItems);
+        el.innerHTML = html || '<div class="empty-state">No items</div>';
+        wireExpanders(el);
+        return;
+      }
+
+      if (!state.selectedTag) { el.innerHTML = '<div class="empty-state">Select a tag to see items</div>'; dom.centerCount.textContent = '0'; return; }
+      const node = CascadeTree.find(state.tagTree, state.selectedTag);
+      if (!node) { el.innerHTML = '<div class="empty-state">Tag not found</div>'; return; }
+      const items = node.allItems;
+      dom.centerCount.textContent = items.length;
+
+      const warnMap = new Map();
+      const cbRoles = new Set(pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase()));
+      const cbItems = items.filter(i => cbRoles.has(i.role) && i.type === 'checkbox');
+      for (const i of cbItems) {
+        const hasDeeper = items.some(x => x !== i && !cbRoles.has(x.role));
+        const noRoles = new Set();
+        for (const ni of items) if (ni.noRoles) ni.noRoles.forEach(r => noRoles.add(r));
+        if (i.checked && !hasDeeper && noRoles.size === 0) warnMap.set(i.file+':'+i.line, '[x] but no elaboration found');
+      }
+
+      let html = '';
+      const deps = CascadeTree.getDependencies(node);
+      const usedBy = CascadeTree.getUsedBy(state.tagTree, state.selectedTag, state.items);
+      if (deps.size || usedBy.length) {
+        html += '<div style="padding:0.4rem 0.5rem;margin-bottom:0.5rem;background:var(--bg-tertiary);border-radius:4px;font-family:var(--font-mono);font-size:0.68rem;line-height:1.7">';
+        if (deps.size) html += '<div style="color:var(--accent)">USES ' + [...deps].map(d => '#'+esc(d)).join(' ') + '</div>';
+        if (usedBy.length) html += '<div style="color:var(--text-secondary)">USED BY ' + usedBy.map(u => '<span style="color:var(--accent)">#'+esc(u.tag)+'</span>').join(' ') + '</div>';
+        html += '</div>';
+      }
+      html += renderGroupedItems(el, items, warnMap);
+      el.innerHTML = html || '<div class="empty-state">No items</div>';
+      wireExpanders(el);
     }
 
     function renderItem(item, warn) {
       const primaryTag = item.tags?.[0];
       const tagNode = primaryTag ? CascadeTree.find(state.tagTree, primaryTag) : null;
       const mat = tagNode ? CascadeTree.getMaturity(tagNode) : null;
-      let h = '<div class="item"><div class="item-top"><span class="item-dots">';
-      for (const r of CascadeParse.ROLES) {
-        const a = mat && mat[r].count > 0, c = mat && mat[r].checked > 0;
-        h += `<span class="item-dot ${r}${a ? ' active' : ''}${c ? ' has-checked' : ''}"></span>`;
-      }
-      h += '</span>';
+      let h = '<div class="item"><div class="item-top">';
+      h += itemDots.render(mat);
       h += `<span class="item-text">${esc(item.text || item.heading || '')}</span>`;
       if (primaryTag) h += `<span class="item-tag-right">#${esc(primaryTag)}</span>`;
       h += '</div>';
-      h += `<div class="item-sub">${esc(item.file)}:${item.line}</div>`;
+      h += fileLink(item.file, item.line);
       if (warn) h += `<div class="item-warn">⚠ ${esc(warn)}</div>`;
+      if (item.noRoles?.length) h += `<div class="item-no">${item.noRoles.map(r => 'NO-'+r.toUpperCase()).join(' ')}</div>`;
+      if (item.uses?.length) h += `<div class="item-uses">USES ${item.uses.map(t => '#'+esc(t)).join(' ')}</div>`;
       if (item.classes?.length) h += `<div class="item-classes">Classes: ${item.classes.join(', ')}</div>`;
       if (item.grammars?.length) h += `<div class="item-classes">Grammar: ${item.grammars.join(', ')}</div>`;
       if (item.content) {
@@ -784,123 +1968,270 @@
     }
 
     function renderIdiolect() {
-      const el = $('centerContent');
-      if (!state.idiolectTerms.length) { el.innerHTML = '<div class="empty-state">No idiolect file loaded</div>'; $('centerCount').textContent = '0'; return; }
+      const el = dom.centerContent;
+      if (!state.idiolectTerms.length) { el.innerHTML = '<div class="empty-state">No idiolect file loaded</div>'; dom.centerCount.textContent = '0'; return; }
       const relevantSet = state.selectedTag ? CascadeTree.relevantIdiolect(CascadeTree.find(state.tagTree, state.selectedTag), state.idiolectTerms) : null;
-      let litCount = 0, html = '';
+      let litCount = 0;
+
+      let html = '<div class="idio-toolbar">';
+      html += '<button class="btn" data-idio-action="all">Check all</button>';
+      html += '<button class="btn" data-idio-action="none">Uncheck all</button>';
+      if (relevantSet && relevantSet.size) {
+        html += '<span class="sep"></span>';
+        html += '<button class="btn" data-idio-action="check-relevant">Check matched</button>';
+        html += '<button class="btn" data-idio-action="uncheck-relevant">Uncheck matched</button>';
+        html += '<button class="btn" data-idio-action="only-relevant">Only matched</button>';
+      }
+      html += '</div>';
+
       for (const t of state.idiolectTerms) {
         const lit = relevantSet?.has(t.term); if (lit) litCount++;
         const cls = relevantSet ? (lit ? 'lit' : 'dim') : '';
         html += `<div class="idio-term ${cls}"><input type="checkbox" data-term="${esc(t.term)}" ${state.checkedIdioTerms.has(t.term) ? 'checked' : ''}>`;
-        html += `<div class="idio-term-body"><div class="idio-term-name">${esc(t.term)}</div>`;
+        html += `<div class="idio-term-body"><div class="idio-term-name">${esc(t.term)}${t.tags?.length ? ' <span style="font-weight:400;font-size:0.6rem;color:var(--accent)">' + t.tags.map(x=>'#'+esc(x)).join(' ') + '</span>' : ''}</div>`;
         html += `<div class="idio-term-def">${esc((t.definition||'').split('\n')[0].slice(0,140))}</div></div></div>`;
       }
-      $('centerCount').textContent = relevantSet ? `${litCount}/${state.idiolectTerms.length}` : state.idiolectTerms.length;
+      dom.centerCount.textContent = relevantSet ? `${litCount}/${state.idiolectTerms.length}` : state.idiolectTerms.length;
       el.innerHTML = html;
-      el.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', () => { cb.checked ? state.checkedIdioTerms.add(cb.dataset.term) : state.checkedIdioTerms.delete(cb.dataset.term); renderTree(); });
+
+      el.querySelectorAll('[data-idio-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.idioAction;
+          if (action === 'all') state.idiolectTerms.forEach(t => state.checkedIdioTerms.add(t.term));
+          else if (action === 'none') state.checkedIdioTerms.clear();
+          else if (action === 'check-relevant' && relevantSet) relevantSet.forEach(name => state.checkedIdioTerms.add(name));
+          else if (action === 'uncheck-relevant' && relevantSet) relevantSet.forEach(name => state.checkedIdioTerms.delete(name));
+          else if (action === 'only-relevant' && relevantSet) { state.checkedIdioTerms.clear(); relevantSet.forEach(name => state.checkedIdioTerms.add(name)); }
+          renderIdiolect(); renderTree(); renderRight();
+        });
       });
+
+      el.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', () => { cb.checked ? state.checkedIdioTerms.add(cb.dataset.term) : state.checkedIdioTerms.delete(cb.dataset.term); renderTree(); renderRight(); });
+      });
+    }
+
+    function navigateToTag(tag) {
+      if (!tag) return;
+      state.selectedTag = tag;
+      state.selectedStnda = null;
+      const parts = tag.split('/');
+      let path = '';
+      for (const p of parts) { path = path ? path + '/' + p : p; state.expandedTags.add(path); }
+      state.centerTab = 'items';
+      dom.btnCopy.disabled = false;
+      renderTree(); renderCenter(); renderRight();
+    }
+
+    /** Render a queue-style tab: ready/blocked grouping using with/without from config. */
+    function renderQueueTab(el, tabCfg) {
+      const withRoles = (tabCfg.with || []).map(r => r.toLowerCase());
+      const withoutRoles = (tabCfg.without || []).map(r => r.toLowerCase());
+      if (!state.tagTree || !state.items.length) { el.innerHTML = '<div class="empty-state">Load files to see queue</div>'; dom.centerCount.textContent = '0'; return; }
+
+      const ready = CascadeReport.readyItems(state.items, state.tagTree, withRoles, withoutRoles);
+      if (!ready.length) {
+        const withLabel = withRoles.join('+').toUpperCase() || '?';
+        const withoutLabel = withoutRoles.join('+').toUpperCase() || '?';
+        el.innerHTML = `<div class="empty-state">No items in ${esc(tabCfg.title)} queue<br><span style="font-size:0.7rem;color:var(--text-muted)">Items need ${withLabel} and no ${withoutLabel} yet</span></div>`;
+        dom.centerCount.textContent = '0'; return;
+      }
+
+      const withoutSet = new Set(withoutRoles);
+      const unblocked = [], blocked = [];
+      for (const r of ready) {
+        const node = CascadeTree.find(state.tagTree, r.tag);
+        if (!node) { unblocked.push({ ...r, deps: [], blockers: [] }); continue; }
+        const deps = CascadeTree.getDependencies(node);
+        const blockers = [];
+        for (const depTag of deps) {
+          const depNode = CascadeTree.find(state.tagTree, depTag);
+          const mat = depNode ? CascadeTree.getMaturity(depNode) : null;
+          // A dependency is a blocker if it lacks all the "without" roles (i.e. not yet complete)
+          if (!mat || ![...withoutSet].some(r => mat[r]?.count > 0)) blockers.push(depTag);
+        }
+        const entry = { ...r, deps: [...deps], blockers };
+        if (blockers.length) blocked.push(entry); else unblocked.push(entry);
+      }
+
+      let html = '';
+      dom.centerCount.textContent = ready.length;
+      if (unblocked.length) {
+        html += `<div class="queue-group-label ready">Ready — no blockers (${unblocked.length})</div>`;
+        for (const r of unblocked) html += renderQueueItem(r);
+      }
+      if (blocked.length) {
+        html += `<div class="queue-group-label blocked">Blocked — unresolved USES (${blocked.length})</div>`;
+        for (const r of blocked) html += renderQueueItem(r);
+      }
+      el.innerHTML = html;
+      el.querySelectorAll('.queue-item[data-tag]').forEach(item => {
+        item.addEventListener('click', () => navigateToTag(item.dataset.tag));
+      });
+    }
+
+    function renderQueueItem(r) {
+      const node = CascadeTree.find(state.tagTree, r.tag);
+      const mat = node ? CascadeTree.getMaturity(node) : null;
+      let h = `<div class="queue-item" data-tag="${esc(r.tag)}">`;
+      h += '<div class="queue-item-top">';
+      if (mat) h += itemDots.render(mat);
+      h += `<span class="queue-item-text">${esc(r.text)}</span>`;
+      h += `<span class="queue-item-tag">#${esc(r.tag)}</span>`;
+      h += '</div><div class="queue-item-meta">';
+      if (r.otherRoles?.length) h += `<span class="has-spec">+${r.otherRoles.join('+')}</span>`;
+      if (r.deps?.length) {
+        if (r.blockers?.length) h += `<span class="blocked">blocked by ${r.blockers.map(t => '#' + esc(t)).join(' ')}</span>`;
+        else h += `<span class="clear">deps met</span>`;
+      }
+      h += '</div></div>';
+      return h;
     }
 
     function renderRight() { renderRightTabs(); state.rightTab === 'report' ? renderReport() : renderBundle(); }
     function renderRightTabs() {
       $('rightTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.rightTab));
-      $('bundleActions').style.display = state.rightTab === 'bundle' ? '' : 'none';
+      dom.bundleActions.style.display = state.rightTab === 'bundle' ? '' : 'none';
+    }
+
+    function buildBundleText() {
+      if (state.selectedStnda) {
+        const stnda = state.selectedStnda;
+        const roleLabel = (stnda.role || '').toUpperCase();
+        const parts = [`## ${roleLabel}: ${stnda.heading || stnda.text || ''}`, `Tags: ${stnda.tags.map(t => '#' + t).join(' ')}`];
+        if (stnda.content) parts.push('', stnda.content);
+        parts.push('');
+        for (const tag of stnda.tags) {
+          const tagBundle = CascadeBundle.build(state.tagTree, tag, state.files, state.idiolectTerms, state.prefixItems, state.checkedIdioTerms);
+          if (tagBundle) { parts.push(`# ── #${tag} ──`, '', tagBundle); }
+        }
+        return parts.join('\n');
+      }
+      if (!state.selectedTag) return '';
+      return CascadeBundle.build(state.tagTree, state.selectedTag, state.files, state.idiolectTerms, state.prefixItems, state.checkedIdioTerms);
     }
 
     function renderBundle() {
-      const el = $('rightContent');
-      if (!state.selectedTag) { el.innerHTML = '<div class="empty-state">Select a tag to build a bundle</div>'; return; }
-      el.innerHTML = `<div class="bundle-preview">${esc(CascadeBundle.build(state.tagTree, state.selectedTag, state.files, state.idiolectTerms, state.prefixItems))}</div>`;
+      const el = dom.rightContent;
+      if (!state.selectedTag && !state.selectedStnda) { el.innerHTML = '<div class="empty-state">Select a tag to build a bundle</div>'; return; }
+      el.innerHTML = `<div class="bundle-preview">${esc(buildBundleText())}</div>`;
     }
 
     function renderReport() {
-      const el = $('rightContent');
+      const el = dom.rightContent;
       if (!state.tagTree || !state.items.length) { el.innerHTML = '<div class="empty-state">Load files to see report</div>'; return; }
       let html = '';
 
+      // Cascade Gaps — checkbox-stage items checked but tag has no other roles
       const gaps = CascadeReport.cascadeGaps(state.items, state.tagTree);
-      html += `<div class="report-section"><div class="report-label">Cascade Gaps — [x] no elaboration (${gaps.length})</div>`;
-      if (gaps.length) for (const g of gaps.slice(0,30)) html += `<div class="report-item"><span class="ri-warn">⚠</span> <span class="ri-tag">#${esc(g.tag)}</span> ${esc(g.text)} <span style="color:var(--text-muted)">${esc(g.file)}</span></div>`;
+      const cbLabel = pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name).join('/') || 'checkbox';
+      html += `<div class="report-section"><div class="report-label">Cascade Gaps — [x] ${esc(cbLabel)} no elaboration (${gaps.length})</div>`;
+      if (gaps.length) for (const g of gaps.slice(0,30)) html += `<div class="report-item" data-nav-tag="${esc(g.tag)}"><span class="ri-warn">⚠</span> <span class="ri-tag">#${esc(g.tag)}</span> ${esc(g.text)} ${fileLink(g.file, g.line)}</div>`;
       else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
       html += '</div>';
 
-      const stale = CascadeReport.staleCheckboxes(state.items, state.tagTree);
-      html += `<div class="report-section"><div class="report-label">Stale Checkboxes — [ ] has elaboration (${stale.length})</div>`;
-      if (stale.length) for (const s of stale.slice(0,30)) html += `<div class="report-item"><span class="ri-warn">↻</span> <span class="ri-tag">#${esc(s.tag)}</span> ${esc(s.text)} <span style="color:var(--text-muted)">${esc(s.file)}</span></div>`;
-      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
-      html += '</div>';
+      // One report section per queue-style tab
+      const queueTabs = [...(pipelineConfig.tabs1 || []), ...(pipelineConfig.tabs2 || [])].filter(t => t.style === 'queue');
+      for (const qt of queueTabs) {
+        const withRoles = (qt.with || []).map(r => r.toLowerCase());
+        const withoutRoles = (qt.without || []).map(r => r.toLowerCase());
+        const ready = CascadeReport.readyItems(state.items, state.tagTree, withRoles, withoutRoles);
+        const withLabel = (qt.with || []).join('+');
+        const withoutLabel = (qt.without || []).join('+');
+        html += `<div class="report-section"><div class="report-label">${esc(qt.title)} — has ${esc(withLabel)}, no ${esc(withoutLabel)} (${ready.length})</div>`;
+        if (ready.length) for (const r of ready.slice(0,40)) {
+          const extras = r.otherRoles.length ? ' <span style="color:var(--text-muted)">[+' + r.otherRoles.join('+') + ']</span>' : '';
+          html += `<div class="report-item" data-nav-tag="${esc(r.tag)}"><span class="ri-ok">▸</span> <span class="ri-tag">#${esc(r.tag)}</span> ${esc(r.text)}${extras}</div>`;
+        }
+        else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
+        html += '</div>';
+      }
 
-      const ready = CascadeReport.readyToPrompt(state.items, state.tagTree);
-      html += `<div class="report-section"><div class="report-label">Ready to Prompt — has prompt, no code (${ready.length})</div>`;
-      if (ready.length) for (const r of ready.slice(0,40)) html += `<div class="report-item"><span class="ri-ok">▸</span> <span class="ri-tag">#${esc(r.tag)}</span> ${esc(r.text)}${r.hasSpec ? ' <span style="color:var(--role-spec)">[+spec]</span>' : ''}</div>`;
-      else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
-      html += '</div>';
+      // Most Depended-On — blocker detection uses first queue tab's without roles
+      const allUses = state.items.filter(i => i.uses?.length);
+      if (allUses.length) {
+        const blockerRoles = queueTabs.length ? new Set((queueTabs[0].without || []).map(r => r.toLowerCase())) : new Set();
+        const useCounts = new Map();
+        for (const item of allUses)
+          for (const u of item.uses) useCounts.set(u, (useCounts.get(u) || 0) + 1);
+        const sorted = [...useCounts.entries()].sort((a,b) => b[1] - a[1]);
+        html += `<div class="report-section"><div class="report-label">Most Depended-On (${sorted.length} targets)</div>`;
+        for (const [tag, count] of sorted.slice(0, 20)) {
+          const node = CascadeTree.find(state.tagTree, tag);
+          const mat = node ? CascadeTree.getMaturity(node) : null;
+          // Check if dep has any of the "completion" (without) roles
+          const hasCompletion = blockerRoles.size && mat ? [...blockerRoles].some(r => mat[r]?.count > 0) : false;
+          // Also check if it has any non-checkbox roles at all
+          const cbRoles = new Set(pipelineConfig.pipeline.filter(s => s.checkbox).map(s => s.name.toLowerCase()));
+          const hasAnyWork = mat ? CascadeParse.ROLES.some(r => !cbRoles.has(r) && mat[r]?.count > 0) : false;
+          const indicator = hasCompletion ? `<span style="color:${cascadeStages[cascadeStages.length-1]?.color || 'var(--success)'}">●</span>`
+            : hasAnyWork ? `<span style="color:${cascadeStages[Math.floor(cascadeStages.length/2)]?.color || 'var(--text-secondary)'}">●</span>`
+            : '<span style="color:var(--danger)">○</span>';
+          const isBlocker = !hasCompletion && !hasAnyWork;
+          html += `<div class="report-item" data-nav-tag="${esc(tag)}">${indicator} <span class="ri-tag">#${esc(tag)}</span> — ${count} dependant${count > 1 ? 's' : ''}${isBlocker ? ' <span style="color:var(--danger);font-size:0.6rem">⬅ blocker</span>' : ''}</div>`;
+        }
+        html += '</div>';
+      }
 
       const typos = CascadeReport.tagTypos(state.items);
       html += `<div class="report-section"><div class="report-label">Possible Tag Typos (${typos.length})</div>`;
-      if (typos.length) for (const [a,b] of typos) html += `<div class="report-item"><span class="ri-err">?</span> <span class="ri-tag">#${esc(a)}</span> ↔ <span class="ri-tag">#${esc(b)}</span></div>`;
+      if (typos.length) for (const [a,b] of typos) html += `<div class="report-item" data-nav-tag="${esc(a)}"><span class="ri-err">?</span> <span class="ri-tag">#${esc(a)}</span> ↔ <span class="ri-tag">#${esc(b)}</span></div>`;
       else html += '<div class="report-item"><span class="ri-ok">✓</span> None</div>';
       html += '</div>';
 
       html += `<div class="report-section"><div class="report-label">Coverage by Domain</div>`;
       for (const [name, child] of [...state.tagTree.children.entries()].sort((a,b) => a[0].localeCompare(b[0]))) {
         const mat = CascadeTree.getMaturity(child), total = child.allItems.length;
-        html += `<div class="report-item"><span class="ri-tag">#${esc(name)}</span> — ${total} items`;
-        for (const r of CascadeParse.ROLES) if (mat[r].count) html += ` · <span style="color:var(--role-${r})">${r}:${mat[r].count}</span>`;
+        html += `<div class="report-item" data-nav-tag="${esc(name)}"><span class="ri-tag">#${esc(name)}</span> — ${total} items`;
+        for (const s of cascadeStages) if (mat[s.name]?.count) html += ` · <span style="color:${s.color}">${s.name}:${mat[s.name].count}</span>`;
         html += '</div>';
-        const barParts = CascadeParse.ROLES.map(r => mat[r].count ? `<span style="width:${Math.max(mat[r].count/total*100,2)}%;background:var(--role-${r})"></span>` : '').join('');
+        const barParts = cascadeStages.map(s => mat[s.name]?.count ? `<span style="width:${Math.max(mat[s.name].count/total*100,2)}%;background:${s.color}"></span>` : '').join('');
         html += `<div class="report-bar">${barParts}</div>`;
       }
       html += '</div>';
 
       const orphans = CascadeReport.singleFileTags(state.items);
       html += `<div class="report-section"><div class="report-label">Single-File Tags (${orphans.length})</div>`;
-      for (const o of orphans.slice(0,40)) html += `<div class="report-item"><span class="ri-tag">#${esc(o.tag)}</span> <span style="color:var(--text-muted)">only in ${esc(o.file)}</span></div>`;
+      for (const o of orphans.slice(0,40)) html += `<div class="report-item" data-nav-tag="${esc(o.tag)}"><span class="ri-tag">#${esc(o.tag)}</span> only in ${fileLink(o.file, o.line)}</div>`;
       html += '</div>';
 
       el.innerHTML = html;
+      el.addEventListener('click', e => {
+        const item = e.target.closest('[data-nav-tag]');
+        if (item) navigateToTag(item.dataset.navTag);
+      });
     }
 
     function copyBundle() {
-      const text = CascadeBundle.build(state.tagTree, state.selectedTag, state.files, state.idiolectTerms, state.prefixItems);
+      const text = buildBundleText();
       if (!text) return;
-      navigator.clipboard.writeText(text).then(() => setStatus('Bundle copied', 'success')).catch(() => setStatus('Copy failed', 'error'));
-    }
-
-    // ── Drop Zone ──
-    function setupDropZone(el, onDir) {
-      if (!el) return;
-      el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
-      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-      el.addEventListener('drop', async e => {
-        e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
-        for (const item of e.dataTransfer.items) {
-          if (item.kind === 'file') { const h = await item.getAsFileSystemHandle(); if (h.kind === 'directory') { await onDir(h); return; } }
-        }
-        setStatus('Please drop a folder', 'error');
-      });
-      el.addEventListener('click', async () => {
-        try { const h = await window.showDirectoryPicker(); await onDir(h); }
-        catch (err) { if (err.name !== 'AbortError') setStatus(err.message, 'error'); }
-      });
+      navigator.clipboard.writeText(text).then(() => status('Bundle copied', 'success')).catch(() => status('Copy failed', 'error'));
     }
 
     // ── Init ──
     function init() {
-      document.addEventListener('dragover', e => e.preventDefault());
-      document.addEventListener('drop', e => e.preventDefault());
-      setupDropZone($('dropMd'), async h => { state.mdHandle = h; await scanMdFiles(); });
-      setupDropZone($('dropCode'), scanCodeDir);
-      $('btnRescan').addEventListener('click', () => scanMdFiles());
-      $('btnCopy').addEventListener('click', copyBundle);
-      $('btnCopyBundle').addEventListener('click', copyBundle);
-      $('treeFilter').addEventListener('input', e => { state.treeFilter = e.target.value.toLowerCase(); renderTree(); });
-      $('centerTabs').querySelectorAll('.panel-tab').forEach(tab => {
-        tab.addEventListener('click', () => { state.centerTab = tab.dataset.tab; renderCenter(); });
-      });
-      $('rightTabs').querySelectorAll('.panel-tab').forEach(tab => {
-        tab.addEventListener('click', () => { state.rightTab = tab.dataset.tab; renderRight(); });
+      suppressBrowserDragDrop();
+      setupDropZone($('dropMd'), async h => { state.mdHandle = h; await scanMdFiles(); }, msg => status(msg, 'error'));
+      setupDropZone($('dropCode'), scanCodeDir, msg => status(msg, 'error'));
+      // Fixed tabs — custom tabs added by applyConfig / _buildCustomTabs
+      setupTabs($('leftTabs'), tab => { state.leftTab = tab; renderLeft(); });
+      setupTabs($('centerTabs'), tab => { state.centerTab = tab; renderCenter(); });
+      setupTabs($('rightTabs'), tab => { state.rightTab = tab; renderRight(); });
+      setupFilter($('treeFilter'), $('filterClear'), val => { state.treeFilter = val.toLowerCase(); renderTree(); });
+      dom.btnRescan.addEventListener('click', () => scanMdFiles());
+      dom.btnCopy.addEventListener('click', copyBundle);
+      // Apply default config (injects CSS, builds custom tabs)
+      applyConfig(DEFAULT_CONFIG);
+
+      // Delegated click for preview modal — works across all panels
+      document.addEventListener('click', e => {
+        const sub = e.target.closest('[data-preview-file]');
+        if (!sub) return;
+        const filename = sub.dataset.previewFile;
+        const line = parseInt(sub.dataset.previewLine, 10) || null;
+        const fileInfo = state.files.get(filename);
+        if (!fileInfo) return;
+        preview.show(filename, fileInfo.content.split('\n'), line);
       });
     }
     init();

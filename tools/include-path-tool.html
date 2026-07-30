@@ -10,636 +10,307 @@
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg-primary: #0a0a0b;
-      --bg-secondary: #131316;
-      --bg-tertiary: #1a1a1f;
-      --bg-hover: #222228;
-      --border: #2a2a32;
-      --border-focus: #4a4a55;
-      --text-primary: #e8e8ec;
-      --text-secondary: #9898a4;
-      --text-muted: #5a5a66;
-      --accent: #f59e0b;
-      --accent-dim: #b45309;
-      --success: #22c55e;
-      --success-dim: rgba(34, 197, 94, 0.15);
-      --danger: #ef4444;
-      --danger-dim: rgba(239, 68, 68, 0.15);
-      --warning: #eab308;
-      --warning-dim: rgba(234, 179, 8, 0.15);
-      --font-mono: 'JetBrains Mono', monospace;
-      --font-sans: 'Space Grotesk', sans-serif;
-    }
-
-    html, body { height: 100%; }
-
-    body {
-      font-family: var(--font-sans);
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      line-height: 1.5;
-    }
-
-    /* Layout */
-    .app {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    header {
-      padding: 1rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: var(--bg-secondary);
-    }
-
-    .indented {
-      margin-left:80px;
-    }
-
-    h1 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: var(--text-primary);
-    }
-
-    h1 span { color: var(--accent); }
-
-    .controls {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .stat-badge {
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      padding: 0.3rem 0.6rem;
-      border-radius: 4px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-    }
-
-    .stat-badge.ok { color: var(--success); border-color: rgba(34,197,94,0.3); }
-    .stat-badge.broken { color: var(--danger); border-color: rgba(239,68,68,0.3); }
-
-    .stat-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-
-    main {
-      display: grid;
-      grid-template-columns: 240px 1fr 1fr;
-      overflow: hidden;
-    }
-
-    /* Panels */
-    .panel {
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .panel:last-child { border-right: none; }
-
-    .panel-header {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-secondary);
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-secondary);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .panel-header .count {
-      background: var(--bg-tertiary);
-      padding: 0.15rem 0.5rem;
-      border-radius: 3px;
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-    }
-
-    .panel-tabs {
-      display: flex;
-      gap: 0.25rem;
-    }
-
-    .panel-tab {
-      background: none;
-      border: none;
-      padding: 0.2rem 0.5rem;
-      font-family: var(--font-sans);
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--text-muted);
-      cursor: pointer;
-      border-radius: 3px;
-      transition: all 0.15s;
-    }
-
-    .panel-tab:hover {
-      color: var(--text-secondary);
-      background: var(--bg-tertiary);
-    }
-
-    .panel-tab.active {
-      color: var(--text-primary);
-      background: var(--bg-tertiary);
-    }
-
-    .filter-row {
-      display: flex;
-      gap: 0.25rem;
-      padding: 0.4rem 0.5rem;
-      border-bottom: 1px solid var(--border);
-      background: var(--bg-secondary);
-    }
-
-    .filter-input {
-      flex: 1;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 0.25rem 0.5rem;
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
-      color: var(--text-primary);
-      outline: none;
-    }
-
-    .filter-input:focus { border-color: var(--accent); }
-    .filter-input::placeholder { color: var(--text-muted); }
-
-    .filter-input.active {
-      border-color: var(--accent);
-      background: rgba(245, 158, 11, 0.1);
-    }
-
-    .filter-clear {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 1rem;
-      cursor: pointer;
-      padding: 0 0.25rem;
-      line-height: 1;
-    }
-
-    .filter-clear:hover { color: var(--text-primary); }
-
-    .panel-content {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0.5rem;
-    }
-
-    /* Drop Zone */
-    .drop-zone {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      border: 2px dashed var(--border);
-      margin: 0.5rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .drop-zone:hover, .drop-zone.drag-over {
-      border-color: var(--accent);
-      background: rgba(245, 158, 11, 0.05);
-    }
-
-    .drop-zone-icon {
-      width: 48px;
-      height: 48px;
-      margin-bottom: 1rem;
-      color: var(--text-muted);
-    }
-
-    .drop-zone p {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      text-align: center;
-    }
-
-    .drop-zone small {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-
-    /* File List */
-    .file-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-
-    .file-item:hover { background: var(--bg-hover); }
-
-    .file-item.active {
-      background: rgba(245, 158, 11, 0.1);
-      border-left: 2px solid var(--accent);
-      margin-left: -2px;
-    }
-
-    .file-item .filename {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      color: var(--text-primary);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      flex: 1;
-    }
-
-    .file-item .filename:hover { color: var(--accent); }
-
-    .file-item .ext {
-      color: var(--accent);
-      font-size: 0.65rem;
-      text-transform: uppercase;
-      flex-shrink: 0;
-    }
-
-    .file-item .ref-counts {
-      display: flex;
-      gap: 0.3rem;
-      flex-shrink: 0;
-    }
-
-    .file-item .ref-badge {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      padding: 0.05rem 0.3rem;
-      border-radius: 2px;
-    }
-
-    .ref-badge.ok-badge {
-      color: var(--success);
-      background: var(--success-dim);
-    }
-
-    .ref-badge.broken-badge {
-      color: var(--danger);
-      background: var(--danger-dim);
-    }
-
-    /* Reference Items */
-    .ref-item {
-      padding: 0.55rem 0.6rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      border: 1px solid transparent;
-      margin-bottom: 0.25rem;
-    }
-
-    .ref-item:hover {
-      background: var(--bg-hover);
-      border-color: var(--border);
-    }
-
-    .ref-item.broken {
-      border-color: rgba(239, 68, 68, 0.25);
-      background: rgba(239, 68, 68, 0.04);
-    }
-
-    .ref-source {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      margin-bottom: 0.2rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .ref-source-file {
-      cursor: pointer;
-      transition: color 0.15s;
-    }
-
-    .ref-source-file:hover { color: var(--accent); }
-
-    .ref-type-tag {
-      font-family: var(--font-mono);
-      font-size: 0.55rem;
-      text-transform: uppercase;
-      padding: 0.05rem 0.3rem;
-      border-radius: 2px;
-      background: var(--bg-tertiary);
-      color: var(--text-muted);
-      letter-spacing: 0.03em;
-    }
-
-    .ref-path {
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      word-break: break-all;
-      display: flex;
-      align-items: baseline;
-      gap: 0.4rem;
-    }
-
-    .ref-path-value { flex: 1; }
-
-    .ref-path-value.ok { color: var(--success); }
-    .ref-path-value.broken { color: var(--danger); }
-
-    .ref-status-icon {
-      font-size: 0.7rem;
-      flex-shrink: 0;
-    }
-
-    .ref-line {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-muted);
-      margin-top: 0.15rem;
-    }
-
-    /* Fix Section */
-    .fix-section {
-      margin-top: 0.35rem;
-      padding-top: 0.35rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .fix-label {
-      font-size: 0.6rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      margin-bottom: 0.25rem;
-    }
-
-    .fix-candidates {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-    }
-
-    .fix-candidate {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.25rem 0.4rem;
-      border-radius: 3px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      cursor: default;
-    }
-
-    .fix-candidate.preferred {
-      border-color: rgba(34, 197, 94, 0.4);
-      background: rgba(34, 197, 94, 0.06);
-    }
-
-    .fix-candidate-path {
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      color: var(--text-secondary);
-      flex: 1;
-      word-break: break-all;
-    }
-
-    .fix-candidate.preferred .fix-candidate-path {
-      color: var(--success);
-    }
-
-    .fix-candidate-tag {
-      font-family: var(--font-mono);
-      font-size: 0.5rem;
-      text-transform: uppercase;
-      padding: 0.05rem 0.25rem;
-      border-radius: 2px;
-      background: var(--success-dim);
-      color: var(--success);
-      flex-shrink: 0;
-    }
-
-    .fix-btn {
-      padding: 0.2rem 0.45rem;
-      font-size: 0.6rem;
-      font-family: var(--font-sans);
-      font-weight: 500;
-      background: var(--accent);
-      border: none;
-      border-radius: 3px;
-      color: #000;
-      cursor: pointer;
-      flex-shrink: 0;
-      transition: background 0.15s;
-    }
-
-    .fix-btn:hover { background: var(--accent-dim); }
-
-    .no-candidates {
-      font-family: var(--font-mono);
-      font-size: 0.6rem;
-      color: var(--text-muted);
-      font-style: italic;
-    }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      padding: 0.5rem 1rem;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-      font-family: var(--font-sans);
-      font-size: 0.8rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .btn:hover {
-      background: var(--bg-hover);
-      border-color: var(--border-focus);
-    }
-
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #000;
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-dim);
-      border-color: var(--accent-dim);
-    }
-
-    .btn-danger {
-      background: var(--danger);
-      border-color: var(--danger);
-      color: #fff;
-    }
-
-    .btn-danger:hover {
-      background: #dc2626;
-      border-color: #dc2626;
-    }
-
-    .btn svg { width: 14px; height: 14px; }
-
-    /* Empty State */
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      text-align: center;
-      height: 100%;
-    }
-
-    /* Preview Modal */
-    .preview-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      opacity: 0;
-      visibility: hidden;
-      transition: all 0.2s;
-    }
-
-    .preview-overlay.visible {
-      opacity: 1;
-      visibility: visible;
-    }
-
-    .preview-modal {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      width: 90%;
-      max-width: 700px;
-      max-height: 80vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .preview-header {
-      padding: 0.75rem 1rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .preview-header h3 {
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      font-weight: 500;
-    }
-
-    .preview-close {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 0.25rem;
-    }
-
-    .preview-close:hover { color: var(--text-primary); }
-
-    .preview-content {
-      padding: 1rem;
-      overflow: auto;
-      font-family: var(--font-mono);
-      font-size: 0.75rem;
-      line-height: 1.6;
-      white-space: pre;
-    }
-
-    .preview-line { display: flex; }
-
-    .preview-line.highlight {
-      background: rgba(245, 158, 11, 0.15);
-      margin: 0 -1rem;
-      padding: 0 1rem;
-    }
-
-    .preview-line-num {
-      color: var(--text-muted);
-      width: 4ch;
-      text-align: right;
-      margin-right: 1rem;
-      user-select: none;
-      flex-shrink: 0;
-    }
-
-    .preview-line-text { white-space: pre; }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: var(--bg-primary); }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
-
-    /* Status */
-    .status {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      padding: 0.5rem 1rem;
-      border-top: 1px solid var(--border);
-      background: var(--bg-secondary);
-    }
-
-    .status.success { color: var(--success); }
-    .status.error { color: var(--danger); }
+/* ═══════════════════════════════════════════════════════════════
+   omni-theme.css — shared design system
+   ═══════════════════════════════════════════════════════════════ */
+
+/*<< @import url('./omni-theme.css'); */
+/*-- file: ./omni-theme.css --*/
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
+    --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
+    --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
+    --accent: #f59e0b; --accent-dim: #b45309;
+    --success: #22c55e; --success-dim: rgba(34, 197, 94, 0.15);
+    --danger: #ef4444; --danger-dim: rgba(239, 68, 68, 0.15);
+    --warning: #eab308; --warning-dim: rgba(234, 179, 8, 0.15);
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Space Grotesk', sans-serif;
+    --panel-columns: 260px 1fr 1fr;
+  }
+
+  html, body { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
+
+  /* ── Shell layout ──────────────────────────────────────────── */
+
+  .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+
+  header {
+    padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary);
+  }
+  header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-primary); }
+  header h1 span { color: var(--accent); }
+  .header-left  { display: flex; align-items: center; gap: 0.75rem; }
+  .header-right { display: flex; gap: 0.75rem; align-items: center; }
+
+  main { display: grid; grid-template-columns: var(--panel-columns); overflow: hidden; }
+
+  /* ── Panels ────────────────────────────────────────────────── */
+
+  .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .count {
+    background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 0.7rem;
+  }
+  .panel-tabs { display: flex; gap: 0.25rem; }
+  .panel-tab {
+    background: none; border: none; padding: 0.2rem 0.5rem;
+    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; border-radius: 3px; transition: all 0.15s;
+  }
+  .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+  .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
+  .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
+
+  /* ── Filter row ────────────────────────────────────────────── */
+
+  .filter-row {
+    display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+  }
+  .filter-input {
+    flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px;
+    padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-primary); outline: none;
+  }
+  .filter-input:focus { border-color: var(--accent); }
+  .filter-input::placeholder { color: var(--text-muted); }
+  .filter-input.active { border-color: var(--accent); background: rgba(245, 158, 11, 0.1); }
+  .filter-clear {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 1rem; cursor: pointer; padding: 0 0.25rem; line-height: 1;
+  }
+  .filter-clear:hover { color: var(--text-primary); }
+
+  /* ── Buttons ───────────────────────────────────────────────── */
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.45rem 0.85rem; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-tertiary); color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+  .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; border-color: #dc2626; }
+
+  /* ── Toggle switch ─────────────────────────────────────────── */
+
+  .toggle { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
+  .toggle-track {
+    width: 36px; height: 20px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: 10px; position: relative; transition: all 0.2s;
+  }
+  .toggle-track::after {
+    content: ''; position: absolute; width: 14px; height: 14px;
+    background: var(--text-muted); border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s;
+  }
+  .toggle.active .toggle-track { background: var(--accent); border-color: var(--accent); }
+  .toggle.active .toggle-track::after { background: #000; left: 18px; }
+
+  /* ── Drop zone ─────────────────────────────────────────────── */
+
+  .drop-zone {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245,158,11,0.05); }
+  .drop-zone.secondary { border-style: dotted; opacity: 0.7; padding: 1rem; }
+  .drop-zone.secondary:hover { opacity: 1; }
+  .drop-zone-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--text-muted); }
+  .drop-zone p { font-size: 0.85rem; color: var(--text-secondary); text-align: center; }
+  .drop-zone small { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+  /* ── Stat badges ───────────────────────────────────────────── */
+
+  .stat-badge {
+    display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono); font-size: 0.65rem;
+    padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border);
+  }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .stat-badge.ok     { color: var(--success); border-color: rgba(34,197,94,0.3); }
+  .stat-badge.broken { color: var(--danger);  border-color: rgba(239,68,68,0.3); }
+  .stat-badge.warn   { color: var(--warning); border-color: rgba(234,179,8,0.3); }
+  .stat-badge.info   { color: var(--accent);  border-color: rgba(245,158,11,0.3); }
+
+  /* ── File / list items ─────────────────────────────────────── */
+
+  .file-item {
+    display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem;
+    border-radius: 4px; font-size: 0.8rem; cursor: pointer;
+  }
+  .file-item:hover { background: var(--bg-hover); }
+  .file-item.active { background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--accent); margin-left: -2px; }
+  .file-item .filename {
+    font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .file-item .filename:hover { color: var(--accent); }
+  .file-item .ext { color: var(--accent); font-size: 0.65rem; text-transform: uppercase; flex-shrink: 0; }
+
+  .list-item {
+    display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem;
+    border-radius: 4px; font-size: 0.8rem; border: 1px solid transparent; margin-bottom: 0.15rem;
+  }
+  .list-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .list-item .item-label {
+    font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-primary);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .list-item .item-meta { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); flex-shrink: 0; }
+
+  /* ── Empty state ───────────────────────────────────────────── */
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; color: var(--text-muted); font-size: 0.8rem; text-align: center; height: 100%;
+  }
+
+  /* ── Preview modal ─────────────────────────────────────────── */
+
+  .preview-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.2s;
+  }
+  .preview-overlay.visible { opacity: 1; visibility: visible; }
+  .preview-modal {
+    background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+    width: 90%; max-width: 800px; max-height: 85vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .preview-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .preview-header h3 { font-family: var(--font-mono); font-size: 0.8rem; font-weight: 500; }
+  .preview-actions { display: flex; gap: 0.4rem; align-items: center; }
+  .preview-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0.25rem; }
+  .preview-close:hover { color: var(--text-primary); }
+  .preview-content {
+    padding: 1rem; overflow: auto; flex: 1;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6; white-space: pre;
+  }
+  .preview-line { display: flex; }
+  .preview-line.highlight { background: rgba(245,158,11,0.15); margin: 0 -1rem; padding: 0 1rem; }
+  .preview-line-num {
+    color: var(--text-muted); width: 4ch; text-align: right;
+    margin-right: 1rem; user-select: none; flex-shrink: 0;
+  }
+  .preview-line-text { white-space: pre; }
+  .preview-editor {
+    flex: 1; width: 100%; padding: 1rem; min-height: 200px;
+    font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.6;
+    background: var(--bg-primary); color: var(--text-primary);
+    border: none; outline: none; resize: none; tab-size: 2;
+  }
+
+  /* ── Status bar ────────────────────────────────────────────── */
+
+  .status {
+    font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 1rem;
+    border-top: 1px solid var(--border); background: var(--bg-secondary); font-family: var(--font-mono);
+  }
+  .status.success { color: var(--success); }
+  .status.error   { color: var(--danger); }
+
+  /* ── Scrollbar ─────────────────────────────────────────────── */
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+
+/*-- endfile --*/
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Include-path-specific styles
+   ═══════════════════════════════════════════════════════════════ */
+
+  :root { --panel-columns: 240px 1fr 1fr; }
+  .indented { margin-left: 80px; }
+
+  .file-item .ref-counts { display: flex; gap: 0.3rem; flex-shrink: 0; }
+  .ref-badge { font-family: var(--font-mono); font-size: 0.6rem; padding: 0.05rem 0.3rem; border-radius: 2px; }
+  .ref-badge.ok-badge { color: var(--success); background: var(--success-dim); }
+  .ref-badge.broken-badge { color: var(--danger); background: var(--danger-dim); }
+
+  .ref-item {
+    padding: 0.55rem 0.6rem; border-radius: 4px; font-size: 0.8rem;
+    border: 1px solid transparent; margin-bottom: 0.25rem;
+  }
+  .ref-item:hover { background: var(--bg-hover); border-color: var(--border); }
+  .ref-item.broken { border-color: rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.04); }
+
+  .ref-source {
+    font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted);
+    margin-bottom: 0.2rem; display: flex; align-items: center; gap: 0.4rem;
+  }
+  .ref-source-file { cursor: pointer; transition: color 0.15s; }
+  .ref-source-file:hover { color: var(--accent); }
+  .ref-type-tag {
+    font-family: var(--font-mono); font-size: 0.55rem; text-transform: uppercase;
+    padding: 0.05rem 0.3rem; border-radius: 2px; background: var(--bg-tertiary);
+    color: var(--text-muted); letter-spacing: 0.03em;
+  }
+  .ref-path {
+    font-family: var(--font-mono); font-size: 0.75rem; word-break: break-all;
+    display: flex; align-items: baseline; gap: 0.4rem;
+  }
+  .ref-path-value { flex: 1; }
+  .ref-path-value.ok { color: var(--success); }
+  .ref-path-value.broken { color: var(--danger); }
+  .ref-status-icon { font-size: 0.7rem; flex-shrink: 0; }
+  .ref-line { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+  .fix-section { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--border); }
+  .fix-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .fix-candidates { display: flex; flex-direction: column; gap: 0.2rem; }
+  .fix-candidate {
+    display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.4rem;
+    border-radius: 3px; background: var(--bg-tertiary); border: 1px solid var(--border); cursor: default;
+  }
+  .fix-candidate.preferred { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.06); }
+  .fix-candidate-path { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-secondary); flex: 1; word-break: break-all; }
+  .fix-candidate.preferred .fix-candidate-path { color: var(--success); }
+  .fix-candidate-tag {
+    font-family: var(--font-mono); font-size: 0.5rem; text-transform: uppercase;
+    padding: 0.05rem 0.25rem; border-radius: 2px; background: var(--success-dim); color: var(--success); flex-shrink: 0;
+  }
+  .fix-btn {
+    padding: 0.2rem 0.45rem; font-size: 0.6rem; font-family: var(--font-sans); font-weight: 500;
+    background: var(--accent); border: none; border-radius: 3px; color: #000;
+    cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+  }
+  .fix-btn:hover { background: var(--accent-dim); }
+  .no-candidates { font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted); font-style: italic; }
+
   </style>
 </head>
 <body>
   <div class="app">
     <header>
       <h1 class="indented">Include <span>Path</span> Tool</h1>
-      <div class="controls" id="headerControls">
+      <div class="header-right" id="headerRight">
         <button class="btn" id="btnRescan" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
           Rescan
@@ -652,12 +323,8 @@
     </header>
 
     <main>
-      <!-- Files Panel -->
       <div class="panel" id="filesPanel">
-        <div class="panel-header">
-          Files
-          <span class="count" id="fileCount">0</span>
-        </div>
+        <div class="panel-header">Files <span class="count" id="fileCount">0</span></div>
         <div class="panel-content" id="filesContent">
           <div class="drop-zone" id="dropZone">
             <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -669,10 +336,9 @@
         </div>
       </div>
 
-      <!-- All References Panel -->
       <div class="panel">
         <div class="panel-header">
-          <div class="panel-tabs">
+          <div class="panel-tabs" id="refTabs">
             <button class="panel-tab active" data-tab="all">All</button>
             <button class="panel-tab" data-tab="broken">Broken</button>
             <button class="panel-tab" data-tab="ok">Valid</button>
@@ -688,12 +354,8 @@
         </div>
       </div>
 
-      <!-- Broken Paths Panel (with fix) -->
       <div class="panel">
-        <div class="panel-header">
-          Broken Paths
-          <span class="count" id="brokenCount">0</span>
-        </div>
+        <div class="panel-header">Broken Paths <span class="count" id="brokenCount">0</span></div>
         <div class="panel-content" id="brokenContent">
           <div class="empty-state">Broken references will appear here</div>
         </div>
@@ -703,68 +365,137 @@
     <div class="status" id="status"></div>
   </div>
 
-  <!-- Preview Modal -->
-  <div class="preview-overlay" id="previewOverlay">
-    <div class="preview-modal">
-      <div class="preview-header">
-        <h3 id="previewTitle">file.html</h3>
-        <button class="preview-close" id="previewClose">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>
-      <div class="preview-content" id="previewContent"></div>
-    </div>
-  </div>
-
   <script type="module">
-    // ─────────────────────────────────────────────────────────────
-    // State
-    // ─────────────────────────────────────────────────────────────
-    const state = {
-      directoryHandle: null,
-      // path -> { handle, content, lines }
-      allFiles: new Map(),
-      // Set of all paths in the tree (any file type)
-      allPaths: new Set(),
-      // Array of reference objects:
-      // { sourceFile, line, rawPath, resolvedPath, type, exists, candidates }
-      references: [],
-      refTab: 'all',
-      refFilterText: '',
-      activeFile: null
-    };
 
-    // ─────────────────────────────────────────────────────────────
-    // DOM
-    // ─────────────────────────────────────────────────────────────
-    const $ = id => document.getElementById(id);
-    const dom = {
-      filesContent: $('filesContent'),
-      refsContent: $('refsContent'),
-      brokenContent: $('brokenContent'),
-      fileCount: $('fileCount'),
-      refCount: $('refCount'),
-      brokenCount: $('brokenCount'),
-      btnRescan: $('btnRescan'),
-      btnFixAll: $('btnFixAll'),
-      headerControls: $('headerControls'),
-      status: $('status'),
-      previewOverlay: $('previewOverlay'),
-      previewTitle: $('previewTitle'),
-      previewContent: $('previewContent'),
-      previewClose: $('previewClose')
-    };
+    // ═══════════════════════════════════════════════════════════════
+    // omni-fs — File System Access API helpers
+    // ═══════════════════════════════════════════════════════════════
 
-    // ─────────────────────────────────────────────────────────────
-    // Utilities
-    // ─────────────────────────────────────────────────────────────
-    const escapeHtml = str => str.replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    //<< import { setupDropZone, suppressBrowserDragDrop, walkDirectory, readFileContent, writeFileContent } from './omni-fs.js';
+    //-- file: ./omni-fs.js --
+    //>> export { setupDropZone, suppressBrowserDragDrop, walkDirectory, readFileContent, writeFileContent };
 
-    const setStatus = (msg, type = '') => {
-      dom.status.textContent = msg;
-      dom.status.className = 'status' + (type ? ` ${type}` : '');
-    };
+    function suppressBrowserDragDrop() {
+      document.addEventListener('dragover', e => e.preventDefault());
+      document.addEventListener('drop', e => e.preventDefault());
+    }
+
+    function setupDropZone(el, onDir, onError) {
+      if (!el) return;
+      el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', async e => {
+        e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
+        for (const item of e.dataTransfer.items) {
+          if (item.kind === 'file') {
+            const handle = await item.getAsFileSystemHandle();
+            if (handle.kind === 'directory') { await onDir(handle); return; }
+          }
+        }
+        if (onError) onError('Please drop a folder, not individual files');
+      });
+      el.addEventListener('click', async () => {
+        try { const handle = await window.showDirectoryPicker(); await onDir(handle); }
+        catch (err) { if (err.name !== 'AbortError' && onError) onError(err.message); }
+      });
+    }
+
+    async function walkDirectory(dirHandle, opts = {}) {
+      const extensions = opts.extensions || null;
+      const skipDirs   = opts.skipDirs   || null;
+      const prefix     = opts._prefix    || '';
+      const entries    = [];
+      for await (const entry of dirHandle.values()) {
+        if (entry.name.startsWith('.')) continue;
+        const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.kind === 'directory') {
+          if (entry.name === 'node_modules') continue;
+          if (skipDirs && skipDirs.includes(entry.name)) continue;
+          entries.push(...await walkDirectory(entry, { extensions, skipDirs, _prefix: entryPath }));
+        } else if (entry.kind === 'file') {
+          if (extensions && !extensions.test(entry.name)) continue;
+          entries.push({ handle: entry, path: entryPath });
+        }
+      }
+      return entries;
+    }
+
+    async function readFileContent(fileHandle) {
+      const file = await fileHandle.getFile();
+      return file.text();
+    }
+
+    async function writeFileContent(fileHandle, content) {
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // omni-shell — shared UI helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { escapeHtml, setStatus, renderStatBadges, setupTabs, setupFilter } from './omni-shell.js';
+    //-- file: ./omni-shell.js --
+    //>> export { escapeHtml, setStatus, renderStatBadges, setupTabs, setupFilter };
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function setStatus(statusEl, msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (type ? ' ' + type : '');
+    }
+
+    function renderStatBadges(container, stats, insertBefore) {
+      container.querySelectorAll('.stat-badge').forEach(el => el.remove());
+      for (const stat of stats) {
+        const badge = document.createElement('div');
+        badge.className = 'stat-badge' + (stat.type ? ' ' + stat.type : '');
+        const dotStyle = stat.color ? ` style="background:${stat.color}"` : '';
+        badge.innerHTML = `<span class="stat-dot"${dotStyle}></span>${escapeHtml(String(stat.count))} ${escapeHtml(stat.label)}`;
+        if (insertBefore) container.insertBefore(badge, insertBefore);
+        else container.appendChild(badge);
+      }
+    }
+
+    function setupTabs(container, callback) {
+      container.querySelectorAll('.panel-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          container.querySelectorAll('.panel-tab').forEach(t =>
+            t.classList.toggle('active', t === tab));
+          callback(tab.dataset.tab);
+        });
+      });
+    }
+
+    function setupFilter(inputEl, clearEl, callback) {
+      inputEl.addEventListener('input', () => {
+        inputEl.classList.toggle('active', inputEl.value !== '');
+        callback(inputEl.value);
+      });
+      clearEl.addEventListener('click', () => {
+        inputEl.value = '';
+        inputEl.classList.remove('active');
+        callback('');
+      });
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // path-utils — pure-function path utilities
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { dirname, basename, normalizePath, resolvePath, computeRelativePath } from './path-utils.js';
+    //-- file: ./path-utils.js --
+    //>> export { dirname, basename, normalizePath, resolvePath, computeRelativePath };
 
     function dirname(path) {
       const i = path.lastIndexOf('/');
@@ -792,360 +523,339 @@
       return normalizePath(combined);
     }
 
-    // Compute relative path from `from` file to `to` file
     function computeRelativePath(fromFile, toFile) {
       const fromDir = dirname(fromFile).split('/').filter(Boolean);
       const toParts = toFile.split('/').filter(Boolean);
-
-      // Find common prefix length
       let common = 0;
-      while (common < fromDir.length && common < toParts.length && fromDir[common] === toParts[common]) {
-        common++;
-      }
-
+      while (common < fromDir.length && common < toParts.length &&
+             fromDir[common] === toParts[common]) common++;
       const ups = fromDir.length - common;
       const remainder = toParts.slice(common);
-
-      if (ups === 0) {
-        return './' + remainder.join('/');
-      }
+      if (ups === 0) return './' + remainder.join('/');
       return '../'.repeat(ups) + remainder.join('/');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Path Extraction Patterns
-    // ─────────────────────────────────────────────────────────────
-    const SCAN_EXTENSIONS = /\.(html|htm|js|mjs|jsx|ts|tsx)$/i;
-    const ALL_FILE_EXTENSIONS = /\.[a-zA-Z0-9]+$/;
+    //-- endfile --
 
-    // We skip absolute URLs, data URIs, fragment-only, protocol-relative
-    function isRelativePath(p) {
-      if (!p || p.startsWith('http://') || p.startsWith('https://') || p.startsWith('//')) return false;
-      if (p.startsWith('data:') || p.startsWith('blob:') || p.startsWith('javascript:')) return false;
-      if (p.startsWith('#') || p.startsWith('mailto:') || p.startsWith('tel:')) return false;
-      if (p.startsWith('chrome-extension:') || p.startsWith('moz-extension:')) return false;
-      // Skip CDN / npm bare specifiers (no ./ or ../ and no file extension pattern)
-      if (!p.startsWith('./') && !p.startsWith('../') && !p.startsWith('/')) {
-        // Could be a bare module specifier like 'react', 'lodash/fp'
-        // Allow if it looks like a relative file path with extension
-        if (!ALL_FILE_EXTENSIONS.test(p.split('?')[0].split('#')[0])) return false;
+
+    // ═══════════════════════════════════════════════════════════════
+    // PreviewModal — source preview overlay with edit mode
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { PreviewModal } from './preview-modal.js';
+    //-- file: ./preview-modal.js --
+    //>> export { PreviewModal };
+
+    class PreviewModal {
+      constructor(opts = {}) {
+        this.onSave = opts.onSave || null;
+        this._filename = '';
+        this._build();
       }
-      return true;
-    }
 
-    function cleanPath(raw) {
-      // Strip query params and hash
-      return raw.split('?')[0].split('#')[0];
-    }
+      _build() {
+        this.overlay = document.createElement('div');
+        this.overlay.className = 'preview-overlay';
+        this.overlay.innerHTML = `
+          <div class="preview-modal">
+            <div class="preview-header">
+              <h3></h3>
+              <div class="preview-actions">
+                <button class="btn btn-primary pm-save">Save</button>
+                <button class="preview-close">✕</button>
+              </div>
+            </div>
+            <textarea class="preview-editor"></textarea>
+          </div>`;
+        document.body.appendChild(this.overlay);
 
-    function extractReferences(content, filePath) {
-      const results = [];
-      const lines = content.split('\n');
-      const isHtml = /\.html?$/i.test(filePath);
-      const isJs = /\.(js|mjs|jsx|ts|tsx)$/i.test(filePath);
+        this._titleEl  = this.overlay.querySelector('h3');
+        this._editorEl = this.overlay.querySelector('.preview-editor');
+        this._saveBtn  = this.overlay.querySelector('.pm-save');
 
-      lines.forEach((line, idx) => {
-        const lineNum = idx + 1;
-        let matches = [];
+        this.overlay.querySelector('.preview-close').addEventListener('click', () => this.hide());
+        this.overlay.addEventListener('click', e => { if (e.target === this.overlay) this.hide(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') this.hide(); });
+        this._saveBtn.addEventListener('click', () => this._save());
+      }
 
-        if (isHtml) {
-          // src="..." href="..." (not stylesheet-only, catch all)
-          const attrRegex = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
-          let m;
-          while ((m = attrRegex.exec(line)) !== null) {
-            matches.push({ raw: m[1], type: m[0].toLowerCase().startsWith('src') ? 'src' : 'href' });
-          }
-        }
+      show(filename, lines, highlightLine) {
+        this._filename = filename;
+        this._titleEl.textContent = highlightLine ? `${filename} : ${highlightLine}` : filename;
+        this._saveBtn.style.display = this.onSave ? '' : 'none';
+        this._editorEl.value = lines.join('\n');
+        this.overlay.classList.add('visible');
+        this._editorEl.focus();
 
-        if (isJs || isHtml) {
-          // import ... from "..."  or  import "..."
-          const importRegex = /\bimport\s+(?:[\s\S]*?from\s+)?["']([^"']+)["']/g;
-          let m;
-          while ((m = importRegex.exec(line)) !== null) {
-            matches.push({ raw: m[1], type: 'import' });
-          }
-
-          // require("...")
-          const requireRegex = /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g;
-          while ((m = requireRegex.exec(line)) !== null) {
-            matches.push({ raw: m[1], type: 'require' });
-          }
-
-          // Dynamic import("...")
-          const dynImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
-          while ((m = dynImportRegex.exec(line)) !== null) {
-            matches.push({ raw: m[1], type: 'import()' });
-          }
-        }
-
-        for (const { raw, type } of matches) {
-          if (!isRelativePath(raw)) continue;
-          const cleaned = cleanPath(raw);
-          if (!cleaned) continue;
-
-          const resolved = resolvePath(filePath, cleaned);
-
-          results.push({
-            sourceFile: filePath,
-            line: lineNum,
-            rawPath: raw,
-            cleanPath: cleaned,
-            resolvedPath: resolved,
-            type,
-            exists: false,
-            candidates: []
-          });
-        }
-      });
-
-      return results;
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // File System
-    // ─────────────────────────────────────────────────────────────
-    async function readDirectoryAll(dirHandle, path = '') {
-      const entries = [];
-      for await (const entry of dirHandle.values()) {
-        if (entry.name.startsWith('.')) continue;
-        if (entry.name === 'node_modules') continue;
-        const entryPath = path ? `${path}/${entry.name}` : entry.name;
-        if (entry.kind === 'directory') {
-          const subEntries = await readDirectoryAll(entry, entryPath);
-          entries.push(...subEntries);
-        } else {
-          entries.push({ handle: entry, path: entryPath, kind: 'file' });
+        if (highlightLine) {
+          const pos = lines.slice(0, highlightLine - 1).join('\n').length + 1;
+          this._editorEl.setSelectionRange(pos, pos);
+          const lh = parseFloat(getComputedStyle(this._editorEl).lineHeight) || 19;
+          this._editorEl.scrollTop = Math.max(0, highlightLine - 8) * lh;
         }
       }
-      return entries;
-    }
 
-    async function readFileContent(fileHandle) {
-      const file = await fileHandle.getFile();
-      return await file.text();
-    }
-
-    async function writeFileContent(fileHandle, content) {
-      const writable = await fileHandle.createWritable();
-      await writable.write(content);
-      await writable.close();
-    }
-
-    // Navigate to a file handle by path from the root directory
-    async function getFileHandle(path) {
-      const parts = path.split('/');
-      let current = state.directoryHandle;
-      for (let i = 0; i < parts.length - 1; i++) {
-        current = await current.getDirectoryHandle(parts[i]);
+      async _save() {
+        if (this.onSave) await this.onSave(this._filename, this._editorEl.value);
+        this.hide();
       }
-      return await current.getFileHandle(parts[parts.length - 1]);
+
+      hide() { this.overlay.classList.remove('visible'); }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Scanning
-    // ─────────────────────────────────────────────────────────────
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // include-refs — reference extraction, resolution, and fixing
+    // ═══════════════════════════════════════════════════════════════
+
+    //<< import { IncludeRefs } from './include-refs.js';
+    //-- file: ./include-refs.js --
+    //>> import { basename, resolvePath, computeRelativePath, dirname } from './path-utils.js';
+    //>> export { IncludeRefs };
+
+    class IncludeRefs {
+      static SCAN_EXTENSIONS = /\.(html|htm|js|mjs|jsx|ts|tsx)$/i;
+      static ALL_FILE_EXTENSIONS = /\.[a-zA-Z0-9]+$/;
+
+      static isRelativePath(p) {
+        if (!p || p.startsWith('http://') || p.startsWith('https://') || p.startsWith('//')) return false;
+        if (p.startsWith('data:') || p.startsWith('blob:') || p.startsWith('javascript:')) return false;
+        if (p.startsWith('#') || p.startsWith('mailto:') || p.startsWith('tel:')) return false;
+        if (p.startsWith('chrome-extension:') || p.startsWith('moz-extension:')) return false;
+        if (!p.startsWith('./') && !p.startsWith('../') && !p.startsWith('/')) {
+          if (!this.ALL_FILE_EXTENSIONS.test(p.split('?')[0].split('#')[0])) return false;
+        }
+        return true;
+      }
+
+      static cleanPath(raw) { return raw.split('?')[0].split('#')[0]; }
+
+      static extractReferences(content, filePath) {
+        const results = [], lines = content.split('\n');
+        const isHtml = /\.html?$/i.test(filePath);
+        const isJs   = /\.(js|mjs|jsx|ts|tsx)$/i.test(filePath);
+
+        lines.forEach((line, idx) => {
+          const lineNum = idx + 1;
+          const matches = [];
+
+          if (isHtml) {
+            const re = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
+            let m; while ((m = re.exec(line)) !== null)
+              matches.push({ raw: m[1], type: m[0].toLowerCase().startsWith('src') ? 'src' : 'href' });
+          }
+
+          if (isJs || isHtml) {
+            let m;
+            const impRe = /\bimport\s+(?:[\s\S]*?from\s+)?["']([^"']+)["']/g;
+            while ((m = impRe.exec(line)) !== null) matches.push({ raw: m[1], type: 'import' });
+            const reqRe = /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g;
+            while ((m = reqRe.exec(line)) !== null) matches.push({ raw: m[1], type: 'require' });
+            const dynRe = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+            while ((m = dynRe.exec(line)) !== null) matches.push({ raw: m[1], type: 'import()' });
+          }
+
+          for (const { raw, type } of matches) {
+            if (!this.isRelativePath(raw)) continue;
+            const cleaned = this.cleanPath(raw);
+            if (!cleaned) continue;
+            results.push({
+              sourceFile: filePath, line: lineNum, rawPath: raw,
+              cleanPath: cleaned, resolvedPath: resolvePath(filePath, cleaned),
+              type, exists: false, candidates: []
+            });
+          }
+        });
+        return results;
+      }
+
+      static resolveAll(references, allPaths) {
+        const fileNameMap = new Map();
+        for (const p of allPaths) {
+          const name = basename(p);
+          if (!fileNameMap.has(name)) fileNameMap.set(name, []);
+          fileNameMap.get(name).push(p);
+        }
+
+        for (const ref of references) {
+          if (allPaths.has(ref.resolvedPath)) { ref.exists = true; ref.candidates = []; continue; }
+
+          const tryExt = ['.js', '.mjs', '.jsx', '.ts', '.tsx', '/index.js', '/index.ts', '/index.jsx', '/index.tsx'];
+          let found = false;
+          for (const ext of tryExt) {
+            if (allPaths.has(ref.resolvedPath + ext)) { ref.exists = true; ref.candidates = []; found = true; break; }
+          }
+          if (found) continue;
+
+          ref.exists = false;
+          const targetName = basename(ref.cleanPath);
+          const candidatePaths = fileNameMap.get(targetName) || [];
+          const sourceDir = dirname(ref.sourceFile);
+          ref.candidates = candidatePaths
+            .map(cp => {
+              const relPath = computeRelativePath(ref.sourceFile, cp);
+              const isBelow = cp.startsWith(sourceDir + '/') || sourceDir === '';
+              const upCount = (relPath.match(/\.\.\//g) || []).length;
+              return { absolutePath: cp, relativePath: relPath, isBelow, upCount };
+            })
+            .sort((a, b) => a.isBelow !== b.isBelow ? (a.isBelow ? -1 : 1) : a.upCount - b.upCount);
+        }
+      }
+
+      static async fixReference(ref, candidateRelPath, allFiles) {
+        const fileData = allFiles.get(ref.sourceFile);
+        if (!fileData) return false;
+        const lines = fileData.content.split('\n');
+        const lineIdx = ref.line - 1;
+        if (lineIdx < 0 || lineIdx >= lines.length) return false;
+        const newLine = lines[lineIdx].replace(ref.rawPath, candidateRelPath);
+        if (newLine === lines[lineIdx]) return false;
+        lines[lineIdx] = newLine;
+        const newContent = lines.join('\n');
+        await writeFileContent(fileData.handle, newContent);
+        fileData.content = newContent;
+        fileData.lines = lines;
+        ref.rawPath = candidateRelPath;
+        ref.cleanPath = this.cleanPath(candidateRelPath);
+        ref.resolvedPath = resolvePath(ref.sourceFile, ref.cleanPath);
+        ref.exists = true;
+        ref.candidates = [];
+        return true;
+      }
+    }
+
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // Harness — state, rendering, events
+    // ═══════════════════════════════════════════════════════════════
+
+    const esc = escapeHtml;
+
+    // ── State ──
+    const state = {
+      directoryHandle: null,
+      allFiles: new Map(),     // path → { handle, content, lines }
+      allPaths: new Set(),     // all file paths in tree
+      references: [],          // { sourceFile, line, rawPath, resolvedPath, type, exists, candidates }
+      refTab: 'all',
+      refFilterText: '',
+      activeFile: null
+    };
+
+    // ── DOM cache ──
+    const $ = id => document.getElementById(id);
+    const dom = {
+      status: $('status'),
+      headerRight: $('headerRight'),
+      btnRescan: $('btnRescan'),
+      btnFixAll: $('btnFixAll'),
+      filesContent: $('filesContent'),
+      refsContent: $('refsContent'),
+      brokenContent: $('brokenContent'),
+      fileCount: $('fileCount'),
+      refCount: $('refCount'),
+      brokenCount: $('brokenCount'),
+      refFilter: $('refFilter'),
+    };
+    const status = (msg, type) => setStatus(dom.status, msg, type);
+
+    // ── Preview modal ──
+    const preview = new PreviewModal({
+      onSave: async (filename, newContent) => {
+        const fileData = state.allFiles.get(filename);
+        if (!fileData?.handle) return;
+        await writeFileContent(fileData.handle, newContent);
+        fileData.content = newContent;
+        fileData.lines = newContent.split('\n');
+        status('Saved ' + filename, 'success');
+        // Re-extract references for this file
+        const oldRefs = state.references.filter(r => r.sourceFile !== filename);
+        const newRefs = IncludeRefs.extractReferences(newContent, filename);
+        state.references = [...oldRefs, ...newRefs];
+        IncludeRefs.resolveAll(state.references, state.allPaths);
+        renderAll();
+        updateFixAllButton();
+      }
+    });
+
+    // ── Scanning ──
     async function scanFiles() {
       if (!state.directoryHandle) return;
-
-      setStatus('Scanning files...');
+      status('Scanning files…');
       state.allFiles.clear();
       state.allPaths.clear();
       state.references = [];
 
       try {
-        const entries = await readDirectoryAll(state.directoryHandle);
+        const allEntries = await walkDirectory(state.directoryHandle);
 
-        // Collect ALL file paths in tree
-        for (const { path } of entries) {
-          state.allPaths.add(path);
-        }
+        for (const { path } of allEntries) state.allPaths.add(path);
 
-        // Read scannable files
-        for (const { handle, path } of entries) {
-          if (!SCAN_EXTENSIONS.test(path)) continue;
+        for (const { handle, path } of allEntries) {
+          if (!IncludeRefs.SCAN_EXTENSIONS.test(path)) continue;
           const content = await readFileContent(handle);
-          state.allFiles.set(path, {
-            handle,
-            content,
-            lines: content.split('\n')
-          });
+          state.allFiles.set(path, { handle, content, lines: content.split('\n') });
         }
 
-        // Extract references
         for (const [filePath, fileData] of state.allFiles) {
-          const refs = extractReferences(fileData.content, filePath);
-          state.references.push(...refs);
+          state.references.push(...IncludeRefs.extractReferences(fileData.content, filePath));
         }
 
-        // Resolve existence & find candidates for broken paths
-        resolveReferences();
+        IncludeRefs.resolveAll(state.references, state.allPaths);
 
         renderAll();
         dom.btnRescan.disabled = false;
         updateFixAllButton();
 
         const broken = state.references.filter(r => !r.exists).length;
-        const total = state.references.length;
-        setStatus(`Scanned ${state.allFiles.size} files — ${total} references, ${broken} broken`, broken > 0 ? 'error' : 'success');
+        status(`Scanned ${state.allFiles.size} files — ${state.references.length} references, ${broken} broken`, broken > 0 ? 'error' : 'success');
       } catch (err) {
         console.error(err);
-        setStatus(`Error: ${err.message}`, 'error');
-      }
-    }
-
-    function resolveReferences() {
-      // Build a map of filename -> [paths] for candidate finding
-      const fileNameMap = new Map();
-      for (const p of state.allPaths) {
-        const name = basename(p);
-        if (!fileNameMap.has(name)) fileNameMap.set(name, []);
-        fileNameMap.get(name).push(p);
-      }
-
-      for (const ref of state.references) {
-        // Check direct resolution
-        if (state.allPaths.has(ref.resolvedPath)) {
-          ref.exists = true;
-          ref.candidates = [];
-          continue;
-        }
-
-        // Try with common implicit extensions for JS imports
-        const tryExtensions = ['', '.js', '.mjs', '.jsx', '.ts', '.tsx', '/index.js', '/index.ts', '/index.jsx', '/index.tsx'];
-        let found = false;
-        for (const ext of tryExtensions) {
-          if (ext === '') continue;
-          if (state.allPaths.has(ref.resolvedPath + ext)) {
-            ref.exists = true;
-            ref.candidates = [];
-            found = true;
-            break;
-          }
-        }
-        if (found) continue;
-
-        // Not found — find candidates by filename
-        ref.exists = false;
-        const targetName = basename(ref.cleanPath);
-        const candidatePaths = fileNameMap.get(targetName) || [];
-
-        // Score candidates: prefer paths below the source file
-        const sourceDir = dirname(ref.sourceFile);
-        ref.candidates = candidatePaths
-          .map(candidatePath => {
-            const relPath = computeRelativePath(ref.sourceFile, candidatePath);
-            // "Below" means the candidate is inside/under the source file's directory
-            const isBelow = candidatePath.startsWith(sourceDir + '/') || sourceDir === '';
-            // Distance: count how many ../ needed
-            const upCount = (relPath.match(/\.\.\//g) || []).length;
-            return { absolutePath: candidatePath, relativePath: relPath, isBelow, upCount };
-          })
-          .sort((a, b) => {
-            // Prefer below over not-below
-            if (a.isBelow !== b.isBelow) return a.isBelow ? -1 : 1;
-            // Then prefer fewer ups
-            return a.upCount - b.upCount;
-          });
+        status(`Error: ${err.message}`, 'error');
       }
     }
 
     function updateFixAllButton() {
-      const hasBroken = state.references.some(r => !r.exists && r.candidates.length > 0);
-      dom.btnFixAll.disabled = !hasBroken;
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Fixing
-    // ─────────────────────────────────────────────────────────────
-    async function fixReference(ref, candidateRelPath) {
-      const fileData = state.allFiles.get(ref.sourceFile);
-      if (!fileData) return;
-
-      // Replace the raw path in the specific line
-      const lines = fileData.content.split('\n');
-      const lineIdx = ref.line - 1;
-      if (lineIdx < 0 || lineIdx >= lines.length) return;
-
-      // Replace first occurrence of the raw path on that line
-      const oldLine = lines[lineIdx];
-      const newLine = oldLine.replace(ref.rawPath, candidateRelPath);
-
-      if (oldLine === newLine) return;
-
-      lines[lineIdx] = newLine;
-      const newContent = lines.join('\n');
-
-      // Write back
-      try {
-        const handle = await getFileHandle(ref.sourceFile);
-        await writeFileContent(handle, newContent);
-        fileData.content = newContent;
-        fileData.lines = lines;
-
-        // Update reference
-        ref.rawPath = candidateRelPath;
-        ref.cleanPath = cleanPath(candidateRelPath);
-        ref.resolvedPath = resolvePath(ref.sourceFile, ref.cleanPath);
-        ref.exists = true;
-        ref.candidates = [];
-
-        setStatus(`Fixed: ${ref.sourceFile}:${ref.line}`, 'success');
-      } catch (err) {
-        setStatus(`Error writing ${ref.sourceFile}: ${err.message}`, 'error');
-      }
+      dom.btnFixAll.disabled = !state.references.some(r => !r.exists && r.candidates.length > 0);
     }
 
     async function fixAll() {
       const broken = state.references.filter(r => !r.exists && r.candidates.length > 0);
-      if (broken.length === 0) return;
-
-      setStatus(`Fixing ${broken.length} broken paths...`);
-
-      let fixed = 0;
-      let errors = 0;
-
+      if (!broken.length) return;
+      status(`Fixing ${broken.length} broken paths…`);
+      let fixed = 0, errors = 0;
       for (const ref of broken) {
         try {
-          await fixReference(ref, ref.candidates[0].relativePath);
-          fixed++;
-        } catch {
-          errors++;
-        }
+          if (await IncludeRefs.fixReference(ref, ref.candidates[0].relativePath, state.allFiles)) fixed++;
+          else errors++;
+        } catch { errors++; }
       }
-
       renderAll();
       updateFixAllButton();
-      setStatus(`Fixed ${fixed} paths${errors ? `, ${errors} errors` : ''}`, errors ? 'error' : 'success');
+      status(`Fixed ${fixed} paths${errors ? `, ${errors} errors` : ''}`, errors ? 'error' : 'success');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Rendering
-    // ─────────────────────────────────────────────────────────────
-    function renderAll() {
-      renderFiles();
-      renderRefs();
-      renderBroken();
-      renderHeaderStats();
-    }
+    // ── Drop zone wiring ──
+    const onDir = async h => { state.directoryHandle = h; await scanFiles(); };
+    const onDirError = msg => status(msg, 'error');
+
+    function wireDropZone() { setupDropZone($('dropZone'), onDir, onDirError); }
+
+    // ── Rendering ──
+    function renderAll() { renderFiles(); renderRefs(); renderBroken(); renderHeaderStats(); }
 
     function renderHeaderStats() {
-      // Remove old stat badges
-      dom.headerControls.querySelectorAll('.stat-badge').forEach(el => el.remove());
-
-      const okCount = state.references.filter(r => r.exists).length;
-      const brokenCount = state.references.filter(r => !r.exists).length;
-
-      if (state.references.length > 0) {
-        const okBadge = document.createElement('div');
-        okBadge.className = 'stat-badge ok';
-        okBadge.innerHTML = `<span class="stat-dot"></span>${okCount} valid`;
-        dom.headerControls.insertBefore(okBadge, dom.btnRescan);
-
-        const brokenBadge = document.createElement('div');
-        brokenBadge.className = 'stat-badge broken';
-        brokenBadge.innerHTML = `<span class="stat-dot"></span>${brokenCount} broken`;
-        dom.headerControls.insertBefore(brokenBadge, dom.btnRescan);
-      }
+      const ok = state.references.filter(r => r.exists).length;
+      const broken = state.references.filter(r => !r.exists).length;
+      if (!state.references.length) { renderStatBadges(dom.headerRight, [], dom.btnRescan); return; }
+      renderStatBadges(dom.headerRight, [
+        { label: 'valid', count: ok, type: 'ok' },
+        { label: 'broken', count: broken, type: 'broken' },
+      ], dom.btnRescan);
     }
 
     function renderFiles() {
@@ -1158,56 +868,56 @@
             <p>Drop a folder here</p>
             <small>.html, .js, .mjs, .jsx, .ts, .tsx</small>
           </div>`;
-        setupDropZone();
+        wireDropZone();
         return;
       }
 
       const sorted = [...state.allFiles.keys()].sort();
-
       dom.filesContent.innerHTML = sorted.map(path => {
         const ext = path.split('.').pop();
         const isActive = path === state.activeFile;
         const refsFromFile = state.references.filter(r => r.sourceFile === path);
-        const okCount = refsFromFile.filter(r => r.exists).length;
-        const brokenCount = refsFromFile.filter(r => !r.exists).length;
-
-        return `
-          <div class="file-item${isActive ? ' active' : ''}" data-path="${escapeHtml(path)}">
-            <span class="filename" title="${escapeHtml(path)}">${escapeHtml(path)}</span>
-            <span class="ref-counts">
-              ${okCount > 0 ? `<span class="ref-badge ok-badge">${okCount}</span>` : ''}
-              ${brokenCount > 0 ? `<span class="ref-badge broken-badge">${brokenCount}</span>` : ''}
-            </span>
-            <span class="ext">${ext}</span>
-          </div>`;
+        const okC = refsFromFile.filter(r => r.exists).length;
+        const brC = refsFromFile.filter(r => !r.exists).length;
+        return `<div class="file-item${isActive ? ' active' : ''}" data-path="${esc(path)}">
+          <span class="filename" title="${esc(path)}">${esc(path)}</span>
+          <span class="ref-counts">
+            ${okC ? `<span class="ref-badge ok-badge">${okC}</span>` : ''}
+            ${brC ? `<span class="ref-badge broken-badge">${brC}</span>` : ''}
+          </span>
+          <span class="ext">${ext}</span>
+        </div>`;
       }).join('');
 
       dom.filesContent.querySelectorAll('.file-item').forEach(el => {
         el.addEventListener('click', () => {
           const path = el.dataset.path;
-          if (state.activeFile === path) {
-            state.activeFile = null;
-            state.refFilterText = '';
-          } else {
-            state.activeFile = path;
-            state.refFilterText = path;
-          }
+          state.activeFile = state.activeFile === path ? null : path;
+          state.refFilterText = state.activeFile || '';
           renderFiles();
+          syncFilter();
           renderRefs();
         });
       });
-
       dom.fileCount.textContent = state.allFiles.size;
+    }
+
+    /** Sync the filter input from state (when file-click sets it programmatically). */
+    function syncFilter() {
+      dom.refFilter.value = state.refFilterText;
+      dom.refFilter.classList.toggle('active', state.refFilterText !== '');
+    }
+
+    /** Build a clickable file:line reference span. */
+    function fileLink(file, line) {
+      const label = line ? `${esc(file)}:${line}` : esc(file);
+      return `<span class="ref-source-file" data-preview-file="${esc(file)}"${line ? ` data-preview-line="${line}"` : ''}>${label}</span>`;
     }
 
     function getFilteredRefs() {
       let refs = state.references;
-
-      // Tab filter
       if (state.refTab === 'broken') refs = refs.filter(r => !r.exists);
       else if (state.refTab === 'ok') refs = refs.filter(r => r.exists);
-
-      // Text filter
       if (state.refFilterText) {
         const frag = state.refFilterText.toLowerCase();
         refs = refs.filter(r =>
@@ -1216,54 +926,34 @@
           r.resolvedPath.toLowerCase().includes(frag)
         );
       }
-
       return refs;
     }
 
     function renderRefs() {
-      // Update tab UI
-      document.querySelectorAll('.panel-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.tab === state.refTab);
-      });
-
-      // Update filter
-      const filterInput = $('refFilter');
-      if (filterInput) {
-        filterInput.value = state.refFilterText;
-        filterInput.classList.toggle('active', state.refFilterText !== '');
-      }
-
       const refs = getFilteredRefs();
 
       if (refs.length === 0 && state.references.length === 0) {
         dom.refsContent.innerHTML = '<div class="empty-state">Drop a folder to scan includes</div>';
-        dom.refCount.textContent = '0';
-        return;
+        dom.refCount.textContent = '0'; return;
       }
-
       if (refs.length === 0) {
         dom.refsContent.innerHTML = '<div class="empty-state">No matching references</div>';
-        dom.refCount.textContent = '0';
-        return;
+        dom.refCount.textContent = '0'; return;
       }
 
-      dom.refsContent.innerHTML = refs.map((ref, idx) => `
+      dom.refsContent.innerHTML = refs.map(ref => `
         <div class="ref-item${ref.exists ? '' : ' broken'}">
           <div class="ref-source">
-            <span class="ref-source-file" data-file="${escapeHtml(ref.sourceFile)}" data-line="${ref.line}">${escapeHtml(ref.sourceFile)}:${ref.line}</span>
-            <span class="ref-type-tag">${escapeHtml(ref.type)}</span>
+            ${fileLink(ref.sourceFile, ref.line)}
+            <span class="ref-type-tag">${esc(ref.type)}</span>
           </div>
           <div class="ref-path">
             <span class="ref-status-icon">${ref.exists ? '✓' : '✗'}</span>
-            <span class="ref-path-value ${ref.exists ? 'ok' : 'broken'}">${escapeHtml(ref.rawPath)}</span>
+            <span class="ref-path-value ${ref.exists ? 'ok' : 'broken'}">${esc(ref.rawPath)}</span>
           </div>
-          ${!ref.exists ? `<div class="ref-line">→ resolves to: ${escapeHtml(ref.resolvedPath)}</div>` : ''}
+          ${!ref.exists ? `<div class="ref-line">→ resolves to: ${esc(ref.resolvedPath)}</div>` : ''}
         </div>`
       ).join('');
-
-      dom.refsContent.querySelectorAll('.ref-source-file').forEach(el => {
-        el.addEventListener('click', () => showPreview(el.dataset.file, parseInt(el.dataset.line)));
-      });
 
       dom.refCount.textContent = refs.length;
     }
@@ -1273,34 +963,31 @@
 
       if (broken.length === 0 && state.references.length > 0) {
         dom.brokenContent.innerHTML = '<div class="empty-state">No broken paths — all references valid!</div>';
-        dom.brokenCount.textContent = '0';
-        return;
+        dom.brokenCount.textContent = '0'; return;
       }
-
       if (broken.length === 0) {
         dom.brokenContent.innerHTML = '<div class="empty-state">Broken references will appear here</div>';
-        dom.brokenCount.textContent = '0';
-        return;
+        dom.brokenCount.textContent = '0'; return;
       }
 
       dom.brokenContent.innerHTML = broken.map((ref, idx) => `
         <div class="ref-item broken" data-ref-idx="${idx}">
           <div class="ref-source">
-            <span class="ref-source-file" data-file="${escapeHtml(ref.sourceFile)}" data-line="${ref.line}">${escapeHtml(ref.sourceFile)}:${ref.line}</span>
-            <span class="ref-type-tag">${escapeHtml(ref.type)}</span>
+            ${fileLink(ref.sourceFile, ref.line)}
+            <span class="ref-type-tag">${esc(ref.type)}</span>
           </div>
           <div class="ref-path">
             <span class="ref-status-icon">✗</span>
-            <span class="ref-path-value broken">${escapeHtml(ref.rawPath)}</span>
+            <span class="ref-path-value broken">${esc(ref.rawPath)}</span>
           </div>
-          <div class="ref-line">→ resolves to: ${escapeHtml(ref.resolvedPath)}</div>
+          <div class="ref-line">→ resolves to: ${esc(ref.resolvedPath)}</div>
           <div class="fix-section">
             <div class="fix-label">Candidates (${ref.candidates.length})</div>
             ${ref.candidates.length > 0 ? `
               <div class="fix-candidates">
                 ${ref.candidates.map((c, ci) => `
                   <div class="fix-candidate${ci === 0 ? ' preferred' : ''}">
-                    <span class="fix-candidate-path">${escapeHtml(c.relativePath)}</span>
+                    <span class="fix-candidate-path">${esc(c.relativePath)}</span>
                     ${c.isBelow ? '<span class="fix-candidate-tag">below</span>' : ''}
                     ${ci === 0 ? '<span class="fix-candidate-tag">best</span>' : ''}
                     <button class="fix-btn" data-broken-idx="${idx}" data-candidate-idx="${ci}">Fix</button>
@@ -1311,7 +998,6 @@
         </div>`
       ).join('');
 
-      // Wire up fix buttons
       dom.brokenContent.querySelectorAll('.fix-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const brokenIdx = parseInt(btn.dataset.brokenIdx);
@@ -1321,150 +1007,46 @@
           if (!ref) return;
           const candidate = ref.candidates[candidateIdx];
           if (!candidate) return;
-
-          btn.disabled = true;
-          btn.textContent = '...';
-          await fixReference(ref, candidate.relativePath);
+          btn.disabled = true; btn.textContent = '…';
+          try {
+            await IncludeRefs.fixReference(ref, candidate.relativePath, state.allFiles);
+            status(`Fixed: ${ref.sourceFile}:${ref.line}`, 'success');
+          } catch (err) { status(`Error: ${err.message}`, 'error'); }
           renderAll();
           updateFixAllButton();
         });
       });
 
-      dom.brokenContent.querySelectorAll('.ref-source-file').forEach(el => {
-        el.addEventListener('click', () => showPreview(el.dataset.file, parseInt(el.dataset.line)));
-      });
-
       dom.brokenCount.textContent = broken.length;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Preview Modal
-    // ─────────────────────────────────────────────────────────────
-    function showPreview(filePath, highlightLine) {
-      const fileData = state.allFiles.get(filePath);
-      if (!fileData) return;
+    // ── Init ──
+    function init() {
+      suppressBrowserDragDrop();
+      wireDropZone();
 
-      dom.previewTitle.textContent = filePath;
-      const lines = fileData.lines;
-      const startLine = Math.max(0, highlightLine - 10);
-      const endLine = Math.min(lines.length, highlightLine + 20);
+      setupTabs($('refTabs'), tab => { state.refTab = tab; renderRefs(); });
 
-      dom.previewContent.innerHTML = lines.slice(startLine, endLine).map((line, i) => {
-        const lineNum = startLine + i + 1;
-        const isHighlight = lineNum === highlightLine;
-        return `<div class="preview-line${isHighlight ? ' highlight' : ''}"><span class="preview-line-num">${lineNum}</span><span class="preview-line-text">${escapeHtml(line)}</span></div>`;
-      }).join('');
-
-      dom.previewOverlay.classList.add('visible');
-    }
-
-    function hidePreview() {
-      dom.previewOverlay.classList.remove('visible');
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Event Handlers
-    // ─────────────────────────────────────────────────────────────
-    document.addEventListener('dragover', e => e.preventDefault());
-    document.addEventListener('drop', e => e.preventDefault());
-
-    function setupDropZone() {
-      const dropZone = document.getElementById('dropZone');
-      if (!dropZone) return;
-
-      const handleDragOver = e => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.add('drag-over');
-      };
-
-      const handleDragLeave = () => {
-        dropZone.classList.remove('drag-over');
-      };
-
-      const handleDrop = async e => {
-        e.preventDefault();
-        e.stopPropagation();
-        dropZone.classList.remove('drag-over');
-
-        const items = e.dataTransfer.items;
-        for (const item of items) {
-          if (item.kind === 'file') {
-            const handle = await item.getAsFileSystemHandle();
-            if (handle.kind === 'directory') {
-              state.directoryHandle = handle;
-              await scanFiles();
-              return;
-            }
-          }
-        }
-        setStatus('Please drop a folder, not individual files', 'error');
-      };
-
-      dropZone.addEventListener('dragover', handleDragOver);
-      dropZone.addEventListener('dragleave', handleDragLeave);
-      dropZone.addEventListener('drop', handleDrop);
-      dropZone.addEventListener('click', async () => {
-        try {
-          state.directoryHandle = await window.showDirectoryPicker();
-          await scanFiles();
-        } catch (err) {
-          if (err.name !== 'AbortError') {
-            setStatus(`Error: ${err.message}`, 'error');
-          }
-        }
-      });
-    }
-
-    function setupTabs() {
-      document.querySelectorAll('.panel-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-          state.refTab = tab.dataset.tab;
-          renderRefs();
-        });
-      });
-    }
-
-    function setupFilter() {
-      $('refFilter').addEventListener('input', e => {
-        state.refFilterText = e.target.value;
+      setupFilter(dom.refFilter, $('refFilterClear'), val => {
+        state.refFilterText = val;
+        if (!val) { state.activeFile = null; renderFiles(); }
         renderRefs();
       });
 
-      $('refFilterClear').addEventListener('click', () => {
-        state.refFilterText = '';
-        state.activeFile = null;
-        renderRefs();
-        renderFiles();
-      });
-    }
-
-    function setupPreview() {
-      dom.previewClose.addEventListener('click', hidePreview);
-      dom.previewOverlay.addEventListener('click', e => {
-        if (e.target === dom.previewOverlay) hidePreview();
-      });
-      document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') hidePreview();
-      });
-    }
-
-    function setupButtons() {
       dom.btnRescan.addEventListener('click', () => scanFiles());
       dom.btnFixAll.addEventListener('click', () => fixAll());
-    }
 
-    // ─────────────────────────────────────────────────────────────
-    // Initialize
-    // ─────────────────────────────────────────────────────────────
-    function init() {
-      setupDropZone();
-      setupTabs();
-      setupFilter();
-      setupPreview();
-      setupButtons();
+      // Delegated click for preview modal — works across all panels
+      document.addEventListener('click', e => {
+        const el = e.target.closest('[data-preview-file]');
+        if (!el) return;
+        const filename = el.dataset.previewFile;
+        const line = parseInt(el.dataset.previewLine, 10) || null;
+        const fileData = state.allFiles.get(filename);
+        if (!fileData) return;
+        preview.show(filename, fileData.lines, line);
+      });
     }
-
     init();
   </script>
 </body>

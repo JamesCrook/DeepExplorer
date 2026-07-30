@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoned Elements</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; border-bottom: 1px solid #2a2824;
+    background: #17160f; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; letter-spacing: -0.03em; }
+  header .tag {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+    background: #222018; padding: 2px 7px; border-radius: 4px; border: 1px solid #2a2824;
+  }
+  #grid {
+    flex: 1; display: grid;
+    grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 1px; background: #2a2824; overflow: hidden;
+  }
+  .cell {
+    background: #111210; display: flex;
+    flex-direction: column; overflow: hidden;
+  }
+  .cell .label {
+    padding: 8px 14px; font-size: 11px; font-weight: 600;
+    color: #6a6256; text-transform: uppercase;
+    letter-spacing: 0.08em; flex-shrink: 0;
+  }
+  .cell canvas { flex: 1; width: 100%; height: 100%; display: block; }
+  
+  #tooltip {
+    position: fixed; pointer-events: none;
+    background: #222018; border: 1px solid #3d3a32;
+    border-radius: 6px; padding: 6px 10px; z-index: 100;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    display: none; white-space: nowrap; font-size: 12px;
+  }
+  #tooltip .tt-name   { font-weight: 600; color: #e4dac6; font-family: monospace; }
+  #tooltip .tt-detail { color: #7a7060; font-size: 10px; margin-top: 2px; }
+  #tooltip .tt-extra  { color: #5a5448; font-size: 10px; margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Zoned Elements</h1>
+  <span class="tag">4 prototypes · 1 core</span>
+</header>
+
+<div id="grid">
+  <div class="cell"><div class="label">Chromosome 1 · Cytobands</div><canvas id="cv-chr"></canvas></div>
+  <div class="cell"><div class="label">Body Heatmap · 9 Organs</div><canvas id="cv-heatmap"></canvas></div>
+  <div class="cell"><div class="label">Mouse Bindings · 6 Zones</div><canvas id="cv-mouse"></canvas></div>
+  <div class="cell"><div class="label">Tree Rings · 35 Years</div><canvas id="cv-rings"></canvas></div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-name"></div>
+  <div class="tt-detail"></div>
+  <div class="tt-extra"></div>
+</div>
+
+<script>
+// NOTE: Comments for slicing using spike_kit.py should be preserved.
+
+// ═══════════════════════════════════════════════════════════════
+//  PORTABLE CLASSES — ready to import into the scene graph.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { ZonedNode, HIGHLIGHT, rrPath } from './zoned-node.js';
+//-- file: ./zoned-node.js --
+//>> import { sceneRegistry } from '../deep-explorer/js/omni-support/scene.js';
+//>> export { ZonedNode, HIGHLIGHT, rrPath };
+
+const HIGHLIGHT = '#daa02e';
+
+function rrPath(ctx, x, y, w, h, rtl, rtr, rbr, rbl) {
+  ctx.beginPath();
+  ctx.moveTo(x + rtl, y);
+  ctx.lineTo(x + w - rtr, y);
+  ctx.arcTo(x + w, y, x + w, y + rtr, rtr);
+  ctx.lineTo(x + w, y + h - rbr);
+  ctx.arcTo(x + w, y + h, x + w - rbr, y + h, rbr);
+  ctx.lineTo(x + rbl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rbl, rbl);
+  ctx.lineTo(x, y + rtl);
+  ctx.arcTo(x, y, x + rtl, y, rtl);
+  ctx.closePath();
+}
+
+class ZonedNode {
+
+  static draw2d(ctxMix, node, params) {
+    const Zone   = node.value.zoneClass;
+    const state  = ctxMix.state;
+    const count  = Zone.getCount(node.data);
+    const passes = Zone.getPasses ? Zone.getPasses(params) : 1;
+
+    Zone.drawBackground(ctxMix, node, params);
+
+    for (let pass = 0; pass < passes; pass++) {
+      state.pass = pass;
+      for (let i = 0; i < count; i++) {
+        state.index      = i;
+        state.isHovered  = (i === node.value.hovered);
+        state.isSelected = node.value.selected.has(i);
+        Zone.draw2d(ctxMix, node, params);
+      }
+    }
+
+    if (Zone.drawOverlay) Zone.drawOverlay(ctxMix, node, params);
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const Zone  = node.value.zoneClass;
+    const state = ctxMix.state;
+    const count = Zone.getCount(node.data);
+    const order = Zone.getHitOrder ? Zone.getHitOrder(node.data, count) : null;
+
+    const tryIndex = i => {
+      state.index = i;
+      ctxMix.hitResult = null;
+      Zone.hit_test(ctxMix, node, params);
+      return ctxMix.hitResult != null;
+    };
+
+    if (order) {
+      for (let j = 0; j < order.length; j++) if (tryIndex(order[j])) return;
+    } else {
+      for (let i = count - 1; i >= 0; i--)   if (tryIndex(i)) return;
+    }
+  }
+}
+
+//>> sceneRegistry.registerNodeClass('zoned', ZonedNode);
+//-- endfile --
+
+
+//<< import { ChromosomeZone, chromosomeData } from './chromosome-zone.js';
+//-- file: ./chromosome-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { ChromosomeZone, chromosomeData };
+
+const STAIN_COLORS = {
+  gneg:    '#E8E0D0', gpos25: '#B0A890', gpos50: '#808068',
+  gpos75:  '#505040', gpos100:'#282820', acen:   '#B84430',
+  gvar:    '#A0A090', stalk:  '#707060',
+};
+
+function chromosomePath(ctx, cx, topY, botY, cenY, armW, cenW, capR) {
+  ctx.beginPath();
+  ctx.moveTo(cx - armW, topY + capR);
+  ctx.quadraticCurveTo(cx - armW, topY, cx, topY);
+  ctx.quadraticCurveTo(cx + armW, topY, cx + armW, topY + capR);
+  ctx.lineTo(cx + armW, cenY - 8);
+  ctx.quadraticCurveTo(cx + cenW, cenY, cx + armW, cenY + 8);
+  ctx.lineTo(cx + armW, botY - capR);
+  ctx.quadraticCurveTo(cx + armW, botY, cx, botY);
+  ctx.quadraticCurveTo(cx - armW, botY, cx - armW, botY - capR);
+  ctx.lineTo(cx - armW, cenY + 8);
+  ctx.quadraticCurveTo(cx - cenW, cenY, cx - armW, cenY - 8);
+  ctx.lineTo(cx - armW, topY + capR);
+  ctx.closePath();
+}
+
+function chrLayout(W,H,data) {
+  const margin = 30;
+  const chrH   = Math.max(1, H - margin * 2);
+  const cx     = W / 2;
+  const topY   = margin;
+  const botY   = margin + chrH;
+  const scale  = chrH / data.length;
+  const cenY   = topY + ((data.cenStart + data.cenEnd) / 2) * scale;
+  const armW   = Math.max(1, Math.min(28, W * 0.14));
+  const cenW   = armW * 0.35;
+  const capR   = armW * 0.7;
+  return { cx, topY, botY, chrH, scale, cenY, armW, cenW, capR };
+}
+
+class ChromosomeZone {
+  static getCount(data) { return data.bands.length; }
+
+  static drawBackground(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H } = ctxMix.getHW( ctxMix, node, params );
+    const data   = node.data;
+    const lo  = chrLayout(W,H,data);
+    node._layout = lo;
+
+    ctx.save();
+    chromosomePath(ctx, lo.cx, lo.topY, lo.botY, lo.cenY, lo.armW, lo.cenW, lo.capR);
+    ctx.clip();
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx  = ctxMix.ctx;
+    const state= ctxMix.state;
+    const lo   = node._layout;
+    if (!lo) return;
+
+    const band = node.data.bands[state.index];
+    const y1   = lo.topY + band.start / node.data.length * lo.chrH;
+    const y2   = lo.topY + band.end   / node.data.length * lo.chrH;
+
+    if (state.isSelected)       ctx.fillStyle = state.isHovered ? '#E8B840' : HIGHLIGHT;
+    else if (state.isHovered)   ctx.fillStyle = '#504838';
+    else                    ctx.fillStyle = STAIN_COLORS[band.stain] || '#E8E0D0';
+
+    ctx.fillRect(lo.cx - 60, y1, 120, Math.max(y2 - y1, 0.5));
+  }
+
+  static drawOverlay(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const lo  = node._layout;
+    if (!lo) { ctx.restore(); return; }
+    ctx.restore();
+
+    ctx.strokeStyle = '#504838';
+    ctx.lineWidth   = 1;
+    chromosomePath(ctx, lo.cx, lo.topY, lo.botY, lo.cenY, lo.armW, lo.cenW, lo.capR);
+    ctx.stroke();
+
+    ctx.fillStyle = '#B84430';
+    ctx.beginPath();
+    ctx.arc(lo.cx, lo.cenY, lo.armW * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle    = '#908878';
+    ctx.font         = '600 12px monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('chr1', lo.cx, lo.botY + 8);
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const state = ctxMix.state;
+    const lo = node._layout;
+    if (!pt || !lo) return;
+
+    const band = node.data.bands[state.index];
+    if (band.stain === 'acen') return;
+
+    const y1 = lo.topY + band.start / node.data.length * lo.chrH;
+    const y2 = lo.topY + band.end   / node.data.length * lo.chrH;
+    if (pt.y < y1 || pt.y > y2) return;
+    if (Math.abs(pt.x - lo.cx) > lo.armW + 2) return;
+
+    ctxMix.hitResult = { node, zoneIndex: state.index };
+  }
+
+  static getZoneInfo(ctxMix, node, params) {
+    const band = node.data.bands[ctxMix.state.index];
+    return { name: band.label, detail: (band.start / 1e6).toFixed(1) + '–' + (band.end / 1e6).toFixed(1) + ' Mb', extra: band.stain };
+  }
+}
+
+function chromosomeData() {
+  const raw = [
+    ['p36.33','gneg',0,2300000],['p36.32','gpos25',2300000,5400000],
+    ['p36.31','gneg',5400000,7200000],['p36.23','gpos25',7200000,9200000],
+    ['p36.22','gneg',9200000,12700000],['p36.21','gpos50',12700000,16200000],
+    ['p36.13','gneg',16200000,20400000],['p36.12','gpos25',20400000,23900000],
+    ['p36.11','gneg',23900000,28000000],['p35.3','gpos25',28000000,30200000],
+    ['p35.2','gneg',30200000,32400000],['p35.1','gpos25',32400000,34600000],
+    ['p34.3','gneg',34600000,40100000],['p33','gpos75',46800000,50500000],
+    ['p32.3','gneg',50500000,55600000],['p31.1','gpos100',69400000,84400000],
+    ['p22.2','gpos75',88300000,92000000],['p21.1','gpos100',101800000,106700000],
+    ['p13.2','gpos50',111200000,115300000],['p12','gpos100',117800000,120600000],
+    ['p11.2','acen',121700000,125100000],['p11.1','acen',125100000,125800000],
+    ['q11','acen',125800000,128900000],['q12','gpos50',128900000,142600000],
+    ['q21.1','gneg',142600000,147950000],['q21.2','gpos25',147950000,150600000],
+    ['q21.3','gneg',150600000,155000000],['q23.1','gneg',160500000,166200000],
+    ['q24.2','gpos50',169700000,172900000],['q25.2','gpos50',176000000,180300000],
+    ['q31.1','gneg',185800000,190800000],['q32.1','gneg',198700000,207200000],
+    ['q41','gneg',218500000,224100000],['q42.13','gpos50',229900000,233600000],
+    ['q43','gneg',236400000,243500000],['q44','gpos25',243500000,248956422],
+  ];
+  return {
+    bands: raw.map(r => ({ label: r[0], stain: r[1], start: r[2], end: r[3] })),
+    length: 248956422, cenStart: 121700000, cenEnd: 128900000,
+  };
+}
+
+//>> sceneRegistry.registerNodeClass('chromosome-zone', ChromosomeZone);
+//-- endfile --
+
+
+//<< import { HeatmapZone, heatmapData } from './heatmap-zone.js';
+//-- file: ./heatmap-zone.js --
+//>> export { HeatmapZone, heatmapData };
+
+// ── HEATMAP ZONE ──
+const BODY_REGIONS = [
+  { name: 'Brain',      val: 0.9,  hue: '#e06080' },
+  { name: 'Left Lung',  val: 0.5,  hue: '#60a0e0' },
+  { name: 'Right Lung', val: 0.5,  hue: '#60a0e0' },
+  { name: 'Heart',      val: 0.85, hue: '#e04050' },
+  { name: 'Liver',      val: 0.7,  hue: '#c07040' },
+  { name: 'Stomach',    val: 0.4,  hue: '#a0c060' },
+  { name: 'L. Kidney',  val: 0.3,  hue: '#c08060' },
+  { name: 'R. Kidney',  val: 0.3,  hue: '#c08060' },
+  { name: 'Intestines', val: 0.35, hue: '#80a070' },
+];
+
+const BODY = {
+  silhouette: [[0.5,0.03],[0.55,0.035],[0.58,0.05],[0.59,0.08],[0.585,0.11],[0.57,0.135],[0.55,0.15],[0.54,0.16],[0.545,0.19],[0.614,0.2114],[0.68,0.21],[0.72,0.23],[0.74,0.28],[0.745,0.35],[0.74,0.42],[0.735,0.5],[0.73,0.55],[0.72,0.58],[0.725,0.6],[0.744,0.6257],[0.702,0.6343],[0.682,0.5986],[0.669,0.4714],[0.646,0.29],[0.62,0.3471],[0.6,0.4543],[0.628,0.5486],[0.616,0.63],[0.6,0.7],[0.59,0.73],[0.58,0.78],[0.583,0.8414],[0.572,0.9043],[0.565,0.94],[0.575,0.96],[0.585,0.97],[0.575,0.98],[0.555,0.975],[0.54,0.96],[0.535,0.9],[0.524,0.7929],[0.513,0.7386],[0.51,0.62],[0.49,0.62],[0.479,0.7314],[0.466,0.7886],[0.465,0.9],[0.46,0.96],[0.445,0.975],[0.425,0.98],[0.415,0.97],[0.425,0.96],[0.435,0.94],[0.42,0.9043],[0.415,0.8443],[0.42,0.78],[0.41,0.73],[0.4,0.7],[0.362,0.63],[0.35,0.5386],[0.374,0.45],[0.369,0.3514],[0.344,0.2914],[0.321,0.4614],[0.308,0.6029],[0.294,0.6343],[0.256,0.6214],[0.275,0.6],[0.28,0.58],[0.27,0.55],[0.265,0.5],[0.26,0.42],[0.255,0.35],[0.26,0.28],[0.28,0.23],[0.32,0.21],[0.384,0.21],[0.455,0.19],[0.46,0.16],[0.45,0.15],[0.43,0.135],[0.415,0.11],[0.41,0.08],[0.42,0.05],[0.45,0.035]],
+  organs: [[.50,.082,.055,.038],[.44,.32,.045,.07],[.56,.32,.045,.07],[.505,.35,.025,.028],[.56,.43,.045,.032],[.46,.44,.030,.030],[.455,.49,.016,.022],[.545,.49,.016,.022],[.50,.55,.045,.040]]
+};
+const ORGAN_LABELS = ['Brain', 'L.Lung', 'R.Lung', 'Heart', 'Liver', 'Stomach', 'L.Kid', 'R.Kid', 'Intestines'];
+const TEMPLATE_ASPECT = 500 / 700;
+
+function fillPoly(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function strokePoly(ctx, pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function scalePts(pts, w, h) { return pts.map(p => [p[0] * w, p[1] * h]); }
+
+// ── LEAK-FREE CANVAS POOL & HEATMAP HELPERS ──
+// Reusable buffers entirely prevent canvas exhaustion and GC thrashing
+const hmTempCanvas1 = document.createElement('canvas');
+const hmTempCanvas2 = document.createElement('canvas');
+
+const COLORMAPS = {
+  inferno:  [[0,.001,.001,.016],[.14,.157,.043,.329],[.32,.396,0,.659],[.50,.624,.165,.388],[.68,.831,.283,.259],[.82,.961,.490,.082],[.92,.980,.757,.153],[1,.988,1,.643]]
+};
+
+function sampleCmap(name, t) {
+  const stops = COLORMAPS[name] || COLORMAPS.inferno;
+  t = Math.max(0, Math.min(1, t));
+  if (t <= stops[0][0]) return [stops[0][1] * 255, stops[0][2] * 255, stops[0][3] * 255];
+  const last = stops[stops.length - 1];
+  if (t >= last[0]) return [last[1] * 255, last[2] * 255, last[3] * 255];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const a = stops[i - 1], b = stops[i];
+      const f = (t - a[0]) / (b[0] - a[0]);
+      return [
+        (a[1] + (b[1] - a[1]) * f) * 255,
+        (a[2] + (b[2] - a[2]) * f) * 255,
+        (a[3] + (b[3] - a[3]) * f) * 255,
+      ];
+    }
+  }
+  return [0, 0, 0];
+}
+
+function buildRegionLookup(maskCtx, w, h) {
+  const data = maskCtx.getImageData(0, 0, w, h).data;
+  const lookup = new Uint8Array(w * h);
+  for (let i = 0, n = w * h; i < n; i++) {
+    const r = data[i * 4];
+    if (r >= 10) lookup[i] = Math.round(r / 20);
+  }
+  return lookup;
+}
+
+function buildValueField(lookup, regionValues, w, h, blurRadius) {
+  hmTempCanvas1.width = w; hmTempCanvas1.height = h;
+  const c1 = hmTempCanvas1.getContext('2d');
+  const img = c1.createImageData(w, h);
+  const d = img.data;
+
+  for (let i = 0, n = w * h; i < n; i++) {
+    const rid = lookup[i];
+    if (rid > 0 && regionValues[rid - 1] !== undefined) {
+      const v = Math.round(regionValues[rid - 1] * 255);
+      d[i * 4] = v; d[i * 4 + 1] = v; d[i * 4 + 2] = v; d[i * 4 + 3] = 255;
+    } else {
+      d[i * 4 + 3] = 255;
+    }
+  }
+  c1.putImageData(img, 0, 0);
+
+  hmTempCanvas2.width = w; hmTempCanvas2.height = h;
+  const c2 = hmTempCanvas2.getContext('2d');
+  c2.clearRect(0, 0, w, h);
+  if (blurRadius > 0) c2.filter = `blur(${blurRadius}px)`;
+  c2.drawImage(hmTempCanvas1, 0, 0);
+  c2.filter = 'none';
+
+  const blurred = c2.getImageData(0, 0, w, h).data;
+  const field = new Float32Array(w * h);
+  let max = 0;
+  for (let i = 0, n = w * h; i < n; i++) {
+    field[i] = blurred[i * 4];
+    if (field[i] > max) max = field[i];
+  }
+  if (max > 0) {
+    for (let i = 0, n = w * h; i < n; i++) field[i] /= max;
+  }
+  return field;
+}
+
+function colormapField(field, w, h, cmapName) {
+  const img = new ImageData(w, h);
+  const d = img.data;
+  for (let i = 0, n = w * h; i < n; i++) {
+    const v = field[i];
+    if (v < 0.005) { d[i * 4 + 3] = 0; continue; }
+    const [r, g, b] = sampleCmap(cmapName, v);
+    d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b;
+    d[i * 4 + 3] = Math.min(255, v * 320);
+  }
+  return img;
+}
+
+function sampleRandom(field, w, h, count) {
+  const pts = [];
+  let attempts = 0;
+  while (pts.length < count && attempts < count * 40) {
+    attempts++;
+    const x = Math.random() * w, y = Math.random() * h;
+    const ix = ~~x, iy = ~~y;
+    if (ix < 0 || ix >= w || iy < 0 || iy >= h) continue;
+    const v = field[iy * w + ix];
+    if (v > 0.03 && Math.random() < v) pts.push({ x, y, v });
+  }
+  return pts;
+}
+
+function drawSparkles(ctx, pts, size, cmapName, globalAlpha) {
+  ctx.save();
+  ctx.globalAlpha = globalAlpha;
+
+  for (const p of pts) {
+    const [r, g, b] = sampleCmap(cmapName, Math.min(1, p.v * 1.2 + 0.15));
+    const alpha = 0.4 + p.v * 0.6;
+    const sz = size * (0.7 + p.v * 0.6);
+    ctx.globalAlpha = globalAlpha * alpha;
+
+    ctx.fillStyle = `rgba(${~~r},${~~g},${~~b},0.2)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255,255,255,${0.6 + p.v * 0.4})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${0.5 + p.v * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBodyMask(ctx, w, h) {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  for (let i = 0; i < BODY.organs.length; i++) {
+    const [cx, cy, rx, ry] = BODY.organs[i];
+    ctx.fillStyle = `rgb(${(i + 1) * 20},0,0)`;
+    ctx.beginPath();
+    ctx.ellipse(cx * w, cy * h, rx * w, ry * h, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+class HeatmapZone {
+  static getCount(data) { return BODY_REGIONS.length; }
+
+  static _ensureCache(node, cw, ch) {
+    let c = node._hm;
+    if (c && c.w === cw && c.h === ch) return c;
+    const scale = ch/700;
+
+    if (!c) {
+      c = node._hm = {
+        maskCanvas: document.createElement('canvas'),
+        baseCanvas: document.createElement('canvas'),
+        overlayCanvas: document.createElement('canvas'),
+        snap: {}
+      };
+      c.maskCtx = c.maskCanvas.getContext('2d', { willReadFrequently: true });
+      c.baseCtx = c.baseCanvas.getContext('2d');
+      c.overlayCtx = c.overlayCanvas.getContext('2d');
+    }
+
+    // Reuse existing layer canvases securely instead of recreating them
+    c.w = cw; c.h = ch;
+    c.maskCanvas.width = cw; c.maskCanvas.height = ch;
+    c.baseCanvas.width = cw; c.baseCanvas.height = ch;
+    c.overlayCanvas.width = cw; c.overlayCanvas.height = ch;
+
+    drawBodyMask(c.maskCtx, cw, ch);
+    c.regionLookup = buildRegionLookup(c.maskCtx, cw, ch);
+
+    c.baseCtx.fillStyle = '#10131a';
+    c.baseCtx.fillRect(0, 0, cw, ch);
+    const pts = scalePts(BODY.silhouette, cw, ch);
+
+    c.baseCtx.shadowColor = 'rgba(0,0,0,0.8)';
+    c.baseCtx.shadowBlur = 20 / scale;
+    c.baseCtx.shadowOffsetY = 10 / scale;
+    c.baseCtx.fillStyle = '#1c2028';
+    fillPoly(c.baseCtx, pts);
+
+    c.baseCtx.shadowBlur = 0;
+    c.baseCtx.shadowOffsetY = 0;
+
+    c.baseCtx.strokeStyle = '#3a4050';
+    c.baseCtx.lineWidth = 1.3;
+    strokePoly(c.baseCtx, pts);
+
+    c.field = null; // force recompute
+    return c;
+  }
+
+  static drawBackground(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H, Z = 1 } = ctxMix.getHW(ctxMix, node, params);
+
+    if (W <= 0 || H <= 0) return;
+
+    let cw = Math.max(1, Math.round(Math.min(W, 500)));
+    let ch = Math.max(1, Math.round(cw / TEMPLATE_ASPECT));
+    if (ch > H) {
+      ch = Math.max(1, Math.round(Math.min(H, 700)));
+      cw = Math.max(1, Math.round(ch * TEMPLATE_ASPECT));
+    }
+    const ox = (W - cw) / 2;
+    const oy = (H - ch) / 2;
+    const scale = ch/700;
+    node._layout = { cw, ch, ox, oy, scale };
+
+    const c = HeatmapZone._ensureCache(node, cw, ch);
+    const snap = c.snap;
+
+    const regionVals = node.data.map(d => d.val);
+    const blur = 18 * node._layout.scale;
+    const cmap = 'inferno';
+    const sparkleCount = 500;
+
+    const regionsMatch = snap.regionVals && regionVals.every((v, i) => v === snap.regionVals[i]);
+    const fieldDirty = !c.field || blur !== snap.blur || !regionsMatch;
+
+    if (fieldDirty) {
+      c.field = buildValueField(c.regionLookup, regionVals, cw, ch, blur);
+      c.heatmapImg = colormapField(c.field, cw, ch, cmap);
+      c.overlayCtx.clearRect(0, 0, cw, ch);
+      c.overlayCtx.putImageData(c.heatmapImg, 0, 0);
+      c.sparkles = sampleRandom(c.field, cw, ch, sparkleCount);
+
+      snap.blur = blur;
+      snap.regionVals = regionVals;
+    }
+
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    ctx.drawImage(c.baseCanvas, 0, 0);
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(c.overlayCanvas, 0, 0);
+
+    if (c.sparkles) {
+       drawSparkles(ctx, c.sparkles, 1.5 * scale /* node._layout.scale * (1/Z)*/, cmap, 1.0);
+    }
+    ctx.restore();
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const state = ctxMix.state;
+    const lo = node._layout;
+    if (!lo) return;
+
+    ctx.save();
+    ctx.translate(lo.ox, lo.oy);
+    const organ = BODY.organs[state.index];
+    const data = node.data[state.index];
+    const [cx, cy, rx, ry] = organ;
+
+    let fill = 'transparent';
+    let stroke = '#2a3545';
+    let textCol = '#3a4050';
+
+    if (state.isSelected) {
+      fill = data.hue + '80'; stroke = '#fff'; textCol = '#fff';
+    } else if (state.isHovered) {
+      fill = data.hue + '40'; stroke = '#888'; textCol = '#ddd';
+    }
+
+    ctx.beginPath();
+    ctx.ellipse(cx * lo.cw, cy * lo.ch, rx * lo.cw, ry * lo.ch, 0, 0, Math.PI * 2);
+
+    if (state.isSelected || state.isHovered) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+    }
+
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5 * lo.scale;
+    ctx.stroke();
+
+    ctx.font = `500 ${Math.max(8, lo.cw * 0.025)}px monospace`;
+    ctx.fillStyle = textCol;
+    ctx.textAlign = 'center';
+    ctx.fillText(ORGAN_LABELS[state.index], cx * lo.cw, cy * lo.ch + 4);
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const state = ctxMix.state;
+    const lo = node._layout;
+    if (!pt || !lo) return;
+    
+    const organ = BODY.organs[state.index];
+    const [cx, cy, rx, ry] = organ;
+    const dx = (pt.x - lo.ox) - cx * lo.cw;
+    const dy = (pt.y - lo.oy) - cy * lo.ch;
+    const nx = dx / (rx * lo.cw);
+    const ny = dy / (ry * lo.ch);
+    
+    if (nx * nx + ny * ny <= 1.2) ctxMix.hitResult = { node, zoneIndex: state.index };
+  }
+
+  static getZoneInfo(ctxMix, node, params) {
+    const data = node.data[ctxMix.state.index];
+    return { name: data.name, detail: 'Base Health: ' + Math.round(data.val * 100) + '%', extra: 'Region ' + (ctxMix.state.index + 1) };
+  }
+}
+
+function heatmapData() {
+  // Pass clone of default organs for the zone data
+  return JSON.parse(JSON.stringify(BODY_REGIONS));
+}
+
+//>> sceneRegistry.registerNodeClass('heatmap-zone', HeatmapZone);
+//-- endfile --
+
+
+//<< import { MouseZone, mouseData } from './mouse-zone.js';
+//-- file: ./mouse-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { MouseZone, mouseData };
+
+// ── MOUSE ZONE ──
+function buildMouseBodyPath(ctx, mw, mh) {
+  const pts = [[mw*0.3, 0], [mw*0.7, 0], [mw*0.9, mh*0.2], [mw, mh*0.6], [mw*0.8, mh], [mw*0.2, mh], [0, mh*0.6], [mw*0.1, mh*0.2]];
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const xc = (pts[i][0] + pts[i + 1][0]) / 2;
+    const yc = (pts[i][1] + pts[i + 1][1]) / 2;
+    ctx.quadraticCurveTo(pts[i][0], pts[i][1], xc, yc);
+  }
+  ctx.quadraticCurveTo(pts[pts.length - 1][0], pts[pts.length - 1][1], pts[0][0], pts[0][1]);
+  ctx.closePath();
+}
+
+function buildZonePath(ctx, index, mw, mh, scale) {
+  ctx.beginPath();
+  if (index === 0) {
+      const pts = [[mw*0.05, mh*0.05], [mw*0.48, mh*0.02], [mw*0.45, mh*0.4], [mw*0.05, mh*0.4]];
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      ctx.quadraticCurveTo(pts[1][0], pts[1][1] - (mh*0.05), pts[1][0], pts[1][1]);
+      ctx.lineTo(pts[2][0], pts[2][1]);
+      ctx.quadraticCurveTo(pts[3][0], pts[3][1] + (mh*0.02), pts[3][0], pts[3][1]);
+  } else if (index === 1) {
+      const pts = [[mw*0.52, mh*0.02], [mw*0.95, mh*0.05], [mw*0.95, mh*0.4], [mw*0.55, mh*0.4]];
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      ctx.quadraticCurveTo(pts[1][0], pts[1][1] - (mh*0.05), pts[1][0], pts[1][1]);
+      ctx.lineTo(pts[2][0], pts[2][1]);
+      ctx.quadraticCurveTo(pts[3][0], pts[3][1] + (mh*0.02), pts[3][0], pts[3][1]);
+  } else if (index === 2) {
+      if (ctx.roundRect) ctx.roundRect(mw*0.47, mh*0.1, mw*0.06, mh*0.15, 5 * scale);
+      else ctx.rect(mw*0.47, mh*0.1, mw*0.06, mh*0.15);
+  } else if (index === 3) {
+      if (ctx.roundRect) ctx.roundRect(mw*0.48, mh*0.28, mw*0.04, mh*0.06, 3 * scale);
+      else ctx.rect(mw*0.48, mh*0.28, mw*0.04, mh*0.06);
+  } else if (index === 4) {
+      ctx.moveTo(0, mh*0.4); ctx.lineTo(mw*0.1, mh*0.4); ctx.lineTo(mw*0.08, mh*0.55); ctx.lineTo(-mw*0.02, mh*0.55);
+  } else if (index === 5) {
+      ctx.moveTo(-mw*0.02, mh*0.57); ctx.lineTo(mw*0.08, mh*0.57); ctx.lineTo(mw*0.06, mh*0.7); ctx.lineTo(-mw*0.04, mh*0.68);
+  }
+  ctx.closePath();
+}
+
+class MouseZone {
+  static getCount(data) { return data.length; }
+
+  static drawBackground(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H, Z = 1 } = ctxMix.getHW(ctxMix, node, params);
+    
+    const pad = 30;
+    const mh = Math.max(10, H - pad * 2);
+    const scale = mh / 280;
+    const mw = 160 * scale;
+    const ox = (W - mw) / 2;
+    const oy = (H - mh) / 2;
+    node._layout = { mw, mh, ox, oy, scale };
+
+    ctx.save();
+    ctx.translate(ox, oy);
+
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 30 * scale;
+    ctx.shadowOffsetY = 10 * scale;
+
+    buildMouseBodyPath(ctx, mw, mh);
+    
+    const bodyGrad = ctx.createLinearGradient(0, 0, mw, mh);
+    bodyGrad.addColorStop(0, '#2d3342');
+    bodyGrad.addColorStop(1, '#111317');
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+    
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.strokeStyle = '#3a3830';
+    ctx.lineWidth = 1.5;// * scale;
+    ctx.stroke();
+
+    ctx.fillStyle = '#0a0b0e';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(mw*0.45, mh*0.05, mw*0.1, mh*0.35, 10 * scale);
+    else ctx.rect(mw*0.45, mh*0.05, mw*0.1, mh*0.35);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(232, 184, 64, 0.1)';
+    ctx.beginPath();
+    ctx.arc(mw*0.5, mh*0.75, mw*0.15, 0, Math.PI*2);
+    ctx.fill();
+    
+    ctx.restore();
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const state = ctxMix.state;
+    const { Z = 1 } = ctxMix.getHW(ctxMix, node, params);
+    const lo = node._layout;
+    if (!lo) return;
+    
+    ctx.save();
+    ctx.translate(lo.ox, lo.oy);
+    
+    buildZonePath(ctx, state.index, lo.mw, lo.mh, lo.scale);
+
+    const isActive = state.isSelected || state.isHovered;
+    
+    if (state.index === 0 || state.index === 1) { 
+      const gradient = ctx.createLinearGradient(0, 0, 0, lo.mh * 0.4);
+      if (state.isSelected) {
+        gradient.addColorStop(0, HIGHLIGHT);
+        gradient.addColorStop(1, '#806020');
+      } else if (state.isHovered) {
+        gradient.addColorStop(0, '#B0A070');
+        gradient.addColorStop(1, '#504838');
+      } else {
+        gradient.addColorStop(0, '#2d3342');
+        gradient.addColorStop(1, '#1e232d');
+      }
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.strokeStyle = isActive ? '#fff' : 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1.5 / Z;
+      ctx.stroke();
+    } else if (state.index === 2 || state.index === 3) { 
+      ctx.fillStyle = state.isSelected ? HIGHLIGHT : state.isHovered ? '#B0A070' : (state.index === 2 ? '#334155' : '#475569');
+      ctx.fill();
+      if (state.index === 2) {
+        ctx.fillStyle = '#1e293b';
+        for(let i=0; i<4; i++) {
+          ctx.fillRect(lo.mw*0.47, lo.mh*(0.12 + i*0.03), lo.mw*0.06, lo.mh*0.01);
+        }
+      }
+    } else { 
+      ctx.fillStyle = state.isSelected ? HIGHLIGHT : state.isHovered ? '#B0A070' : '#2a2f3a';
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  static drawOverlay(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const lo = node._layout;
+    if (!lo) return;
+    const { Z = 1 } = ctxMix.getHW(ctxMix, node, params);
+
+    ctx.save();
+    ctx.translate(lo.ox, lo.oy);
+
+    const centers = [
+        [lo.mw * 0.25, lo.mh * 0.22],   // 0: Left Click
+        [lo.mw * 0.75, lo.mh * 0.22],   // 1: Right Click
+        [lo.mw * 0.50, lo.mh * 0.175],  // 2: Scroll Wheel
+        [lo.mw * 0.50, lo.mh * 0.31],   // 3: DPI Button
+        [lo.mw * 0.04, lo.mh * 0.47],   // 4: Side Forward
+        [lo.mw * 0.02, lo.mh * 0.63]    // 5: Side Back
+    ];
+
+    for (let i = 0; i < centers.length; i++) {
+      ctx.beginPath();
+      ctx.arc(centers[i][0], centers[i][1], 4 / Z, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(232, 50, 50, 0.8)';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5 / Z;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    const state = ctxMix.state;
+    const lo = node._layout;
+    if (!pt || !lo) return;
+
+    const ctx = ctxMix.ctx;
+    const tf = ctx.getTransform();
+    const dprX = tf.a; 
+    const dprY = tf.d;
+
+    ctx.save();
+    ctx.translate(lo.ox, lo.oy);
+    
+    buildZonePath(ctx, state.index, lo.mw, lo.mh, lo.scale);
+    
+    if (ctx.isPointInPath(pt.x * dprX, pt.y * dprY)) {
+      ctxMix.hitResult = { node, zoneIndex: state.index };
+    }
+    
+    ctx.restore();
+  }
+
+  static getZoneInfo(ctxMix, node, params) {
+    const data = node.data[ctxMix.state.index];
+    return { name: data.name, detail: data.value, extra: data.type };
+  }
+}
+
+function mouseData() {
+  return [
+    { name: 'Left Click', value: 'Primary Fire', type: 'Main Button' },
+    { name: 'Right Click', value: 'Aim Down Sights', type: 'Main Button' },
+    { name: 'Scroll Wheel', value: 'Ping Location', type: 'Wheel Button' },
+    { name: 'DPI Cycle', value: 'Cycle Sensitivity', type: 'System Button' },
+    { name: 'Side Button 1', value: 'Melee', type: 'Side Button' },
+    { name: 'Side Button 2', value: 'Throw Grenade', type: 'Side Button' }
+  ];
+}
+
+//>> sceneRegistry.registerNodeClass('mouse-zone', MouseZone);
+//-- endfile --
+
+
+//<< import { TreeRingZone, treeRingData } from './tree-ring-zone.js';
+//-- file: ./tree-ring-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { TreeRingZone, treeRingData };
+
+function ringLayout(W,H, data, idx) {
+  const ring  = data.rings[idx];
+  const cx    = W / 2;
+  const cy    = H / 2;
+  const maxR  = Math.max(0.1, Math.min(W, H) / 2 - 16);
+  const scale = maxR / data.totalR;
+  return { cx, cy, innerR: ring.innerR * scale, outerR: ring.outerR * scale, ring, maxR, scale };
+}
+
+class TreeRingZone {
+  static getCount(data) { return data.rings.length; }
+
+  static getHitOrder(data, count) {
+    const order = [];
+    for (let i = count - 1; i >= 0; i--) order.push(i);
+    return order;
+  }
+
+  static drawBackground(ctxMix, node, params) {
+    const ctx  = ctxMix.ctx;
+    const { W, H } = ctxMix.getHW( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, ctxMix.state.index || 0);
+
+    ctx.fillStyle = '#3a2818';
+    ctx.beginPath();
+    ctx.arc(lo.cx, lo.cy, lo.maxR + 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getHW( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
+    const L   = lo.ring.lightness || 0.5;
+
+    let earlyCol, lateCol;
+    if (state.isSelected) {
+      earlyCol = '#E8B840'; lateCol = '#B08020';
+    } else if (state.isHovered) {
+      earlyCol = '#907850'; lateCol = '#685838';
+    } else {
+      earlyCol = `rgb(${140 + L * 80 | 0},${110 + L * 65 | 0},${60 + L * 40 | 0})`;
+      lateCol  = `rgb(${90  + L * 50 | 0},${65  + L * 35 | 0},${30 + L * 25 | 0})`;
+    }
+
+    ctx.beginPath();
+    ctx.arc(lo.cx, lo.cy, lo.outerR, 0, Math.PI * 2);
+    ctx.arc(lo.cx, lo.cy, lo.innerR, 0, Math.PI * 2, true);
+    ctx.closePath();
+
+    if (lo.outerR - lo.innerR > 1) {
+      const g = ctx.createRadialGradient(lo.cx, lo.cy, lo.innerR, lo.cx, lo.cy, lo.outerR);
+      g.addColorStop(0, earlyCol);
+      g.addColorStop(1, lateCol);
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = lateCol;
+    }
+    ctx.fill();
+  }
+
+  static drawOverlay(ctxMix, node, params) {
+    const ctx   = ctxMix.ctx;
+    const { W, H } = ctxMix.getHW( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, ctxMix.state.index || 0);
+    const pithR = (node.data.rings[0]?.innerR || 3) * lo.maxR / node.data.totalR;
+    ctx.fillStyle = '#6a4828';
+    ctx.beginPath();
+    ctx.arc(lo.cx, lo.cy, pithR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const state = ctxMix.state;
+    const { W, H } = ctxMix.getHW( ctxMix, node, params );
+    const lo  = ringLayout(W,H, node.data, state.index);
+
+    const dx   = pt.x - lo.cx, dy = pt.y - lo.cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist >= lo.innerR && dist <= lo.outerR) {
+      ctxMix.hitResult = { node, zoneIndex: state.index };
+    }
+  }
+
+  static getZoneInfo(ctxMix, node, params) {
+    const ring = node.data.rings[ctxMix.state.index];
+    return {
+      name:   'Year ' + ring.year,
+      detail: 'Ring ' + (ctxMix.state.index + 1) + ' · ' + ring.width.toFixed(1) + ' mm',
+      extra:  ring.note || '',
+    };
+  }
+}
+
+function treeRingData(count) {
+  const rings = [];
+  let r = 5;
+  for (let i = 0; i < count; i++) {
+    const base  = 2.5 + Math.sin(i * 0.7) * 1.2 + Math.cos(i * 1.3) * 0.8;
+    const width = Math.max(0.8, base + (((i * 137) % 17) / 17 - 0.5) * 2);
+    const lightness = 0.3 + (((i * 53) % 23) / 23) * 0.5;
+    const year = 2026 - count + i;
+    let note = '';
+    if (width < 1.5) note = 'drought year';
+    else if (width > 4)  note = 'strong growth';
+    rings.push({ innerR: r, outerR: r + width, width, year, lightness, note });
+    r += width;
+  }
+  return { rings, totalR: r };
+}
+
+//>> sceneRegistry.registerNodeClass('tree-ring-zone', TreeRingZone);
+//-- endfile --
+
+// ═══════════════════════════════════════════════════════════════
+//  DEMO HARNESS
+// ═══════════════════════════════════════════════════════════════
+
+const ttEl = document.getElementById('tooltip');
+function showTooltip(ex, ey, info) {
+  ttEl.querySelector('.tt-name').textContent   = info.name   || '';
+  ttEl.querySelector('.tt-detail').textContent = info.detail || '';
+  ttEl.querySelector('.tt-extra').textContent  = info.extra  || '';
+  ttEl.querySelector('.tt-name').style.color = info.selected ? '#daa02e' : '#e4dac6';
+  ttEl.style.display = 'block';
+  ttEl.style.left = (ex + 14) + 'px';
+  ttEl.style.top  = (ey - 10) + 'px';
+}
+function hideTooltip() { ttEl.style.display = 'none'; }
+
+class DemoHarness {
+  constructor(canvas, zoneClass, data) {
+    this.canvas = canvas;
+    this.rawCtx = canvas.getContext('2d', { willReadFrequently: true });
+    this.node = {
+      data:    data,
+      value:   { zoneClass, hovered: -1, selected: new Set() },
+      _layout: null,
+    };
+    this.params = {};
+
+    this._resize();
+    this._listen();
+    this.draw();
+    new ResizeObserver(() => { this._resize(); this.draw(); }).observe(canvas);
+  }
+
+  _resize() {
+    const dpr  = window.devicePixelRatio || 1;
+    const rect = this.canvas.getBoundingClientRect();
+    this.W = rect.width;
+    this.H = rect.height;
+    this.canvas.width  = rect.width  * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.rawCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  _ctxMix(hitPoint) {
+    const state = { index: 0, pass: 0, isHovered: false, isSelected: false };
+
+    // Added exactly as requested: getHW to fetch canvas widths.
+    const ctxMix = {
+      ctx:       this.rawCtx,
+      state:     state,
+      getHW : (( ctxMix, node, params ) => { return { W: ctxMix.W, H: ctxMix.H, Z: params.zoom || 1 }}), 
+      W:         this.W,
+      H:         this.H,
+      hitPoint:  hitPoint || null,
+      hitResult: null,
+    };
+    return ctxMix;
+  }
+
+  draw() {
+    this.rawCtx.clearRect(0, 0, this.W, this.H);
+    ZonedNode.draw2d(this._ctxMix(), this.node, this.params);
+  }
+
+  hitTest(mx, my) {
+    const ctxMix = this._ctxMix({ x: mx, y: my });
+    ZonedNode.hit_test(ctxMix, this.node, this.params);
+    return ctxMix.hitResult;
+  }
+
+  _listen() {
+    const toLocal = e => {
+      const r = this.canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top, ex: e.clientX, ey: e.clientY };
+    };
+
+    this.canvas.addEventListener('mousemove', e => {
+      const { x, y, ex, ey } = toLocal(e);
+      const hit = this.hitTest(x, y);
+      const idx = hit ? hit.zoneIndex : -1;
+      if (idx !== this.node.value.hovered) {
+        this.node.value.hovered = idx;
+        this.draw();
+      }
+      this.canvas.style.cursor = idx >= 0 ? 'pointer' : 'default';
+      if (idx >= 0) {
+        const Zone = this.node.value.zoneClass;
+        const ctxMix  = this._ctxMix();
+        ctxMix.state.index = idx;
+        const info = Zone.getZoneInfo(ctxMix, this.node, this.params);
+        info.selected = this.node.value.selected.has(idx);
+        showTooltip(ex, ey, info);
+      } else hideTooltip();
+    });
+
+    this.canvas.addEventListener('mouseleave', () => {
+      if (this.node.value.hovered >= 0) {
+        this.node.value.hovered = -1; this.draw();
+      }
+      hideTooltip();
+    });
+
+    this.canvas.addEventListener('click', e => {
+      const { x, y } = toLocal(e);
+      const hit = this.hitTest(x, y);
+      if (hit) {
+        const sel = this.node.value.selected;
+        if (sel.has(hit.zoneIndex)) sel.delete(hit.zoneIndex);
+        else sel.add(hit.zoneIndex);
+        this.draw();
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INSTANTIATE
+// ═══════════════════════════════════════════════════════════════
+new DemoHarness(document.getElementById('cv-chr'),     ChromosomeZone, chromosomeData());
+new DemoHarness(document.getElementById('cv-heatmap'), HeatmapZone,    heatmapData());
+new DemoHarness(document.getElementById('cv-mouse'),   MouseZone,      mouseData());
+new DemoHarness(document.getElementById('cv-rings'),   TreeRingZone,   treeRingData(35));
+
+</script>
+</body>
+</html>
