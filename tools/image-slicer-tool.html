@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Slicer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* The checkerboard pattern is ONLY applied to the main canvas background */
+        .checkerboard {
+            background-image: 
+                linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                linear-gradient(135deg, #ccc 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #ccc 75%),
+                linear-gradient(135deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px; /* Adjust size of squares */
+            background-position: 0 0, 10px 0, 10px -10px, 0px 10px; /* Must be half of background-size */
+            background-color: white;
+        }
+
+        #canvas-container {
+            position: relative;
+            display: inline-block; /* Hug the canvas size */
+            max-width: 100%;
+        }
+
+        /* Overlay canvas sits exactly on top of the main canvas */
+        #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            /* No pointer-events:none here so we CAN interact with it */
+        }
+        
+        canvas {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-8">
+
+    <div class="max-w-4xl w-full bg-white rounded-xl shadow-lg p-6 flex flex-col items-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">Image Slicer</h1>
+        <p class="text-gray-500 mb-6 text-center">Drag and drop an image, select an area, and export.</p>
+
+        <!-- Tool Controls -->
+        <div id="controls" class="w-full flex flex-wrap justify-between items-center mb-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div class="flex items-center gap-6">
+                <span class="font-semibold text-gray-700">Shape:</span>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="radio" name="shape" value="rectangle" checked class="form-radio h-5 w-5 text-blue-600">
+                    <span class="ml-2 text-gray-700">Rectangle</span>
+                </label>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="radio" name="shape" value="square" class="form-radio h-5 w-5 text-blue-600">
+                    <span class="ml-2 text-gray-700">Square</span>
+                </label>
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="radio" name="shape" value="circle" class="form-radio h-5 w-5 text-blue-600">
+                    <span class="ml-2 text-gray-700">Circle</span>
+                </label>
+            </div>
+
+            <div id="action-buttons" class="flex gap-2 hidden mt-4 sm:mt-0">
+                <button onclick="copyToClipboard()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out flex items-center shadow-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                    Copy
+                </button>
+                <button onclick="downloadImage()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out flex items-center shadow-sm">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download
+                </button>
+            </div>
+        </div>
+
+        <!-- Dropzone / Canvas Area -->
+        <div id="drop-zone" class="w-full border-2 border-dashed border-gray-300 rounded-lg p-12 text-center transition-colors duration-200 hover:bg-gray-50 flex flex-col items-center justify-center min-h-[400px]">
+            <div id="empty-state" class="pointer-events-none">
+                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <p class="mt-1 text-sm text-gray-600">Drag and drop an image here</p>
+                <p class="text-xs text-gray-500">or click to upload</p>
+                <input type="file" id="file-input" class="hidden" accept="image/*">
+            </div>
+
+            <!-- Canvas Container -->
+            <div id="canvas-container" class="hidden">
+                <canvas id="mainCanvas" class="checkerboard shadow-md"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
+        </div>
+        
+        <p id="message-box" class="mt-4 text-sm font-medium text-center hidden"></p>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const emptyState = document.getElementById('empty-state');
+        const canvasContainer = document.getElementById('canvas-container');
+        const mainCanvas = document.getElementById('mainCanvas');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const mainCtx = mainCanvas.getContext('2d');
+        const overlayCtx = overlayCanvas.getContext('2d');
+        const actionButtons = document.getElementById('action-buttons');
+        const messageBox = document.getElementById('message-box');
+        const shapeRadios = document.querySelectorAll('input[name="shape"]');
+
+        let currentImage = null;
+        let isDragging = false;
+        let startX, startY;
+        let currentX, currentY;
+        let selection = null; // {x, y, width, height, shape, bbox}
+
+        // --- GLOBAL DRAG AND DROP PREVENTION ---
+        // This stops the browser from opening the image in a new tab if you miss the dropzone
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => e.preventDefault());
+
+        // --- DROPZONE EVENTS ---
+        dropZone.addEventListener('click', () => {
+            if (!currentImage) fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!currentImage) dropZone.classList.add('border-blue-500', 'bg-blue-50');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500', 'bg-blue-50');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                loadImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                loadImageFile(e.target.files[0]);
+            }
+        });
+
+        shapeRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (selection) {
+                    // Update current shape without moving bounds, redraw
+                    selection.shape = getShape();
+                    updateSelectionFromBbox();
+                    drawSelectionOverlay();
+                }
+            });
+        });
+
+        function loadImageFile(file) {
+            if (!file.type.startsWith('image/')) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => initImage(img);
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function initImage(img) {
+            currentImage = img;
+            
+            // Set internal resolution of canvases to match the image
+            mainCanvas.width = img.width;
+            mainCanvas.height = img.height;
+            overlayCanvas.width = img.width;
+            overlayCanvas.height = img.height;
+
+            // Draw image on bottom canvas
+            mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            mainCtx.drawImage(img, 0, 0);
+
+            // Update UI state
+            emptyState.classList.add('hidden');
+            dropZone.classList.remove('p-12', 'border-dashed', 'border-2', 'border-gray-300');
+            dropZone.classList.add('p-0', 'border-none', 'bg-transparent');
+            canvasContainer.classList.remove('hidden');
+            
+            clearSelection();
+        }
+
+        function getShape() {
+            return document.querySelector('input[name="shape"]:checked').value;
+        }
+
+        // Translates screen mouse position to actual canvas pixels (accounting for CSS scaling)
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+                y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        function getHandleHit(x, y) {
+            if (!selection) return null;
+            const { left, top, right, bottom } = selection.bbox;
+            // Larger hit area for easier clicking on scaled-down images
+            const displayScale = mainCanvas.width / mainCanvas.getBoundingClientRect().width;
+            const hSize = 12 * displayScale; 
+            
+            // Define corners and their opposite anchors for resizing
+            const corners = [
+                { id: 'tl', x: left, y: top, anchorX: right, anchorY: bottom, cursor: 'nwse-resize' },
+                { id: 'tr', x: right, y: top, anchorX: left, anchorY: bottom, cursor: 'nesw-resize' },
+                { id: 'bl', x: left, y: bottom, anchorX: right, anchorY: top, cursor: 'nesw-resize' },
+                { id: 'br', x: right, y: bottom, anchorX: left, anchorY: top, cursor: 'nwse-resize' }
+            ];
+
+            for (let c of corners) {
+                if (Math.abs(x - c.x) <= hSize && Math.abs(y - c.y) <= hSize) {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+        overlayCanvas.addEventListener('mousedown', (e) => {
+            if (!currentImage) return;
+            const pos = getMousePos(overlayCanvas, e);
+            
+            const hit = getHandleHit(pos.x, pos.y);
+            if (hit) {
+                // Resize mode: anchor is opposite corner
+                isDragging = true;
+                startX = hit.anchorX;
+                startY = hit.anchorY;
+                currentX = pos.x;
+                currentY = pos.y;
+            } else {
+                // New selection mode
+                isDragging = true;
+                startX = pos.x;
+                startY = pos.y;
+                currentX = startX;
+                currentY = startY;
+                clearSelection();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!currentImage) return;
+            const pos = getMousePos(overlayCanvas, e);
+            
+            if (!isDragging) {
+                // Hover effect for handles
+                const hit = getHandleHit(pos.x, pos.y);
+                overlayCanvas.style.cursor = hit ? hit.cursor : 'crosshair';
+                return;
+            }
+            
+            // Clamp coordinates to canvas bounds
+            currentX = Math.max(0, Math.min(pos.x, overlayCanvas.width));
+            currentY = Math.max(0, Math.min(pos.y, overlayCanvas.height));
+            
+            drawSelectionOverlay();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            finalizeSelection();
+        });
+
+        function drawSelectionOverlay() {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            
+            if (startX === currentX && startY === currentY && !selection) return;
+
+            // Dim background
+            overlayCtx.globalCompositeOperation = 'source-over';
+            overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            const shape = getShape();
+            
+            // Bounding box defined by start and current mouse points
+            const left = Math.min(startX, currentX);
+            const right = Math.max(startX, currentX);
+            const top = Math.min(startY, currentY);
+            const bottom = Math.max(startY, currentY);
+            const rectW = right - left;
+            const rectH = bottom - top;
+
+            if (rectW < 2 || rectH < 2) return;
+
+            // Variables for square/circle fitting
+            const cx = left + rectW / 2;
+            const cy = top + rectH / 2;
+            const size = Math.min(rectW, rectH);
+
+            // Cut out the shape to reveal image underneath
+            overlayCtx.globalCompositeOperation = 'destination-out';
+            overlayCtx.beginPath();
+            
+            if (shape === 'rectangle') {
+                overlayCtx.rect(left, top, rectW, rectH);
+            } else if (shape === 'square') {
+                overlayCtx.rect(cx - size / 2, cy - size / 2, size, size);
+            } else if (shape === 'circle') {
+                overlayCtx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+            }
+            overlayCtx.fill();
+
+            // Draw primary shape border
+            overlayCtx.globalCompositeOperation = 'source-over';
+            overlayCtx.strokeStyle = '#fff';
+            
+            // Scale visual stroke widths based on display size so they don't look tiny on huge images
+            const displayScale = mainCanvas.width / mainCanvas.getBoundingClientRect().width;
+            
+            overlayCtx.lineWidth = 2 * displayScale;
+            overlayCtx.setLineDash([5 * displayScale, 5 * displayScale]);
+            overlayCtx.stroke();
+
+            // Draw faint outer bounding box to guide handles for square/circle
+            if (shape !== 'rectangle') {
+                overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                overlayCtx.setLineDash([2 * displayScale, 4 * displayScale]);
+                overlayCtx.strokeRect(left, top, rectW, rectH);
+            }
+
+            // Draw Corner Handles
+            overlayCtx.fillStyle = '#3b82f6';
+            overlayCtx.strokeStyle = '#fff';
+            overlayCtx.setLineDash([]);
+            overlayCtx.lineWidth = 1.5 * displayScale;
+            const hSize = 8 * displayScale;
+            const hOffset = hSize / 2;
+            
+            const corners = [
+                {x: left, y: top}, {x: right, y: top}, 
+                {x: left, y: bottom}, {x: right, y: bottom}
+            ];
+            
+            corners.forEach(c => {
+                overlayCtx.fillRect(c.x - hOffset, c.y - hOffset, hSize, hSize);
+                overlayCtx.strokeRect(c.x - hOffset, c.y - hOffset, hSize, hSize);
+            });
+        }
+
+        function updateSelectionFromBbox() {
+            if (!selection) return;
+            const { left, top, right, bottom } = selection.bbox;
+            const rectW = right - left;
+            const rectH = bottom - top;
+            const cx = left + rectW / 2;
+            const cy = top + rectH / 2;
+            const size = Math.min(rectW, rectH);
+
+            if (selection.shape === 'rectangle') {
+                selection.x = left;
+                selection.y = top;
+                selection.width = rectW;
+                selection.height = rectH;
+            } else {
+                selection.x = cx - size / 2;
+                selection.y = cy - size / 2;
+                selection.width = size;
+                selection.height = size;
+            }
+        }
+
+        function finalizeSelection() {
+            const left = Math.min(startX, currentX);
+            const right = Math.max(startX, currentX);
+            const top = Math.min(startY, currentY);
+            const bottom = Math.max(startY, currentY);
+            
+            if ((right - left) < 10 || (bottom - top) < 10) {
+                clearSelection();
+                return;
+            }
+
+            selection = { 
+                shape: getShape(), 
+                bbox: { left, top, right, bottom } 
+            };
+            
+            updateSelectionFromBbox();
+
+            actionButtons.classList.remove('hidden');
+            drawSelectionOverlay(); // Final render snap
+        }
+
+        function clearSelection() {
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            selection = null;
+            actionButtons.classList.add('hidden');
+        }
+
+        async function createExportBlob() {
+            if (!selection || !currentImage) return null;
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = selection.width;
+            tempCanvas.height = selection.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // If circular, clip the canvas context before drawing the image
+            if (selection.shape === 'circle') {
+                const radius = selection.width / 2;
+                tempCtx.beginPath();
+                tempCtx.arc(radius, radius, radius, 0, Math.PI * 2);
+                tempCtx.clip();
+            }
+
+            // Draw the exact selection from the main canvas onto our temp export canvas
+            tempCtx.drawImage(
+                mainCanvas,
+                selection.x, selection.y, selection.width, selection.height, // Source rectangle
+                0, 0, selection.width, selection.height // Destination rectangle
+            );
+
+            return new Promise(resolve => tempCanvas.toBlob(resolve, 'image/png'));
+        }
+
+        function showMessage(msg, isError = false) {
+            messageBox.textContent = msg;
+            messageBox.className = `mt-4 text-sm font-medium text-center block ${isError ? 'text-red-600' : 'text-green-600'}`;
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3000);
+        }
+
+        async function copyToClipboard() {
+            try {
+                const blob = await createExportBlob();
+                if (!blob) return;
+
+                if (!navigator.clipboard || !window.ClipboardItem) {
+                    throw new Error("Clipboard API not supported in this browser.");
+                }
+
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                showMessage("Copied to clipboard!");
+            } catch (err) {
+                console.error("Clipboard error:", err);
+                showMessage("Failed to copy. Feature might be restricted by browser.", true);
+            }
+        }
+
+        async function downloadImage() {
+            try {
+                const blob = await createExportBlob();
+                if (!blob) return;
+
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `slice-${selection.shape}-${Date.now()}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error("Download error:", err);
+                showMessage("Failed to download image.", true);
+            }
+        }
+    </script>
+</body>
+</html>

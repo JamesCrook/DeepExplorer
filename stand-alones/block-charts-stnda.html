@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Climate & Blocks</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #help {
+    position: fixed; bottom: 12px; left: 12px; font-size: 11px;
+    color: #889; pointer-events: none; z-index: 5;
+    background: rgba(15, 15, 20, 0.6); padding: 8px 12px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+</style>
+</head>
+<body>
+<div id="help">
+  <strong>Scroll</strong> to zoom, drag empty space to pan.<br/>
+  <strong>Drag</strong> labels to move them. Click elements to highlight.<br/>
+  <strong>Drag</strong> from stock strip to place blocks.
+</div>
+<canvas id="c"></canvas>
+
+<script type="module">
+//<< import { HudPanel } from './hud-panel.js';
+//-- file: ./hud-panel.js --
+//>> export { HudPanel };
+class HudPanel {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 12, left: 12 } } = {}) {
+    this._onChange = onChange || (() => {});
+    this._inputs = {};
+    this._valDisplays = {};
+
+    this._injectStyles();
+
+    this._root = document.createElement('div');
+    this._root.className = 'hud-panel';
+    this._root.style.top = position.top + 'px';
+    this._root.style.left = position.left + 'px';
+
+    const header = document.createElement('h3');
+    header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header);
+    
+    this._makeDraggable(header);
+
+    for (const ctrl of controls) this._addControl(ctrl);
+
+    container.appendChild(this._root);
+  }
+
+  get(id) {
+    const inp = this._inputs[id];
+    if (!inp) return undefined;
+    return inp.tagName === 'SELECT' ? inp.value : parseFloat(inp.value);
+  }
+
+  set(id, value) {
+    const inp = this._inputs[id];
+    if (!inp) return;
+    if (inp.type === 'checkbox') {
+        inp.checked = !!value;
+    } else {
+        inp.value = value;
+        if (this._valDisplays[id]) {
+            this._valDisplays[id].textContent = parseFloat(value).toFixed(2);
+        }
+    }
+  }
+
+  _addControl(ctrl) {
+      if (ctrl.type === 'select') this._addSelect(ctrl);
+      else if (ctrl.type === 'separator') this._addSeparator(ctrl);
+      else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
+      else this._addSlider(ctrl);
+  }
+
+  _addSlider(ctrl) {
+    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
+    const row = document.createElement('label');
+
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(span);
+
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'range', min, max, step, value });
+    row.appendChild(input);
+
+    const val = document.createElement('span');
+    val.className = 'val';
+    val.textContent = parseFloat(value).toFixed(ctrl.step % 1 === 0 ? 0 : 2);
+    row.appendChild(val);
+
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value);
+      val.textContent = v.toFixed(ctrl.step % 1 === 0 ? 0 : 2);
+      this._onChange(id, v);
+    });
+
+    this._inputs[id] = input;
+    this._valDisplays[id] = val;
+    this._root.appendChild(row);
+  }
+  
+  _addSelect(ctrl) {
+      const { id, label, options = [], value } = ctrl;
+      const row = document.createElement('label');
+      
+      const span = document.createElement('span');
+      span.textContent = label;
+      row.appendChild(span);
+
+      const select = document.createElement('select');
+      for (const opt of options) {
+          const option = document.createElement('option');
+          option.value = opt[0];
+          option.textContent = opt[1];
+          if (opt[0] === String(value)) option.selected = true;
+          select.appendChild(option);
+      }
+
+      select.addEventListener('change', () => this._onChange(id, select.value));
+      row.appendChild(select);
+
+      this._inputs[id] = select;
+      this._root.appendChild(row);
+  }
+
+  _addCheckbox(ctrl) {
+      const { id, label, value = false } = ctrl;
+      const row = document.createElement('label');
+
+      const span = document.createElement('span');
+      span.textContent = label;
+      row.appendChild(span);
+
+      const switchWrapper = document.createElement('div');
+      switchWrapper.className = 'toggle-switch';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = !!value;
+      
+      input.addEventListener('change', () => this._onChange(id, input.checked));
+      
+      const slider = document.createElement('span');
+      slider.className = 'toggle-slider';
+
+      switchWrapper.appendChild(input);
+      switchWrapper.appendChild(slider);
+      row.appendChild(switchWrapper);
+
+      this._inputs[id] = input;
+      this._root.appendChild(row);
+  }
+
+  _addSeparator(ctrl) {
+      const sep = document.createElement('div');
+      sep.className = 'separator';
+      if (ctrl.label) sep.textContent = ctrl.label;
+      this._root.appendChild(sep);
+  }
+
+  _makeDraggable(handle) {
+      let isDragging = false;
+      let startX, startY, startLeft, startTop;
+
+      handle.addEventListener('mousedown', (e) => {
+          isDragging = true;
+          handle.style.cursor = 'grabbing';
+          startX = e.clientX;
+          startY = e.clientY;
+          startLeft = parseInt(this._root.style.left || 0, 10);
+          startTop = parseInt(this._root.style.top || 0, 10);
+          e.preventDefault(); 
+      });
+
+      window.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          this._root.style.left = `${startLeft + dx}px`;
+          this._root.style.top = `${startTop + dy}px`;
+      });
+
+      window.addEventListener('mouseup', () => {
+          if (isDragging) {
+              isDragging = false;
+              handle.style.cursor = 'grab';
+          }
+      });
+  }
+
+  _injectStyles() {
+    if (document.getElementById('hud-panel-css')) return;
+    const s = document.createElement('style');
+    s.id = 'hud-panel-css';
+    s.textContent = `
+      .hud-panel {
+        position: absolute; 
+        background: rgba(18, 18, 22, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 14px 18px;
+        color: #ddd; 
+        font: 11px/1.6 system-ui, sans-serif;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        z-index: 10; 
+        min-width: 270px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        user-select: none;
+      }
+      .hud-panel h3 {
+        margin: 0 0 12px; 
+        font-size: 11px;
+        color: #b0a898; 
+        letter-spacing: 1px;
+        cursor: grab;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        text-transform: uppercase;
+      }
+      .hud-panel h3:active { cursor: grabbing; }
+      .hud-panel label {
+        display: flex; align-items: center;
+        gap: 8px; margin: 8px 0;
+      }
+      .hud-panel label > span:first-child { min-width: 110px; color: #999; }
+      .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
+      .hud-panel select {
+          flex: 1; background: rgba(0,0,0,0.5); color: #fff;
+          border: 1px solid rgba(255,255,255,0.2); padding: 4px;
+          border-radius: 4px; font-size: 10px; outline: none; cursor: pointer;
+      }
+      .hud-panel .toggle-switch {
+          position: relative;
+          width: 28px;
+          height: 16px;
+          display: inline-block;
+          flex-shrink: 0;
+      }
+      .hud-panel .toggle-switch input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
+      .hud-panel .toggle-slider {
+          position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+          background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2);
+          transition: .2s; border-radius: 16px;
+      }
+      .hud-panel .toggle-slider:before {
+          position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px;
+          background-color: #889; transition: .2s; border-radius: 50%;
+      }
+      .hud-panel .toggle-switch input:checked + .toggle-slider {
+          background-color: rgba(102, 204, 255, 0.15); border-color: #6cf;
+      }
+      .hud-panel .toggle-switch input:checked + .toggle-slider:before {
+          transform: translateX(12px); background-color: #6cf; box-shadow: 0 0 4px #6cf;
+      }
+      .hud-panel .val {
+        min-width: 32px; text-align: right; font-variant-numeric: tabular-nums;
+        color: #8cf; font-weight: 600;
+      }
+      .hud-panel .separator {
+          margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);
+          font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+}
+//-- endfile --
+
+//<< import { Geo } from './geo.js';
+//-- file: ./geo.js --
+//>> export { Geo };
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      p.push({ x: (vs[i].x + vs[j].x) / 2, y: (vs[i].y + vs[j].y) / 2 });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+}
+//-- endfile --
+
+//<< import { Camera } from './camera.js';
+//-- file: ./camera.js --
+//>> export { Camera };
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z;
+    this.oy = wp.y - sy / this.z;
+  }
+}
+//-- endfile --
+
+//<< import { WordNode, WORD_DEFAULTS, hexToRgba, measureWord } from './word-node.js';
+//-- file: ./word-node.js --
+//>> export { WordNode, WORD_DEFAULTS, hexToRgba, measureWord };
+function hexToRgba(hex, alpha) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+function measureWord(ctx, text, font) {
+  ctx.font = font;
+  const m = ctx.measureText(text);
+  const asc = m.actualBoundingBoxAscent  || 0;
+  const dsc = m.actualBoundingBoxDescent || 0;
+  return { width: m.width, ascent: asc, descent: dsc, height: asc + dsc };
+}
+
+const WORD_DEFAULTS = Object.freeze({
+  fontFamily:      '"Inter", system-ui, sans-serif',
+  fontSize:        28,
+  fontWeight:      700,
+  color:           '#e4dac6',
+  opacity:         1.0,
+  rotation:        0,
+  haloColor:       '#000000',
+  haloWidth:       0,
+  haloOpacity:     0.35,
+  highlightFill:   'rgba(255,255,255,0.06)',
+  highlightPad:    6,
+  highlightRadius: 4,
+  scale:           1.0,
+});
+
+class WordNode {
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...WORD_DEFAULTS, ...params };
+    const zoom = ctxMix.zoom || 1;
+
+    const text = v.text || '';
+    if (!text) return;
+
+    // Resolve world position
+    const bx = v.baseX ?? v.x ?? 0;
+    const by = v.baseY ?? v.y ?? 0;
+    const ox = v.offsetX ?? 0;
+    const oy = v.offsetY ?? 0;
+    const wx = bx + ox;
+    const wy = by + oy;
+
+    // Text looks best rendered natively to screen pixels to avoid scaling artifacts.
+    const screen = ctxMix.cam ? ctxMix.cam.toScreen(wx, wy) : { x: wx, y: wy };
+    const ctx = ctxMix.ctx;
+    
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to pure screen space
+
+    const sc = (p.scale || 1) * (v.scale || 1);
+    const fSize = (v.fontSize || p.fontSize) * zoom * sc;
+    const font = `${v.fontWeight || p.fontWeight} ${fSize.toFixed(1)}px ${v.fontFamily || p.fontFamily}`;
+    const rot = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+    const opacity = v.opacity != null ? v.opacity : p.opacity;
+
+    ctx.globalAlpha *= opacity;
+    ctx.translate(screen.x, screen.y);
+    if (rot) ctx.rotate(rot);
+
+    const meas = measureWord(ctx, text, font);
+
+    // Render Highlight
+    if (ctxMix.highlighted?.has(node)) {
+      const pad = (p.highlightPad || 0) * zoom;
+      const hr  = (p.highlightRadius || 0) * zoom;
+      const hx  = -meas.width / 2 - pad;
+      const hy  = -meas.ascent - pad;
+      const hw  = meas.width + pad * 2;
+      const hh  = meas.height + pad * 2;
+      ctx.fillStyle = p.highlightFill;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.fill(); }
+      else ctx.fillRect(hx, hy, hw, hh);
+      ctx.setLineDash([3 * zoom, 3 * zoom]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth   = 1.5 * zoom;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.stroke(); }
+      else ctx.strokeRect(hx, hy, hw, hh);
+      ctx.setLineDash([]);
+    }
+
+    // Render Halo
+    const haloW = (v.haloWidth != null ? v.haloWidth : p.haloWidth) * zoom * sc;
+    if (haloW > 0) {
+      ctx.strokeStyle = hexToRgba(v.haloColor || p.haloColor, v.haloOpacity != null ? v.haloOpacity : p.haloOpacity);
+      ctx.lineWidth = haloW;
+      ctx.lineJoin = 'round';
+      ctx.font = font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.strokeText(text, 0, 0);
+    }
+
+    // Render Text
+    ctx.fillStyle = v.color || p.color;
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, 0, 0);
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const sp = ctxMix.hitPointScreen; 
+    const wp = ctxMix.hitPoint; // World Point
+    if (!sp || !wp) return;
+    
+    const v = node.value || {};
+    const text = v.text || '';
+    if (!text) return;
+
+    const p = { ...WORD_DEFAULTS, ...params };
+    const zoom = ctxMix.zoom || 1;
+
+    const bx = v.baseX ?? v.x ?? 0;
+    const by = v.baseY ?? v.y ?? 0;
+    const ox = v.offsetX ?? 0;
+    const oy = v.offsetY ?? 0;
+    const wx = bx + ox;
+    const wy = by + oy;
+
+    const screen = ctxMix.cam ? ctxMix.cam.toScreen(wx, wy) : { x: wx, y: wy };
+    
+    let lx = sp.x - screen.x;
+    let ly = sp.y - screen.y;
+    const rot = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+    if (rot) {
+      const cos = Math.cos(-rot), sin = Math.sin(-rot);
+      const rx = lx * cos - ly * sin;
+      const ry = lx * sin + ly * cos;
+      lx = rx; ly = ry;
+    }
+
+    const ctx = ctxMix.ctx;
+    const sc = (p.scale || 1) * (v.scale || 1);
+    const fSize = (v.fontSize || p.fontSize) * zoom * sc;
+    const font = `${v.fontWeight || p.fontWeight} ${fSize.toFixed(1)}px ${v.fontFamily || p.fontFamily}`;
+    
+    const meas = measureWord(ctx, text, font);
+    const pad = 4 * zoom;
+    const halfW = meas.width / 2 + pad;
+
+    if (lx < -halfW || lx > halfW || ly < -meas.ascent - pad || ly > meas.descent + pad) return;
+
+    // Store drag offsets relative to world space
+    const dxW = wp.x - wx;
+    const dyW = wp.y - wy;
+
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(newWx, newWy) {
+          node.value.offsetX = (newWx - dxW) - (node.value.baseX || 0);
+          node.value.offsetY = (newWy - dyW) - (node.value.baseY || 0);
+        },
+      },
+    };
+  }
+}
+//-- endfile --
+
+//<< import { AxisNode, AXIS_DEFAULTS } from './axis-node.js';
+//-- file: ./axis-node.js --
+//>> export { AxisNode, AXIS_DEFAULTS };
+const AXIS_DEFAULTS = Object.freeze({
+  axisColor:  '#504838',
+  axisWidth:  1.5,
+  tickLength: 5,
+  tickWidth:  1,
+  gridColor:  'rgba(255,255,255,0.15)',
+  gridWidth:  1.0,
+  showGrid:   true,
+});
+
+class AxisNode {
+  static _geom(ctxMix, node, params) {
+    const v = node.value || {};
+    const cw = params.chartWidth || v.chartWidth || 460;
+    const ch = params.chartHeight || v.chartHeight || 260;
+    const wx = v.x || 0;
+    const wy = v.y || 0;
+    const zoom = ctxMix.zoom || 1;
+    return {
+      left: wx - cw / 2, right: wx + cw / 2,
+      top: wy - ch / 2, bottom: wy + ch / 2,
+      cw, ch, zoom
+    };
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...AXIS_DEFAULTS, ...params };
+    const g = AxisNode._geom(ctxMix, node, params);
+    const ctx = ctxMix.ctx; // Context is actively world-transformed
+    
+    const { left, right, top, bottom, cw, ch, zoom } = g;
+    const tL = (p.tickLength || 5) / zoom; // Adjust to stay identical size on screen
+
+    // Horizontal grid & ticks
+    const tempMin = v.tempMin ?? 0;
+    const tempMax = v.tempMax ?? 30;
+    const tempStep = v.tempStep ?? 5;
+    
+    for (let t = tempMin; t <= tempMax; t += tempStep) {
+      const y = bottom - ((t - tempMin) / (tempMax - tempMin)) * ch;
+      if (p.showGrid && t > tempMin) {
+        ctx.strokeStyle = p.gridColor;
+        ctx.lineWidth = (p.gridWidth || 0.5) / zoom;
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      }
+      ctx.strokeStyle = p.axisColor;
+      ctx.lineWidth = (p.tickWidth || 1) / zoom;
+      ctx.beginPath(); ctx.moveTo(left - tL, y); ctx.lineTo(left, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(right, y); ctx.lineTo(right + tL, y); ctx.stroke();
+    }
+
+    // Bottom ticks
+    const months = v.months || 12;
+    const colW = cw / months;
+    for (let i = 0; i <= months; i++) {
+      const x = left + i * colW;
+      ctx.strokeStyle = p.axisColor;
+      ctx.lineWidth = (p.tickWidth || 1) / zoom;
+      ctx.beginPath(); ctx.moveTo(x, bottom); ctx.lineTo(x, bottom + tL); ctx.stroke();
+      if (i > 0 && i < months && p.showGrid) {
+        ctx.strokeStyle = p.gridColor;
+        ctx.lineWidth = (p.gridWidth || 0.5) / zoom;
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      }
+    }
+
+    // Axis frame lines
+    ctx.strokeStyle = p.axisColor;
+    ctx.lineWidth = (p.axisWidth || 1.5) / zoom;
+    ctx.beginPath();
+    ctx.moveTo(left, top); ctx.lineTo(left, bottom); 
+    ctx.moveTo(left, bottom); ctx.lineTo(right, bottom); 
+    ctx.moveTo(right, top); ctx.lineTo(right, bottom); 
+    ctx.stroke();
+  }
+}
+//-- endfile --
+
+//<< import { BarChartNode, BAR_DEFAULTS } from './bar-chart-node.js';
+//-- file: ./bar-chart-node.js --
+//>> export { BarChartNode, BAR_DEFAULTS };
+const BAR_DEFAULTS = Object.freeze({
+  barFill:      '#4a90c4',
+  barFillHi:    '#6ab0e8',
+  barOpacity:   0.72,
+  barGap:       0.28,
+  barRadius:    3,
+  barStroke:    'rgba(90,160,220,0.25)',
+  barStrokeW:   1,
+});
+
+class BarChartNode {
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...BAR_DEFAULTS, ...params };
+    const data = v.data || [];
+    if (!data.length) return;
+
+    const g = AxisNode._geom(ctxMix, node, params);
+    const ctx = ctxMix.ctx;
+    const hi = ctxMix.highlighted?.has(node);
+    const rMax = v.rainMax || 120;
+
+    const n = data.length;
+    const colW = g.cw / n;
+    const gap = colW * (p.barGap || 0);
+    const bw = colW - gap;
+    const br = Math.min((p.barRadius || 0) / g.zoom, bw / 2);
+
+    ctx.save();
+    ctx.globalAlpha *= (p.barOpacity || 0.72);
+
+    for (let i = 0; i < n; i++) {
+      const val = data[i] || 0;
+      const bh = (val / rMax) * g.ch;
+      const bx = g.left + i * colW + gap / 2;
+      const by = g.bottom - bh;
+
+      ctx.fillStyle = hi ? (p.barFillHi || p.barFill) : p.barFill;
+
+      if (br > 0 && bh > br) {
+        ctx.beginPath();
+        ctx.moveTo(bx, g.bottom);
+        ctx.lineTo(bx, by + br);
+        ctx.arcTo(bx, by, bx + br, by, br);
+        ctx.lineTo(bx + bw - br, by);
+        ctx.arcTo(bx + bw, by, bx + bw, by + br, br);
+        ctx.lineTo(bx + bw, g.bottom);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(bx, by, bw, bh);
+      }
+
+      if (p.barStroke) {
+        ctx.strokeStyle = p.barStroke;
+        ctx.lineWidth = (p.barStrokeW || 1) / g.zoom;
+        if (br > 0 && bh > br) ctx.stroke(); 
+      }
+    }
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = node.value || {};
+    const data = v.data || [];
+    if (!data.length) return;
+
+    const p = { ...BAR_DEFAULTS, ...params };
+    const g = AxisNode._geom(ctxMix, node, params);
+    const rMax = v.rainMax || 120;
+    const n = data.length;
+    const colW = g.cw / n;
+    const gap = colW * (p.barGap || 0);
+    const bw = colW - gap;
+
+    for (let i = 0; i < n; i++) {
+      const val = data[i] || 0;
+      const bh = (val / rMax) * g.ch;
+      const bx = g.left + i * colW + gap / 2;
+      const by = g.bottom - bh;
+      if (pt.x >= bx && pt.x <= bx + bw && pt.y >= by && pt.y <= g.bottom) {
+        ctxMix.hitResult = { node, barIndex: i, interactions: {} };
+        return;
+      }
+    }
+  }
+}
+//-- endfile --
+
+//<< import { LineChartNode, LINE_DEFAULTS } from './line-chart-node.js';
+//-- file: ./line-chart-node.js --
+//>> export { LineChartNode, LINE_DEFAULTS };
+const LINE_DEFAULTS = Object.freeze({
+  lineColor:      '#e05040',
+  lineColorHi:    '#ff7860',
+  lineWidth:      2.5,
+  dotRadius:      4.5,
+  dotFill:        '#e05040',
+  dotFillHi:      '#ff7860',
+  dotStroke:      '#1a1a16',
+  dotStrokeWidth: 2,
+  hitRadius:      12,
+  smooth:         0.22,
+});
+
+class LineChartNode {
+  static _points(g, v) {
+    const data = v.data || [];
+    const n = data.length;
+    const tMin = v.tempMin ?? 0;
+    const tMax = v.tempMax ?? 30;
+    const colW = g.cw / n;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      pts.push({
+        x: g.left + (i + 0.5) * colW,
+        y: g.bottom - ((data[i] - tMin) / (tMax - tMin)) * g.ch,
+      });
+    }
+    return pts;
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...LINE_DEFAULTS, ...params };
+    const g = AxisNode._geom(ctxMix, node, params);
+    const pts = LineChartNode._points(g, v);
+    if (!pts.length) return;
+
+    const ctx = ctxMix.ctx;
+    const hi = ctxMix.highlighted?.has(node);
+    const sm = p.smooth || 0;
+
+    // Spline Line
+    ctx.strokeStyle = hi ? (p.lineColorHi || p.lineColor) : p.lineColor;
+    ctx.lineWidth = (p.lineWidth || 2.5) / g.zoom;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+
+    if (sm > 0 && pts.length > 2) {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(i - 1, 0)];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[Math.min(i + 2, pts.length - 1)];
+        const cp1x = p1.x + (p2.x - p0.x) * sm;
+        const cp1y = p1.y + (p2.y - p0.y) * sm;
+        const cp2x = p2.x - (p3.x - p1.x) * sm;
+        const cp2y = p2.y - (p3.y - p1.y) * sm;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+    } else {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    ctx.stroke();
+
+    // Data Dots
+    const dr = (p.dotRadius || 4) / g.zoom;
+    const dsw = (p.dotStrokeWidth || 2) / g.zoom;
+    for (const pt of pts) {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, dr, 0, Math.PI * 2);
+      ctx.fillStyle = hi ? (p.dotFillHi || p.dotFill) : p.dotFill;
+      ctx.fill();
+      ctx.strokeStyle = p.dotStroke;
+      ctx.lineWidth = dsw;
+      ctx.stroke();
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = node.value || {};
+    const p = { ...LINE_DEFAULTS, ...params };
+    const g = AxisNode._geom(ctxMix, node, params);
+    const pts = LineChartNode._points(g, v);
+    
+    // Scale hit radius to world coordinates for reliable hovering at any zoom
+    const hr = (p.hitRadius || 12) / g.zoom;
+
+    for (let i = 0; i < pts.length; i++) {
+      const dx = pt.x - pts[i].x, dy = pt.y - pts[i].y;
+      if (dx * dx + dy * dy <= hr * hr) {
+        ctxMix.hitResult = { node, pointIndex: i, interactions: {} };
+        return;
+      }
+    }
+  }
+}
+//-- endfile --
+
+//<< import { ClimateChartNode } from './climate-chart-node.js';
+//<< import { WordNode } from './word-node.js';
+//<< import { AxisNode } from './axis-node.js';
+//<< import { BarChartNode } from './bar-chart-node.js';
+//<< import { LineChartNode } from './line-chart-node.js';
+//-- file: ./climate-chart-node.js --
+//>> export { ClimateChartNode };
+class ClimateChartNode {
+  static getChartDims(ctxMix, node, params) {
+    const { W, H } = ctxMix.getWH(ctxMix, node, params);
+    const aspect = W / H;
+    const aspectMode = params.chartAspect || 'auto';
+    
+    let isTall = aspectMode === 'tall' || (aspectMode === 'auto' && aspect < 0.9);
+    
+    // Dynamically choose size to behave nicely inside world space
+    let cw, ch;
+    if (isTall) {
+        cw = 320; ch = 480; 
+    } else {
+        cw = 540; ch = 300; 
+    }
+    return { cw, ch };
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const { cw, ch } = ClimateChartNode.getChartDims(ctxMix, node, params);
+    const subParams = { ...params, chartWidth: cw, chartHeight: ch };
+    
+    const v = node.value;
+    const cx = v.x || 0;
+    const cy = v.y || 0;
+    const cL = cx - cw/2, cR = cx + cw/2;
+    const cT = cy - ch/2, cB = cy + ch/2;
+    const colW = cw / (v.months || 12);
+    const z = ctxMix.zoom || 1;
+
+    // 1. Reposition word nodes responsively (preserving user drags)
+    for (const child of node.subtree) {
+       const cv = child.value;
+       if (!cv.alignId) continue;
+       
+       if (cv.alignId === 'title') { cv.baseX = cx; cv.baseY = cT - 38 / z; }
+       else if (cv.alignId === 'subtitle') { cv.baseX = cx; cv.baseY = cT - 18 / z; }
+       else if (cv.alignId.startsWith('month-')) {
+           const i = parseInt(cv.alignId.split('-')[1]);
+           cv.baseX = cL + (i + 0.5) * colW;
+           cv.baseY = cB + 18 / z;
+       }
+       else if (cv.alignId.startsWith('temp-')) {
+           const t = parseFloat(cv.alignId.split('-')[1]);
+           cv.baseX = cL - 22 / z;
+           cv.baseY = cB - ((t - v.tempMin)/(v.tempMax - v.tempMin)) * ch;
+       }
+       else if (cv.alignId.startsWith('rain-')) {
+           const r = parseFloat(cv.alignId.split('-')[1]);
+           cv.baseX = cR + 22 / z;
+           cv.baseY = cB - (r / v.rainMax) * ch;
+       }
+       else if (cv.alignId === 'axis-temp') {
+           cv.baseX = cL - 50 / z; cv.baseY = cy;
+       }
+       else if (cv.alignId === 'axis-rain') {
+           cv.baseX = cR + 48 / z; cv.baseY = cy;
+       }
+    }
+
+    // 2. Draw axes and charts
+    AxisNode.draw2d(ctxMix, node, subParams);
+    
+    const barNode = { ...node, value: { ...v, data: v.dataRain } };
+    BarChartNode.draw2d(ctxMix, barNode, subParams);
+    
+    const lineNode = { ...node, value: { ...v, data: v.dataTemp } };
+    LineChartNode.draw2d(ctxMix, lineNode, subParams);
+    
+    // 3. Draw text over top
+    for (const child of node.subtree) {
+        if (child.type === 'word-node') WordNode.draw2d(ctxMix, child, subParams);
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const { cw, ch } = ClimateChartNode.getChartDims(ctxMix, node, params);
+    const subParams = { ...params, chartWidth: cw, chartHeight: ch };
+    const v = node.value;
+
+    // Test Labels first (topmost rendering order)
+    for (let i = node.subtree.length - 1; i >= 0; i--) {
+       const child = node.subtree[i];
+       if (child.type === 'word-node') {
+           WordNode.hit_test(ctxMix, child, subParams);
+           if (ctxMix.hitResult) return;
+       }
+    }
+
+    // Test Line Chart Dots
+    const lineNode = { ...node, value: { ...v, data: v.dataTemp } };
+    LineChartNode.hit_test(ctxMix, lineNode, subParams);
+    if (ctxMix.hitResult) return;
+
+    // Test Bars
+    const barNode = { ...node, value: { ...v, data: v.dataRain } };
+    BarChartNode.hit_test(ctxMix, barNode, subParams);
+  }
+}
+//-- endfile --
+
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//<< import { Geo } from './geo.js';
+//-- file: ./pipped-polygon-node.js --
+//>> export { PippedPolygonNode };
+class PippedPolygonNode {
+  static getVerts(ctxMix, node, params) {
+    const v = node.value;
+    const r = params.nodeSize || v.r;
+    return Geo.verts(v.n, v.x, v.y, r, v.tilt);
+  }
+
+  static getPips(ctxMix, node, params) {
+    const v = node.value;
+    const r = params.nodeSize || v.r;
+    return Geo.pips(v.n, v.x, v.y, r, v.tilt);
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const v = node.value;
+    const verts = PippedPolygonNode.getVerts(ctxMix, node, params);
+    const pal = (params.colors || {})[v.n] || { fill: '#888', stroke: '#666' };
+
+    ctx.beginPath();
+    ctx.moveTo(verts[0].x, verts[0].y);
+    for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = v.color || pal.fill;
+    ctx.fill();
+    ctx.strokeStyle = pal.stroke;
+    ctx.lineWidth = (params.lineWidth || 2) / (ctxMix.zoom || 1);
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    if (!Geo.ptInPoly(pt.x, pt.y, PippedPolygonNode.getVerts(ctxMix, node, params))) return;
+    
+    const dx = pt.x - node.value.x;
+    const dy = pt.y - node.value.y;
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) { node.value.x = wx - dx; node.value.y = wy - dy; },
+      },
+    };
+  }
+}
+//-- endfile --
+
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//<< import { Geo } from './geo.js';
+//-- file: ./basic-collection-node.js --
+//>> export { BasicCollectionNode };
+class BasicCollectionNode {
+  static draw2d(ctxMix, node, params) {
+    for (const child of node.subtree)
+      PippedPolygonNode.draw2d(ctxMix, child, params);
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const pr = (params.pipRadius || 3.5) / (ctxMix.zoom || 1);
+    for (const child of node.subtree) {
+      for (const p of PippedPolygonNode.getPips(ctxMix, child, params)) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, pr, 0, Geo.TAU);
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = (params.lineWidth ? params.lineWidth * 0.75 : 1.5) / (ctxMix.zoom || 1);
+        ctx.stroke();
+      }
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const subtree = node.subtree;
+    for (let i = subtree.length - 1; i >= 0; i--) {
+      ctxMix.hitResult = null;
+      PippedPolygonNode.hit_test(ctxMix, subtree[i], params);
+      if (ctxMix.hitResult) {
+        BasicCollectionNode._wrapDrag(ctxMix, node, subtree[i]);
+        return;
+      }
+    }
+  }
+
+  static _wrapDrag(ctxMix, collNode, child) {
+    const subtree = collNode.subtree;
+    const inner = ctxMix.hitResult.interactions;
+    const idx = subtree.indexOf(child);
+    if (idx >= 0) { subtree.splice(idx, 1); subtree.push(child); }
+
+    ctxMix.hitResult.interactions = {
+      applyDrag: inner.applyDrag,
+      endDrag(onStockStrip) {
+        if (onStockStrip) {
+          const i = subtree.indexOf(child);
+          if (i >= 0) subtree.splice(i, 1);
+        }
+      },
+    };
+  }
+}
+//-- endfile --
+
+//<< import { StockStripNode } from './stock-strip-node.js';
+//<< import { Geo } from './geo.js';
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//-- file: ./stock-strip-node.js --
+//>> export { StockStripNode };
+class StockStripNode {
+  static _layout(node, W, H, params) {
+    const stripH = params.stripHeight ?? node.value.height;
+    const protos = node.subtree;
+    const y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1));
+    const x0 = (W - gap * (protos.length - 1)) / 2;
+    return protos.map((p, i) => ({ node: p, cx: x0 + gap * i, cy: y }));
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const { W, H } = ctxMix.getWH(ctxMix, node, params);
+    const stripH = params.stripHeight ?? node.value.height;
+    const opacity = (params.opacity ?? 100) / 100;
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Always fixed to screen
+
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = '#16163a';
+    ctx.fillRect(0, H - stripH, W, stripH);
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = '#282850';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H - stripH); ctx.lineTo(W, H - stripH); ctx.stroke();
+
+    const slots = StockStripNode._layout(node, W, H, params);
+    for (const slot of slots) {
+      const proto = slot.node;
+      const displayR = (params.nodeSize || 30) * 0.55;
+      const origX = proto.value.x, origY = proto.value.y, origR = proto.value.r;
+      proto.value.x = slot.cx; proto.value.y = slot.cy; proto.value.r = displayR;
+
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      const protoParams = { ...params, nodeSize: displayR };
+      PippedPolygonNode.draw2d({ ...ctxMix, zoom: 1 }, proto, protoParams);
+      ctx.restore();
+
+      ctx.fillStyle = '#6b7280'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(proto.value.label || '', slot.cx, slot.cy + displayR + 15);
+
+      proto.value.x = origX; proto.value.y = origY; proto.value.r = origR;
+    }
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPointScreen; // Evaluate against screen clicks
+    if (!pt) return;
+    const { W, H } = ctxMix.getWH(ctxMix, node, params);
+    const stripH = params.stripHeight ?? node.value.height;
+    if (pt.y < H - stripH) return;
+
+    const slots = StockStripNode._layout(node, W, H, params);
+    for (const slot of slots) {
+      const displayR = (params.nodeSize || 30) * 0.55;
+      const verts = Geo.verts(slot.node.value.n, slot.cx, slot.cy, displayR, slot.node.value.tilt);
+      if (Geo.ptInPoly(pt.x, pt.y, verts)) {
+        ctxMix.hitResult = { node: slot.node, isStockPrototype: true };
+        return;
+      }
+    }
+  }
+}
+//-- endfile --
+
+//<< import { FrameContainerNode } from './frame-container-node.js';
+//<< import { ClimateChartNode } from './climate-chart-node.js';
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//<< import { PippedPolygonNode } from './pipped-polygon-node.js';
+//-- file: ./frame-container-node.js --
+//>> export { FrameContainerNode };
+class FrameContainerNode {
+  static translate(subtree, dx, dy) {
+    for (const child of subtree) {
+      if (child.value.x !== undefined) child.value.x += dx;
+      if (child.value.y !== undefined) child.value.y += dy;
+      // Also shift layout baseline coordinates for text dragging accuracy
+      if (child.value.baseX !== undefined) child.value.baseX += dx;
+      if (child.value.baseY !== undefined) child.value.baseY += dy;
+      
+      if (child.subtree) FrameContainerNode.translate(child.subtree, dx, dy);
+    }
+  }
+
+  static getBounds(ctxMix, node, params) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let hasBounds = false;
+
+    const addPt = (x, y, r = 0) => {
+      // Guard against uninitialized nodes causing NaN poisons
+      if (x == null || y == null || isNaN(x) || isNaN(y)) return;
+      minX = Math.min(minX, x - r); maxX = Math.max(maxX, x + r);
+      minY = Math.min(minY, y - r); maxY = Math.max(maxY, y + r);
+      hasBounds = true;
+    };
+
+    const traverse = (n) => {
+      if (n.type === 'climate-chart') {
+        const { cw, ch } = ClimateChartNode.getChartDims(ctxMix, n, params);
+        // Include generous padding for the chart's peripheral text labels
+        addPt(n.value.x - cw/2 - 70, n.value.y - ch/2 - 60);
+        addPt(n.value.x + cw/2 + 70, n.value.y + ch/2 + 60);
+      } else if (n.type === 'pipped-polygon') {
+        addPt(n.value.x, n.value.y, params.nodeSize || n.value.r);
+      } else if (n.type === 'word-node') {
+        // Only evaluate if values exist (they might not on frame 1)
+        const bx = n.value.baseX ?? n.value.x;
+        const by = n.value.baseY ?? n.value.y;
+        const ox = n.value.offsetX ?? 0;
+        const oy = n.value.offsetY ?? 0;
+        if (bx != null && by != null) addPt(bx + ox, by + oy, 10);
+      }
+      if (n.subtree) n.subtree.forEach(traverse);
+    };
+
+    traverse(node);
+
+    if (!hasBounds) return { x: node.value.x || 0, y: node.value.y || 0, w: 200, h: 200 };
+
+    const padding = node.value.padding !== undefined ? node.value.padding : 30;
+    return {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+      w: (maxX - minX) + padding * 2,
+      h: (maxY - minY) + padding * 2
+    };
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const bounds = FrameContainerNode.getBounds(ctxMix, node, params);
+    const ctx = ctxMix.ctx;
+    const z = ctxMix.zoom || 1;
+
+    // Background & Stroke
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.5 / z;
+
+    const l = bounds.x - bounds.w/2;
+    const t = bounds.y - bounds.h/2;
+
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(l, t, bounds.w, bounds.h, 12 / z);
+    else ctx.rect(l, t, bounds.w, bounds.h);
+    ctx.fill();
+    ctx.stroke();
+
+    // 4 Edge Pips
+    const pips = [
+      { x: bounds.x, y: t },
+      { x: bounds.x, y: t + bounds.h },
+      { x: l, y: bounds.y },
+      { x: l + bounds.w, y: bounds.y }
+    ];
+    ctx.fillStyle = '#1c1c2a';
+    ctx.strokeStyle = '#8cf';
+    ctx.lineWidth = 2 / z;
+    const pr = 4.5 / z;
+    
+    for (const p of pips) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Pass draw calls to children
+    for (const child of node.subtree) {
+      if (child.type === 'climate-chart') ClimateChartNode.draw2d(ctxMix, child, params);
+      else if (child.type === 'basic-collection') BasicCollectionNode.draw2d(ctxMix, child, params);
+      else if (child.type === 'pipped-polygon') PippedPolygonNode.draw2d(ctxMix, child, params);
+    }
+    
+    // Pass post-draw to collection
+    for (const child of node.subtree) {
+      if (child.type === 'basic-collection') BasicCollectionNode.after_draw2d(ctxMix, child, params);
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    // 1. Priority to internal nodes
+    for (let i = node.subtree.length - 1; i >= 0; i--) {
+      const child = node.subtree[i];
+      if (child.type === 'climate-chart') ClimateChartNode.hit_test(ctxMix, child, params);
+      else if (child.type === 'basic-collection') BasicCollectionNode.hit_test(ctxMix, child, params);
+      else if (child.type === 'pipped-polygon') PippedPolygonNode.hit_test(ctxMix, child, params);
+      
+      if (ctxMix.hitResult) return; 
+    }
+
+    // 2. Fallback to interacting with container background/frame
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const bounds = FrameContainerNode.getBounds(ctxMix, node, params);
+    
+    const l = bounds.x - bounds.w/2;
+    const t = bounds.y - bounds.h/2;
+    const r = bounds.x + bounds.w/2;
+    const b = bounds.y + bounds.h/2;
+
+    if (pt.x >= l && pt.x <= r && pt.y >= t && pt.y <= b) {
+      let lastWx = pt.x;
+      let lastWy = pt.y;
+
+      ctxMix.hitResult = {
+        node,
+        interactions: {
+          applyDrag: (wx, wy) => {
+            const dx = wx - lastWx;
+            const dy = wy - lastWy;
+            lastWx = wx;
+            lastWy = wy;
+            // Translate all elements anchored inside
+            FrameContainerNode.translate(node.subtree, dx, dy);
+          }
+        }
+      };
+    }
+  }
+}
+//-- endfile --
+
+//<< import { GridNode } from './grid-node.js';
+//-- file: ./grid-node.js --
+//>> export { GridNode };
+class GridNode {
+  static draw2d(ctxMix, node, params) {
+    const { ctx, cam, zoom } = ctxMix;
+    const { W, H } = ctxMix.getWH(ctxMix, node, params);
+    if (!cam) return; 
+
+    const spacing = params.gridSpacing || 40;
+    const stripH = params.stripHeight ?? 78;
+    
+    const l = cam.ox, t = cam.oy;
+    const r = l + W / zoom;
+    const b = t + (H - stripH) / zoom;
+    
+    ctx.strokeStyle = node.value.color || '#1c1c38';
+    ctx.lineWidth = (node.value.lineWidth || 1) / zoom;
+    ctx.beginPath();
+    
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing) {
+      ctx.moveTo(x, t); ctx.lineTo(x, b);
+    }
+    for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing) {
+      ctx.moveTo(l, y); ctx.lineTo(r, y);
+    }
+    
+    ctx.stroke();
+  }
+}
+//-- endfile --
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+
+class App {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.cam = new Camera();
+    this.W = 0; this.H = 0;
+    this.panState = null;
+    this.dragHit = null;
+    this.highlighted = new Set();
+    this.sceneNodes = [];
+
+    // Setup Params
+    this.params = {
+      opacity: 85,
+      stripHeight: 78,
+      nodeSize: 34,
+      lineWidth: 2,
+      pipRadius: 3.5,
+      gridSpacing: 40,
+      
+      chartAspect: 'auto',
+      showGrid: true, // for chart axis
+      barOpacity: 0.72,
+      smooth: 0.22,
+      
+      colors: {
+        4: { fill: '#c08428', stroke: '#9a6a1e' },
+        6: { fill: '#2890a8', stroke: '#1e7088' },
+      },
+    };
+
+    this.stockNode = makeNode('stock-strip', { height: this.params.stripHeight }, [
+      makeNode('pipped-polygon', { x: 0, y: 0, r: this.params.nodeSize, n: 4, tilt: Math.PI / 4, label: 'Square' }),
+      makeNode('pipped-polygon', { x: 0, y: 0, r: this.params.nodeSize, n: 6, tilt: Math.PI / 6, label: 'Hexagon' }),
+    ]);
+
+    this.resize();
+    this.bindHud();
+    this.bindInput();
+    this.seed();
+    this.loop();
+  }
+
+  resize() {
+    const oldW = this.W || 0;
+    const oldH = this.H || 0;
+    
+    this.W = this.canvas.width  = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight;
+    
+    if (oldW === 0 && oldH === 0) {
+      const stripH = this.params?.stripHeight || 78;
+      this.cam.ox = -this.W / 2;
+      this.cam.oy = -(this.H - stripH) / 2;
+    } else {
+      this.cam.ox -= (this.W - oldW) / (2 * this.cam.z);
+      this.cam.oy -= (this.H - oldH) / (2 * this.cam.z);
+    }
+  }
+
+  bindHud() {
+    const controls = [
+      { type: 'separator', label: 'UI & Visibility' },
+      { id: 'showHint', type: 'checkbox', label: 'Show Help Tip', value: true },
+      { type: 'separator', label: 'Chart Settings' },
+      { id: 'chartAspect', type: 'select', label: 'Layout Mode', options: [['auto', 'Auto (Screen)'], ['tall', 'Tall & Narrow'], ['wide', 'Wide']], value: 'auto' },
+      { id: 'showGrid', type: 'checkbox', label: 'Show Chart Grid', value: true },
+      { id: 'barOpacity', label: 'Bar Opacity', min: 0.1, max: 1.0, step: 0.05, value: 0.72 },
+      { id: 'smooth', label: 'Line Curve', min: 0, max: 0.5, step: 0.02, value: 0.22 },
+      { type: 'separator', label: 'Environment Settings' },
+      { id: 'nodeSize', label: 'Block Size', min: 10, max: 80, step: 1, value: this.params.nodeSize },
+      { id: 'gridSpacing', label: 'Grid Spacing', min: 10, max: 100, step: 5, value: this.params.gridSpacing },
+      { id: 'opacity', label: 'Strip Opacity', min: 0, max: 100, step: 1, value: this.params.opacity },
+    ];
+
+    this.hud = new HudPanel({
+      title: 'Canvas Parameters',
+      controls: controls,
+      position: { top: 20, left: 20 },
+      onChange: (id, value) => { 
+        if (id === 'showHint') {
+          const help = document.getElementById('help');
+          if (help) help.style.display = value ? 'block' : 'none';
+        } else {
+          this.params[id] = value; 
+        }
+      }
+    });
+  }
+
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY }; }
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  worldCtxMix(sp) {
+    const wp = sp ? this.cam.toWorld(sp.x, sp.y) : null;
+    return { 
+      ctx: this.ctx, 
+      hitPoint: wp, 
+      hitPointScreen: sp, // Necessary for screen-bound interactions
+      hitResult: null, 
+      zoom: this.cam.z, 
+      W: this.W, 
+      H: this.H, 
+      cam: this.cam,
+      highlighted: this.highlighted,
+      getWH: (ctxMix, node, params) => ({ W: ctxMix.W, H: ctxMix.H }) 
+    };
+  }
+
+  hitTestAll(wmix) {
+    // 1. Stock Strip
+    StockStripNode.hit_test(wmix, this.stockNode, this.params);
+    if (wmix.hitResult) return wmix.hitResult;
+
+    // 2. Scene Nodes (Reverse order so top catches first)
+    for (let i = this.sceneNodes.length - 1; i >= 0; i--) {
+      const node = this.sceneNodes[i];
+      if (node.type === 'frame-container') FrameContainerNode.hit_test(wmix, node, this.params);
+      else if (node.type === 'climate-chart') ClimateChartNode.hit_test(wmix, node, this.params);
+      else if (node.type === 'basic-collection') BasicCollectionNode.hit_test(wmix, node, this.params);
+      
+      if (wmix.hitResult) return wmix.hitResult;
+    }
+    return null;
+  }
+
+  onDown(e) {
+    if (e.target.closest('.hud-panel')) return;
+    e.preventDefault();
+    const sp = this.screenPos(e);
+    const wmix = this.worldCtxMix(sp);
+    const hit = this.hitTestAll(wmix);
+
+    if (hit) {
+      if (hit.isStockPrototype) {
+        // Clone new block
+        const wp = this.cam.toWorld(sp.x, sp.y);
+        const clone = makeNode('pipped-polygon', { ...hit.node.value, id: ++_nodeId, x: wp.x, y: wp.y, r: this.params.nodeSize });
+        
+        // Find collection node natively or nested in a container
+        let coll = null;
+        for (const n of this.sceneNodes) {
+          if (n.type === 'frame-container') {
+            const found = n.subtree.find(c => c.type === 'basic-collection');
+            if (found) { coll = found; break; }
+          } else if (n.type === 'basic-collection') {
+            coll = n; break;
+          }
+        }
+        if (coll) coll.subtree.push(clone);
+
+        // Immediate bind for dragging
+        wmix.hitResult = null;
+        wmix.hitPoint = wp;
+        PippedPolygonNode.hit_test(wmix, clone, this.params);
+        if (wmix.hitResult) {
+          BasicCollectionNode._wrapDrag(wmix, coll, clone);
+          this.dragHit = wmix.hitResult;
+        }
+      } else {
+        this.dragHit = hit;
+        
+        // Toggle highlight logic for elements that support it
+        if (hit.node) {
+          if (this.highlighted.has(hit.node)) this.highlighted.delete(hit.node);
+          else this.highlighted.add(hit.node);
+        }
+      }
+      return;
+    }
+
+    // Pan World
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    if (e.target.closest && e.target.closest('.hud-panel')) return;
+    e.preventDefault();
+    const sp = this.screenPos(e);
+
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      if (this.dragHit.interactions?.applyDrag) {
+        this.dragHit.interactions.applyDrag(wp.x, wp.y);
+      }
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    if (this.panState) {
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move';
+      return;
+    }
+
+    const wmix = this.worldCtxMix(sp);
+    const hit = this.hitTestAll(wmix);
+    this.canvas.style.cursor = hit ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    if (e.target.closest && e.target.closest('.hud-panel')) return;
+    e.preventDefault();
+    
+    if (this.dragHit) {
+      const sp = this.screenPos(e);
+      const stripH = this.params.stripHeight ?? this.stockNode.value.height;
+      const onStrip = sp.y > this.H - stripH;
+      if (this.dragHit.interactions?.endDrag) {
+        this.dragHit.interactions.endDrag(onStrip);
+      }
+      this.dragHit = null;
+    }
+    this.panState = null;
+    this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    if (e.target.closest('.hud-panel')) return;
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY };
+    const stripH = this.params.stripHeight ?? this.stockNode.value.height;
+    if (sp.y > this.H - stripH) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    c.addEventListener('mousedown',  e => this.onDown(e));
+    c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));
+    c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  seed() {
+    // Basic Environment Setup
+    this.gridNode = makeNode('grid', { color: '#1c1c38', lineWidth: 1 });
+    
+    // Create Frame Containers
+    const blockTray = makeNode('frame-container', { padding: 40 });
+    const collNode = makeNode('basic-collection', {});
+    blockTray.subtree.push(collNode);
+    
+    // Seed few blocks around origin
+    const tilt = Math.PI / 4;
+    const step = this.params.nodeSize * Math.cos(Math.PI / 4) * 2;
+    for (let row = -1; row <= 1; row++) {
+      for (let col = -1; col <= 1; col++) {
+        collNode.subtree.push(
+          makeNode('pipped-polygon', { x: col * step - 300, y: row * step, r: this.params.nodeSize, n: 4, tilt })
+        );
+      }
+    }
+
+    // Build the responsive Climate Chart Node
+    const chartTray = makeNode('frame-container', { padding: 20 });
+    const TEMPS = [7.5, 8.2, 10.8, 13.8, 18.0, 22.2, 25.0, 25.0, 21.5, 17.0, 12.2, 8.6];
+    const RAIN  = [67,  70,  57,   55,   42,   21,   15,   21,   63,  105,  115,  81 ];
+    const MONTH_LABELS = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+
+    const chart = makeNode('climate-chart', {
+      x: 200, y: 0,
+      tempMin: 0, tempMax: 30, tempStep: 5,
+      rainMax: 120, rainStep: 20,
+      months: 12,
+      dataRain: RAIN,
+      dataTemp: TEMPS
+    });
+
+    chart.subtree.push(makeNode('word-node', { text: 'Rome', alignId: 'title', fontSize: 24, fontWeight: 800, color: '#e4dac6' }));
+    chart.subtree.push(makeNode('word-node', { text: 'Climate Chart', alignId: 'subtitle', fontSize: 13, fontWeight: 500, color: '#807868', opacity: 0.8 }));
+    
+    for (let i = 0; i < 12; i++) {
+      chart.subtree.push(makeNode('word-node', { text: MONTH_LABELS[i], alignId: `month-${i}`, fontSize: 11, fontWeight: 600, color: '#908878' }));
+    }
+    for (let t = chart.value.tempMin; t <= chart.value.tempMax; t += chart.value.tempStep) {
+      chart.subtree.push(makeNode('word-node', { text: String(t), alignId: `temp-${t}`, fontSize: 10, fontWeight: 500, color: '#c06048' }));
+    }
+    for (let r = 0; r <= chart.value.rainMax; r += chart.value.rainStep) {
+      chart.subtree.push(makeNode('word-node', { text: String(r), alignId: `rain-${r}`, fontSize: 10, fontWeight: 500, color: '#5a98c8' }));
+    }
+
+    chart.subtree.push(makeNode('word-node', { text: '°C', alignId: 'axis-temp', fontSize: 12, fontWeight: 700, color: '#c06048', rotation: -90 }));
+    chart.subtree.push(makeNode('word-node', { text: 'mm', alignId: 'axis-rain', fontSize: 12, fontWeight: 700, color: '#5a98c8', rotation: 90 }));
+
+    chartTray.subtree.push(chart);
+
+    // Populate scene order
+    this.sceneNodes = [this.gridNode, blockTray, chartTray];
+  }
+
+  loop() {
+    const c = this.ctx;
+    const P = this.params;
+
+    // Reset base UI draw pass
+    this.cam.reset(c);
+    c.fillStyle = '#12122a'; 
+    c.fillRect(0, 0, this.W, this.H);
+
+    // Context for world drawing
+    const wmix = this.worldCtxMix(null);
+
+    // Apply Camera
+    this.cam.apply(c);
+    
+    // Draw all Scene Nodes
+    for (const node of this.sceneNodes) {
+        if (node.type === 'grid') GridNode.draw2d(wmix, node, P);
+        if (node.type === 'frame-container') FrameContainerNode.draw2d(wmix, node, P);
+        if (node.type === 'basic-collection') {
+            BasicCollectionNode.draw2d(wmix, node, P);
+            BasicCollectionNode.after_draw2d(wmix, node, P);
+        }
+        if (node.type === 'climate-chart') ClimateChartNode.draw2d(wmix, node, P);
+    }
+
+    // Reset and draw UI on top
+    this.cam.reset(c);
+    StockStripNode.draw2d(wmix, this.stockNode, P);
+
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+// ─── Boot ────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  new App(document.getElementById('c'));
+});
+</script>
+</body>
+</html>

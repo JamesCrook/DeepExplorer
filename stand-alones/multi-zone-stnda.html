@@ -1,0 +1,1952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoned Elements — Combined</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; border-bottom: 1px solid #2a2824;
+    background: #17160f; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; letter-spacing: -0.03em; }
+  header .tag {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+    background: #222018; padding: 2px 7px; border-radius: 4px; border: 1px solid #2a2824;
+  }
+  #container {
+    flex: 1; display: flex; flex-wrap: wrap;
+    gap: 1px; background: #2a2824; overflow: hidden;
+  }
+  .pane {
+    background: #111210; display: flex;
+    flex-direction: column; overflow: hidden;
+    position: relative;
+    transition: opacity 0.15s;
+    flex-grow: 1;    
+  }
+  .pane.pane-hidden { display: none !important; }
+  .pane .label {
+    padding: 8px 14px; font-size: 11px; font-weight: 600;
+    color: #6a6256; text-transform: uppercase;
+    letter-spacing: 0.08em; flex-shrink: 0;
+  }
+  .pane canvas { flex: 1; width: 100%; height: 100%; display: block; }
+  .pane.pane-3d canvas { width: 100% !important; height: 100% !important; }
+  .pane.pane-3d .pane-title-3d {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    color: rgba(255,255,255,0.35); pointer-events: none; z-index: 5;
+    text-transform: uppercase; white-space: nowrap;
+  }
+
+  /* ── Global HUD ── */
+  .hud-panel {
+    position: fixed;
+    background: rgba(15, 20, 25, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px; padding: 14px 18px;
+    color: #ddd; font: 11px/1.6 system-ui, sans-serif;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 50; min-width: 220px; max-width: 280px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4); user-select: none;
+    max-height: calc(100vh - 80px); overflow-y: auto;
+  }
+  .hud-panel::-webkit-scrollbar { width: 4px; }
+  .hud-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+  .hud-panel h3 {
+    margin: 0 0 10px; font-size: 10px; color: #aaa; letter-spacing: 1px;
+    cursor: grab; padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase;
+  }
+  .hud-panel h3:active { cursor: grabbing; }
+  .hud-panel label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+  .hud-panel label span { min-width: 80px; color: #999; font-size: 10px; }
+  .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
+  .hud-panel select {
+    flex: 1; background: rgba(0,0,0,0.5); color: #fff;
+    border: 1px solid rgba(255,255,255,0.2); padding: 3px;
+    border-radius: 4px; font-size: 10px; cursor: pointer; outline: none;
+  }
+  .hud-panel .val {
+    min-width: 28px; text-align: right;
+    font-variant-numeric: tabular-nums; color: #8cf; font-weight: 600; font-size: 10px;
+  }
+  .hud-panel .separator {
+    margin: 10px 0 6px 0; padding-top: 6px;
+    border-top: 1px dashed rgba(255,255,255,0.1);
+    font-size: 9px; color: #6cf; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .hud-panel .check-row {
+    display: flex; align-items: center; gap: 8px; margin: 3px 0;
+    cursor: pointer; font-size: 11px; color: #bbb;
+  }
+  .hud-panel .check-row input[type=checkbox] { accent-color: #6cf; cursor: pointer; }
+  .hud-panel .check-row:hover { color: #fff; }
+  .hud-panel .hud-btn {
+    display: block; width: 100%; margin: 6px 0 2px;
+    padding: 6px 0; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px; background: rgba(255,255,255,0.06);
+    color: #ccc; font-size: 10px; letter-spacing: 0.5px;
+    cursor: pointer; text-align: center; text-transform: uppercase;
+  }
+  .hud-panel .hud-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .hud-panel .hud-btn.primary { border-color: rgba(102,204,255,0.3); color: #8cf; }
+  .hud-panel .hud-btn.primary:hover { background: rgba(102,204,255,0.12); }
+  .hud-panel .no-controls { color: #555; font-style: italic; font-size: 10px; margin: 6px 0; }
+
+  #tooltip {
+    position: fixed; pointer-events: none;
+    background: #222018; border: 1px solid #3d3a32;
+    border-radius: 6px; padding: 6px 10px; z-index: 100;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    display: none; white-space: nowrap; font-size: 12px;
+  }
+  #tooltip .tt-name   { font-weight: 600; color: #e4dac6; font-family: monospace; }
+  #tooltip .tt-detail { color: #7a7060; font-size: 10px; margin-top: 2px; }
+  #tooltip .tt-extra  { color: #5a5448; font-size: 10px; margin-top: 1px; }
+</style>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<header>
+  <h1>Zoned Elements</h1>
+  <span class="tag" id="pane-count"></span>
+</header>
+
+<div id="container"></div>
+
+<div id="tooltip">
+  <div class="tt-name"></div>
+  <div class="tt-detail"></div>
+  <div class="tt-extra"></div>
+</div>
+
+<script type="module">
+
+// ═══════════════════════════════════════════════════════════════
+//  REGISTRY — each zone class pushes here. Remove a class
+//  section and the layout simply skips it.
+//
+//  Pane shape:
+//    { label, type:'2d'|'3d', visible:true,
+//      zoneClass?, data?,           // 2D
+//      background?, init?,          // 3D: init(container) → view
+//      controls:[], onControl? }    // HUD controls for this pane
+// ═══════════════════════════════════════════════════════════════
+
+const PANES = [];
+
+
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL HUD — always present, manages panel switching
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { HudPanel } from './hud-panel.js';
+//-- file: ./hud-panel.js --
+//>> export { HudPanel };
+
+class HudPanel {
+  constructor({ title = 'Controls', position = { top: 12, left: 12 } } = {}) {
+    this._inputs = {};
+    this._valDisplays = {};
+
+    this._root = document.createElement('div');
+    this._root.className = 'hud-panel';
+    this._root.style.top = position.top + 'px';
+    this._root.style.left = position.left + 'px';
+
+    const header = document.createElement('h3');
+    header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header);
+    this._makeDraggable(header);
+
+    // Content container — rebuilt when switching views
+    this._content = document.createElement('div');
+    this._root.appendChild(this._content);
+
+    document.body.appendChild(this._root);
+  }
+
+  get root() { return this._root; }
+
+  get(id) {
+    const inp = this._inputs[id];
+    if (!inp) return undefined;
+    if (inp.tagName === 'SELECT') return inp.value;
+    if (inp.type === 'checkbox') return inp.checked;
+    return parseFloat(inp.value);
+  }
+
+  set(id, value) {
+    const inp = this._inputs[id];
+    if (!inp) return;
+    if (inp.type === 'checkbox') { inp.checked = !!value; return; }
+    inp.value = value;
+    if (this._valDisplays[id]) this._valDisplays[id].textContent = parseFloat(value).toFixed(2);
+  }
+
+  setMax(id, max) {
+    const inp = this._inputs[id];
+    if (inp && inp.type === 'range') inp.max = max;
+  }
+
+  // Clears content and registered inputs; header stays.
+  clearContent() {
+    this._content.innerHTML = '';
+    this._inputs = {};
+    this._valDisplays = {};
+  }
+
+  addSeparator(label) {
+    const sep = document.createElement('div');
+    sep.className = 'separator';
+    if (label) sep.textContent = label;
+    this._content.appendChild(sep);
+  }
+
+  addSlider(ctrl, onChange) {
+    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
+    const row = document.createElement('label');
+    const span = document.createElement('span'); span.textContent = label; row.appendChild(span);
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'range', min, max, step, value });
+    row.appendChild(input);
+    const val = document.createElement('span');
+    val.className = 'val'; val.textContent = parseFloat(value).toFixed(2);
+    row.appendChild(val);
+    input.addEventListener('input', () => {
+      val.textContent = parseFloat(input.value).toFixed(2);
+      if (onChange) onChange(id, parseFloat(input.value));
+    });
+    this._inputs[id] = input;
+    this._valDisplays[id] = val;
+    this._content.appendChild(row);
+  }
+
+  addSelect(ctrl, onChange) {
+    const { id, label, options = [], value } = ctrl;
+    const row = document.createElement('label');
+    const span = document.createElement('span'); span.textContent = label; row.appendChild(span);
+    const select = document.createElement('select');
+    for (const opt of options) {
+      const o = document.createElement('option');
+      o.value = opt[0]; o.textContent = opt[1];
+      if (opt[0] === String(value)) o.selected = true;
+      select.appendChild(o);
+    }
+    select.addEventListener('change', () => { if (onChange) onChange(id, select.value); });
+    row.appendChild(select);
+    this._inputs[id] = select;
+    this._content.appendChild(row);
+  }
+
+  addCheckbox(id, label, checked, onChange) {
+    const row = document.createElement('label');
+    row.className = 'check-row';
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.checked = checked;
+    input.addEventListener('change', () => { if (onChange) onChange(id, input.checked); });
+    row.appendChild(input);
+    const span = document.createElement('span');
+    span.style.minWidth = 'auto'; span.textContent = label;
+    row.appendChild(span);
+    this._inputs[id] = input;
+    this._content.appendChild(row);
+  }
+
+  addButton(label, onClick, cls) {
+    const btn = document.createElement('button');
+    btn.className = 'hud-btn' + (cls ? ' ' + cls : '');
+    btn.textContent = label;
+    btn.addEventListener('click', onClick);
+    this._content.appendChild(btn);
+  }
+
+  addNote(text) {
+    const p = document.createElement('div');
+    p.className = 'no-controls'; p.textContent = text;
+    this._content.appendChild(p);
+  }
+
+  addControl(ctrl, onChange) {
+    if (ctrl.type === 'separator') this.addSeparator(ctrl.label);
+    else if (ctrl.type === 'select') this.addSelect(ctrl, onChange);
+    else this.addSlider(ctrl, onChange);
+  }
+
+  _makeDraggable(handle) {
+    let isDragging = false, startX, startY, startLeft, startTop;
+    handle.addEventListener('mousedown', e => {
+      isDragging = true; handle.style.cursor = 'grabbing';
+      startX = e.clientX; startY = e.clientY;
+      startLeft = parseInt(this._root.style.left || 0, 10);
+      startTop = parseInt(this._root.style.top || 0, 10);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      this._root.style.left = `${startLeft + e.clientX - startX}px`;
+      this._root.style.top = `${startTop + e.clientY - startY}px`;
+    });
+    window.addEventListener('mouseup', () => {
+      if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; }
+    });
+  }
+}
+
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  SHARED — ZonedNode core + helpers
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { ZonedNode, HIGHLIGHT, rrPath } from './zoned-node.js';
+//-- file: ./zoned-node.js --
+//>> export { ZonedNode, HIGHLIGHT, rrPath };
+
+const HIGHLIGHT = '#daa02e';
+
+function rrPath(ctx, x, y, w, h, rtl, rtr, rbr, rbl) {
+  ctx.beginPath();
+  ctx.moveTo(x + rtl, y); ctx.lineTo(x + w - rtr, y);
+  ctx.arcTo(x + w, y, x + w, y + rtr, rtr); ctx.lineTo(x + w, y + h - rbr);
+  ctx.arcTo(x + w, y + h, x + w - rbr, y + h, rbr); ctx.lineTo(x + rbl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rbl, rbl); ctx.lineTo(x, y + rtl);
+  ctx.arcTo(x, y, x + rtl, y, rtl); ctx.closePath();
+}
+
+class ZonedNode {
+  static draw2d(ctxMix, node, params) {
+    const Zone = node.value.zoneClass, state = ctxMix.state;
+    const count = Zone.getCount(node.data);
+    const passes = Zone.getPasses ? Zone.getPasses(params) : 1;
+    Zone.drawBackground(ctxMix, node, params);
+    for (let pass = 0; pass < passes; pass++) {
+      state.pass = pass;
+      for (let i = 0; i < count; i++) {
+        state.index = i;
+        state.isHovered  = (i === node.value.hovered);
+        state.isSelected = node.value.selected.has(i);
+        Zone.draw2d(ctxMix, node, params);
+      }
+    }
+    if (Zone.drawOverlay) Zone.drawOverlay(ctxMix, node, params);
+  }
+  static hit_test(ctxMix, node, params) {
+    const Zone = node.value.zoneClass, state = ctxMix.state;
+    const count = Zone.getCount(node.data);
+    const order = Zone.getHitOrder ? Zone.getHitOrder(node.data, count) : null;
+    const tryIndex = i => { state.index = i; ctxMix.hitResult = null; Zone.hit_test(ctxMix, node, params); return ctxMix.hitResult != null; };
+    if (order) { for (let j = 0; j < order.length; j++) if (tryIndex(order[j])) return; }
+    else { for (let i = count - 1; i >= 0; i--) if (tryIndex(i)) return; }
+  }
+}
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 1 — ChromosomeZone
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { ChromosomeZone, chromosomeData } from './chromosome-zone.js';
+//-- file: ./chromosome-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { ChromosomeZone, chromosomeData };
+
+const STAIN_COLORS = { gneg:'#E8E0D0', gpos25:'#B0A890', gpos50:'#808068', gpos75:'#505040', gpos100:'#282820', acen:'#B84430', gvar:'#A0A090', stalk:'#707060' };
+
+function chromosomePath(ctx, cx, topY, botY, cenY, armW, cenW, capR) {
+  ctx.beginPath(); ctx.moveTo(cx-armW, topY+capR);
+  ctx.quadraticCurveTo(cx-armW,topY,cx,topY); ctx.quadraticCurveTo(cx+armW,topY,cx+armW,topY+capR);
+  ctx.lineTo(cx+armW,cenY-8); ctx.quadraticCurveTo(cx+cenW,cenY,cx+armW,cenY+8);
+  ctx.lineTo(cx+armW,botY-capR); ctx.quadraticCurveTo(cx+armW,botY,cx,botY);
+  ctx.quadraticCurveTo(cx-armW,botY,cx-armW,botY-capR); ctx.lineTo(cx-armW,cenY+8);
+  ctx.quadraticCurveTo(cx-cenW,cenY,cx-armW,cenY-8); ctx.lineTo(cx-armW,topY+capR); ctx.closePath();
+}
+
+function chrLayout(W,H,data) {
+  const margin=30, chrH=Math.max(1,H-margin*2), cx=W/2, topY=margin, botY=margin+chrH;
+  const scale=chrH/data.length, cenY=topY+((data.cenStart+data.cenEnd)/2)*scale;
+  const armW=Math.max(1,Math.min(28,W*0.14)), cenW=armW*0.35, capR=armW*0.7;
+  return { cx, topY, botY, chrH, scale, cenY, armW, cenW, capR };
+}
+
+class ChromosomeZone {
+  static getCount(data) { return data.bands.length; }
+  static drawBackground(ctxMix, node, params) {
+    const ctx=ctxMix.ctx, {W,H}=ctxMix.getHW(ctxMix,node,params);
+    const lo=chrLayout(W,H,node.data); node._layout=lo;
+    ctx.save(); chromosomePath(ctx,lo.cx,lo.topY,lo.botY,lo.cenY,lo.armW,lo.cenW,lo.capR); ctx.clip();
+  }
+  static draw2d(ctxMix, node, params) {
+    const ctx=ctxMix.ctx, state=ctxMix.state, lo=node._layout; if(!lo) return;
+    const band=node.data.bands[state.index];
+    const y1=lo.topY+band.start/node.data.length*lo.chrH, y2=lo.topY+band.end/node.data.length*lo.chrH;
+    if(state.isSelected) ctx.fillStyle=state.isHovered?'#E8B840':HIGHLIGHT;
+    else if(state.isHovered) ctx.fillStyle='#504838';
+    else ctx.fillStyle=STAIN_COLORS[band.stain]||'#E8E0D0';
+    ctx.fillRect(lo.cx-60,y1,120,Math.max(y2-y1,0.5));
+  }
+  static drawOverlay(ctxMix, node, params) {
+    const ctx=ctxMix.ctx, lo=node._layout; if(!lo){ctx.restore();return;} ctx.restore();
+    ctx.strokeStyle='#504838'; ctx.lineWidth=1;
+    chromosomePath(ctx,lo.cx,lo.topY,lo.botY,lo.cenY,lo.armW,lo.cenW,lo.capR); ctx.stroke();
+    ctx.fillStyle='#B84430'; ctx.beginPath(); ctx.arc(lo.cx,lo.cenY,lo.armW*0.28,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#908878'; ctx.font='600 12px monospace'; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('chr1',lo.cx,lo.botY+8);
+  }
+  static hit_test(ctxMix, node, params) {
+    const pt=ctxMix.hitPoint, state=ctxMix.state, lo=node._layout; if(!pt||!lo) return;
+    const band=node.data.bands[state.index]; if(band.stain==='acen') return;
+    const y1=lo.topY+band.start/node.data.length*lo.chrH, y2=lo.topY+band.end/node.data.length*lo.chrH;
+    if(pt.y<y1||pt.y>y2) return; if(Math.abs(pt.x-lo.cx)>lo.armW+2) return;
+    ctxMix.hitResult={node,zoneIndex:state.index};
+  }
+  static getZoneInfo(ctxMix, node, params) {
+    const band=node.data.bands[ctxMix.state.index];
+    return {name:band.label,detail:(band.start/1e6).toFixed(1)+'–'+(band.end/1e6).toFixed(1)+' Mb',extra:band.stain};
+  }
+}
+
+function chromosomeData() {
+  const raw=[['p36.33','gneg',0,2300000],['p36.32','gpos25',2300000,5400000],['p36.31','gneg',5400000,7200000],['p36.23','gpos25',7200000,9200000],['p36.22','gneg',9200000,12700000],['p36.21','gpos50',12700000,16200000],['p36.13','gneg',16200000,20400000],['p36.12','gpos25',20400000,23900000],['p36.11','gneg',23900000,28000000],['p35.3','gpos25',28000000,30200000],['p35.2','gneg',30200000,32400000],['p35.1','gpos25',32400000,34600000],['p34.3','gneg',34600000,40100000],['p33','gpos75',46800000,50500000],['p32.3','gneg',50500000,55600000],['p31.1','gpos100',69400000,84400000],['p22.2','gpos75',88300000,92000000],['p21.1','gpos100',101800000,106700000],['p13.2','gpos50',111200000,115300000],['p12','gpos100',117800000,120600000],['p11.2','acen',121700000,125100000],['p11.1','acen',125100000,125800000],['q11','acen',125800000,128900000],['q12','gpos50',128900000,142600000],['q21.1','gneg',142600000,147950000],['q21.2','gpos25',147950000,150600000],['q21.3','gneg',150600000,155000000],['q23.1','gneg',160500000,166200000],['q24.2','gpos50',169700000,172900000],['q25.2','gpos50',176000000,180300000],['q31.1','gneg',185800000,190800000],['q32.1','gneg',198700000,207200000],['q41','gneg',218500000,224100000],['q42.13','gpos50',229900000,233600000],['q43','gneg',236400000,243500000],['q44','gpos25',243500000,248956422]];
+  return { bands:raw.map(r=>({label:r[0],stain:r[1],start:r[2],end:r[3]})), length:248956422, cenStart:121700000, cenEnd:128900000 };
+}
+
+PANES.push({ label:'Chromosome 1 · Cytobands', type:'2d', visible:true, zoneClass:ChromosomeZone, data:chromosomeData(), controls:[], onControl:null });
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 2 — PianoKeyZone
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { PianoKeyZone, pianoData } from './piano-zone.js';
+//-- file: ./piano-zone.js --
+//>> import { HIGHLIGHT, rrPath } from './zoned-node.js';
+//>> export { PianoKeyZone, pianoData };
+
+const BLACK_SET=new Set([1,3,6,8,10]), NOTE_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+function noteOfIndex(data,idx){const midi=data.startMidi+idx;return{midi,black:BLACK_SET.has(midi%12)};}
+function keyLayout(W,H,node,idx){
+  const data=node.data, {midi,black}=noteOfIndex(data,idx);
+  let totalWhites=0; for(let i=0;i<data.count;i++) if(!BLACK_SET.has((data.startMidi+i)%12)) totalWhites++;
+  const margin=20, kbW=W-margin*2, kbH=H-margin*2, wW=kbW/totalWhites, bW=wW*0.58, bH=kbH*0.6, topY=margin, leftX=margin;
+  let whitesBefore=0; for(let i=0;i<idx;i++) if(!BLACK_SET.has((data.startMidi+i)%12)) whitesBefore++;
+  if(!black) return{black,midi,x:leftX+whitesBefore*wW,y:topY,w:wW,h:kbH};
+  return{black,midi,x:leftX+whitesBefore*wW-bW/2,y:topY,w:bW,h:bH};
+}
+class PianoKeyZone {
+  static getCount(data){return data.count;} static getPasses(){return 2;}
+  static getHitOrder(data,count){const b=[],w=[];for(let i=0;i<count;i++){if(BLACK_SET.has((data.startMidi+i)%12))b.push(i);else w.push(i);}return b.concat(w);}
+  static drawBackground(){}
+  static draw2d(ctxMix,node,params){
+    const ctx=ctxMix.ctx,state=ctxMix.state,{W,H}=ctxMix.getHW(ctxMix,node,params);
+    const lay=keyLayout(W,H,node,state.index);
+    if(state.pass===0&&lay.black)return; if(state.pass===1&&!lay.black)return;
+    if(lay.black){let f='#1a1a18';if(state.isSelected)f=HIGHLIGHT;else if(state.isHovered)f='#3a3830';ctx.fillStyle=f;rrPath(ctx,lay.x,lay.y,lay.w,lay.h,0,0,3,3);ctx.fill();ctx.fillStyle=state.isSelected?'#E8B840':'#2a2a28';ctx.fillRect(lay.x+1,lay.y,lay.w-2,lay.h*0.04);}
+    else{let f='#F0EDE4';if(state.isSelected)f=HIGHLIGHT;else if(state.isHovered)f='#D8D0C0';ctx.fillStyle=f;rrPath(ctx,lay.x+0.5,lay.y,lay.w-1,lay.h,0,0,3,3);ctx.fill();ctx.strokeStyle='#B0A890';ctx.lineWidth=0.5;rrPath(ctx,lay.x+0.5,lay.y,lay.w-1,lay.h,0,0,3,3);ctx.stroke();if(NOTE_NAMES[lay.midi%12]==='C'){const oct=Math.floor(lay.midi/12)-1;ctx.fillStyle='#908878';ctx.font='500 10px monospace';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('C'+oct,lay.x+lay.w/2,lay.y+lay.h-6);}}
+  }
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint;if(!pt)return;const{W,H}=ctxMix.getHW(ctxMix,node,params);const lay=keyLayout(W,H,node,ctxMix.state.index);if(pt.x>=lay.x&&pt.x<=lay.x+lay.w&&pt.y>=lay.y&&pt.y<=lay.y+lay.h)ctxMix.hitResult={node,zoneIndex:ctxMix.state.index};}
+  static getZoneInfo(ctxMix,node,params){const{midi,black}=noteOfIndex(node.data,ctxMix.state.index);const oct=Math.floor(midi/12)-1;return{name:NOTE_NAMES[midi%12]+oct,detail:'MIDI '+midi,extra:black?'black key':'white key'};}
+}
+PANES.push({label:'Piano · 3 Octaves',type:'2d',visible:true,zoneClass:PianoKeyZone,data:{startMidi:48,count:36},controls:[],onControl:null});
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 3 — BGAZone
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { BGAZone, bgaData } from './bga-zone.js';
+//-- file: ./bga-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { BGAZone, bgaData };
+
+const ROW_LETTERS='ABCDEFGHJKLMNPRTUVWY', BGA_COLORS={power:'#c0392b',ground:'#2c3e50',signal:'#27ae60',nc:'#3a3828'};
+function pinLayout(W,H,data,idx){const cols=data.cols,row=Math.floor(idx/cols),col=idx%cols,margin=30;const spacing=Math.min((W-margin*2)/cols,(H-margin*2)/data.rows);const gridW=spacing*cols,gridH=spacing*data.rows;const ox=(W-gridW)/2+spacing/2,oy=(H-gridH)/2+spacing/2;return{cx:ox+col*spacing,cy:oy+row*spacing,r:spacing*0.32,row,col,pin:data.pins[idx],name:(ROW_LETTERS[row]||'?')+(col+1),spacing,gridW,gridH,ox:ox-spacing/2,oy:oy-spacing/2};}
+class BGAZone {
+  static getCount(data){return data.rows*data.cols;}
+  static drawBackground(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,0);const pad=lo.spacing*0.45;ctx.fillStyle='#1a1918';ctx.strokeStyle='#333028';ctx.lineWidth=1;if(ctx.roundRect){ctx.beginPath();ctx.roundRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2,6);ctx.fill();ctx.stroke();}else{ctx.fillRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2);ctx.strokeRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2);}ctx.fillStyle='#5a5448';ctx.beginPath();ctx.arc(lo.ox-pad/2,lo.oy-pad/2,3,0,Math.PI*2);ctx.fill();}
+  static draw2d(ctxMix,node,params){const ctx=ctxMix.ctx,state=ctxMix.state,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,state.index);if(!lo.pin)return;let fill=BGA_COLORS[lo.pin.type]||'#555';if(state.isSelected)fill=HIGHLIGHT;else if(state.isHovered)fill='#B0A070';ctx.beginPath();ctx.arc(lo.cx,lo.cy,lo.r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(!state.isSelected){const g=ctx.createRadialGradient(lo.cx-lo.r*0.3,lo.cy-lo.r*0.3,0,lo.cx,lo.cy,lo.r);g.addColorStop(0,'rgba(255,255,255,0.18)');g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.fill();}}
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint;if(!pt)return;const{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,ctxMix.state.index);if(!lo.pin)return;const dx=pt.x-lo.cx,dy=pt.y-lo.cy;if(dx*dx+dy*dy<=lo.r*lo.r)ctxMix.hitResult={node,zoneIndex:ctxMix.state.index};}
+  static getZoneInfo(ctxMix,node,params){const{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,ctxMix.state.index);if(!lo.pin)return{name:lo.name,detail:'no connect'};return{name:lo.name,detail:lo.pin.net||lo.pin.type,extra:lo.pin.type};}
+}
+function bgaData(rows,cols){const pins=[];for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const cr=Math.max(Math.abs(r),Math.abs(r-rows+1)),cc=Math.max(Math.abs(c),Math.abs(c-cols+1));if(cr+cc<=1){pins.push(null);continue;}if(r===0||r===rows-1||c===0||c===cols-1)pins.push({type:(r+c)%2===0?'power':'ground',net:(r+c)%2===0?'VCC':'GND'});else if(r===1||r===rows-2||c===1||c===cols-2)pins.push({type:'ground',net:'GND'});else pins.push({type:'signal',net:'IO_'+(r*cols+c)});}}return{rows,cols,pins};}
+PANES.push({label:'BGA Package · 12×12',type:'2d',visible:true,zoneClass:BGAZone,data:bgaData(12,12),controls:[],onControl:null});
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 4 — Body Heatmap
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { HeatmapZone, heatmapData } from './heatmap-zone.js';
+//-- file: ./heatmap-zone.js --
+//>> export { HeatmapZone, heatmapData };
+
+const BODY_REGIONS=[{name:'Brain',val:0.9,hue:'#e06080'},{name:'Left Lung',val:0.5,hue:'#60a0e0'},{name:'Right Lung',val:0.5,hue:'#60a0e0'},{name:'Heart',val:0.85,hue:'#e04050'},{name:'Liver',val:0.7,hue:'#c07040'},{name:'Stomach',val:0.4,hue:'#a0c060'},{name:'L. Kidney',val:0.3,hue:'#c08060'},{name:'R. Kidney',val:0.3,hue:'#c08060'},{name:'Intestines',val:0.35,hue:'#80a070'}];
+const BODY={silhouette:[[0.5,0.03],[0.55,0.035],[0.58,0.05],[0.59,0.08],[0.585,0.11],[0.57,0.135],[0.55,0.15],[0.54,0.16],[0.545,0.19],[0.614,0.2114],[0.68,0.21],[0.72,0.23],[0.74,0.28],[0.745,0.35],[0.74,0.42],[0.735,0.5],[0.73,0.55],[0.72,0.58],[0.725,0.6],[0.744,0.6257],[0.702,0.6343],[0.682,0.5986],[0.669,0.4714],[0.646,0.29],[0.62,0.3471],[0.6,0.4543],[0.628,0.5486],[0.616,0.63],[0.6,0.7],[0.59,0.73],[0.58,0.78],[0.583,0.8414],[0.572,0.9043],[0.565,0.94],[0.575,0.96],[0.585,0.97],[0.575,0.98],[0.555,0.975],[0.54,0.96],[0.535,0.9],[0.524,0.7929],[0.513,0.7386],[0.51,0.62],[0.49,0.62],[0.479,0.7314],[0.466,0.7886],[0.465,0.9],[0.46,0.96],[0.445,0.975],[0.425,0.98],[0.415,0.97],[0.425,0.96],[0.435,0.94],[0.42,0.9043],[0.415,0.8443],[0.42,0.78],[0.41,0.73],[0.4,0.7],[0.362,0.63],[0.35,0.5386],[0.374,0.45],[0.369,0.3514],[0.344,0.2914],[0.321,0.4614],[0.308,0.6029],[0.294,0.6343],[0.256,0.6214],[0.275,0.6],[0.28,0.58],[0.27,0.55],[0.265,0.5],[0.26,0.42],[0.255,0.35],[0.26,0.28],[0.28,0.23],[0.32,0.21],[0.384,0.21],[0.455,0.19],[0.46,0.16],[0.45,0.15],[0.43,0.135],[0.415,0.11],[0.41,0.08],[0.42,0.05],[0.45,0.035]],organs:[[.50,.082,.055,.038],[.44,.32,.045,.07],[.56,.32,.045,.07],[.505,.35,.025,.028],[.56,.43,.045,.032],[.46,.44,.030,.030],[.455,.49,.016,.022],[.545,.49,.016,.022],[.50,.55,.045,.040]]};
+const ORGAN_LABELS=['Brain','L.Lung','R.Lung','Heart','Liver','Stomach','L.Kid','R.Kid','Intestines'];
+const TEMPLATE_ASPECT=500/700;
+function fillPoly(ctx,pts){ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();ctx.fill();}
+function strokePoly(ctx,pts){ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();ctx.stroke();}
+function scalePts(pts,w,h){return pts.map(p=>[p[0]*w,p[1]*h]);}
+const hmTempCanvas1=document.createElement('canvas'), hmTempCanvas2=document.createElement('canvas');
+const COLORMAPS={inferno:[[0,.001,.001,.016],[.14,.157,.043,.329],[.32,.396,0,.659],[.50,.624,.165,.388],[.68,.831,.283,.259],[.82,.961,.490,.082],[.92,.980,.757,.153],[1,.988,1,.643]]};
+function sampleCmap(name,t){const stops=COLORMAPS[name]||COLORMAPS.inferno;t=Math.max(0,Math.min(1,t));if(t<=stops[0][0])return[stops[0][1]*255,stops[0][2]*255,stops[0][3]*255];const last=stops[stops.length-1];if(t>=last[0])return[last[1]*255,last[2]*255,last[3]*255];for(let i=1;i<stops.length;i++){if(t<=stops[i][0]){const a=stops[i-1],b=stops[i],f=(t-a[0])/(b[0]-a[0]);return[(a[1]+(b[1]-a[1])*f)*255,(a[2]+(b[2]-a[2])*f)*255,(a[3]+(b[3]-a[3])*f)*255];}}return[0,0,0];}
+function buildRegionLookup(mc,w,h){const d=mc.getImageData(0,0,w,h).data;const l=new Uint8Array(w*h);for(let i=0,n=w*h;i<n;i++){const r=d[i*4];if(r>=10)l[i]=Math.round(r/20);}return l;}
+function buildValueField(lookup,rv,w,h,br){hmTempCanvas1.width=w;hmTempCanvas1.height=h;const c1=hmTempCanvas1.getContext('2d');const img=c1.createImageData(w,h);const d=img.data;for(let i=0,n=w*h;i<n;i++){const rid=lookup[i];if(rid>0&&rv[rid-1]!==undefined){const v=Math.round(rv[rid-1]*255);d[i*4]=v;d[i*4+1]=v;d[i*4+2]=v;d[i*4+3]=255;}else d[i*4+3]=255;}c1.putImageData(img,0,0);hmTempCanvas2.width=w;hmTempCanvas2.height=h;const c2=hmTempCanvas2.getContext('2d');c2.clearRect(0,0,w,h);if(br>0)c2.filter=`blur(${br}px)`;c2.drawImage(hmTempCanvas1,0,0);c2.filter='none';const blurred=c2.getImageData(0,0,w,h).data;const field=new Float32Array(w*h);let max=0;for(let i=0,n=w*h;i<n;i++){field[i]=blurred[i*4];if(field[i]>max)max=field[i];}if(max>0)for(let i=0,n=w*h;i<n;i++)field[i]/=max;return field;}
+function colormapField(field,w,h,cn){const img=new ImageData(w,h);const d=img.data;for(let i=0,n=w*h;i<n;i++){const v=field[i];if(v<0.005){d[i*4+3]=0;continue;}const[r,g,b]=sampleCmap(cn,v);d[i*4]=r;d[i*4+1]=g;d[i*4+2]=b;d[i*4+3]=Math.min(255,v*320);}return img;}
+function sampleRandom(field,w,h,count){const pts=[];let att=0;while(pts.length<count&&att<count*40){att++;const x=Math.random()*w,y=Math.random()*h;const ix=~~x,iy=~~y;if(ix<0||ix>=w||iy<0||iy>=h)continue;const v=field[iy*w+ix];if(v>0.03&&Math.random()<v)pts.push({x,y,v});}return pts;}
+function drawSparkles(ctx,pts,size,cn,ga){ctx.save();ctx.globalAlpha=ga;for(const p of pts){const[r,g,b]=sampleCmap(cn,Math.min(1,p.v*1.2+0.15));const a=0.4+p.v*0.6,sz=size*(0.7+p.v*0.6);ctx.globalAlpha=ga*a;ctx.fillStyle=`rgba(${~~r},${~~g},${~~b},0.2)`;ctx.beginPath();ctx.arc(p.x,p.y,sz*2.5,0,Math.PI*2);ctx.fill();ctx.fillStyle=`rgba(255,255,255,${0.6+p.v*0.4})`;ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fill();ctx.fillStyle=`rgba(255,255,255,${0.5+p.v*0.5})`;ctx.beginPath();ctx.arc(p.x,p.y,sz*0.4,0,Math.PI*2);ctx.fill();}ctx.restore();}
+function drawBodyMask(ctx,w,h){ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);for(let i=0;i<BODY.organs.length;i++){const[cx,cy,rx,ry]=BODY.organs[i];ctx.fillStyle=`rgb(${(i+1)*20},0,0)`;ctx.beginPath();ctx.ellipse(cx*w,cy*h,rx*w,ry*h,0,0,Math.PI*2);ctx.fill();}}
+class HeatmapZone {
+  static getCount(data){return BODY_REGIONS.length;}
+  static _ensureCache(node,cw,ch){let c=node._hm;if(c&&c.w===cw&&c.h===ch)return c;const scale=ch/700;if(!c){c=node._hm={maskCanvas:document.createElement('canvas'),baseCanvas:document.createElement('canvas'),overlayCanvas:document.createElement('canvas'),snap:{}};c.maskCtx=c.maskCanvas.getContext('2d',{willReadFrequently:true});c.baseCtx=c.baseCanvas.getContext('2d');c.overlayCtx=c.overlayCanvas.getContext('2d');}c.w=cw;c.h=ch;c.maskCanvas.width=cw;c.maskCanvas.height=ch;c.baseCanvas.width=cw;c.baseCanvas.height=ch;c.overlayCanvas.width=cw;c.overlayCanvas.height=ch;drawBodyMask(c.maskCtx,cw,ch);c.regionLookup=buildRegionLookup(c.maskCtx,cw,ch);c.baseCtx.fillStyle='#10131a';c.baseCtx.fillRect(0,0,cw,ch);const pts=scalePts(BODY.silhouette,cw,ch);c.baseCtx.shadowColor='rgba(0,0,0,0.8)';c.baseCtx.shadowBlur=20/scale;c.baseCtx.shadowOffsetY=10/scale;c.baseCtx.fillStyle='#1c2028';fillPoly(c.baseCtx,pts);c.baseCtx.shadowBlur=0;c.baseCtx.shadowOffsetY=0;c.baseCtx.strokeStyle='#3a4050';c.baseCtx.lineWidth=1.3;strokePoly(c.baseCtx,pts);c.field=null;return c;}
+  static drawBackground(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);if(W<=0||H<=0)return;let cw=Math.max(1,Math.round(Math.min(W,500))),ch=Math.max(1,Math.round(cw/TEMPLATE_ASPECT));if(ch>H){ch=Math.max(1,Math.round(Math.min(H,700)));cw=Math.max(1,Math.round(ch*TEMPLATE_ASPECT));}const ox=(W-cw)/2,oy=(H-ch)/2,scale=ch/700;node._layout={cw,ch,ox,oy,scale};const c=HeatmapZone._ensureCache(node,cw,ch);const snap=c.snap;const rv=node.data.map(d=>d.val);const blur=18*scale,cmap='inferno',sc=500;const rm=snap.regionVals&&rv.every((v,i)=>v===snap.regionVals[i]);if(!c.field||blur!==snap.blur||!rm){c.field=buildValueField(c.regionLookup,rv,cw,ch,blur);c.heatmapImg=colormapField(c.field,cw,ch,cmap);c.overlayCtx.clearRect(0,0,cw,ch);c.overlayCtx.putImageData(c.heatmapImg,0,0);c.sparkles=sampleRandom(c.field,cw,ch,sc);snap.blur=blur;snap.regionVals=rv;}ctx.save();ctx.translate(ox,oy);ctx.drawImage(c.baseCanvas,0,0);ctx.globalAlpha=0.7;ctx.drawImage(c.overlayCanvas,0,0);if(c.sparkles)drawSparkles(ctx,c.sparkles,1.5*scale,cmap,1.0);ctx.restore();}
+  static draw2d(ctxMix,node,params){const ctx=ctxMix.ctx,state=ctxMix.state,lo=node._layout;if(!lo)return;ctx.save();ctx.translate(lo.ox,lo.oy);const organ=BODY.organs[state.index],data=node.data[state.index];const[cx,cy,rx,ry]=organ;let fill='transparent',stroke='#2a3545',textCol='#3a4050';if(state.isSelected){fill=data.hue+'80';stroke='#fff';textCol='#fff';}else if(state.isHovered){fill=data.hue+'40';stroke='#888';textCol='#ddd';}ctx.beginPath();ctx.ellipse(cx*lo.cw,cy*lo.ch,rx*lo.cw,ry*lo.ch,0,0,Math.PI*2);if(state.isSelected||state.isHovered){ctx.fillStyle=fill;ctx.fill();}ctx.strokeStyle=stroke;ctx.lineWidth=1.5*lo.scale;ctx.stroke();ctx.font=`500 ${Math.max(8,lo.cw*0.025)}px monospace`;ctx.fillStyle=textCol;ctx.textAlign='center';ctx.fillText(ORGAN_LABELS[state.index],cx*lo.cw,cy*lo.ch+4);ctx.restore();}
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint,state=ctxMix.state,lo=node._layout;if(!pt||!lo)return;const organ=BODY.organs[state.index];const[cx,cy,rx,ry]=organ;const dx=(pt.x-lo.ox)-cx*lo.cw,dy=(pt.y-lo.oy)-cy*lo.ch;const nx=dx/(rx*lo.cw),ny=dy/(ry*lo.ch);if(nx*nx+ny*ny<=1.2)ctxMix.hitResult={node,zoneIndex:state.index};}
+  static getZoneInfo(ctxMix,node,params){const data=node.data[ctxMix.state.index];return{name:data.name,detail:'Base Health: '+Math.round(data.val*100)+'%',extra:'Region '+(ctxMix.state.index+1)};}
+}
+PANES.push({label:'Body Heatmap · 9 Organs',type:'2d',visible:true,zoneClass:HeatmapZone,data:JSON.parse(JSON.stringify(BODY_REGIONS)),controls:[],onControl:null});
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 5 — MouseZone
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { MouseZone, mouseData } from './mouse-zone.js';
+//-- file: ./mouse-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { MouseZone, mouseData };
+function buildMouseBodyPath(ctx,mw,mh){const pts=[[mw*0.3,0],[mw*0.7,0],[mw*0.9,mh*0.2],[mw,mh*0.6],[mw*0.8,mh],[mw*0.2,mh],[0,mh*0.6],[mw*0.1,mh*0.2]];ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length-1;i++){const xc=(pts[i][0]+pts[i+1][0])/2,yc=(pts[i][1]+pts[i+1][1])/2;ctx.quadraticCurveTo(pts[i][0],pts[i][1],xc,yc);}ctx.quadraticCurveTo(pts[pts.length-1][0],pts[pts.length-1][1],pts[0][0],pts[0][1]);ctx.closePath();}
+function buildZonePath(ctx,index,mw,mh,scale){ctx.beginPath();if(index===0){const pts=[[mw*0.05,mh*0.05],[mw*0.48,mh*0.02],[mw*0.45,mh*0.4],[mw*0.05,mh*0.4]];ctx.moveTo(pts[0][0],pts[0][1]);ctx.quadraticCurveTo(pts[1][0],pts[1][1]-(mh*0.05),pts[1][0],pts[1][1]);ctx.lineTo(pts[2][0],pts[2][1]);ctx.quadraticCurveTo(pts[3][0],pts[3][1]+(mh*0.02),pts[3][0],pts[3][1]);}else if(index===1){const pts=[[mw*0.52,mh*0.02],[mw*0.95,mh*0.05],[mw*0.95,mh*0.4],[mw*0.55,mh*0.4]];ctx.moveTo(pts[0][0],pts[0][1]);ctx.quadraticCurveTo(pts[1][0],pts[1][1]-(mh*0.05),pts[1][0],pts[1][1]);ctx.lineTo(pts[2][0],pts[2][1]);ctx.quadraticCurveTo(pts[3][0],pts[3][1]+(mh*0.02),pts[3][0],pts[3][1]);}else if(index===2){if(ctx.roundRect)ctx.roundRect(mw*0.47,mh*0.1,mw*0.06,mh*0.15,5*scale);else ctx.rect(mw*0.47,mh*0.1,mw*0.06,mh*0.15);}else if(index===3){if(ctx.roundRect)ctx.roundRect(mw*0.48,mh*0.28,mw*0.04,mh*0.06,3*scale);else ctx.rect(mw*0.48,mh*0.28,mw*0.04,mh*0.06);}else if(index===4){ctx.moveTo(0,mh*0.4);ctx.lineTo(mw*0.1,mh*0.4);ctx.lineTo(mw*0.08,mh*0.55);ctx.lineTo(-mw*0.02,mh*0.55);}else if(index===5){ctx.moveTo(-mw*0.02,mh*0.57);ctx.lineTo(mw*0.08,mh*0.57);ctx.lineTo(mw*0.06,mh*0.7);ctx.lineTo(-mw*0.04,mh*0.68);}ctx.closePath();}
+class MouseZone {
+  static getCount(data){return data.length;}
+  static drawBackground(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);const pad=30,mh=Math.max(10,H-pad*2),scale=mh/280,mw=160*scale;const ox=(W-mw)/2,oy=(H-mh)/2;node._layout={mw,mh,ox,oy,scale};ctx.save();ctx.translate(ox,oy);ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=30*scale;ctx.shadowOffsetY=10*scale;buildMouseBodyPath(ctx,mw,mh);const bodyGrad=ctx.createLinearGradient(0,0,mw,mh);bodyGrad.addColorStop(0,'#2d3342');bodyGrad.addColorStop(1,'#111317');ctx.fillStyle=bodyGrad;ctx.fill();ctx.shadowBlur=0;ctx.shadowOffsetY=0;ctx.strokeStyle='#3a3830';ctx.lineWidth=1.5;ctx.stroke();ctx.fillStyle='#0a0b0e';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(mw*0.45,mh*0.05,mw*0.1,mh*0.35,10*scale);else ctx.rect(mw*0.45,mh*0.05,mw*0.1,mh*0.35);ctx.fill();ctx.fillStyle='rgba(232,184,64,0.1)';ctx.beginPath();ctx.arc(mw*0.5,mh*0.75,mw*0.15,0,Math.PI*2);ctx.fill();ctx.restore();}
+  static draw2d(ctxMix,node,params){const ctx=ctxMix.ctx,state=ctxMix.state,lo=node._layout;if(!lo)return;ctx.save();ctx.translate(lo.ox,lo.oy);buildZonePath(ctx,state.index,lo.mw,lo.mh,lo.scale);const isActive=state.isSelected||state.isHovered;if(state.index===0||state.index===1){const gradient=ctx.createLinearGradient(0,0,0,lo.mh*0.4);if(state.isSelected){gradient.addColorStop(0,HIGHLIGHT);gradient.addColorStop(1,'#806020');}else if(state.isHovered){gradient.addColorStop(0,'#B0A070');gradient.addColorStop(1,'#504838');}else{gradient.addColorStop(0,'#2d3342');gradient.addColorStop(1,'#1e232d');}ctx.fillStyle=gradient;ctx.fill();ctx.strokeStyle=isActive?'#fff':'rgba(255,255,255,0.15)';ctx.lineWidth=1.5;ctx.stroke();}else if(state.index===2||state.index===3){ctx.fillStyle=state.isSelected?HIGHLIGHT:state.isHovered?'#B0A070':(state.index===2?'#334155':'#475569');ctx.fill();if(state.index===2){ctx.fillStyle='#1e293b';for(let i=0;i<4;i++)ctx.fillRect(lo.mw*0.47,lo.mh*(0.12+i*0.03),lo.mw*0.06,lo.mh*0.01);}}else{ctx.fillStyle=state.isSelected?HIGHLIGHT:state.isHovered?'#B0A070':'#2a2f3a';ctx.fill();}ctx.restore();}
+  static drawOverlay(ctxMix,node,params){const ctx=ctxMix.ctx,lo=node._layout;if(!lo)return;ctx.save();ctx.translate(lo.ox,lo.oy);const centers=[[lo.mw*0.25,lo.mh*0.22],[lo.mw*0.75,lo.mh*0.22],[lo.mw*0.50,lo.mh*0.175],[lo.mw*0.50,lo.mh*0.31],[lo.mw*0.04,lo.mh*0.47],[lo.mw*0.02,lo.mh*0.63]];for(let i=0;i<centers.length;i++){ctx.beginPath();ctx.arc(centers[i][0],centers[i][1],4,0,Math.PI*2);ctx.fillStyle='rgba(232,50,50,0.8)';ctx.fill();ctx.strokeStyle='#ffffff';ctx.lineWidth=1.5;ctx.stroke();}ctx.restore();}
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint,state=ctxMix.state,lo=node._layout;if(!pt||!lo)return;const ctx=ctxMix.ctx,tf=ctx.getTransform(),dprX=tf.a,dprY=tf.d;ctx.save();ctx.translate(lo.ox,lo.oy);buildZonePath(ctx,state.index,lo.mw,lo.mh,lo.scale);if(ctx.isPointInPath(pt.x*dprX,pt.y*dprY))ctxMix.hitResult={node,zoneIndex:state.index};ctx.restore();}
+  static getZoneInfo(ctxMix,node,params){const data=node.data[ctxMix.state.index];return{name:data.name,detail:data.value,extra:data.type};}
+}
+PANES.push({label:'Mouse Bindings · 6 Zones',type:'2d',visible:true,zoneClass:MouseZone,data:[{name:'Left Click',value:'Primary Fire',type:'Main Button'},{name:'Right Click',value:'Aim Down Sights',type:'Main Button'},{name:'Scroll Wheel',value:'Ping Location',type:'Wheel Button'},{name:'DPI Cycle',value:'Cycle Sensitivity',type:'System Button'},{name:'Side Button 1',value:'Melee',type:'Side Button'},{name:'Side Button 2',value:'Throw Grenade',type:'Side Button'}],controls:[],onControl:null});
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  ZONE 6 — TreeRingZone
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { TreeRingZone, treeRingData } from './tree-ring-zone.js';
+//-- file: ./tree-ring-zone.js --
+//>> import { HIGHLIGHT } from './zoned-node.js';
+//>> export { TreeRingZone, treeRingData };
+function ringLayout(W,H,data,idx){const ring=data.rings[idx],cx=W/2,cy=H/2,maxR=Math.max(0.1,Math.min(W,H)/2-16),scale=maxR/data.totalR;return{cx,cy,innerR:ring.innerR*scale,outerR:ring.outerR*scale,ring,maxR,scale};}
+class TreeRingZone {
+  static getCount(data){return data.rings.length;}
+  static getHitOrder(data,count){const o=[];for(let i=count-1;i>=0;i--)o.push(i);return o;}
+  static drawBackground(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=ringLayout(W,H,node.data,0);ctx.fillStyle='#3a2818';ctx.beginPath();ctx.arc(lo.cx,lo.cy,lo.maxR+4,0,Math.PI*2);ctx.fill();}
+  static draw2d(ctxMix,node,params){const ctx=ctxMix.ctx,state=ctxMix.state,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=ringLayout(W,H,node.data,state.index);const L=lo.ring.lightness||0.5;let earlyCol,lateCol;if(state.isSelected){earlyCol='#E8B840';lateCol='#B08020';}else if(state.isHovered){earlyCol='#907850';lateCol='#685838';}else{earlyCol=`rgb(${140+L*80|0},${110+L*65|0},${60+L*40|0})`;lateCol=`rgb(${90+L*50|0},${65+L*35|0},${30+L*25|0})`;}ctx.beginPath();ctx.arc(lo.cx,lo.cy,lo.outerR,0,Math.PI*2);ctx.arc(lo.cx,lo.cy,lo.innerR,0,Math.PI*2,true);ctx.closePath();if(lo.outerR-lo.innerR>1){const g=ctx.createRadialGradient(lo.cx,lo.cy,lo.innerR,lo.cx,lo.cy,lo.outerR);g.addColorStop(0,earlyCol);g.addColorStop(1,lateCol);ctx.fillStyle=g;}else ctx.fillStyle=lateCol;ctx.fill();}
+  static drawOverlay(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=ringLayout(W,H,node.data,0);const pithR=(node.data.rings[0]?.innerR||3)*lo.maxR/node.data.totalR;ctx.fillStyle='#6a4828';ctx.beginPath();ctx.arc(lo.cx,lo.cy,pithR,0,Math.PI*2);ctx.fill();}
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint;if(!pt)return;const{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=ringLayout(W,H,node.data,ctxMix.state.index);const dx=pt.x-lo.cx,dy=pt.y-lo.cy,dist=Math.sqrt(dx*dx+dy*dy);if(dist>=lo.innerR&&dist<=lo.outerR)ctxMix.hitResult={node,zoneIndex:ctxMix.state.index};}
+  static getZoneInfo(ctxMix,node,params){const ring=node.data.rings[ctxMix.state.index];return{name:'Year '+ring.year,detail:'Ring '+(ctxMix.state.index+1)+' · '+ring.width.toFixed(1)+' mm',extra:ring.note||''};}
+}
+function treeRingData(count){const rings=[];let r=5;for(let i=0;i<count;i++){const base=2.5+Math.sin(i*0.7)*1.2+Math.cos(i*1.3)*0.8;const width=Math.max(0.8,base+(((i*137)%17)/17-0.5)*2);const lightness=0.3+(((i*53)%23)/23)*0.5;const year=2026-count+i;let note='';if(width<1.5)note='drought year';else if(width>4)note='strong growth';rings.push({innerR:r,outerR:r+width,width,year,lightness,note});r+=width;}return{rings,totalR:r};}
+PANES.push({label:'Tree Rings · 35 Years',type:'2d',visible:true,zoneClass:TreeRingZone,data:treeRingData(35),controls:[],onControl:null});
+//-- endfile --
+
+
+// ═══════════════════════════════════════════════════════════════
+//  3D ZONES — conditionally loaded (require Three.js CDN)
+//  Controls and onChange are set on the PANE after init.
+// ═══════════════════════════════════════════════════════════════
+
+try {
+  const THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+
+  function make3DPane(container) {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Add a ResizeObserver to handle initial layout sizing and container changes
+    new ResizeObserver(() => {
+      if (container.clientWidth > 0 && container.clientHeight > 0) {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      }
+    }).observe(container);
+
+    return { scene, camera, renderer, controls, container };
+  }
+
+  // ── PlanetNode ──
+//<< import { PlanetNode } from './planet-node.js';
+//-- file: ./planet-node.js --
+//>> export { PlanetNode };
+  class PlanetNode {
+    static rebuildParams=['coreRadius']; static updateParams=['rotation','wedgeStart','wedgeAngle','planeOpacity','coreOpacity'];
+    build(c,node,p){if(this.group)return;const cfg=node?.value||{};this._crustRadius=cfg.crustRadius??1;this._coreRadius=cfg.coreRadius??0.6;this.group=new THREE.Group();this.clipPlane1=new THREE.Plane(new THREE.Vector3(1,0,0),0);this.clipPlane2=new THREE.Plane(new THREE.Vector3(0,0,1),0);this.clippingPlanes=[this.clipPlane1,this.clipPlane2];const tl=new THREE.TextureLoader();const et=tl.load(cfg.earthTexture??'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');this.crustMat=new THREE.MeshPhongMaterial({map:et,clippingPlanes:this.clippingPlanes,clipIntersection:true,side:THREE.DoubleSide});this.coreMat=new THREE.MeshPhongMaterial({color:0xff6600,emissive:0x441100,clippingPlanes:this.clippingPlanes,clipIntersection:true,side:THREE.DoubleSide});this.gridMat=new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.2,clippingPlanes:this.clippingPlanes,clipIntersection:true});this.planeMat1=new THREE.MeshPhongMaterial({side:THREE.DoubleSide,transparent:true,opacity:0.9});this.planeMat2=new THREE.MeshPhongMaterial({side:THREE.DoubleSide,transparent:true,opacity:0.9});const r=this._crustRadius;this.crust=new THREE.Mesh(new THREE.SphereGeometry(r,64,64),this.crustMat);this.core=new THREE.Mesh(new THREE.SphereGeometry(this._coreRadius,64,64),this.coreMat);this.grid=new THREE.Mesh(new THREE.SphereGeometry(r*1.005,32,32),this.gridMat);const pg=new THREE.CircleGeometry(r,64,-Math.PI/2,Math.PI);this.plane1=new THREE.Mesh(pg,this.planeMat1);this.plane1.rotation.y=Math.PI/2;this.plane2=new THREE.Mesh(pg,this.planeMat2);this.plane2.rotation.z=Math.PI;this.group.add(this.crust,this.core,this.grid,this.plane1,this.plane2);this._updateRadialTexture(this._coreRadius,1.0);}
+    update(c,node,params){if(!this.group)return;const rotRad=((params.rotation??0)*Math.PI)/180;const radStart=-((params.wedgeStart??0)*Math.PI)/180;const rad1=radStart-rotRad;this.clipPlane1.normal.set(Math.cos(rad1),0,Math.sin(rad1));this.plane1.rotation.y=-radStart+Math.PI/2;const radEnd=radStart+Math.PI-((params.wedgeAngle??90)*Math.PI)/180;const rad2=radEnd-rotRad;this.clipPlane2.normal.set(Math.cos(rad2),0,Math.sin(rad2));this.plane2.rotation.y=-radEnd+Math.PI/2;const cr=params.coreRadius??this._coreRadius;if(cr!==this._coreRadius){this._coreRadius=cr;this.group.remove(this.core);this.core.geometry.dispose();this.core.geometry=new THREE.SphereGeometry(cr,64,64);this.group.add(this.core);}if(params.planeOpacity!==undefined){this.planeMat1.opacity=params.planeOpacity;this.planeMat2.opacity=params.planeOpacity;}this._updateRadialTexture(this._coreRadius,params.coreOpacity??1.0);}
+    _updateRadialTexture(coreRadius,coreOpacity){if(this.radialTexture)this.radialTexture.dispose();const cv=document.createElement('canvas');const sz=512;cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');const cx=sz/2,cy=sz/2,maxR=sz/2;ctx.clearRect(0,0,sz,sz);const mg=ctx.createRadialGradient(cx,cy,0,cx,cy,maxR);mg.addColorStop(0,'#d4a373');mg.addColorStop(0.5,'#8b6f47');mg.addColorStop(1,'#654321');ctx.fillStyle=mg;ctx.beginPath();ctx.arc(cx,cy,maxR,0,Math.PI*2);ctx.fill();const cR=maxR*coreRadius;if(coreOpacity<1){ctx.globalCompositeOperation='destination-out';ctx.fillStyle=`rgba(0,0,0,${1-coreOpacity})`;ctx.beginPath();ctx.arc(cx,cy,cR,0,Math.PI*2);ctx.fill();ctx.globalCompositeOperation='source-over';}if(coreOpacity>0){ctx.globalAlpha=coreOpacity;const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,cR);cg.addColorStop(0,'#ffff00');cg.addColorStop(0.3,'#ff8800');cg.addColorStop(0.7,'#ff4500');cg.addColorStop(1,'#cc3300');ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx,cy,cR,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;for(let r=0.2;r<=1;r+=0.2){ctx.beginPath();ctx.arc(cx,cy,maxR*r,0,Math.PI*2);ctx.stroke();}this.radialTexture=new THREE.CanvasTexture(cv);this.radialTexture.needsUpdate=true;this.planeMat1.map=this.radialTexture;this.planeMat1.needsUpdate=true;this.planeMat2.map=this.radialTexture;this.planeMat2.needsUpdate=true;}
+  }
+
+  // ── PhyloNode ──
+//-- endfile --
+
+//<< import { PhyloNode } from './phylo-node.js';
+//-- file: ./phylo-node.js --
+//>> export { PhyloNode };
+  class PhyloNode {
+    build(c,n,params){if(this.group)return;this.group=new THREE.Group();this.MAX_INSTANCES=200000;this.dummy=new THREE.Object3D();this.leafDummy=new THREE.Object3D();const g=new THREE.PlaneGeometry(1,1);const cv=document.createElement('canvas');cv.width=64;cv.height=64;const gc=cv.getContext('2d');const gr=gc.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,255,255,1)');gr.addColorStop(0.2,'rgba(255,255,255,0.8)');gr.addColorStop(0.5,'rgba(255,255,255,0.2)');gr.addColorStop(1,'rgba(255,255,255,0)');gc.fillStyle=gr;gc.fillRect(0,0,64,64);const m=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});this.instancedMesh=new THREE.InstancedMesh(g,m,this.MAX_INSTANCES);this.group.add(this.instancedMesh);this.update(c,n,params);}
+    update(c,n,params){if(!this.group||!params||!params.levels)return;let sd=[];const rm=new THREE.Matrix4();const rec=(depth,pm,ch)=>{const lp=params.levels[depth];for(let n=1;n<=lp.count;n++){let t=lp.count>1?(n-1)/(lp.count-1):0;let theta=n*(lp.angle*Math.PI/180);let rl=lp.initialRadius*(1-t)+lp.finalRadius*t;let mx=Math.max(lp.initialRadius,lp.finalRadius);let ref=mx>0?mx:5;let r=rl+(Math.sin(t*Math.PI)*lp.bulge*(ref*0.5));r=Math.max(0,r);this.dummy.position.set(r*Math.cos(theta),r*Math.sin(theta),t*lp.height);this.dummy.rotation.set(0,0,theta);this.dummy.rotateY(lp.tilt*Math.PI/180);this.dummy.updateMatrix();const wm=new THREE.Matrix4().multiplyMatrices(pm,this.dummy.matrix);let bh=ch+(lp.hueShift*t);bh=((bh%1)+1)%1;if(depth<params.levels.length-1)rec(depth+1,wm,bh);else sd.push({matrix:wm.clone(),color:new THREE.Color().setHSL(bh,0.85,0.5)});}};rec(0,rm,params.baseHue);const ic=Math.min(sd.length,this.MAX_INSTANCES);this.instancedMesh.count=ic;for(let i=0;i<ic;i++){this.leafDummy.position.setFromMatrixPosition(sd[i].matrix);this.leafDummy.quaternion.setFromRotationMatrix(sd[i].matrix);this.leafDummy.scale.set(params.splatSize*params.splatLength,params.splatSize*params.splatWidth,1);this.leafDummy.updateMatrix();this.instancedMesh.setMatrixAt(i,this.leafDummy.matrix);this.instancedMesh.setColorAt(i,sd[i].color);}this.instancedMesh.instanceMatrix.needsUpdate=true;if(this.instancedMesh.instanceColor)this.instancedMesh.instanceColor.needsUpdate=true;}
+  }
+
+  // ── GroundPlaneNode ──
+//-- endfile --
+
+//<< import { GroundPlaneNode } from './ground-plane-node.js';
+//-- file: ./ground-plane-node.js --
+//>> export { GroundPlaneNode };
+  class GroundPlaneNode {
+    static rebuildParams=['gridSize','gridDivisions']; static updateParams=['gridY','gridOpacity'];
+    build(c,node,p){if(this.group)return;const cfg=node?.value||{};this.group=new THREE.Group();const g=cfg.grid||{};this._gridSize=g.size??20;this._gridDivisions=g.divisions??20;this._gridColor1=g.color1??0x444444;this._gridColor2=g.color2??0x333333;this._gridY=g.y??-4;this._buildGrid();if(cfg.axes){const a=cfg.axes;this.axesHelper=new THREE.AxesHelper(a.size??2);if(a.position)this.axesHelper.position.set(...a.position);this.group.add(this.axesHelper);}}
+    update(c,node,params){const sz=params.gridSize??this._gridSize,dv=Math.round(params.gridDivisions??this._gridDivisions);if(sz!==this._gridSize||dv!==this._gridDivisions){this._gridSize=sz;this._gridDivisions=dv;this._removeGrid();this._buildGrid();}const y=params.gridY??this._gridY;if(y!==this._gridY){this._gridY=y;if(this.gridHelper)this.gridHelper.position.y=y;}if(params.gridOpacity!==undefined&&this.gridHelper){this.gridHelper.material.opacity=params.gridOpacity;this.gridHelper.material.transparent=params.gridOpacity<1;this.gridHelper.material.needsUpdate=true;}}
+    _buildGrid(){this.gridHelper=new THREE.GridHelper(this._gridSize,this._gridDivisions,this._gridColor1,this._gridColor2);this.gridHelper.position.y=this._gridY;this.gridHelper.material.transparent=true;this.group.add(this.gridHelper);}
+    _removeGrid(){if(this.gridHelper){this.gridHelper.geometry.dispose();this.gridHelper.material.dispose();this.group.remove(this.gridHelper);this.gridHelper=null;}}
+  }
+
+
+// ── Harness: CPK atom data (minimal) ─────────────────────────────
+class SceneNode {}
+const sceneRegistry = { registerNodeClass() {} };
+
+const CPK_ATOM_DATA = {
+  'C':       { color: 0x909090, radius: 1.70, atomicNumber:  6 },
+  'N':       { color: 0x3050F8, radius: 1.55, atomicNumber:  7 },
+  'O':       { color: 0xFF0D0D, radius: 1.52, atomicNumber:  8 },
+  'S':       { color: 0xFFFF30, radius: 1.80, atomicNumber: 16 },
+  'H':       { color: 0xFFFFFF, radius: 1.20, atomicNumber:  1 },
+  'DEFAULT': { color: 0xFF1493, radius: 1.50, atomicNumber:  0 },
+};
+
+// ── Harness: BondRenderer dependencies ───────────────────────────
+
+const BOND_BLACK     = 0x000000;
+const BOND_WHITE     = 0xFFFFFF;
+const BOND_RING_PINK = 0xFF1493;
+const NEUTRAL_CHAIN_COLOR = 0x908882;
+
+function getResidueColor(atom, params, chainColor, _THREE) {
+  return new THREE.Color(chainColor);
+}
+
+// ── BondRenderer nugget ──────────────────────────────────────────
+
+//<< import { BondRenderer } from '../3d-support/molam-objects.js';
+//-- file: ../3d-support/molam-objects.js --
+//>> import * as THREE from 'three';
+//>> import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
+//>> export { BondRenderer };
+
+class BondRenderer {
+  constructor(THREE, sceneManager) {
+    this.THREE = THREE;
+    this.sceneManager = sceneManager;
+    this.bonds = [];
+    this.bondMesh = null;
+    this.atoms = [];
+    this.atomRangeStart = 0;
+    this.atomRangeEnd = 1;
+    this.totalAtomCount = 0;
+    this.opacity = 1;
+    this.radius = 0.1;
+    this.halfColor = 0.5;
+    this.bondLightness = 0;
+    this.ringPink = 0;
+    this.modelScale = 1;
+    this.sidechainFade = 0;
+    this.referenceAxis = null;
+    this.residueTangents = new Map();
+
+    // Reusable objects for transforms
+    this._matrix = null;
+    this._position = null;
+    this._quaternion = null;
+    this._scale = null;
+    this._yAxis = null;
+    this._hiddenMatrix = null;
+  }
+
+  _initTransformObjects() {
+    const THREE = this.THREE;
+    if (!this._matrix) {
+      this._matrix = new THREE.Matrix4();
+      this._position = new THREE.Vector3();
+      this._quaternion = new THREE.Quaternion();
+      this._scale = new THREE.Vector3();
+      this._yAxis = new THREE.Vector3(0, 1, 0);
+
+      const dummy = new THREE.Object3D();
+      dummy.scale.set(0, 0, 0);
+      dummy.updateMatrix();
+      this._hiddenMatrix = dummy.matrix.clone();
+    }
+  }
+
+  setFade(fade, referenceAxis) {
+    this.sidechainFade = fade || 0;
+    this.referenceAxis = referenceAxis;
+    this.updateVisibility();
+  }
+
+  detectAndSetBonds(atoms, scale, chainColors) {
+    this.chainColors = chainColors || new Map();
+    this.clear();
+    this.atoms = atoms;
+    this.totalAtomCount = atoms.length;
+    this.modelScale = scale;
+
+    if (atoms.length === 0) return;
+
+    this.residueTangents = computeResidueTangents(atoms);//, this.THREE);
+
+    this.bonds = this.detectBonds(atoms);
+    console.log(`Detected ${this.bonds.length} bonds`);
+
+    if (this.bonds.length > 0) {
+      this.detectRings();
+      const ringBondCount = this.bonds.filter(b => b.isRing).length;
+      console.log(`Detected ${ringBondCount} ring bonds`);
+      this.createBondGeometry();
+    }
+  }
+
+  detectBonds(atoms) {
+    const BOND_CUTOFF = 1.9;
+    const CELL_SIZE = 2.0;
+    const bonds = [];
+    const grid = new Map();
+    const scaledCellSize = CELL_SIZE * this.modelScale;
+
+    atoms.forEach((atom, index) => {
+      const cellX = Math.floor(atom.x / scaledCellSize);
+      const cellY = Math.floor(atom.y / scaledCellSize);
+      const cellZ = Math.floor(atom.z / scaledCellSize);
+      const key = `${cellX},${cellY},${cellZ}`;
+
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(index);
+    });
+
+    const scaledCutoffSq = Math.pow(BOND_CUTOFF * this.modelScale, 2);
+    const checked = new Set();
+
+    atoms.forEach((atom1, i) => {
+      const cellX = Math.floor(atom1.x / scaledCellSize);
+      const cellY = Math.floor(atom1.y / scaledCellSize);
+      const cellZ = Math.floor(atom1.z / scaledCellSize);
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const neighbors = grid.get(`${cellX + dx},${cellY + dy},${cellZ + dz}`);
+            if (!neighbors) continue;
+
+            for (const j of neighbors) {
+              if (j <= i) continue;
+
+              const pairKey = `${i},${j}`;
+              if (checked.has(pairKey)) continue;
+              checked.add(pairKey);
+
+              const atom2 = atoms[j];
+              if (atom1.element === 'H' || atom2.element === 'H') continue;
+
+              const dx = atom2.x - atom1.x;
+              const dy = atom2.y - atom1.y;
+              const dz = atom2.z - atom1.z;
+              const distSq = dx * dx + dy * dy + dz * dz;
+
+              if (distSq <= scaledCutoffSq && distSq > 0.01) {
+                bonds.push({
+                  atomIndex1: i,
+                  atomIndex2: j,
+                  element1: atom1.element || 'C',
+                  element2: atom2.element || 'C'
+                });
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return bonds;
+  }
+
+  detectRings() {
+    const adjacency = new Map();
+
+    this.bonds.forEach((bond, bondIndex) => {
+      const a1 = bond.atomIndex1;
+      const a2 = bond.atomIndex2;
+
+      if (!adjacency.has(a1)) adjacency.set(a1, []);
+      if (!adjacency.has(a2)) adjacency.set(a2, []);
+
+      adjacency.get(a1).push({ neighbor: a2, bondIndex });
+      adjacency.get(a2).push({ neighbor: a1, bondIndex });
+    });
+
+    const ringBonds = new Set();
+
+    this.bonds.forEach((bond, bondIndex) => {
+      const start = bond.atomIndex1;
+      const end = bond.atomIndex2;
+      const queue = [{ atom: end, path: [end], bondPath: [] }];
+      const visited = new Set([end]);
+
+      while (queue.length > 0) {
+        const { atom, path, bondPath } = queue.shift();
+
+        if (atom === start && path.length >= 2) {
+          if (path.length === 5 || path.length === 6) {
+            ringBonds.add(bondIndex);
+            bondPath.forEach(bi => ringBonds.add(bi));
+          }
+          break;
+        }
+
+        if (path.length > 6) continue;
+
+        for (const { neighbor, bondIndex: bi } of (adjacency.get(atom) || [])) {
+          if (bi === bondIndex || visited.has(neighbor)) continue;
+          visited.add(neighbor);
+          queue.push({ atom: neighbor, path: [...path, neighbor], bondPath: [...bondPath, bi] });
+        }
+      }
+    });
+
+    this.bonds.forEach((bond, index) => { bond.isRing = ringBonds.has(index); });
+  }
+
+  createBondGeometry() {
+    if (this.bonds.length === 0) return;
+
+    const THREE = this.THREE;
+    const instanceCount = this.bonds.length * 2;
+
+    const geometry = new THREE.CylinderGeometry(
+      this.radius * this.modelScale * 0.1,
+      this.radius * this.modelScale * 0.1,
+      1.0, 8, 1, true
+    );
+
+    const material = new THREE.MeshPhongMaterial({
+      shininess: 30,
+      transparent: this.opacity < 1,
+      opacity: this.opacity,
+      side: THREE.FrontSide
+    });
+
+    this.bondMesh = new THREE.InstancedMesh(geometry, material, instanceCount);
+    this.bondMesh.frustumCulled = false;
+    this.bondMesh.userData.bonds = this.bonds;
+
+    this._initTransformObjects();
+    this.updateAllBondInstances();
+  }
+
+  bondColor(bond, baseColor, atom) {
+    const THREE = this.THREE;
+    let color = new THREE.Color(baseColor);
+
+    if (this.params && this.params.bondColorByAminoAcid > 0 && atom) {
+      const ribbonColor = getResidueColor(atom, this.params, NEUTRAL_CHAIN_COLOR, THREE);
+      color.lerp(ribbonColor, this.params.bondColorByAminoAcid);
+    }
+
+    let lightness = this.params?.bondLightness ?? 0.5;
+    if( lightness < 0.5 )
+      color.lerp(new THREE.Color(BOND_BLACK), 1 - lightness * 2);
+    else
+      color.lerp(new THREE.Color(BOND_WHITE), lightness * 2 -1);
+
+    let ringPink = this.params?.bondRingPink ?? 0;
+    if (bond.isRing && ringPink > 0) {
+      color.lerp(new THREE.Color(BOND_RING_PINK), ringPink);
+    }
+
+    return color;
+  }
+
+  // Core method: set transform and color for a single bond (two segments)
+  setBondInstance(bondIndex, visible = true) {
+    const THREE = this.THREE;
+    const bond = this.bonds[bondIndex];
+    const atom1 = this.atoms[bond.atomIndex1];
+    const atom2 = this.atoms[bond.atomIndex2];
+
+    let dotVisible = true;
+    if (this.referenceAxis && this.sidechainFade > 0) {
+      const t1 = this.residueTangents.get((atom1.chainID || '') + '_' + atom1.resSeq);
+      const t2 = this.residueTangents.get((atom2.chainID || '') + '_' + atom2.resSeq);
+
+      let dot = 1.0;
+      if (t1 && t2) {
+        dot = (Math.abs(t1.dot(this.referenceAxis)) + Math.abs(t2.dot(this.referenceAxis))) / 2;
+      } else if (t1) {
+        dot = Math.abs(t1.dot(this.referenceAxis));
+      } else if (t2) {
+        dot = Math.abs(t2.dot(this.referenceAxis));
+      }
+      dotVisible = dot >= this.sidechainFade;
+    }
+
+    if (!visible || !dotVisible) {
+      this.bondMesh.setMatrixAt(bondIndex * 2, this._hiddenMatrix);
+      this.bondMesh.setMatrixAt(bondIndex * 2 + 1, this._hiddenMatrix);
+      return;
+    }
+
+    const start = new THREE.Vector3(atom1.x, atom1.y, atom1.z);
+    const end = new THREE.Vector3(atom2.x, atom2.y, atom2.z);
+    const direction = new THREE.Vector3().subVectors(end, start).normalize();
+
+    this._quaternion.setFromUnitVectors(this._yAxis, direction);
+
+    const data1 = CPK_ATOM_DATA[bond.element1.toUpperCase()] || CPK_ATOM_DATA['DEFAULT'];
+    const data2 = CPK_ATOM_DATA[bond.element2.toUpperCase()] || CPK_ATOM_DATA['DEFAULT'];
+
+    const isAtom1Lower = data1.atomicNumber <= data2.atomicNumber;
+    const lowerData = isAtom1Lower ? data1 : data2;
+    const higherData = isAtom1Lower ? data2 : data1;
+    const lowerStart = isAtom1Lower ? start : end;
+    const higherStart = isAtom1Lower ? end : start;
+
+    const splitPoint = new THREE.Vector3().lerpVectors(lowerStart, higherStart, this.halfColor);
+
+    // First segment (lower atomic number side)
+    const length1 = lowerStart.distanceTo(splitPoint);
+    this._position.lerpVectors(lowerStart, splitPoint, 0.5);
+    this._scale.set(1, length1, 1);
+    this._matrix.compose(this._position, this._quaternion, this._scale);
+    this.bondMesh.setMatrixAt(bondIndex * 2, this._matrix);
+    this.bondMesh.setColorAt(bondIndex * 2, this.bondColor(bond, lowerData.color, isAtom1Lower ? atom1 : atom2));
+
+    // Second segment (higher atomic number side)
+    const length2 = splitPoint.distanceTo(higherStart);
+    this._position.lerpVectors(splitPoint, higherStart, 0.5);
+    this._scale.set(1, length2, 1);
+    this._matrix.compose(this._position, this._quaternion, this._scale);
+    this.bondMesh.setMatrixAt(bondIndex * 2 + 1, this._matrix);
+    this.bondMesh.setColorAt(bondIndex * 2 + 1, this.bondColor(bond, higherData.color, isAtom1Lower ? atom2 : atom1));
+  }
+
+  updateAllBondInstances() {
+    if (!this.bondMesh || this.bonds.length === 0) return;
+
+    for (let i = 0; i < this.bonds.length; i++) {
+      this.setBondInstance(i, true);
+    }
+
+    this.bondMesh.instanceMatrix.needsUpdate = true;
+    if (this.bondMesh.instanceColor) this.bondMesh.instanceColor.needsUpdate = true;
+  }
+
+  updateBondRadius(radius) {
+    this.radius = radius;
+    if (!this.bondMesh || this.bonds.length === 0) return;
+
+    const THREE = this.THREE;
+    this.bondMesh.geometry.dispose();
+    this.bondMesh.geometry = new THREE.CylinderGeometry(
+      radius * this.modelScale * 0.1,
+      radius * this.modelScale * 0.1,
+      1.0, 8, 1, true
+    );
+
+    this.updateVisibility();
+  }
+
+  setOpacity(opacity) { this.opacity = opacity; this.updateVisibility(); }
+  setRadius(radius) { this.updateBondRadius(radius); }
+
+  setHalfColor(halfColor) {
+    this.halfColor = halfColor;
+    if (this.bondMesh) { this.updateAllBondInstances(); this.updateVisibility(); }
+  }
+
+  setbondLightness(bondLightness) {
+    this.bondLightness = bondLightness;
+    if (this.bondMesh) { this.updateAllBondInstances(); this.updateVisibility(); }
+  }
+
+  setRingPink(ringPink) {
+    this.ringPink = ringPink;
+    if (this.bondMesh) { this.updateAllBondInstances(); this.updateVisibility(); }
+  }
+
+  setAtomRange(startPercent, endPercent) {
+    this.atomRangeStart = Math.max(0, Math.min(1, startPercent / 100));
+    this.atomRangeEnd = Math.max(0, Math.min(1, endPercent / 100));
+    this.updateVisibility();
+  }
+
+  updateVisibility() {
+    if (!this.bondMesh) return;
+
+    this.sceneManager.remove(this.bondMesh);
+
+    if (this.opacity <= 0 || this.bonds.length === 0) return;
+
+    const start = Math.min(this.atomRangeStart, this.atomRangeEnd);
+    const end = Math.max(this.atomRangeStart, this.atomRangeEnd);
+    const startIndex = Math.floor(start * this.totalAtomCount);
+    const endIndex = Math.ceil(end * this.totalAtomCount);
+
+    let visibleCount = 0;
+
+    for (let i = 0; i < this.bonds.length; i++) {
+      const bond = this.bonds[i];
+      const atom1InRange = bond.atomIndex1 >= startIndex && bond.atomIndex1 < endIndex;
+      const atom2InRange = bond.atomIndex2 >= startIndex && bond.atomIndex2 < endIndex;
+      const visible = atom1InRange && atom2InRange;
+
+      this.setBondInstance(i, visible);
+      if (visible) visibleCount++;
+    }
+
+    this.bondMesh.instanceMatrix.needsUpdate = true;
+    if (this.bondMesh.instanceColor) this.bondMesh.instanceColor.needsUpdate = true;
+
+    let transparent = this.opacity < 0.98
+    this.bondMesh.material.opacity = transparent ? this.opacity : 1.0;
+    this.bondMesh.material.transparent = transparent;
+    this.bondMesh.material.needsUpdate = true;
+
+    if (visibleCount > 0) this.sceneManager.add(this.bondMesh);
+  }
+
+  clear() {
+    if (this.bondMesh) {
+      this.bondMesh.geometry.dispose();
+      this.bondMesh.material.dispose();
+      this.sceneManager.remove(this.bondMesh);
+      this.bondMesh = null;
+    }
+    this.bonds = [];
+    this.atoms = [];
+    this.totalAtomCount = 0;
+  }
+}
+
+//-- endfile --
+
+// ── ImposterAtomNode nugget ──────────────────────────────────────
+
+//<< import { ImposterAtomNode } from './imposter-atom-node.js';
+//-- file: ./imposter-atom-node.js --
+//>> import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+//>> import * as THREE from 'three';
+//>> import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
+
+const VERTEX_SHADER = /* glsl */ `
+  in vec3 instancePosition;
+  in float instanceRadius;
+  in vec3 instanceColor;
+
+  out vec3 vViewCenter;
+  out float vRadius;
+  out vec3 vColor;
+  out vec3 vFragViewPos;
+
+  void main() {
+    vColor = instanceColor;
+    vRadius = instanceRadius;
+
+    vec4 viewCenter = modelViewMatrix * vec4(instancePosition, 1.0);
+    vViewCenter = viewCenter.xyz;
+
+    vec3 viewPos = viewCenter.xyz + vec3(position.xy * instanceRadius * 1.3, 0.0);
+    vFragViewPos = viewPos;
+
+    gl_Position = projectionMatrix * vec4(viewPos, 1.0);
+  }
+`;
+
+const FRAGMENT_SHADER = /* glsl */ `
+  precision highp float;
+
+  uniform mat4 projectionMatrix;
+
+  uniform float uOpacity;
+  uniform float uLightness;
+  uniform vec3 uAmbientColor;
+  uniform vec3 uLightDir0;
+  uniform vec3 uLightColor0;
+  uniform float uLightIntensity0;
+  uniform vec3 uLightDir1;
+  uniform vec3 uLightColor1;
+  uniform float uLightIntensity1;
+  uniform vec3 uLightDir2;
+  uniform vec3 uLightColor2;
+  uniform float uLightIntensity2;
+
+  in vec3 vViewCenter;
+  in float vRadius;
+  in vec3 vColor;
+  in vec3 vFragViewPos;
+
+  out vec4 fragColor;
+
+  void main() {
+    if (vRadius <= 0.0) discard;
+
+    vec3 rayDir = normalize(vFragViewPos);
+
+    vec3 oc = -vViewCenter;
+    float b = dot(oc, rayDir);
+    float c = dot(oc, oc) - vRadius * vRadius;
+    float disc = b * b - c;
+
+    if (disc < 0.0) discard;
+
+    float t = -b - sqrt(disc);
+    if (t < 0.0) discard;
+
+    vec3 hitPoint = rayDir * t;
+    vec3 normal = normalize(hitPoint - vViewCenter);
+
+    vec4 clipPos = projectionMatrix * vec4(hitPoint, 1.0);
+    gl_FragDepth = (clipPos.z / clipPos.w) * 0.5 + 0.5;
+
+    vec3 ld0 = normalize((viewMatrix * vec4(uLightDir0, 0.0)).xyz);
+    vec3 ld1 = normalize((viewMatrix * vec4(uLightDir1, 0.0)).xyz);
+    vec3 ld2 = normalize((viewMatrix * vec4(uLightDir2, 0.0)).xyz);
+
+    vec3 viewDir = normalize(-hitPoint);
+    float shininess = 30.0;
+    float specStrength = 0.15;
+
+    vec3 effectiveColor = vColor;
+    if (uLightness < 0.5) {
+      effectiveColor = mix(effectiveColor, vec3(0.0), 1.0 - uLightness * 2.0);
+    } else {
+      effectiveColor = mix(effectiveColor, vec3(1.0), uLightness * 2.0 - 1.0);
+    }
+
+    vec3 color = uAmbientColor * effectiveColor;
+
+    for (int i = 0; i < 3; i++) {
+      vec3 ld    = (i == 0) ? ld0    : (i == 1) ? ld1    : ld2;
+      vec3 lc    = (i == 0) ? uLightColor0 : (i == 1) ? uLightColor1 : uLightColor2;
+      float li   = (i == 0) ? uLightIntensity0 : (i == 1) ? uLightIntensity1 : uLightIntensity2;
+
+      float diff = max(dot(normal, ld), 0.0);
+      vec3 half_ = normalize(ld + viewDir);
+      float spec = pow(max(dot(normal, half_), 0.0), shininess);
+      color += (diff * effectiveColor + spec * specStrength) * lc * li;
+    }
+
+    fragColor = vec4(color, uOpacity);
+  }
+`;
+
+const DEFAULT_LIGHTS = [
+  { dir: new THREE.Vector3( 5, 15,  10).normalize(), color: new THREE.Color(0xffffff), intensity: 1.2 },
+  { dir: new THREE.Vector3(-10,  5,  -5).normalize(), color: new THREE.Color(0x4488ff), intensity: 0.5 },
+  { dir: new THREE.Vector3( -5,-10, -10).normalize(), color: new THREE.Color(0xffdddd), intensity: 1.2 },
+];
+
+const DEFAULT_AMBIENT = new THREE.Color(0x404040).multiplyScalar(0.5);
+
+// ImposterAtomNode's own computeResidueTangents (single-arg; module-scope THREE).
+// In the spike this harmlessly re-declares the harness version — both
+// implementations are equivalent when THREE is module-scoped.
+function computeResidueTangents(atoms) {
+  const residueTangents = new Map();
+  const residues = new Map();
+  for (const atom of atoms) {
+    const key = (atom.chainID || '') + '_' + atom.resSeq;
+    if (!residues.has(key)) residues.set(key, []);
+    residues.get(key).push(atom);
+  }
+  for (const [key, resAtoms] of residues) {
+    const ca = resAtoms.find(a => a.name === 'CA');
+    if (!ca) continue;
+    const [chainID, resSeqStr] = key.split('_');
+    const resSeq = parseInt(resSeqStr, 10);
+    const prev = residues.get(chainID + '_' + (resSeq - 1));
+    const next = residues.get(chainID + '_' + (resSeq + 1));
+    const prevCA = prev ? prev.find(a => a.name === 'CA') : null;
+    const nextCA = next ? next.find(a => a.name === 'CA') : null;
+    let T;
+    if (prevCA && nextCA)  T = new THREE.Vector3(nextCA.x - prevCA.x, nextCA.y - prevCA.y, nextCA.z - prevCA.z);
+    else if (prevCA)       T = new THREE.Vector3(ca.x - prevCA.x, ca.y - prevCA.y, ca.z - prevCA.z);
+    else if (nextCA)       T = new THREE.Vector3(nextCA.x - ca.x, nextCA.y - ca.y, nextCA.z - ca.z);
+    else                   T = new THREE.Vector3(1, 0, 0);
+    residueTangents.set(key, T.normalize());
+  }
+  return residueTangents;
+}
+
+const IMPOSTER_UPDATE_PARAMS = [
+  'atomRadius', 'atomOpacity', 'atomRangeStart', 'atomRangeEnd',
+  'atomLightness',
+  'sidechainFade', 'mainLight', 'fillLight', 'backLight'
+];
+
+class ImposterAtomNode extends SceneNode {
+
+  static rebuildParams = [];
+  static updateParams = IMPOSTER_UPDATE_PARAMS;
+
+  build(ctxMix, node, params) {
+    if (this.group) return;
+
+    this.group = new THREE.Group();
+    this.mesh = null;
+    this.atoms = [];
+    this.totalAtomCount = 0;
+    this.modelScale = 1;
+    this.residueTangents = new Map();
+
+    this._basePositions = null;
+    this._baseRadii     = null;
+    this._baseColors    = null;
+
+    if (this._pendingData) {
+      const { atoms, scale, chainColorMap } = this._pendingData;
+      this._pendingData = null;
+      this._applyData(atoms, scale, chainColorMap);
+    }
+  }
+
+  setData(atoms, scale, chainColorMap) {
+    if (this.group) {
+      this._applyData(atoms, scale, chainColorMap);
+    } else {
+      this._pendingData = { atoms, scale, chainColorMap };
+    }
+  }
+
+  _applyData(atoms, scale, chainColorMap) {
+    if (this.mesh) {
+      this.mesh.geometry.dispose();
+      this.group.remove(this.mesh);
+      this.mesh = null;
+    }
+
+    this.atoms = [...atoms];
+    this.totalAtomCount = atoms.length;
+    this.modelScale = scale;
+
+    if (atoms.length === 0) return;
+
+    this.residueTangents = computeResidueTangents(atoms);
+
+    const n = atoms.length;
+    this._basePositions = new Float32Array(n * 3);
+    this._baseRadii     = new Float32Array(n);
+    this._baseColors    = new Float32Array(n * 3);
+
+    const color = new THREE.Color();
+
+    for (let i = 0; i < n; i++) {
+      const atom = atoms[i];
+      this._basePositions[i * 3]     = atom.x;
+      this._basePositions[i * 3 + 1] = atom.y;
+      this._basePositions[i * 3 + 2] = atom.z;
+
+      const element = (atom.element || 'C').toUpperCase();
+      const data = CPK_ATOM_DATA[element] || CPK_ATOM_DATA['DEFAULT'];
+      this._baseRadii[i] = data.radius * scale * 0.35;
+
+      color.set(data.color);
+      this._baseColors[i * 3]     = color.r;
+      this._baseColors[i * 3 + 1] = color.g;
+      this._baseColors[i * 3 + 2] = color.b;
+    }
+
+    this._buildMesh(n);
+  }
+
+  _buildMesh(instanceCount) {
+    const quadPositions = new Float32Array([
+      -1, -1, 0,
+       1, -1, 0,
+       1,  1, 0,
+      -1,  1, 0,
+    ]);
+    const quadIndices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+    const geometry = new THREE.InstancedBufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(quadPositions, 3));
+    geometry.setIndex(new THREE.BufferAttribute(quadIndices, 1));
+    geometry.instanceCount = instanceCount;
+
+    this._instancePositions = new THREE.InstancedBufferAttribute(
+      new Float32Array(this._basePositions), 3
+    );
+    this._instanceRadii = new THREE.InstancedBufferAttribute(
+      new Float32Array(instanceCount), 1
+    );
+    this._instanceColors = new THREE.InstancedBufferAttribute(
+      new Float32Array(this._baseColors), 3
+    );
+
+    geometry.setAttribute('instancePosition', this._instancePositions);
+    geometry.setAttribute('instanceRadius',   this._instanceRadii);
+    geometry.setAttribute('instanceColor',    this._instanceColors);
+
+    const material = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+      transparent: false,
+      depthWrite: true,
+      uniforms: {
+        uOpacity:         { value: 1.0 },
+        uLightness:       { value: 0.5 },
+        uAmbientColor:    { value: DEFAULT_AMBIENT.clone() },
+        uLightDir0:       { value: DEFAULT_LIGHTS[0].dir.clone() },
+        uLightColor0:     { value: DEFAULT_LIGHTS[0].color.clone() },
+        uLightIntensity0: { value: DEFAULT_LIGHTS[0].intensity },
+        uLightDir1:       { value: DEFAULT_LIGHTS[1].dir.clone() },
+        uLightColor1:     { value: DEFAULT_LIGHTS[1].color.clone() },
+        uLightIntensity1: { value: DEFAULT_LIGHTS[1].intensity },
+        uLightDir2:       { value: DEFAULT_LIGHTS[2].dir.clone() },
+        uLightColor2:     { value: DEFAULT_LIGHTS[2].color.clone() },
+        uLightIntensity2: { value: DEFAULT_LIGHTS[2].intensity },
+      },
+    });
+
+    this.mesh = new THREE.Mesh(geometry, material);
+    this.mesh.frustumCulled = false;
+    this.group.add(this.mesh);
+  }
+
+  update(ctxMix, node, params) {
+    if (!this.mesh || this.totalAtomCount === 0) return;
+
+    const opacity = params.atomOpacity ?? 1;
+    const atomRadius = params.atomRadius ?? 1;
+
+    if (opacity <= 0 || atomRadius <= 0.001) {
+      if (this.mesh.parent) this.group.remove(this.mesh);
+      return;
+    }
+    if (!this.mesh.parent) this.group.add(this.mesh);
+
+    const effectiveOpacity = opacity >= 0.98 ? 1.0 : opacity;
+    const mat = this.mesh.material;
+    mat.uniforms.uOpacity.value = effectiveOpacity;
+    mat.transparent = effectiveOpacity < 1.0;
+
+    mat.uniforms.uLightness.value = params.atomLightness ?? 0.5;
+
+    if (params.mainLight !== undefined) mat.uniforms.uLightIntensity0.value = params.mainLight;
+    if (params.fillLight !== undefined) mat.uniforms.uLightIntensity1.value = params.fillLight;
+    if (params.backLight !== undefined) mat.uniforms.uLightIntensity2.value = params.backLight;
+
+    this._updateRadii(atomRadius, params);
+  }
+
+
+
+
+  _updateRadii(atomRadius, params) {
+    const n = this.totalAtomCount;
+    const radii = this._instanceRadii.array;
+
+    const rangeStart = Math.max(0, Math.min(1, (params.atomRangeStart ?? 0) / 100));
+    const rangeEnd   = Math.max(0, Math.min(1, (params.atomRangeEnd ?? 100) / 100));
+    const lo = Math.floor(Math.min(rangeStart, rangeEnd) * n);
+    const hi = Math.ceil(Math.max(rangeStart, rangeEnd) * n);
+
+    const sidechainFade = params.sidechainFade || 0;
+    const referenceAxis = params.referenceAxis || null;
+    const useFade = referenceAxis && sidechainFade > 0;
+
+    for (let i = 0; i < n; i++) {
+      if (i < lo || i >= hi) {
+        radii[i] = 0;
+        continue;
+      }
+
+      if (useFade) {
+        const atom = this.atoms[i];
+        const key = (atom.chainID || '') + '_' + atom.resSeq;
+        const T = this.residueTangents.get(key);
+        if (T) {
+          const dot = Math.abs(T.dot(referenceAxis));
+          if (dot < sidechainFade) { radii[i] = 0; continue; }
+        }
+      }
+
+      radii[i] = this._baseRadii[i] * atomRadius;
+    }
+
+    this._instanceRadii.needsUpdate = true;
+  }
+
+  sortInstances(camera) {
+    const n = this.totalAtomCount;
+    if (n === 0 || !this._basePositions) return;
+
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+
+    const depths = new Float32Array(n);
+    const bp = this._basePositions;
+    for (let i = 0; i < n; i++) {
+      depths[i] = bp[i * 3] * forward.x + bp[i * 3 + 1] * forward.y + bp[i * 3 + 2] * forward.z;
+    }
+
+    const indices = new Uint32Array(n);
+    for (let i = 0; i < n; i++) indices[i] = i;
+    indices.sort((a, b) => depths[a] - depths[b]);
+
+    this._permuteFloat32(this._basePositions, indices, 3);
+    this._permuteFloat32(this._baseRadii, indices, 1);
+    this._permuteFloat32(this._baseColors, indices, 3);
+    this._permuteFloat32(this._instancePositions.array, indices, 3);
+    this._permuteFloat32(this._instanceRadii.array, indices, 1);
+    this._permuteFloat32(this._instanceColors.array, indices, 3);
+    this._permuteObjects(this.atoms, indices);
+
+    this._instancePositions.needsUpdate = true;
+    this._instanceRadii.needsUpdate = true;
+    this._instanceColors.needsUpdate = true;
+  }
+
+  _permuteFloat32(arr, indices, stride) {
+    const n = indices.length;
+    const tmp = new Float32Array(n * stride);
+    for (let i = 0; i < n; i++) {
+      const src = indices[i] * stride;
+      const dst = i * stride;
+      for (let s = 0; s < stride; s++) tmp[dst + s] = arr[src + s];
+    }
+    arr.set(tmp);
+  }
+
+  _permuteObjects(arr, indices) {
+    const tmp = new Array(indices.length);
+    for (let i = 0; i < indices.length; i++) tmp[i] = arr[indices[i]];
+    for (let i = 0; i < indices.length; i++) arr[i] = tmp[i];
+  }
+
+  teardown(ctxMix, node, params) { this.clear(); }
+
+  clear() {
+    if (this.mesh) {
+      this.mesh.geometry.dispose();
+      this.mesh.material.dispose();
+      this.group.remove(this.mesh);
+      this.mesh = null;
+    }
+    this._basePositions = null;
+    this._baseRadii = null;
+    this._baseColors = null;
+    this._instancePositions = null;
+    this._instanceRadii = null;
+    this._instanceColors = null;
+    this._pendingData = null;
+    this.atoms = [];
+    this.totalAtomCount = 0;
+    this.residueTangents = null;
+    if (this.group) {
+      while (this.group.children.length > 0) this.group.remove(this.group.children[0]);
+      this.group = null;
+    }
+  }
+}
+
+sceneRegistry.registerNodeClass('imposter-atoms', ImposterAtomNode);
+
+//>> export { ImposterAtomNode };
+//>> export { DEFAULT_AMBIENT, DEFAULT_LIGHTS, FRAGMENT_SHADER, IMPOSTER_UPDATE_PARAMS, VERTEX_SHADER, computeResidueTangents };
+
+//-- endfile --
+
+// ── MolamBondNode nugget ─────────────────────────────────────────
+
+//<< import { MolamBondNode } from './molam-bond-node.js';
+//-- file: ./molam-bond-node.js --
+//>> import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+//>> import * as THREE from 'three';
+//>> import { BondRenderer } from '../3d-support/molam-objects.js';
+
+const BOND_UPDATE_PARAMS = [
+  'bondRadius', 'bondOpacity', 'bondHalfColor', 'bondLightness', 'bondRingPink',
+  'atomRangeStart', 'atomRangeEnd', 'sidechainFade'
+];
+
+class MolamBondNode extends SceneNode {
+
+  static rebuildParams = [];
+  static updateParams = BOND_UPDATE_PARAMS;
+
+  build(ctxMix, node, params) {
+    if (this.group) return;
+
+    this.group = new THREE.Group();
+
+    this._sceneShim = {
+      add:    (obj) => this.group.add(obj),
+      remove: (obj) => this.group.remove(obj),
+    };
+
+    this.renderer = new BondRenderer(THREE, this._sceneShim);
+
+    if (this._pendingData) {
+      const { atoms, scale, chainColorMap } = this._pendingData;
+      this._pendingData = null;
+      this.renderer.detectAndSetBonds(atoms, scale, chainColorMap);
+    }
+  }
+
+  setData(atoms, scale, chainColorMap) {
+    if (this.renderer) {
+      this.renderer.detectAndSetBonds(atoms, scale, chainColorMap);
+    } else {
+      this._pendingData = { atoms, scale, chainColorMap };
+    }
+  }
+
+  update(ctxMix, node, params) {
+    if (!this.renderer) return;
+
+    this.renderer.params = params;
+
+    if (params.bondRadius !== undefined) this.renderer.setRadius(params.bondRadius);
+    this.renderer.updateAllBondInstances();
+    if (params.bondHalfColor !== undefined) this.renderer.setHalfColor(params.bondHalfColor);
+    if (params.bondLightness !== undefined) this.renderer.setbondLightness(params.bondLightness);
+    if (params.bondRingPink !== undefined) this.renderer.setRingPink(params.bondRingPink);
+    this.renderer.setOpacity(params.bondOpacity ?? 1);
+    this.renderer.setAtomRange(params.atomRangeStart ?? 0, params.atomRangeEnd ?? 100);
+
+    this.renderer.setFade(
+      params.sidechainFade || 0,
+      params.referenceAxis || null
+    );
+  }
+  teardown(ctxMix, node, params) { this.clear(); }
+
+  clear() {
+    if (this.renderer) {
+      this.renderer.clear();
+      this.renderer = null;
+    }
+    this._sceneShim = null;
+    this._pendingData = null;
+    if (this.group) {
+      while (this.group.children.length > 0) this.group.remove(this.group.children[0]);
+      this.group = null;
+    }
+  }
+}
+
+sceneRegistry.registerNodeClass('molam-bonds', MolamBondNode);
+
+class DumbbellNode {
+  static updateParams = [
+    'atomRadius', 'atomOpacity', 'atomLightness', 
+    'bondRadius', 'bondOpacity', 'bondHalfColor', 'bondLightness'
+  ];
+
+  build(container, node, params) {
+    if (this.group) return;
+    this.group = new THREE.Group();
+
+    // Define the two atoms (Oxygen and Carbon) from source 2
+    const atoms = [
+      { x: -0.8, y: 0, z: 0, element: 'O' },
+      { x:  0.8, y: 0, z: 0, element: 'C' }
+    ];
+
+    const astNode = { value: {} };
+
+    // Initialize Imposter Atoms
+    this.atomNode = new ImposterAtomNode();
+    this.atomNode.build(null, astNode, {});
+    this.atomNode.setData(atoms, 1.0, new Map());
+    this.group.add(this.atomNode.group);
+
+    // Initialize Molam Bonds
+    this.bondNode = new MolamBondNode();
+    this.bondNode.build(null, astNode, {});
+    this.bondNode.setData(atoms, 1.0, new Map());
+    this.group.add(this.bondNode.group);
+  }
+
+  update(container, node, params) {
+    if (!this.group) return;
+    const astNode = { value: {} };
+    if (this.atomNode) this.atomNode.update(null, astNode, params);
+    if (this.bondNode) this.bondNode.update(null, astNode, params);
+  }
+}
+
+  // ── Register: Planet ──
+  PANES.push({label:'Planet Cutaway',type:'3d',visible:true,background:'#0a0a1e',
+    controls:[{type:'separator',label:'Planet'},{id:'coreRadius',label:'Core',min:0.05,max:0.95,step:0.01,value:0.6},{id:'rotation',label:'Rotation',min:0,max:360,step:1,value:0},{id:'wedgeStart',label:'Wedge start',min:0,max:360,step:1,value:0},{id:'wedgeAngle',label:'Wedge angle',min:0,max:180,step:1,value:90},{id:'planeOpacity',label:'Plane α',min:0,max:1,step:0.01,value:0.9},{id:'coreOpacity',label:'Core α',min:0,max:1,step:0.01,value:1.0}],
+    onControl:null,
+    init(container){
+      const v=make3DPane(container); v.renderer.localClippingEnabled=true; v.camera.position.set(0,0.8,3);
+      v.scene.add(new THREE.AmbientLight(0xffffff,0.5)); const sun=new THREE.DirectionalLight(0xffffff,0.9);sun.position.set(5,3,4);v.scene.add(sun);
+      const sg=new THREE.Group(); v.scene.add(sg);
+      const nv={value:{crustRadius:1,coreRadius:0.6}}; const planet=new PlanetNode(); planet.build(null,nv,{}); sg.add(planet.group);
+      this.onControl=(id,val,getAll)=>{const p=getAll();sg.rotation.y=(p.rotation*Math.PI)/180;planet.update(null,nv,p);};
+      // initial sync
+      const initP={};for(const c of this.controls)if(c.id)initP[c.id]=c.value;planet.update(null,nv,initP);
+      return v;
+    }
+  });
+
+
+PANES.push({
+  label: 'Dumbbell · Atoms & Bonds',
+  type: '3d',
+  visible: true,
+  background: '#1a1a2e',
+  controls: [
+    { type: 'separator', label: 'Atoms' },
+    { id: 'atomRadius', label: 'Atom radius', min: 0, max: 3, step: 0.05, value: 1 },
+    { id: 'atomOpacity', label: 'Atom opacity', min: 0, max: 1, step: 0.01, value: 1 },
+    { id: 'atomLightness', label: 'Atom lightness', min: 0, max: 1, step: 0.01, value: 0.5 },
+    { type: 'separator', label: 'Bonds' },
+    { id: 'bondRadius', label: 'Bond radius', min: 0.01, max: 3, step: 0.05, value: 1 },
+    { id: 'bondOpacity', label: 'Bond opacity', min: 0, max: 1, step: 0.01, value: 1 },
+    { id: 'bondHalfColor', label: 'Half color', min: 0, max: 1, step: 0.01, value: 0.5 },
+    { id: 'bondLightness', label: 'Bond lightness', min: 0, max: 1, step: 0.01, value: 0.5 }
+  ],
+  onControl: null,
+  init(container) {
+    // Utilize the standard 3D pane factory helper from source 1
+    const v = make3DPane(container); 
+    v.camera.position.set(0, 0, 6);
+
+    // Add scene lights tailored for the phong bond materials
+    v.scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(5, 5, 5);
+    v.scene.add(sun);
+
+    const dumbbellGroup = new THREE.Group();
+    v.scene.add(dumbbellGroup);
+
+    const dumbbell = new DumbbellNode();
+    dumbbell.build(null, null, {});
+    dumbbellGroup.add(dumbbell.group);
+
+    // Hook up control changes to update the dumbbell geometry parameters dynamically
+    this.onControl = (id, val, getAll) => {
+      dumbbell.update(null, null, getAll());
+    };
+
+    // Initialize with default control values
+    const initP = {};
+    for (const c of this.controls) {
+      if (c.id) initP[c.id] = c.value;
+    }
+    dumbbell.update(null, null, initP);
+
+    return v;
+  }
+});
+
+  // ── Register: Phyllotaxis (factory) ──
+  function regPhylo(label,state){
+    const maxCounts=[20,20,500];
+    PANES.push({label,type:'3d',visible:true,background:'#090a0f',
+      controls:[
+        {type:'separator',label:'Global'},{id:'baseHue',label:'Base Hue',min:0,max:1,step:0.01,value:state.baseHue},{id:'splatSize',label:'Splat Size',min:0.1,max:5,step:0.1,value:state.splatSize},{id:'splatLength',label:'Splat Len',min:0.1,max:10,step:0.1,value:state.splatLength},{id:'splatWidth',label:'Splat W',min:0.1,max:10,step:0.1,value:state.splatWidth},
+        {type:'separator',label:'Level'},{id:'level',type:'select',label:'Target',options:[['0','Lvl 1'],['1','Lvl 2'],['2','Lvl 3']],value:'0'},{id:'count',label:'Count',min:1,max:maxCounts[0],step:1,value:state.levels[0].count},{id:'angle',label:'Div. Angle',min:100,max:180,step:0.1,value:state.levels[0].angle},{id:'height',label:'Height',min:0,max:50,step:0.1,value:state.levels[0].height},{id:'initialRadius',label:'Init R',min:0,max:30,step:0.1,value:state.levels[0].initialRadius},{id:'finalRadius',label:'Final R',min:0,max:30,step:0.1,value:state.levels[0].finalRadius},{id:'bulge',label:'Bulge',min:-2,max:2,step:0.01,value:state.levels[0].bulge},{id:'tilt',label:'Tilt',min:-90,max:90,step:1,value:state.levels[0].tilt},{id:'hueShift',label:'Hue Shift',min:-1,max:1,step:0.01,value:state.levels[0].hueShift}
+      ],
+      onControl:null, _phyloState:JSON.parse(JSON.stringify(state)), _currentLevel:0, _maxCounts:maxCounts,
+      init(container){
+        const v=make3DPane(container); v.camera.position.set(0,-50,80);
+        const ps=this._phyloState; const phylo=new PhyloNode(); phylo.build(null,null,ps); v.scene.add(phylo.group); v.phylo=phylo;
+        const self=this;
+        this.onControl=(id,val,getAll,hud)=>{
+          if(id==='level'){self._currentLevel=parseInt(val,10);const l=ps.levels[self._currentLevel];hud.setMax('count',self._maxCounts[self._currentLevel]);['count','angle','height','initialRadius','finalRadius','bulge','tilt','hueShift'].forEach(k=>hud.set(k,l[k]));}
+          else if(['baseHue','splatSize','splatLength','splatWidth'].includes(id)){ps[id]=val;phylo.update(null,null,ps);}
+          else{ps.levels[self._currentLevel][id]=val;phylo.update(null,null,ps);}
+        };
+        return v;
+      }
+    });
+  }
+  regPhylo('Phyllotaxis α',{baseHue:0.45,splatSize:1,splatLength:5,splatWidth:0.5,levels:[{count:20,angle:115,height:40,initialRadius:10,finalRadius:10,bulge:1,tilt:60,hueShift:0.5},{count:3,angle:137.5,height:22,initialRadius:0,finalRadius:0,bulge:0,tilt:45,hueShift:0.2},{count:165,angle:137.5,height:5,initialRadius:0.1,finalRadius:4,bulge:1,tilt:15,hueShift:0.45}]});
+  regPhylo('Phyllotaxis β',{baseHue:0.8,splatSize:1.5,splatLength:2,splatWidth:2,levels:[{count:15,angle:137.5,height:30,initialRadius:2,finalRadius:15,bulge:-1,tilt:30,hueShift:0.2},{count:5,angle:90,height:10,initialRadius:1,finalRadius:3,bulge:0.5,tilt:80,hueShift:0.1},{count:100,angle:137.5,height:2,initialRadius:0.5,finalRadius:2,bulge:0,tilt:0,hueShift:0.1}]});
+
+  // ── Register: Ground Plane ──
+  PANES.push({label:'Ground Plane',type:'3d',visible:true,background:'#111116',
+    controls:[{type:'separator',label:'Ground'},{id:'gridSize',label:'Grid size',min:2,max:60,step:1,value:20},{id:'gridDivisions',label:'Divisions',min:2,max:60,step:1,value:20},{id:'gridY',label:'Grid Y',min:-10,max:2,step:0.1,value:-4},{id:'gridOpacity',label:'Opacity',min:0,max:1,step:0.01,value:1.0}],
+    onControl:null,
+    init(container){
+      const v=make3DPane(container); v.camera.position.set(8,6,12); v.camera.lookAt(0,-2,0); v.controls.target.set(0,-2,0);
+      v.scene.add(new THREE.AmbientLight(0xffffff,0.6)); const sun=new THREE.DirectionalLight(0xffffff,0.8);sun.position.set(5,8,4);v.scene.add(sun);
+      const nv={value:{grid:{size:20,divisions:20,y:-4,color1:0x444444,color2:0x333333},axes:{size:2,position:[-9,-3.9,-9]}}};
+      const ground=new GroundPlaneNode(); ground.build(null,nv,{}); v.scene.add(ground.group);
+      this.onControl=(id,val,getAll)=>{ground.update(null,nv,getAll());};
+      const initP={};for(const c of this.controls)if(c.id)initP[c.id]=c.value;ground.update(null,nv,initP);
+      return v;
+    }
+  });
+
+} catch(e) { console.log('Three.js not available — 3D panes skipped.', e); }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  2D DEMO HARNESS
+// ═══════════════════════════════════════════════════════════════
+
+const ttEl=document.getElementById('tooltip');
+function showTooltip(ex,ey,info){ttEl.querySelector('.tt-name').textContent=info.name||'';ttEl.querySelector('.tt-detail').textContent=info.detail||'';ttEl.querySelector('.tt-extra').textContent=info.extra||'';ttEl.querySelector('.tt-name').style.color=info.selected?'#daa02e':'#e4dac6';ttEl.style.display='block';ttEl.style.left=(ex+14)+'px';ttEl.style.top=(ey-10)+'px';}
+function hideTooltip(){ttEl.style.display='none';}
+
+//-- endfile --
+
+//<< import { DemoHarness2D } from './demo-harness2-d.js';
+//-- file: ./demo-harness2-d.js --
+//>> export { DemoHarness2D };
+class DemoHarness2D {
+  constructor(canvas,zoneClass,data){this.canvas=canvas;this.rawCtx=canvas.getContext('2d',{willReadFrequently:true});this.node={data,value:{zoneClass,hovered:-1,selected:new Set()},_layout:null};this.params={};this._resize();this._listen();this.draw();new ResizeObserver(()=>{this._resize();this.draw();}).observe(canvas);}
+  _resize(){const dpr=window.devicePixelRatio||1;const rect=this.canvas.getBoundingClientRect();this.W=rect.width;this.H=rect.height;this.canvas.width=rect.width*dpr;this.canvas.height=rect.height*dpr;this.rawCtx.setTransform(dpr,0,0,dpr,0,0);}
+  _ctxMix(hp){return{ctx:this.rawCtx,state:{index:0,pass:0,isHovered:false,isSelected:false},getHW:(c,n,p)=>({W:c.W,H:c.H,Z:p.zoom||1}),W:this.W,H:this.H,hitPoint:hp||null,hitResult:null};}
+  draw(){this.rawCtx.clearRect(0,0,this.W,this.H);ZonedNode.draw2d(this._ctxMix(),this.node,this.params);}
+  hitTest(mx,my){const c=this._ctxMix({x:mx,y:my});ZonedNode.hit_test(c,this.node,this.params);return c.hitResult;}
+  _listen(){const toL=e=>{const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top,ex:e.clientX,ey:e.clientY};};
+    this.canvas.addEventListener('mousemove',e=>{const{x,y,ex,ey}=toL(e);const hit=this.hitTest(x,y);const idx=hit?hit.zoneIndex:-1;if(idx!==this.node.value.hovered){this.node.value.hovered=idx;this.draw();}this.canvas.style.cursor=idx>=0?'pointer':'default';if(idx>=0){const Z=this.node.value.zoneClass,c=this._ctxMix();c.state.index=idx;const info=Z.getZoneInfo(c,this.node,this.params);info.selected=this.node.value.selected.has(idx);showTooltip(ex,ey,info);}else hideTooltip();});
+    this.canvas.addEventListener('mouseleave',()=>{if(this.node.value.hovered>=0){this.node.value.hovered=-1;this.draw();}hideTooltip();});
+    this.canvas.addEventListener('click',e=>{const{x,y}=toL(e);const hit=this.hitTest(x,y);if(hit){const sel=this.node.value.selected;if(sel.has(hit.zoneIndex))sel.delete(hit.zoneIndex);else sel.add(hit.zoneIndex);this.draw();}});
+  }
+}
+//-- endfile --
+
+
+
+// ═══════════════════════════════════════════════════════════════
+//  BOOT — flexbox layout, instantiate, global HUD
+// ═══════════════════════════════════════════════════════════════
+
+const container = document.getElementById('container');
+const headerH = document.querySelector('header').getBoundingClientRect().height;
+const paneEls = [];    // DOM elements per PANE index
+const views3D = [];    // { view, paneIndex }
+
+function bestGrid(n) {
+  const contW = window.innerWidth, contH = window.innerHeight - headerH - 1;
+  let bestCols = 1, bestScore = Infinity;
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c), aspect = (contW / c) / (contH / r);
+    const score = Math.abs(Math.log(aspect)) + (n - c * r !== 0 ? 0.3 : 0);
+    if (score < bestScore) { bestScore = score; bestCols = c; }
+  }
+  return { cols: bestCols, rows: Math.ceil(n / bestCols) };
+}
+
+function buildLayout() {
+  // Clear existing
+  container.innerHTML = '';
+  paneEls.length = 0;
+  views3D.length = 0;
+
+  const visiblePanes = PANES.filter(p => p.visible);
+  const N = visiblePanes.length;
+  document.getElementById('pane-count').textContent = `${N} of ${PANES.length} panels`;
+
+  if (N === 0) { container.style.background = '#111210'; return; }
+
+  const grid = bestGrid(N);
+  const contH = window.innerHeight - headerH - 1;
+
+  for (const pane of visiblePanes) {
+    const i = PANES.indexOf(pane);
+    const div = document.createElement('div');
+    div.className = 'pane' + (pane.type === '3d' ? ' pane-3d' : '');
+    div.style.flexBasis = `calc(${100 / grid.cols}% - 1px)`;
+    div.style.height = `${contH / grid.rows}px`;
+    div.style.minWidth = '0';
+    if (pane.background) div.style.background = pane.background;
+    div.dataset.paneIndex = i;
+
+    if (pane.type === '2d') {
+      const label = document.createElement('div'); label.className = 'label'; label.textContent = pane.label;
+      div.appendChild(label);
+      const canvas = document.createElement('canvas'); div.appendChild(canvas);
+      container.appendChild(div);
+      new DemoHarness2D(canvas, pane.zoneClass, pane.data);
+    } else {
+      const title = document.createElement('div'); title.className = 'pane-title-3d'; title.textContent = pane.label;
+      div.appendChild(title);
+      container.appendChild(div);
+      if (pane.init && !pane._view) {
+        pane._view = pane.init(div);
+      } else if (pane._view) {
+        // Re-attach existing renderer
+        div.insertBefore(pane._view.renderer.domElement, title);
+        pane._view.container = div;
+        pane._view.camera.aspect = div.clientWidth / div.clientHeight;
+        pane._view.camera.updateProjectionMatrix();
+        pane._view.renderer.setSize(div.clientWidth, div.clientHeight);
+      }
+      if (pane._view) views3D.push({ view: pane._view, paneIndex: i });
+    }
+    paneEls[i] = div;
+  }
+}
+
+buildLayout();
+
+// 3D animation loop
+const animate = () => {
+  requestAnimationFrame(animate);
+  for (const { view: v } of views3D) {
+    v.controls.update();
+    if (v.phylo) { v.phylo.group.rotation.z += 0.001; v.phylo.group.rotation.x = Math.sin(Date.now() * 0.0003) * 0.1; }
+    v.renderer.render(v.scene, v.camera);
+  }
+};
+animate();
+
+window.addEventListener('resize', () => {
+  // Recalculate pane sizes
+  const visiblePanes = PANES.filter(p => p.visible);
+  const N = visiblePanes.length; if (!N) return;
+  const grid = bestGrid(N);
+  const contH = window.innerHeight - headerH - 1;
+  for (const pane of visiblePanes) {
+    const i = PANES.indexOf(pane);
+    const el = paneEls[i]; if (!el) continue;
+    el.style.flexBasis = `calc(${100 / grid.cols}% - 1px)`;
+    el.style.height = `${contH / grid.rows}px`;
+  }
+  for (const { view: v } of views3D) {
+    v.camera.aspect = v.container.clientWidth / v.container.clientHeight;
+    v.camera.updateProjectionMatrix();
+    v.renderer.setSize(v.container.clientWidth, v.container.clientHeight);
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+//  GLOBAL HUD CONTROLLER
+// ═══════════════════════════════════════════════════════════════
+
+const hud = new HudPanel({ title: 'Zoned Elements', position: { top: 60, left: 12 } });
+let currentView = 'controls';  // 'controls' | 'configure'
+let selectedPaneIndex = 0;
+
+function renderControlsView() {
+  currentView = 'controls';
+  hud.clearContent();
+
+  // ── Shared section ──
+  hud.addSeparator('Panel');
+
+  const visiblePanes = PANES.filter(p => p.visible);
+  const options = visiblePanes.map(p => [String(PANES.indexOf(p)), p.label]);
+
+  if (options.length === 0) {
+    hud.addNote('No panels visible');
+    hud.addButton('Configure Panels…', () => renderConfigureView());
+    return;
+  }
+
+  // Ensure selectedPaneIndex is valid
+  if (!PANES[selectedPaneIndex] || !PANES[selectedPaneIndex].visible) {
+    selectedPaneIndex = parseInt(options[0][0], 10);
+  }
+
+  hud.addSelect(
+    { id: '_paneSelector', label: 'Active', options, value: String(selectedPaneIndex) },
+    (id, val) => { selectedPaneIndex = parseInt(val, 10); renderControlsView(); }
+  );
+
+  hud.addButton('Configure Panels…', () => renderConfigureView());
+
+  // ── Per-panel controls ──
+  const pane = PANES[selectedPaneIndex];
+  if (!pane) return;
+
+  if (pane.controls && pane.controls.length > 0) {
+    const getAll = () => {
+      const vals = {};
+      for (const c of pane.controls) {
+        if (c.id) vals[c.id] = hud.get(c.id);
+      }
+      return vals;
+    };
+
+    for (const ctrl of pane.controls) {
+      hud.addControl(ctrl, (ctrlId, val) => {
+        if (pane.onControl) pane.onControl(ctrlId, val, getAll, hud);
+      });
+    }
+  } else {
+    hud.addSeparator(pane.label);
+    hud.addNote('Hover and click to interact');
+  }
+}
+
+function renderConfigureView() {
+  currentView = 'configure';
+  hud.clearContent();
+
+  hud.addSeparator('Show / Hide Panels');
+
+  for (let i = 0; i < PANES.length; i++) {
+    hud.addCheckbox('_vis_' + i, PANES[i].label, PANES[i].visible);
+  }
+
+  hud.addButton('Refresh Layout', () => {
+    // Read checkbox states
+    for (let i = 0; i < PANES.length; i++) {
+      PANES[i].visible = hud.get('_vis_' + i);
+    }
+    buildLayout();
+    renderControlsView();
+  }, 'primary');
+
+  hud.addButton('Back', () => renderControlsView());
+}
+
+// Initial render
+renderControlsView();
+
+</script>
+</body>
+</html>

@@ -624,6 +624,9 @@ class DSMNode {
 // Session — namespaced localStorage store
 // ════════════════════════════════════════════════════════════════
 
+//<< import { Session } from './session.js';
+//-- file: ./session.js --
+//>> export { Session };
 class Session {
   constructor(id, name, store = localStorage) {
     this.id = id; this.name = name; this.store = store;
@@ -660,6 +663,11 @@ class Session {
 // InputParser — raw text → items[]
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { InputParser } from './input-parser.js';
+//-- file: ./input-parser.js --
+//>> export { InputParser };
 class InputParser {
   static parse(raw) {
     if (!raw.trim()) return [];
@@ -676,6 +684,11 @@ class InputParser {
 // DraggableCard — single block or divider DOM element
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { DraggableCard } from './draggable-card.js';
+//-- file: ./draggable-card.js --
+//>> export { DraggableCard };
 class DraggableCard {
   constructor(item, index, { sectionColor, blockNumber, onCheckboxToggle }) {
     this.item = item;
@@ -752,6 +765,11 @@ class DraggableCard {
 // CardContainer — block list, drag/drop, selection, keyboard
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { CardContainer } from './card-container.js';
+//-- file: ./card-container.js --
+//>> export { CardContainer };
 class CardContainer {
   constructor(containerEl, bus) {
     this.el = containerEl;
@@ -940,6 +958,11 @@ class CardContainer {
 // of this is handled by the scene's draw loop and hit pipeline.
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { SimilarityMatrix } from './similarity-matrix.js';
+//-- file: ./similarity-matrix.js --
+//>> export { SimilarityMatrix };
 class SimilarityMatrix {
   constructor({ canvasEl, detailPanelEl }, bus, engine) {
     this.bus = bus;
@@ -1206,6 +1229,11 @@ class SimilarityMatrix {
 // SessionManager — sessions list UI & CRUD interactions
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { SessionManager } from './session-manager.js';
+//-- file: ./session-manager.js --
+//>> export { SessionManager };
 class SessionManager {
   constructor(listEl, bus) {
     this.el = listEl;
@@ -1272,6 +1300,11 @@ class SessionManager {
 // AppController — orchestrator, phase/view routing, state owner
 // ════════════════════════════════════════════════════════════════
 
+//-- endfile --
+
+//<< import { AppController } from './app-controller.js';
+//-- file: ./app-controller.js --
+//>> export { AppController };
 class AppController {
   constructor() {
     this.items = [];
@@ -1553,6 +1586,8 @@ class AppController {
     setTimeout(() => t.classList.remove('show'), 1800);
   }
 }
+//-- endfile --
+
 
 // ── Bootstrap ──
 

@@ -397,6 +397,9 @@ class EdgeRefNode {
 
 // ── ConsolePanel ────────────────────────────────────────────
 
+//<< import { ConsolePanel } from './console-panel.js';
+//-- file: ./console-panel.js --
+//>> export { ConsolePanel };
 class ConsolePanel {
   constructor(el) {
     this.el = typeof el === 'string' ? document.getElementById(el) : el;
@@ -413,6 +416,11 @@ class ConsolePanel {
 
 // ── InfoPanel ───────────────────────────────────────────────
 
+//-- endfile --
+
+//<< import { InfoPanel } from './info-panel.js';
+//-- file: ./info-panel.js --
+//>> export { InfoPanel };
 class InfoPanel {
   constructor(el) {
     this.el = typeof el === 'string' ? document.getElementById(el) : el;
@@ -501,6 +509,11 @@ class InfoPanel {
 //    onExtraDraw(ctxMix)             → draw overlays
 // ─────────────────────────────────────────────────────────────
 
+//-- endfile --
+
+//<< import { NetworkEditor } from './network-editor.js';
+//-- file: ./network-editor.js --
+//>> export { NetworkEditor };
 class NetworkEditor {
 
   constructor({ canvasId, toolbarId, console }) {
@@ -923,6 +936,8 @@ class NetworkEditor {
 //<< import { Graph } from '../util/graph/graph.js';
 //-- file: ../util/graph/graph.js --
 //>> export { Graph };
+//-- endfile --
+
 class Graph {
   constructor(directed = false) {
     this._directed = directed;
@@ -1270,6 +1285,9 @@ class Graph {
 const CYCLE_COLORS = ['#f72585','#7209b7','#3a0ca3','#4361ee','#4cc9f0','#06d6a0','#ffd166','#ef476f'];
 const COMPONENT_COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#4cc9f0','#ffd166','#ef476f'];
 
+//<< import { GraphOps } from './graph-ops.js';
+//-- file: ./graph-ops.js --
+//>> export { GraphOps };
 class GraphOps {
 
   constructor(editor, console, infoPanel) {
@@ -1543,6 +1561,8 @@ class GraphOps {
     this.editor.draw();
   }
 }
+//-- endfile --
+
 
 // ── DELETE-END ──
 

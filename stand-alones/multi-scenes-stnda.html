@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chart Editor - Extensible Models</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e1a; color: #c8c0b0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #help {
+    position: fixed; bottom: 12px; left: 12px; font-size: 11px;
+    color: #889; pointer-events: none; z-index: 5;
+    background: rgba(15, 15, 20, 0.6); padding: 8px 12px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .sel-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .sel-row span { min-width: 60px; color: #999; font-size: 11px; }
+  .sel-row input[type=text] {
+    flex: 1; background: rgba(0,0,0,0.5); color: #fff;
+    border: 1px solid rgba(255,255,255,0.2); padding: 4px 6px;
+    border-radius: 4px; font-size: 11px; outline: none;
+    font-family: 'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+  }
+  .sel-row input[type=text]:focus { border-color: #6cf; }
+  .sel-row input[type=color] {
+    width: 32px; height: 22px; padding: 1px; cursor: pointer; border-radius: 4px;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); outline: none;
+  }
+</style>
+</head>
+<body>
+<div id="help">
+  <strong>Scroll</strong> to zoom, drag empty space to pan.<br/>
+  <strong>Drag</strong> from strip to place blocks. Drop on strip to delete.
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const R = 30;
+const P = { 
+  opacity: 80, edgeWidth: 5, edgeOutline: 1.5, edgeBend: 0, 
+  indicatedIds: new Set(), showChartBounds: false, screenMode: false,
+  colors: { 4: { fill: '#c08428', stroke: '#9a6a1e' } }, 
+};
+
+const MODELS = []
+const STOCK = []  
+const CONTROLS = []
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+function cloneProto(proto, overrides) {
+  const { id: _, ...rest } = proto.value;
+  return makeNode(proto.type, { ...rest, ...overrides });
+}
+
+/*------------------------------------
+DEPENDENCIES:
+
+klass with a k to prevent dumb utility from marking up!
+
+// 1. Foundation & Math
+klass Geo { ... }
+
+// 2. Registry & Utils
+klass SubtreeIterator { ... }
+klass SceneRegistry { ... }
+let sceneRegistry = new SceneRegistry();
+klass Utils { ... }
+
+// 3. Graph & Node Helpers
+klass ConnHelper { ... }
+klass PipHelper extends ConnHelper { ... }
+klass SnapControllerUtils { ... }
+klass BasicCollectionNode { ... } // (Only the static methods are strictly required by the controllers)
+
+// 4. Raft Dragging Engines (Only needed for RaftSnap)
+klass RaftConeEngine { ... }
+klass RaftSnapEngine { ... }
+
+// 5. The Controllers
+klass RaftSnapController { ... }
+klass EdgeSnapController { ... }
+--------------------------------------------------------*/
+
+//<< import { Geo } from './geo.js';
+//-- file: ./geo.js --
+//>> export { Geo };
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static norm(a) { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
+  static adiff(a, b) { return Math.abs(Geo.norm(a - b)); }
+  static dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  static dist2(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
+  static pipsOpposite(a, b) { return Geo.adiff(a, b) > Geo.PI * 0.85; }
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const mx = (vs[i].x + vs[j].x) / 2;
+      const my = (vs[i].y + vs[j].y) / 2;
+      p.push({ x: mx, y: my, out: Math.atan2(my - cy, mx - cx) });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+}
+
+//-- endfile --
+
+
+
+
+
+class SubtreeIterator {
+  constructor() { this.index = 0; }
+  next(subtree) {
+    if (this.index >= subtree.length) return null;
+    return subtree[this.index++];
+  }
+}
+
+//<< import { SceneRegistry } from './scene-registry.js';
+//-- file: ./scene-registry.js --
+//>> export { SceneRegistry };
+class SceneRegistry {
+  constructor() {
+    this.handlers = {};
+    this.meta = {};
+  }
+
+  hasCtxMix(fn, name) {
+    const fnStr = fn.toString().trim();
+    const codeOnly = fnStr.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const match = codeOnly.match(/^[^(]*\(\s*([^,)\s]+)/);
+    let firstParam = '';
+    if (match) firstParam = match[1];
+    else {
+      const arrowMatch = codeOnly.match(/^([^=()\s]+)\s*=>/);
+      if (arrowMatch) firstParam = arrowMatch[1];
+    }
+    return firstParam === 'ctxMix';
+  }
+  
+  _hasHandler(nodeType, name) { return !!this.handlers[nodeType]?.[name]; }
+
+  registerNodeClass(nodeType, nodeClass, defaultParams=null) {
+    const proto = nodeClass.prototype;
+    for (let cls = nodeClass; cls && cls !== Function.prototype; cls = Object.getPrototypeOf(cls)) {
+      for (const name of Object.getOwnPropertyNames(cls)) {
+        if (['length', 'name', 'prototype'].includes(name)) continue;
+        const method = cls[name];
+        if (typeof method !== 'function') continue;
+        if (this.hasCtxMix(method, name)) {
+          if (!this._hasHandler?.(nodeType, name)) {
+            this._registerHandler(nodeType, name, (ctxMix, node, params, child) => {
+              return nodeClass[name](ctxMix, node, params, child);
+            });
+          }
+        }
+      }
+    }
+    this.meta[nodeType] = { nodeClass, defaultParams, ...(nodeClass.meta || {}) };
+  }
+
+  _registerHandler(nodeType, phase, handler) {
+    if (!this.handlers[phase]) this.handlers[phase] = {};
+    this.handlers[phase][nodeType] = handler;
+  }
+
+  dispatch(ctxMix, phase, node, params, child) {
+    const phaseHandlers = this.handlers[phase];
+    if (!phaseHandlers) return;
+    const meta = this.meta[node.type];
+    const mergedParams = meta?.defaultParams ? { ...meta.defaultParams, ...params } : params;
+    const handler = phaseHandlers[node.type] || phaseHandlers['default'];
+    if (handler) return handler(ctxMix, node, mergedParams, child);
+  }
+  
+  hasPhase(nodeType, phase) { return !!this.handlers[phase]?.[nodeType]; }
+
+  walkPhase(ctxMix, phase, node, params) {
+    if (!node) return;
+    
+    if (!node?.subtree || node?.subtree?.length === 0) {
+      this.dispatch(ctxMix, phase, node, params);
+      return;
+    }
+    
+    if (!ctxMix.iterators) ctxMix.iterators = [];
+    ctxMix.iterators.push(new SubtreeIterator());
+    
+    this.dispatch(ctxMix, 'before_' + phase, node, params);
+    
+    let child;
+    while ((child = ctxMix.iterators.at(-1).next(node.subtree)) !== null) {
+      if (ctxMix.abortPhase) break; 
+
+      this.dispatch(ctxMix, 'before_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break; 
+      
+      this.walkPhase(ctxMix, phase, child, params);
+      if (ctxMix.abortPhase) break; 
+      
+      this.dispatch(ctxMix, 'after_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break;
+    }
+    ctxMix.abortPhase = false;    
+    this.dispatch(ctxMix, 'after_' + phase, node, params);
+    ctxMix.iterators.pop();
+  }
+}
+
+let sceneRegistry = new SceneRegistry();
+
+//-- endfile --
+
+//<< import { Utils } from './utils.js';
+//-- file: ./utils.js --
+//>> export { Utils };
+class Utils {
+  static classOfNode(node) {
+    if (!node) return null;
+    return sceneRegistry.meta[node.type]?.nodeClass || null;
+  }
+  static hasAffordance(node, phaseName) {
+    return node && sceneRegistry.hasPhase(node.type, phaseName);
+  }
+}
+
+//-- endfile --
+
+
+
+//<< import { FlyWeightIterator } from './fly-weight-iterator.js';
+//-- file: ./fly-weight-iterator.js --
+//>> export { FlyWeightIterator };
+class FlyWeightIterator {
+  constructor(count) {
+    this.count = count;
+    this.index = 0;
+  }
+  next(subtree) {
+    if (this.index >= this.count) return null;
+    this.index++;
+    return subtree[0];
+  }
+}
+
+//-- endfile --
+
+//<< import { FlyWeightNode } from './fly-weight-node.js';
+//-- file: ./fly-weight-node.js --
+//>> export { FlyWeightNode };
+class FlyWeightNode {
+  static _installIterator(ctxMix, node) {
+    ctxMix.iterators.pop();
+    const count = node.value.count || 0;
+    const iter = new FlyWeightIterator(count);
+    ctxMix.iterators.push(iter);
+    
+    const proto = node.subtree?.[0];
+    if (proto) {
+      proto.flyFn = (mix, n, p) => {
+        return node.value.valueFn(mix, node, p, iter.index - 1);
+      };
+      proto.nodeFn = (mix, n, p) => {
+        const dataItem = node.value.data[iter.index - 1];
+        return { 
+          type: proto.type,   // Keeps the identity (e.g., 'ramachandran-point')
+          value: dataItem     // The UI will edit this data item directly!
+        };
+      };
+    }
+  }
+  
+  static before_layout(ctxMix, node) { this._installIterator(ctxMix, node); }
+  static before_draw2d(ctxMix, node) { this._installIterator(ctxMix, node); }
+  static before_hit_test(ctxMix, node) { this._installIterator(ctxMix, node); }
+}
+
+sceneRegistry.registerNodeClass('flyweight-node', FlyWeightNode);
+
+
+//-- endfile --
+
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//-- file: ./basic-collection-node.js --
+//>> export { BasicCollectionNode };
+class BasicCollectionNode {
+  static _sortSubtree(sub) {
+    sub.sort((a, b) => {
+      const az = Utils.classOfNode(a)?.meta?.zOrder ?? 0;
+      const bz = Utils.classOfNode(b)?.meta?.zOrder ?? 0;
+      return az - bz;
+    });
+  }
+
+  static after_child_hit_test(ctxMix, node, params, child) {
+    if (ctxMix.hitResult && ctxMix.hitResult.node === child && !ctxMix.hoverOnly) {
+       const inner = ctxMix.hitResult.interactions;
+       const sub = node.subtree;
+       ctxMix.hitResult.interactions = {
+          applyDrag: (wx, wy) => { if (inner && inner.applyDrag) inner.applyDrag(wx, wy); },
+          endDrag: (onStrip) => {
+             if (inner && inner.endDrag) inner.endDrag(onStrip);
+             if (onStrip) {
+                 const idx = sub.indexOf(child);
+                 if (idx >= 0) sub.splice(idx, 1);
+             }
+          }
+       };
+    }
+  }
+}
+
+sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
+//-- endfile --
+
+
+
+
+/*------------------- CUT AND PASTE ME -----------------
+
+This section can be added to multi-stock-stnda to flesh it out... 
+*/
+
+
+//<< import { WordNode } from './word-node.js';
+//-- file: ./word-node.js --
+//>> export { WordNode };
+
+function hexToRgba(hex, alpha) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function measureWord(ctx, text, font) {
+  ctx.font = font;
+  ctx.textBaseline = 'alphabetic'; // <-- Add this line to fix the offset
+  
+  const m = ctx.measureText(text);
+  const asc = m.actualBoundingBoxAscent  || m.emHeightAscent  || 0;
+  const dsc = m.actualBoundingBoxDescent || m.emHeightDescent || 0;
+  
+  return { width: m.width, ascent: asc, descent: dsc, height: asc + dsc };
+}
+
+const WORD_DEFAULTS = Object.freeze({
+  fontFamily:     '"Inter", "Helvetica Neue", system-ui, sans-serif',
+  fontSize:       28,
+  fontWeight:     700,
+  color:          '#e4dac6',
+  opacity:        1.0,
+  rotation:       0,
+  haloColor:      '#000000',
+  haloWidth:      0,
+  haloOpacity:    0.35,
+  highlightFill:  'rgba(255,255,255,0.06)',
+  highlightPad:   6,
+  highlightRadius: 4,
+  scale:          1.0,
+});
+
+//-- endfile --
+
+class WordNode {
+  // New Style: Metadata tells the system how to interact with this node
+  static meta = {
+    zOrder: 1,
+    raftable: true,
+    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, text: 'word' }),
+    editableFields: (node) => [
+      { key: 'text', label: 'Text', type: 'text', value: node.value.text || '' },
+      { key: 'fontSize', label: 'Size', type: 'number', value: node.value.fontSize || WORD_DEFAULTS.fontSize },
+      { key: 'rotation', label: 'Rotation', type: 'number', value: node.value.rotation || WORD_DEFAULTS.rotation },
+      { key: 'color', label: 'Color', type: 'color', value: node.value.color || WORD_DEFAULTS.color },
+    ],
+  };
+
+  static getCentreXY(ctxMix, node, params) { 
+    const {x, y} = ctxMix.getXY(ctxMix, node, params); 
+    return {x, y}; 
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...WORD_DEFAULTS, ...params };
+    const text = v.text || '';
+    if (!text) return;
+
+    // New Style: Zoom is handled naturally by the Camera context scale. 
+    // We no longer multiply fSize by zoom.
+    const sc      = (p.scale || 1) * (v.scale || 1);
+    const fSize   = (v.fontSize || p.fontSize) * sc;
+    const weight  = v.fontWeight || p.fontWeight;
+    const family  = v.fontFamily || p.fontFamily;
+    const font    = `${weight} ${fSize.toFixed(1)}px ${family}`;
+    const rot     = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+    const opacity = (v.opacity != null ? v.opacity : p.opacity);
+
+    // New Style: We extract world coordinates cleanly via the ctxMix getter.
+    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
+    const ctx = ctxMix.ctx;
+
+    ctx.save();
+    ctx.globalAlpha *= opacity;
+    ctx.translate(cx, cy);
+    if (rot) ctx.rotate(rot);
+
+    const meas = measureWord(ctx, text, font);
+
+    // ── highlight box behind selected words ──
+    // New Style: We check indicatedIds directly from params instead of a standalone Set
+    if (params.indicatedIds && params.indicatedIds.has(v.id)) {
+      const pad = (p.highlightPad || 0); // No zoom multiplier needed
+      const hr  = (p.highlightRadius || 0);
+      const hx  = -meas.width / 2 - pad;
+      const hy  = -meas.ascent - pad;
+      const hw  = meas.width + pad * 2;
+      const hh  = meas.height + pad * 2;
+      
+      ctx.fillStyle = p.highlightFill;
+      if (ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.fill();
+      } else {
+        ctx.fillRect(hx, hy, hw, hh);
+      }
+
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth   = 1.5;
+      if (ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.stroke();
+      } else {
+        ctx.strokeRect(hx, hy, hw, hh);
+      }
+      ctx.setLineDash([]);
+    }
+
+    // ── halo / outline ──
+    const haloW = (v.haloWidth != null ? v.haloWidth : p.haloWidth) * sc;
+    if (haloW > 0) {
+      ctx.strokeStyle = hexToRgba(
+        v.haloColor || p.haloColor,
+        v.haloOpacity != null ? v.haloOpacity : p.haloOpacity
+      );
+      ctx.lineWidth   = haloW;
+      ctx.lineJoin    = 'round';
+      ctx.font        = font;
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.strokeText(text, 0, 0);
+    }
+
+    // ── text fill ──
+    ctx.fillStyle    = v.color || p.color;
+    ctx.font         = font;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, 0, 0);
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+
+    const v = node.value || {};
+    const text = v.text || '';
+    if (!text) return;
+
+    const p = { ...WORD_DEFAULTS, ...params };
+    const sc = (p.scale || 1) * (v.scale || 1);
+    const fSize = (v.fontSize || p.fontSize) * sc;
+    const weight = v.fontWeight || p.fontWeight;
+    const family = v.fontFamily || p.fontFamily;
+    const font = `${weight} ${fSize.toFixed(1)}px ${family}`;
+    const rot = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+
+    // New Style: No screen conversion needed. pt is already in world space.
+    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
+
+    // Transform hit point into the word's local frame
+    let lx = pt.x - cx;
+    let ly = pt.y - cy;
+    if (rot) {
+      const cos = Math.cos(-rot), sin = Math.sin(-rot);
+      const rx = lx * cos - ly * sin;
+      const ry = lx * sin + ly * cos;
+      lx = rx; ly = ry;
+    }
+
+    const ctx = ctxMix.ctx;
+    const meas = measureWord(ctx, text, font);
+    const pad = 4;
+    const halfW = meas.width / 2 + pad;
+    const top = -meas.ascent - pad;
+    const bot = meas.descent + pad;
+
+    if (lx < -halfW || lx > halfW || ly < top || ly > bot) return;
+
+    const dxHit = pt.x - cx;
+    const dyHit = pt.y - cy;
+
+    // New Style: Pass world coordinates directly in applyDrag
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) {
+          node.value.x = wx - dxHit;
+          node.value.y = wy - dyHit;
+        },
+      },
+    };
+  }
+}
+
+sceneRegistry.registerNodeClass('word-node', WordNode);
+//-- endfile --
+
+
+
+
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FrameNode — generic, content-agnostic frame with drag, resize, and screen-fit.
+
+   Node value properties:
+     x, y          — world position (centre of frame)
+     cw, ch        — content width / height (the "drawing area")
+     padding       — { left, right, top, bottom } or a single Number (uniform)
+                     defaults to { left: 80, right: 80, top: 100, bottom: 100 }
+     minCw, minCh  — minimum content dimensions (default 200 × 150)
+     resizeMode    — 'corners' | 'edges' | false   (default 'corners')
+
+   What it provides to children via ctxMix:
+     ctxMix.getHW() → { cw, ch }   — current frame content dimensions
+   ──────────────────────────────────────────────────────────────────────────── */
+
+//<< import { FrameNode } from './frame-node.js';
+//-- file: ./frame-node.js --
+//>> export { FrameNode };
+class FrameNode {
+
+  /* ── geometry helpers (private) ────────────────────────────────────────── */
+
+  static _pad(node) {
+    const p = node.value.padding;
+    if (p == null) return { left: 80, right: 80, top: 100, bottom: 100 };
+    if (typeof p === 'number') return { left: p, right: p, top: p, bottom: p };
+    return { left: p.left ?? 80, right: p.right ?? 80, top: p.top ?? 100, bottom: p.bottom ?? 100 };
+  }
+
+  static _frameExtents(node) {
+    const cw = node.value.cw || 700, ch = node.value.ch || 400;
+    const pad = FrameNode._pad(node);
+    return {
+      hw: cw / 2 + (pad.left + pad.right) / 2,
+      hh: ch / 2 + (pad.top + pad.bottom) / 2,
+    };
+  }
+
+  static _corners(node) {
+    const { hw, hh } = FrameNode._frameExtents(node);
+    return [
+      { cx: -hw, cy: -hh, signX: -1, signY: -1, cursor: 'nwse-resize' },
+      { cx:  hw, cy: -hh, signX:  1, signY: -1, cursor: 'nesw-resize' },
+      { cx: -hw, cy:  hh, signX: -1, signY:  1, cursor: 'nesw-resize' },
+      { cx:  hw, cy:  hh, signX:  1, signY:  1, cursor: 'nwse-resize' },
+    ];
+  }
+
+  static _edges(node) {
+    const { hw, hh } = FrameNode._frameExtents(node);
+    return [
+      { side: 'top',    test: (lx, ly) => Math.abs(ly + hh) <= 8 && lx > -hw && lx < hw, cursor: 'ns-resize',   axis: 'y', sign: -1 },
+      { side: 'bottom', test: (lx, ly) => Math.abs(ly - hh) <= 8 && lx > -hw && lx < hw, cursor: 'ns-resize',   axis: 'y', sign:  1 },
+      { side: 'left',   test: (lx, ly) => Math.abs(lx + hw) <= 8 && ly > -hh && ly < hh, cursor: 'ew-resize',   axis: 'x', sign: -1 },
+      { side: 'right',  test: (lx, ly) => Math.abs(lx - hw) <= 8 && ly > -hh && ly < hh, cursor: 'ew-resize',   axis: 'x', sign:  1 },
+    ];
+  }
+
+  static _snapChildren(node) {
+    return (node.subtree || []).map(ch => ({ x: ch.value.x, y: ch.value.y }));
+  }
+
+  /* ── resize (content-agnostic: scales all children's x/y uniformly) ──── */
+
+  static _applySize(node, newCw, newCh, baseCw, baseCh, childSnap) {
+    const sx = newCw / baseCw, sy = newCh / baseCh;
+    const minCw = node.value.minCw ?? 200, minCh = node.value.minCh ?? 150;
+    node.value.cw = Math.max(minCw, newCw);
+    node.value.ch = Math.max(minCh, newCh);
+    for (let i = 0; i < (node.subtree || []).length; i++) {
+      const child = node.subtree[i], snap = childSnap[i];
+      if (snap.x !== undefined) child.value.x = snap.x * sx;
+      if (snap.y !== undefined) child.value.y = snap.y * sy;
+    }
+  }
+
+  /* ── draw ──────────────────────────────────────────────────────────────── */
+
+  static before_draw2d(ctxMix, node, params) {
+    const cw = node.value.cw || 700, ch = node.value.ch || 400;
+
+    // Screen-mode auto-fit
+    if (params.screenMode) {
+      const { W, H, Z, ox, oy } = ctxMix.getWH();
+      const pad = FrameNode._pad(node);
+      const targetCw = Math.max(node.value.minCw ?? 200, W / Z - pad.left - pad.right);
+      const targetCh = Math.max(node.value.minCh ?? 150, H / Z - pad.top - pad.bottom);
+      node.value.x = ox + W / (2 * Z);
+      node.value.y = oy + H / (2 * Z);
+      if (!node.value._screenSnap) {
+        node.value._screenSnap = {
+          cw, ch,
+          children: FrameNode._snapChildren(node)
+        };
+      }
+      const s = node.value._screenSnap;
+      FrameNode._applySize(node, targetCw, targetCh, s.cw, s.ch, s.children);
+    } else if (node.value._screenSnap) {
+      delete node.value._screenSnap;
+    }
+
+    // Expose frame dimensions to children
+    const frameCw = node.value.cw || 700, frameCh = node.value.ch || 400;
+    ctxMix.getHW = () => ({ cw: frameCw, ch: frameCh });
+
+    const ctx = ctxMix.ctx;
+    ctx.save();
+    ctx.translate(node.value.x || 0, node.value.y || 0);
+
+    if (params.showChartBounds) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+      const { hw, hh } = FrameNode._frameExtents(node);
+      ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
+    }
+  }
+  
+  static after_draw2d(ctxMix, node, params) {
+    const ctx = ctxMix.ctx;
+    const hi = params.indicatedIds && params.indicatedIds.has(node.value.id);
+    const mode = node.value.resizeMode ?? 'corners';
+
+    if (hi && mode) {
+      const { hw, hh } = FrameNode._frameExtents(node);
+
+      ctx.strokeStyle = 'rgba(102, 204, 255, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+
+      if (mode === 'corners') {
+        const size = 10;
+        ctx.fillStyle = '#6cf';
+        for (const c of FrameNode._corners(node)) ctx.fillRect(c.cx - size / 2, c.cy - size / 2, size, size);
+      } else if (mode === 'edges') {
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = 'rgba(102, 204, 255, 0.6)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-hw, -hh, hw * 2, hh * 2);
+        ctx.setLineDash([]);
+        const ms = 6;
+        ctx.fillStyle = '#6cf';
+        ctx.fillRect(-ms / 2, -hh - ms / 2, ms, ms);
+        ctx.fillRect(-ms / 2, hh - ms / 2, ms, ms);
+        ctx.fillRect(-hw - ms / 2, -ms / 2, ms, ms);
+        ctx.fillRect(hw - ms / 2, -ms / 2, ms, ms);
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ── hit-test ─────────────────────────────────────────────────────────── */
+
+  static before_hit_test(ctxMix, node, params) {
+    // Expose frame dimensions for children's hit-test
+    const frameCw = node.value.cw || 700, frameCh = node.value.ch || 400;
+    ctxMix.getHW = () => ({ cw: frameCw, ch: frameCh });
+
+    node.value._savedHit = ctxMix.hitPoint;
+    if (!ctxMix.hitPoint) return;
+
+    const localPt = {
+      x: ctxMix.hitPoint.x - (node.value.x || 0),
+      y: ctxMix.hitPoint.y - (node.value.y || 0)
+    };
+    ctxMix.hitPoint = localPt;
+
+    const { hw, hh } = FrameNode._frameExtents(node);
+    const isHi = params.indicatedIds && params.indicatedIds.has(node.value.id);
+    const mode = node.value.resizeMode ?? 'corners';
+
+    // Resize hit-test (only when selected and not in screen mode)
+    if (isHi && mode && !params.screenMode) {
+      const pad = FrameNode._pad(node);
+      const startCw = node.value.cw || 700, startCh = node.value.ch || 400;
+
+      if (mode === 'corners') {
+        const hs = 14;
+        for (const c of FrameNode._corners(node)) {
+          if (Math.abs(localPt.x - c.cx) <= hs && Math.abs(localPt.y - c.cy) <= hs) {
+            const fixedWx = (node.value.x || 0) - c.signX * hw;
+            const fixedWy = (node.value.y || 0) - c.signY * hh;
+            const childSnap = FrameNode._snapChildren(node);
+
+            ctxMix.hitResult = {
+              node,
+              interactions: {
+                cursor: c.cursor,
+                applyDrag(wx, wy) {
+                  const totalPadX = pad.left + pad.right;
+                  const totalPadY = pad.top + pad.bottom;
+                  const newCw = Math.abs(wx - fixedWx) - totalPadX;
+                  const newCh = Math.abs(wy - fixedWy) - totalPadY;
+                  node.value.x = (fixedWx + wx) / 2;
+                  node.value.y = (fixedWy + wy) / 2;
+                  FrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
+                }
+              }
+            };
+            return;
+          }
+        }
+      } else if (mode === 'edges') {
+        for (const e of FrameNode._edges(node)) {
+          if (e.test(localPt.x, localPt.y)) {
+            const childSnap = FrameNode._snapChildren(node);
+            ctxMix.hitResult = {
+              node,
+              interactions: {
+                cursor: e.cursor,
+                applyDrag(wx, wy) {
+                  let newCw = startCw, newCh = startCh;
+                  if (e.axis === 'x') {
+                    const localWx = wx - (node.value.x || 0);
+                    newCw = Math.abs(localWx / e.sign) * 2;
+                  } else {
+                    const localWy = wy - (node.value.y || 0);
+                    newCh = Math.abs(localWy / e.sign) * 2;
+                  }
+                  FrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
+                }
+              }
+            };
+            return;
+          }
+        }
+      }
+    }
+
+    // Frame body drag (pan the whole frame)
+    if (localPt.x >= -hw && localPt.x <= hw && localPt.y >= -hh && localPt.y <= hh) {
+      const ox = node.value._savedHit.x - (node.value.x || 0);
+      const oy = node.value._savedHit.y - (node.value.y || 0);
+      ctxMix.hitResult = {
+        node,
+        interactions: {
+          applyDrag(wx, wy) {
+            node.value.x = wx - ox;
+            node.value.y = wy - oy;
+          }
+        }
+      };
+    }
+  }
+
+  static after_child_hit_test(ctxMix, node, params, child) {
+    if (ctxMix.hitResult && ctxMix.hitResult.node === child && !ctxMix.hoverOnly) {
+       const inner = ctxMix.hitResult.interactions;
+       const sub = node.subtree;
+       ctxMix.hitResult.interactions = {
+          applyDrag: (wx, wy) => { if (inner && inner.applyDrag) inner.applyDrag(wx, wy); },
+          endDrag: (onStrip) => {
+             if (inner && inner.endDrag) inner.endDrag(onStrip);
+             if (onStrip) {
+                 const idx = sub.indexOf(child);
+                 if (idx >= 0) sub.splice(idx, 1);
+             }
+          }
+       };
+    }
+  }
+
+  static after_hit_test(ctxMix, node, params) {
+    ctxMix.hitPoint = node.value._savedHit; 
+    if (ctxMix.hitResult && ctxMix.hitResult.node !== node) {
+      const innerDrag = ctxMix.hitResult.interactions?.applyDrag;
+      const cx = node.value.x || 0, cy = node.value.y || 0;
+      if (innerDrag && !ctxMix.hitResult._wrappedByChartCoordMap) {
+        ctxMix.hitResult.interactions.applyDrag = (wx, wy) => {
+          innerDrag(wx - cx, wy - cy);
+        };
+        ctxMix.hitResult._wrappedByChartCoordMap = true; 
+      }
+    }
+  }
+}
+
+sceneRegistry.registerNodeClass('frame-node', FrameNode);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ramachandran-specific chart nodes — read dimensions from ctxMix.getHW()
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const REGION_SETS = {
+  general: {
+    favored: [
+      { label: 'β',   cx: -119, cy:  133, rx: 53, ry: 38, rot: -0.61 },
+      { label: 'α',   cx:  -66, cy:  -42, rx: 32, ry: 26, rot: -0.17 },
+      { label: 'Lα',  cx:   58, cy:   42, rx: 21, ry: 19, rot:  0.17 },
+    ],
+    allowed: [
+      { cx: -105, cy:  135, rx: 78, ry: 56, rot: -0.52 },
+      { cx:  -66, cy:  -42, rx: 50, ry: 40, rot: -0.17 },
+      { cx:   58, cy:   42, rx: 35, ry: 30, rot:  0.17 },
+      { cx:  -85, cy:    5, rx: 22, ry: 55, rot:  0.30 }, 
+    ],
+  },
+  glycine: {
+    favored: [
+      { label: 'β',   cx: -119, cy:  133, rx: 53, ry: 38, rot: -0.61 },
+      { label: 'α',   cx:  -66, cy:  -42, rx: 32, ry: 26, rot: -0.17 },
+      { label: 'Lα',  cx:   58, cy:   42, rx: 32, ry: 26, rot:  0.17 },
+      { label: 'Lβ',  cx:  119, cy: -133, rx: 53, ry: 38, rot:  0.61 },
+    ],
+    allowed: [
+      { cx: -105, cy:  135, rx: 78, ry: 56, rot: -0.52 },
+      { cx:  -66, cy:  -42, rx: 50, ry: 40, rot: -0.17 },
+      { cx:   58, cy:   42, rx: 50, ry: 40, rot:  0.17 },
+      { cx:  105, cy: -135, rx: 78, ry: 56, rot:  0.52 },
+    ],
+  },
+  proline: {
+    favored: [
+      { label: 'β', cx: -63, cy:  148, rx: 13, ry: 32, rot: 0 },
+      { label: 'α', cx: -63, cy:  -30, rx: 13, ry: 28, rot: 0 },
+    ],
+    allowed: [
+      { cx: -63, cy:  148, rx: 20, ry: 42, rot: 0 },
+      { cx: -63, cy:  -30, rx: 20, ry: 40, rot: 0 },
+    ],
+  },
+  preProline: {
+    favored: [
+      { label: 'β', cx: -125, cy:  148, rx: 48, ry: 26, rot: -0.35 },
+      { label: 'α', cx:  -63, cy:  -30, rx: 26, ry: 20, rot: -0.17 },
+    ],
+    allowed: [
+      { cx: -125, cy:  148, rx: 68, ry: 40, rot: -0.35 },
+      { cx:  -63, cy:  -30, rx: 42, ry: 33, rot: -0.17 },
+    ],
+  },
+};
+
+const RC_DEFAULTS = Object.freeze({
+  aspectRatio:      1,
+  bgFill:           '#1c1c24',
+  borderColor:      '#3a3a4c',
+  borderWidth:      1.5,
+  cornerRadius:     6,
+  showRegions:      true,
+  regionSet:        'general',
+  favoredFill:      'rgba(80, 180, 120, 0.35)',
+  favoredStroke:    'rgba(80, 180, 120, 0.60)',
+  allowedFill:      'rgba(80, 180, 120, 0.12)',
+  allowedStroke:    'rgba(80, 180, 120, 0.30)',
+  regionLineWidth:  1.5,
+  showRegionLabels: true,
+  regionLabelColor: 'rgba(200, 220, 200, 0.7)',
+  regionLabelSize:  18,
+  showGrid:         true,
+  gridStep:         30,
+  gridColor:        'rgba(255, 255, 255, 0.05)',
+  gridLineWidth:    1,
+  axisColor:        'rgba(255, 255, 255, 0.25)',
+  axisLineWidth:    1.5,
+  showTicks:        true,
+  tickStep:         60,
+  tickLength:       5,
+  tickLabelColor:   '#889',
+  tickLabelSize:    10,
+  axisTitleColor:   '#aab',
+  axisTitleSize:    14,
+  showDiagonal:     false,
+  diagonalColor:    'rgba(255, 255, 255, 0.08)',
+});
+
+//-- endfile --
+
+//<< import { RamachandranChartNode } from './ramachandran-chart-node.js';
+//-- file: ./ramachandran-chart-node.js --
+//>> export { RamachandranChartNode };
+class RamachandranChartNode {
+
+  static _geom(ctxMix, p) {
+    const { cw: W, ch: H } = ctxMix.getHW();
+    const ASPECT_RATIO = p.aspectRatio || 1.0;
+
+    const fitW = Math.min(W, H * ASPECT_RATIO);
+    const fitH = Math.min(W / ASPECT_RATIO, H);
+    
+    const left = -fitW / 2;
+    const top = -fitH / 2;
+    
+    return { fitW, fitH, left, top };
+  }
+
+  static phiPsiToScreen(phi, psi, g) {
+    const nx = (phi + 180) / 360;
+    const ny = (180 - psi) / 360; 
+    return {
+      x: g.left + nx * g.fitW,
+      y: g.top + ny * g.fitH
+    };
+  }
+
+  static screenToPhiPsi(sx, sy, g) {
+    const nx = (sx - g.left) / g.fitW;
+    const ny = (sy - g.top) / g.fitH;
+    return {
+      phi: nx * 360 - 180,
+      psi: 180 - ny * 360
+    };
+  }
+
+  static _drawEllipseRegion(ctx, region, g) {
+    const srx = Math.abs(region.rx * (g.fitW / 360));
+    const sry = Math.abs(region.ry * (g.fitH / 360));
+    if (srx < 0.5 || sry < 0.5) return;
+
+    for (const dPsi of [0, 360, -360]) {
+      const shifted = RamachandranChartNode.phiPsiToScreen(region.cx, region.cy + dPsi, g);
+      ctx.beginPath();
+      ctx.ellipse(shifted.x, shifted.y, srx, sry, -(region.rot || 0), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const p = { ...RC_DEFAULTS, ...params };
+    const g = RamachandranChartNode._geom(ctxMix, p);
+    const ctx = ctxMix.ctx;
+    const { left, top, fitW, fitH } = g;
+
+    ctx.save();
+    ctx.fillStyle = p.bgFill;
+    const cr = p.cornerRadius || 0;
+    if (cr > 0 && ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(left, top, fitW, fitH, cr); ctx.fill();
+    } else {
+      ctx.fillRect(left, top, fitW, fitH);
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    if (cr > 0 && ctx.roundRect) ctx.roundRect(left, top, fitW, fitH, cr);
+    else ctx.rect(left, top, fitW, fitH);
+    ctx.clip();
+
+    if (p.showRegions) {
+      const regions = REGION_SETS[p.regionSet] || REGION_SETS.general;
+      
+      ctx.fillStyle = p.allowedFill; ctx.strokeStyle = p.allowedStroke; ctx.lineWidth = p.regionLineWidth || 1;
+      for (const reg of regions.allowed) RamachandranChartNode._drawEllipseRegion(ctx, reg, g);
+
+      ctx.fillStyle = p.favoredFill; ctx.strokeStyle = p.favoredStroke; ctx.lineWidth = p.regionLineWidth || 1;
+      for (const reg of regions.favored) RamachandranChartNode._drawEllipseRegion(ctx, reg, g);
+    }
+
+    if (p.showGrid) {
+      const step = p.gridStep || 30;
+      ctx.strokeStyle = p.gridColor; ctx.lineWidth = p.gridLineWidth || 1;
+      for (let deg = -180 + step; deg < 180; deg += step) {
+        if (deg === 0) continue;
+        const vTop = RamachandranChartNode.phiPsiToScreen(deg, 180, g);
+        const vBot = RamachandranChartNode.phiPsiToScreen(deg, -180, g);
+        ctx.beginPath(); ctx.moveTo(vTop.x, vTop.y); ctx.lineTo(vBot.x, vBot.y); ctx.stroke();
+
+        const hLt = RamachandranChartNode.phiPsiToScreen(-180, deg, g);
+        const hRt = RamachandranChartNode.phiPsiToScreen(180, deg, g);
+        ctx.beginPath(); ctx.moveTo(hLt.x, hLt.y); ctx.lineTo(hRt.x, hRt.y); ctx.stroke();
+      }
+    }
+
+    if (p.showDiagonal) {
+      const d0 = RamachandranChartNode.phiPsiToScreen(-180, 180, g);
+      const d1 = RamachandranChartNode.phiPsiToScreen(180, -180, g);
+      ctx.strokeStyle = p.diagonalColor; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(d0.x, d0.y); ctx.lineTo(d1.x, d1.y); ctx.stroke();
+    }
+
+    ctx.strokeStyle = p.axisColor; ctx.lineWidth = p.axisLineWidth || 1.5;
+    
+    const ax0t = RamachandranChartNode.phiPsiToScreen(0, 180, g);
+    const ax0b = RamachandranChartNode.phiPsiToScreen(0, -180, g);
+    ctx.beginPath(); ctx.moveTo(ax0t.x, ax0t.y); ctx.lineTo(ax0b.x, ax0b.y); ctx.stroke();
+
+    const ax0l = RamachandranChartNode.phiPsiToScreen(-180, 0, g);
+    const ax0r = RamachandranChartNode.phiPsiToScreen(180, 0, g);
+    ctx.beginPath(); ctx.moveTo(ax0l.x, ax0l.y); ctx.lineTo(ax0r.x, ax0r.y); ctx.stroke();
+
+    if (p.showRegionLabels) {
+      const regions = REGION_SETS[p.regionSet] || REGION_SETS.general;
+      const rlSize = p.regionLabelSize || 18;
+      ctx.font = `700 italic ${rlSize.toFixed(1)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      for (const reg of regions.favored) {
+        if (!reg.label) continue;
+        const ls = RamachandranChartNode.phiPsiToScreen(reg.cx, reg.cy, g);
+        ctx.fillText(reg.label, ls.x + 1.5, ls.y + 1.5);
+      }
+      ctx.fillStyle = p.regionLabelColor;
+      for (const reg of regions.favored) {
+        if (!reg.label) continue;
+        const ls = RamachandranChartNode.phiPsiToScreen(reg.cx, reg.cy, g);
+        ctx.fillText(reg.label, ls.x, ls.y);
+      }
+    }
+    
+    ctx.restore(); 
+
+    if (p.borderWidth > 0) {
+      ctx.strokeStyle = p.borderColor; ctx.lineWidth = p.borderWidth;
+      if (cr > 0 && ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(left, top, fitW, fitH, cr); ctx.stroke();
+      } else {
+        ctx.strokeRect(left, top, fitW, fitH);
+      }
+    }
+
+    if (p.showTicks) {
+      const step = p.tickStep || 60;
+      const tLen = p.tickLength || 5;
+      const tSize = p.tickLabelSize || 10;
+
+      ctx.strokeStyle = p.axisColor; ctx.lineWidth = 1;
+      ctx.fillStyle = p.tickLabelColor; ctx.font = `${tSize.toFixed(1)}px monospace`;
+
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (let deg = -180; deg <= 180; deg += step) {
+        const tp = RamachandranChartNode.phiPsiToScreen(deg, -180, g);
+        ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(tp.x, tp.y + tLen); ctx.stroke();
+        ctx.fillText(deg + '°', tp.x, tp.y + tLen + 3);
+      }
+
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      for (let deg = -180; deg <= 180; deg += step) {
+        const tp = RamachandranChartNode.phiPsiToScreen(-180, deg, g);
+        ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(tp.x - tLen, tp.y); ctx.stroke();
+        ctx.fillText(deg + '°', tp.x - tLen - 4, tp.y);
+      }
+    }
+
+    const atSize = p.axisTitleSize || 14;
+    ctx.fillStyle = p.axisTitleColor; ctx.font = `italic 600 ${atSize.toFixed(1)}px system-ui, sans-serif`;
+    
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const phiPos = RamachandranChartNode.phiPsiToScreen(0, -180, g);
+    ctx.fillText('φ (phi)', phiPos.x, phiPos.y + 24);
+
+    ctx.save();
+    const psiPos = RamachandranChartNode.phiPsiToScreen(-180, 0, g);
+    ctx.translate(psiPos.x - 34, psiPos.y);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('ψ (psi)', 0, 0);
+    ctx.restore();
+  }
+}
+
+sceneRegistry.registerNodeClass('ramachandran-chart', RamachandranChartNode);
+
+//-- endfile --
+
+//<< import { RamachandranPointNode } from './ramachandran-point-node.js';
+//-- file: ./ramachandran-point-node.js --
+//>> export { RamachandranPointNode };
+class RamachandranPointNode {
+
+  // New Style: Metadata tells the system how to interact with this node
+  static meta = {
+    zOrder: 1,
+    raftable: true,
+    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, text: 'residue' }),
+    editableFields: (node) => [
+      { key: 'name', label: 'Name', type: 'text', value: node.value.name || '' },
+      { key: 'color', label: 'Color', type: 'color', value: node.value.color || '#882' },
+    ],
+  };
+
+  static draw2d(ctxMix, node, params) {
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    const ctx = ctxMix.ctx;
+    //v.isHovered = true;
+    ctx.beginPath(); ctx.arc(v.x, v.y, v.radius, 0, Math.PI * 2);
+    
+    ctx.shadowColor = 'rgba(0,0,0,0.4)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = v.color || '#4fc3f7'; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    
+    ctx.strokeStyle = v.isHovered ? '#fff' : 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = v.isHovered ? 2 : 1.5; ctx.stroke();
+
+    if (v.isHovered && v.name) {
+      ctx.fillStyle = '#fff'; ctx.font = `11px monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.strokeText(v.name, v.x, v.y - v.radius - 4);
+      ctx.fillText(v.name, v.x, v.y - v.radius - 4);
+    }
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    const dx = pt.x - v.x, dy = pt.y - v.y;
+    
+    if (dx * dx + dy * dy <= v.hitRadiusSq) {
+      ctxMix.hitResult = {
+        node: ctxMix.getNode(ctxMix, node, params), 
+        pointIndex: v.index,
+        phi: v.phi, 
+        psi: v.psi, 
+        name: v.name,
+        interactions: { 
+          applyDrag: v.applyDrag // Ensure you pass the function reference, don't invoke it
+        }
+      };
+    }
+
+  }
+}
+
+sceneRegistry.registerNodeClass('ramachandran-point', RamachandranPointNode);
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Value function — reads frame dimensions from ctxMix.getHW()
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const ramachandranPointValueFn = (ctxMix, fwParent, params, index) => {
+  const v = fwParent.value;
+  const data = v.data || [];
+  const pt = data[index];
+  if (!pt) return null;
+  
+  const p = { ...RC_DEFAULTS, ...params };
+  const g = RamachandranChartNode._geom(ctxMix, p); 
+  const sPos = RamachandranChartNode.phiPsiToScreen(pt.phi, pt.psi, g);
+  
+  const chartId = v.originalNode ? v.originalNode.value.id : v.id;
+  const isHovered = params.hoveredPoint?.nodeId === chartId && params.hoveredPoint?.index === index;
+
+  return {
+    index, 
+    x: sPos.x, 
+    y: sPos.y, 
+    radius: 5, 
+    hitRadiusSq: 81,
+    color: pt.color || '#4fc3f7', 
+    name: pt.name, 
+    phi: pt.phi, 
+    psi: pt.psi,
+    isHovered,
+    originalNode: v.originalNode || fwParent,
+    applyDrag: (wx, wy) => {
+      const angles = RamachandranChartNode.screenToPhiPsi(wx, wy, g);
+      pt.phi = Math.max(-180, Math.min(180, angles.phi));
+      pt.psi = Math.max(-180, Math.min(180, angles.psi));
+    }
+  };
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Model — assembles the scene graph using frame-node
+   ──────────────────────────────────────────────────────────────────────────── */
+
+//-- endfile --
+
+//<< import { RamachandranModel } from './ramachandran-model.js';
+//-- file: ./ramachandran-model.js --
+//>> export { RamachandranModel };
+class RamachandranModel {
+  get name() { return 'Load Ramachandran'; }
+
+  load(app) {
+    app.clearAll();
+
+    const residues = [
+      { phi: -62,  psi:  47, name: 'ALA-12', color: '#4fc3f7' },
+      { phi: -57,  psi:  48, name: 'LEU-13', color: '#4fc3f7' },
+      { phi: -68,  psi:  39, name: 'GLU-14', color: '#4fc3f7' },
+      { phi: -120, psi: 130, name: 'VAL-32', color: '#ffa726' },
+      { phi: -135, psi: 118, name: 'ILE-33', color: '#ffa726' },
+      { phi: -110, psi: 140, name: 'PHE-34', color: '#ffa726' },
+      { phi:  60,  psi:  40, name: 'GLY-58', color: '#ab47bc' },
+      { phi: -30,  psi: -90, name: 'ASN-71', color: '#ef5350' }, 
+    ];
+
+    const CW = 600, CH = 600;
+    const chart = makeNode('frame-node', { x: 0, y: 0, cw: CW, ch: CH, resizeMode: 'corners' });
+    const sub = chart.subtree;
+
+    const ramaNode = makeNode('ramachandran-chart', {});
+    sub.push(ramaNode);
+    
+    sub.push(makeNode('flyweight-node', {
+      count: residues.length,
+      valueFn: ramachandranPointValueFn,
+      data: residues,
+      originalNode: ramaNode
+    }, [ makeNode('ramachandran-point', {}) ]));
+    
+    app.collNode.subtree.push(chart);
+    app.centerOnWorld(0, 0);
+  }
+}
+
+MODELS.push( new RamachandranModel() )
+
+
+CONTROLS.push(
+//  { type: 'button', label: 'Load Residues', cls: 'green', action: () => new RamachandranModel().load(this) },
+  { type: 'separator', label: 'Plot Setting' },
+  { type: 'select', id: 'regionSet', label: 'Region Set', options: [['general', 'General'], ['glycine', 'Glycine'], ['proline', 'Proline'], ['preProline', 'Pre-Proline']], value: 'general' },
+  { type: 'checkbox', id: 'showRegions', label: 'Show Regions', value: true },
+  { type: 'checkbox', id: 'showGrid', label: 'Show Grid', value: true },
+  { id: 'aspectRatio', label: 'Aspect Ratio', min: 0.5, max: 2.0, step: 0.1, value: 1.0 },
+  { type: 'separator', label: 'Framework' },
+  { type: 'checkbox', id: 'showChartBounds', label: 'Show Frame', value: P.showChartBounds },
+  { type: 'checkbox', id: 'screenMode', label: 'Screen Auto-Fit', value: P.screenMode },
+//  { type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true },
+)
+
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Chart-specific nodes — each reads dimensions from ctxMix.getHW()
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const AXIS_DEFAULTS = Object.freeze({
+  axisColor: '#504838', axisWidth: 1.5, tickLength: 5, tickWidth: 1,
+  gridColor: 'rgba(255,255,255,0.04)', gridWidth: 0.5, showGrid: true,
+});
+
+//-- endfile --
+
+//<< import { AxisNode } from './axis-node.js';
+//-- file: ./axis-node.js --
+//>> export { AxisNode };
+class AxisNode {
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {}, p = { ...AXIS_DEFAULTS, ...params };
+    const { cw, ch } = ctxMix.getHW();
+    const left = -cw / 2, right = cw / 2, top = -ch / 2, bottom = ch / 2;
+    const ctx = ctxMix.ctx, tL = p.tickLength || 5;
+
+    ctx.save();
+    const tempMin = v.tempMin ?? 0, tempMax = v.tempMax ?? 30, tempStep = v.tempStep ?? 5;
+    for (let t = tempMin; t <= tempMax; t += tempStep) {
+      const y = bottom - ((t - tempMin) / (tempMax - tempMin)) * ch;
+      if (p.showGrid && t > tempMin) {
+        ctx.strokeStyle = p.gridColor; ctx.lineWidth = p.gridWidth || 0.5;
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      }
+      ctx.strokeStyle = p.axisColor; ctx.lineWidth = p.tickWidth || 1;
+      ctx.beginPath(); ctx.moveTo(left - tL, y); ctx.lineTo(left, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(right, y); ctx.lineTo(right + tL, y); ctx.stroke();
+    }
+
+    const months = v.months || 12, colW = cw / months;
+    for (let i = 0; i <= months; i++) {
+      const x = left + i * colW;
+      ctx.strokeStyle = p.axisColor; ctx.lineWidth = p.tickWidth || 1;
+      ctx.beginPath(); ctx.moveTo(x, bottom); ctx.lineTo(x, bottom + tL); ctx.stroke();
+      if (i > 0 && i < months && p.showGrid) {
+        ctx.strokeStyle = p.gridColor; ctx.lineWidth = p.gridWidth || 0.5;
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      }
+    }
+
+    ctx.strokeStyle = p.axisColor; ctx.lineWidth = p.axisWidth || 1.5;
+    ctx.beginPath();
+    ctx.moveTo(left, top); ctx.lineTo(left, bottom);
+    ctx.moveTo(left, bottom); ctx.lineTo(right, bottom);
+    ctx.moveTo(right, top); ctx.lineTo(right, bottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+sceneRegistry.registerNodeClass('axis-node', AxisNode);
+
+const BAR_DEFAULTS = Object.freeze({
+  barFill: '#4a90c4', barFillHi: '#6ab0e8', barOpacity: 0.72, barGap: 0.28,
+  barRadius: 3, barStroke: 'rgba(90,160,220,0.25)', barStrokeW: 1,
+});
+
+//-- endfile --
+
+//<< import { BarElementNode } from './bar-element-node.js';
+//-- file: ./bar-element-node.js --
+//>> export { BarElementNode };
+class BarElementNode {
+  static draw2d(ctxMix, node, params) {
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    const p = { ...BAR_DEFAULTS, ...params };
+    const ctx = ctxMix.ctx;
+    const br = Math.min(p.barRadius || 0, v.bw / 2);
+
+    ctx.save();
+    ctx.globalAlpha *= (p.barOpacity || 0.72);
+    ctx.fillStyle = v.isHi ? (p.barFillHi || p.barFill) : p.barFill;
+    
+    if (br > 0 && v.bh > br) {
+      ctx.beginPath(); ctx.moveTo(v.bx, v.bottom); ctx.lineTo(v.bx, v.by + br);
+      ctx.arcTo(v.bx, v.by, v.bx + br, v.by, br); ctx.lineTo(v.bx + v.bw - br, v.by);
+      ctx.arcTo(v.bx + v.bw, v.by, v.bx + v.bw, v.by + br, br); ctx.lineTo(v.bx + v.bw, v.bottom);
+      ctx.closePath(); ctx.fill();
+    } else { 
+      ctx.fillRect(v.bx, v.by, v.bw, v.bh); 
+    }
+    
+    if (p.barStroke) {
+      ctx.strokeStyle = p.barStroke; ctx.lineWidth = p.barStrokeW || 1;
+      if (br > 0 && v.bh > br) ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    if (pt.x >= v.bx && pt.x <= v.bx + v.bw && pt.y >= v.by && pt.y <= v.bottom) {
+      ctxMix.hitResult = { node: v.originalNode, interactions: {} };
+    }
+  }
+}
+sceneRegistry.registerNodeClass('bar-element', BarElementNode);
+
+
+const LINE_DEFAULTS = Object.freeze({
+  lineColor: '#e05040', lineColorHi: '#ff7860', lineWidth: 2.5, dotRadius: 4.5,
+  dotFill: '#e05040', dotFillHi: '#ff7860', dotStroke: '#1a1a16', dotStrokeWidth: 2,
+  hitRadius: 12, smooth: 0.22,
+});
+
+//-- endfile --
+
+//<< import { LineDotNode } from './line-dot-node.js';
+//-- file: ./line-dot-node.js --
+//>> export { LineDotNode };
+class LineDotNode {
+  static draw2d(ctxMix, node, params) {
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    const p = { ...LINE_DEFAULTS, ...params };
+    const ctx = ctxMix.ctx;
+    
+    ctx.beginPath(); ctx.arc(v.x, v.y, p.dotRadius || 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = v.isHi ? (p.dotFillHi || p.dotFill) : p.dotFill; 
+    ctx.fill();
+    
+    ctx.strokeStyle = p.dotStroke; ctx.lineWidth = p.dotStrokeWidth || 2; 
+    ctx.stroke();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v) return;
+    
+    const p = { ...LINE_DEFAULTS, ...params };
+    const hr = p.hitRadius || 12;
+    const dx = pt.x - v.x, dy = pt.y - v.y;
+    
+    if (dx * dx + dy * dy <= hr * hr) { 
+      ctxMix.hitResult = { node: v.originalNode, interactions: {} }; 
+    }
+  }
+}
+sceneRegistry.registerNodeClass('line-dot-element', LineDotNode);
+
+//-- endfile --
+
+//<< import { LineChartNode } from './line-chart-node.js';
+//-- file: ./line-chart-node.js --
+//>> export { LineChartNode };
+class LineChartNode {
+  static _points(v, ctxMix) {
+    const data = v.data || [], n = data.length, tMin = v.tempMin ?? 0, tMax = v.tempMax ?? 30;
+    const { cw, ch } = ctxMix.getHW();
+    const left = -cw / 2, bottom = ch / 2, colW = cw / n, pts = [];
+    for (let i = 0; i < n; i++) pts.push({ x: left + (i + 0.5) * colW, y: bottom - ((data[i] - tMin) / (tMax - tMin)) * ch });
+    return pts;
+  }
+  
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {}, p = { ...LINE_DEFAULTS, ...params }, pts = LineChartNode._points(v, ctxMix);
+    if (!pts.length) return;
+    
+    const ctx = ctxMix.ctx, hi = params.indicatedIds && params.indicatedIds.has(v.id), sm = p.smooth || 0;
+    ctx.save(); ctx.strokeStyle = hi ? (p.lineColorHi || p.lineColor) : p.lineColor;
+    ctx.lineWidth = p.lineWidth || 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
+    
+    if (sm > 0 && pts.length > 2) {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(i + 2, pts.length - 1)];
+        const cp1x = p1.x + (p2.x - p0.x) * sm, cp1y = p1.y + (p2.y - p0.y) * sm;
+        const cp2x = p2.x - (p3.x - p1.x) * sm, cp2y = p2.y - (p3.y - p1.y) * sm;
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
+    } else {
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+sceneRegistry.registerNodeClass('line-chart-node', LineChartNode);
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Value functions — read frame dimensions from ctxMix.getHW()
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const barValueFn = (ctxMix, fwParent, params, index) => {
+  const v = fwParent.value;
+  const data = v.data || [];
+  const val = data[index] || 0;
+  const p = { ...BAR_DEFAULTS, ...params };
+  
+  const { cw, ch } = ctxMix.getHW();
+  const left = -cw / 2;
+  const bottom = ch / 2;
+  
+  const rMax = v.rainMax || 120;
+  const n = data.length;
+  const colW = cw / n;
+  const gap = colW * (p.barGap || 0);
+  
+  const bw = colW - gap;
+  const bh = (val / rMax) * ch;
+  const bx = left + index * colW + gap / 2;
+  const by = bottom - bh;
+  
+  const isHi = params.indicatedIds && params.indicatedIds.has(v.originalId || v.id);
+
+  return { bx, by, bw, bh, bottom, isHi, originalNode: v.originalNode || fwParent };
+};
+
+const lineDotValueFn = (ctxMix, fwParent, params, index) => {
+  const v = fwParent.value;
+  const data = v.data || [];
+  const val = data[index] || 0;
+  
+  const { cw, ch } = ctxMix.getHW();
+  const left = -cw / 2;
+  const bottom = ch / 2;
+  
+  const tMin = v.tempMin ?? 0;
+  const tMax = v.tempMax ?? 30;
+  const n = data.length;
+  const colW = cw / n;
+  
+  const x = left + (index + 0.5) * colW;
+  const y = bottom - ((val - tMin) / (tMax - tMin)) * ch;
+  
+  const isHi = params.indicatedIds && (params.indicatedIds.has(v.id) || (v.originalNode && params.indicatedIds.has(v.originalNode.value.id)));
+
+  return { x, y, isHi, originalNode: v.originalNode || fwParent };
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Model — assembles the scene graph using frame-node
+   ──────────────────────────────────────────────────────────────────────────── */
+
+//-- endfile --
+
+//<< import { ClimateModel } from './climate-model.js';
+//-- file: ./climate-model.js --
+//>> export { ClimateModel };
+class ClimateModel {
+  get name() { return 'Load Climate'; }
+  load(app) {
+    app.clearAll();
+    const CHART = { tempMin: 0, tempMax: 30, tempStep: 5, rainMax: 120, rainStep: 20, months: 12 };
+    const CW = 700, CH = 400;
+    const TEMPS = [7.5, 8.2, 10.8, 13.8, 18.0, 22.2, 25.0, 25.0, 21.5, 17.0, 12.2, 8.6];
+    const RAIN  = [67,  70,  57,   55,   42,   21,   15,   21,   63,  105,  115,  81 ];
+    const MONTHS = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+
+    const chart = makeNode('frame-node', { x: 0, y: 0, cw: CW, ch: CH, resizeMode: 'corners' });
+    const sub = chart.subtree;
+
+    sub.push(makeNode('axis-node', { ...CHART }));
+    
+    sub.push(makeNode('flyweight-node', {
+      count: RAIN.length,
+      valueFn: barValueFn,
+      ...CHART,
+      data: RAIN
+    }, [ makeNode('bar-element', {}) ]));
+
+    const lineNode = makeNode('line-chart-node', { ...CHART, data: TEMPS });
+    sub.push(lineNode);
+    
+    sub.push(makeNode('flyweight-node', {
+      count: TEMPS.length,
+      valueFn: lineDotValueFn,
+      ...CHART,
+      data: TEMPS,
+      originalNode: lineNode 
+    }, [ makeNode('line-dot-element', {}) ]));
+
+    const left = -CW / 2, right = CW / 2, top = -CH / 2, bottom = CH / 2, colW = CW / 12;
+
+    sub.push(makeNode('word-node', { x: 0, y: top - 38, text: 'Rome', fontSize: 24, fontWeight: 800, color: '#e4dac6' }));
+    sub.push(makeNode('word-node', { x: 0, y: top - 18, text: 'Climate Chart', fontSize: 13, fontWeight: 500, color: '#807868', opacity: 0.8 }));
+
+    MONTHS.forEach((m, i) => {
+      sub.push(makeNode('word-node', { x: left + (i + 0.5) * colW, y: bottom + 18, text: m, fontSize: 11, fontWeight: 600, color: '#908878' }));
+    });
+
+    for (let t = CHART.tempMin; t <= CHART.tempMax; t += CHART.tempStep) {
+      sub.push(makeNode('word-node', { x: left - 22, y: bottom - ((t - CHART.tempMin) / (CHART.tempMax - CHART.tempMin)) * CH, text: String(t), fontSize: 10, fontWeight: 500, color: '#c06048' }));
+    }
+
+    for (let r = 0; r <= CHART.rainMax; r += CHART.rainStep) {
+      sub.push(makeNode('word-node', { x: right + 22, y: bottom - (r / CHART.rainMax) * CH, text: String(r), fontSize: 10, fontWeight: 500, color: '#5a98c8' }));
+    }
+
+    sub.push(makeNode('word-node', { x: left - 50, y: 0, text: '°C', fontSize: 12, fontWeight: 700, color: '#c06048', rotation: -90 }));
+    sub.push(makeNode('word-node', { x: right + 48, y: 0, text: 'mm', fontSize: 12, fontWeight: 700, color: '#5a98c8', rotation: 90 }));
+
+    app.collNode.subtree.push(chart);
+    app.centerOnWorld(0, 0);
+  }
+}
+
+
+
+MODELS.push( new ClimateModel() )
+/*
+CONTROLS.push(
+//  { type: 'button', label: 'Load Residues', cls: 'green', action: () => new RamachandranModel().load(this) },
+  { type: 'separator', label: 'Plot Setting' },
+  { type: 'select', id: 'regionSet', label: 'Region Set', options: [['general', 'General'], ['glycine', 'Glycine'], ['proline', 'Proline'], ['preProline', 'Pre-Proline']], value: 'general' },
+  { type: 'checkbox', id: 'showRegions', label: 'Show Regions', value: true },
+  { type: 'checkbox', id: 'showGrid', label: 'Show Grid', value: true },
+  { id: 'aspectRatio', label: 'Aspect Ratio', min: 0.5, max: 2.0, step: 0.1, value: 1.0 },
+  { type: 'separator', label: 'Framework' },
+  { type: 'checkbox', id: 'showChartBounds', label: 'Show Frame', value: P.showChartBounds },
+  { type: 'checkbox', id: 'screenMode', label: 'Screen Auto-Fit', value: P.screenMode },
+//  { type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true },
+)
+*/
+
+
+
+
+
+/*-----------------------------
+End of pastable section
+*/
+
+
+
+//<< import { CameraNode } from './camera-node.js';
+//-- file: ./camera-node.js --
+//>> export { CameraNode };
+//-- endfile --
+
+class CameraNode {
+  static before_draw2d(ctxMix, node, params) {
+    const c = ctxMix.ctx;
+    const cam = node.value.cam;
+    cam.apply(c);
+    
+    const spacing = 40, l = cam.ox, t = cam.oy;
+    const W = ctxMix.W || ctxMix.getWH().W;
+    const H = ctxMix.H || ctxMix.getWH().H;
+    const r = l + W / cam.z, b = t + H / cam.z;
+    
+    c.fillStyle = '#1c1c38'; 
+    const ds = 1 / cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    node.value.cam.reset(ctxMix.ctx);
+  }
+
+  static before_hit_test(ctxMix, node, params) {
+    node.value.savedHit = ctxMix.hitPoint;
+    if (ctxMix.hitPoint) {
+      ctxMix.hitPoint = node.value.cam.toWorld(ctxMix.hitPoint.x, ctxMix.hitPoint.y);
+    }
+  }
+
+  static after_hit_test(ctxMix, node, params) {
+    ctxMix.hitPoint = node.value.savedHit;
+  }
+}
+
+sceneRegistry.registerNodeClass('camera-node', CameraNode);
+//-- endfile --
+
+class StockStripNode {
+  static layout(ctxMix, node) {
+    const { W, H } = ctxMix.getWH();
+    const stripH = node.value.height, protos = node.subtree, y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1)), x0 = (W - gap * (protos.length - 1)) / 2;
+    protos.forEach((p, i) => {
+      const cx = x0 + gap * i, cy = y;
+      const cls = Utils.classOfNode(p);
+      if (cls && cls.setXY) cls.setXY(null, p, { x: cx, y: cy });
+      else { p.value.x = cx; p.value.y = cy; }
+    });
+  }
+
+  static before_draw2d(ctxMix, node, params) {
+    StockStripNode.layout(ctxMix, node);
+    const ctx = ctxMix.ctx, { W, H } = ctxMix.getWH(), stripH = node.value.height;
+    const opacity = (params.opacity ?? 100) / 100;
+    
+    ctx.save(); 
+    ctx.globalAlpha = opacity; 
+    ctx.fillStyle = '#16163a'; 
+    ctx.fillRect(0, H - stripH, W, stripH); 
+    ctx.restore();
+    
+    ctx.strokeStyle = '#282850'; ctx.lineWidth = 1; 
+    ctx.beginPath(); ctx.moveTo(0, H - stripH); ctx.lineTo(W, H - stripH); ctx.stroke();
+  }
+
+  static before_child_draw2d(ctxMix, node, params, child) {
+    ctxMix.ctx.save();
+    ctxMix.ctx.globalAlpha = 0.5;
+  }
+
+  static after_child_draw2d(ctxMix, node, params, child) {
+    const ctx = ctxMix.ctx, cls = Utils.classOfNode(child);
+    let cx = child.value.x, cy = child.value.y;
+    
+    if (cls && cls.getCentreXY) {
+      const center = cls.getCentreXY(ctxMix, child, params);
+      cx = center.x; cy = center.y;
+    }
+
+    if (cls && cls.getPips) {
+      for (const p of cls.getPips({ getXY: () => ({x: cx, y: cy}) }, child, params)) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Geo.TAU); 
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#556'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(child.value.label || '', cx, cy + 27);
+  }
+  
+  static before_hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt || pt.y < ctxMix.getWH().H - node.value.height) {
+      ctxMix.abortPhase = true; 
+      return;
+    }
+    StockStripNode.layout(ctxMix, node);
+  }
+
+  static after_child_hit_test(ctxMix, node, params, child) {
+    if (ctxMix.hitResult) {
+      ctxMix.hitResult.isStockPrototype = true;
+      ctxMix.abortPhase = true;
+    }
+  }
+}
+
+CONTROLS.push({ type: 'separator', label: 'Display' })
+CONTROLS.push({ id: 'opacity',     label: 'Strip Opacity', min: 0, max: 100, step: 1, value: P.opacity })
+CONTROLS.push({ type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true })
+
+sceneRegistry.registerNodeClass('stock-strip', StockStripNode);
+
+
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z; this.oy = wp.y - sy / this.z;
+  }
+}
+
+
+
+class HudPanel {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 12, left: 12 } } = {}) {
+    this._onChange = onChange || (() => {});
+    this._inputs = {}; this._valDisplays = {}; this._injectStyles();
+    this._root = document.createElement('div');
+    this._root.className = 'hud-panel';
+    this._root.style.top = position.top + 'px'; this._root.style.left = position.left + 'px';
+    const header = document.createElement('h3'); header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header); this._makeDraggable(header);
+    for (const ctrl of controls) this._addControl(ctrl);
+    container.appendChild(this._root);
+  }
+  _addControl(ctrl) {
+    if (ctrl.type === 'separator') this._addSeparator(ctrl);
+    else if (ctrl.type === 'button')   this._addButton(ctrl);
+    else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
+    else if (ctrl.type === 'select') this._addSelect(ctrl);
+    else this._addSlider(ctrl);
+  }
+  _addSlider(ctrl) {
+    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const input = document.createElement('input'); Object.assign(input, { type: 'range', min, max, step, value });
+    row.appendChild(input);
+    const val = document.createElement('span'); val.className = 'val'; val.textContent = parseFloat(value).toFixed(step % 1 === 0 ? 0 : 2);
+    row.appendChild(val);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value); val.textContent = v.toFixed(step % 1 === 0 ? 0 : 2);
+      this._onChange(id, v);
+    });
+    this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
+  }
+  _addButton(ctrl) {
+    const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
+    btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
+    this._root.appendChild(btn);
+  }
+  _addCheckbox(ctrl) {
+    const { id, label, value = false } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const sw = document.createElement('div'); sw.className = 'toggle-switch';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = !!value;
+    input.addEventListener('change', () => this._onChange(id, input.checked));
+    const slider = document.createElement('span'); slider.className = 'toggle-slider';
+    sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
+    this._inputs[id] = input; this._root.appendChild(row);
+  }
+  _addSelect(ctrl) {
+    const { id, label, options = [], value } = ctrl;
+    const row = document.createElement('label'); const span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const select = document.createElement('select');
+    for (const opt of options) {
+      const option = document.createElement('option');
+      option.value = opt[0]; option.textContent = opt[1];
+      if (opt[0] === String(value)) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => this._onChange(id, select.value));
+    row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
+  }  
+  _addSeparator(ctrl) {
+    const sep = document.createElement('div'); sep.className = 'separator';
+    if (ctrl.label) sep.textContent = ctrl.label;
+    this._root.appendChild(sep);
+  }
+  _makeDraggable(handle) {
+    let isDragging = false, startX, startY, startLeft, startTop;
+    handle.addEventListener('mousedown', e => {
+      isDragging = true; handle.style.cursor = 'grabbing';
+      startX = e.clientX; startY = e.clientY;
+      startLeft = parseInt(this._root.style.left || 0, 10); startTop  = parseInt(this._root.style.top  || 0, 10);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      this._root.style.left = `${startLeft + e.clientX - startX}px`; this._root.style.top  = `${startTop  + e.clientY - startY}px`;
+    });
+    window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
+  }
+  _injectStyles() {
+    if (document.getElementById('hud-panel-css')) return;
+    const s = document.createElement('style'); s.id = 'hud-panel-css';
+    s.textContent = `
+      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 10; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
+      .hud-panel h3 { margin: 0 0 12px; font-size: 11px; color: #b0a898; letter-spacing: 1px; cursor: grab; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase; }
+      .hud-panel h3:active { cursor: grabbing; }
+
+
+
+      .hud-panel label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+      .hud-panel label > span:first-child { min-width: 100px; color: #999; }
+      .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
+      .hud-panel select { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 4px; font-size: 10px; outline: none; cursor: pointer; }
+      .hud-panel .toggle-switch { position: relative; width: 28px; height: 16px; display: inline-block; flex-shrink: 0; }
+      .hud-panel .toggle-switch input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
+      .hud-panel .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); transition: .2s; border-radius: 16px; }
+      .hud-panel .toggle-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #889; transition: .2s; border-radius: 50%; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider { background-color: rgba(102, 204, 255, 0.15); border-color: #6cf; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider:before { transform: translateX(12px); background-color: #6cf; box-shadow: 0 0 4px #6cf; }
+      .hud-panel .val { min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; color: #8cf; font-weight: 600; }
+      .hud-panel .separator { margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px; }
+      .hud-btn { display: block; width: 100%; margin: 4px 0; padding: 6px 0; background: rgba(0,0,0,0.4); color: #ccc; font-size: 11px; font-family: system-ui, sans-serif; text-align: center; border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s; }
+      .hud-btn:hover { border-color: #6cf; background: rgba(102,204,255,0.08); }
+      .hud-btn.green { color: #5b5; }
+      .hud-btn.green:hover { border-color: #5b5; background: rgba(80,180,80,0.08); }
+      .hud-btn.danger { color: #c55; }
+      .hud-btn.danger:hover { border-color: #c55; background: rgba(200,80,80,0.08); }
+    `;
+    document.head.appendChild(s);
+  }
+}
+
+//-- endfile --
+
+
+
+
+
+
+// A lightweight base class for generating standard graph layouts
+
+// Generates Trees and Stars procedurally using a top-down hierarchical layout
+
+
+// Generates complete (fully-connected) graphs procedurally in a radial layout
+
+
+
+
+//<< import { WordCloudModel } from './word-cloud-model.js';
+//-- file: ./word-cloud-model.js --
+//>> export { WordCloudModel };
+class WordCloudModel {
+  get name() { return 'Load Word Cloud'; }
+  load(app) {
+    app.clearAll();
+    const sub = app.collNode.subtree;
+    
+    // Seed with the classic data from the old layout
+    const oldNodes = [
+      { type: 'word-node', value: { x:   0, y: -80, text: 'canvas',    fontSize: 52, fontWeight: 800, color: '#e4dac6' } },
+      { type: 'word-node', value: { x: 150, y: -30, text: 'scene',     fontSize: 38, fontWeight: 700, color: '#8bb8d0' } },
+      { type: 'word-node', value: { x:-160, y: -20, text: 'node',      fontSize: 44, fontWeight: 700, color: '#d4a56a' } },
+      { type: 'word-node', value: { x: -60, y:  30, text: 'render',    fontSize: 34, fontWeight: 600, color: '#a0c4a8' } },
+      { type: 'word-node', value: { x: 100, y:  50, text: 'transform', fontSize: 28, fontWeight: 600, color: '#c898b8' } },
+      { type: 'word-node', value: { x:-140, y:  80, text: 'draw',      fontSize: 40, fontWeight: 700, color: '#e07050', rotation: -12 } },
+      { type: 'word-node', value: { x:  40, y: 110, text: 'zoom',      fontSize: 22, fontWeight: 500, color: '#7a9a6a' } },
+      { type: 'word-node', value: { x: 180, y: 100, text: 'pixel',     fontSize: 26, fontWeight: 600, color: '#6a8cae', rotation: 8 } },
+      { type: 'word-node', value: { x: -30, y:-140, text: 'graph',     fontSize: 30, fontWeight: 700, color: '#c8b070', rotation: -5 } },
+      { type: 'word-node', value: { x:-180, y:-100, text: 'bevel',     fontSize: 20, fontWeight: 500, color: '#888070' } },
+      { type: 'word-node', value: { x: 200, y: -90, text: 'hit',       fontSize: 24, fontWeight: 600, color: '#d07070' } },
+      { type: 'word-node', value: { x:-100, y: 140, text: 'nugget',    fontSize: 18, fontWeight: 400, color: '#6a6256', haloWidth: 2, haloColor: '#6a6256', haloOpacity: 0.2 } },
+      { type: 'word-node', value: { x: 160, y: 150, text: 'spike',     fontSize: 20, fontWeight: 500, color: '#807060' } },
+      { type: 'word-node', value: { x:  50, y:-110, text: 'shader',    fontSize: 16, fontWeight: 400, color: '#706a80', rotation: 15 } },
+    ];
+
+    oldNodes.forEach(n => sub.push(makeNode(n.type, n.value)));
+    BasicCollectionNode._sortSubtree(sub);
+    app.centerOnWorld(0, 0);
+  }
+}
+MODELS.push( new WordCloudModel() )
+
+
+//<< import { ButtonNode, DEFAULTS, hexToRgb, shiftColor, roundRectPath } from '../deep-explorer/js/nodes2d/button-node.js';
+//-- file: ./button-node.js --
+//>> import { sceneRegistry } from '../deep-explorer/js/omni-support/scene.js';
+//>> export { ButtonNode, DEFAULTS };
+// ── helpers ─────────────────────────────────────────────────
+
+function hexToRgb(hex) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function shiftColor({ r, g, b }, amt) {
+  const f = v => Math.round(Math.min(255, Math.max(0,
+    amt > 0 ? v + (255 - v) * amt : v + v * amt)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+}
+
+const BUTTON_DEFAULTS = Object.freeze({
+  fill:           '#e0ddd4',
+  color:          '#2a2a2a',
+  cornerRadius:   12,
+  borderWidth:    2.5,
+  bevel:          1,
+  bevelStrength:  0.38,
+  lightAngle:     315,
+  lightIntensity: 0.55,
+  shadowColor:    'rgba(0,0,0,0.28)',
+  shadowOffsetX:  2,
+  shadowOffsetY:  3,
+  shadowBlur:     6,
+  fontSize:       32,
+  subOffset:      0,
+  badgeFill:      '#e74c3c',
+  badgeColor:     '#ffffff',
+  scale:          1.0,
+  liftY:          0.0,
+  brightness:     1.0,
+  hoverScale:     1.08,
+  hoverLift:      -2,
+  pressScale:     0.96,
+  pressDepth:     1,
+});
+
+
+class ButtonNode {
+  static meta = {
+    zOrder: 1,
+    raftable: true,
+    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, label: 'Btn', sub: '' }),
+    editableFields: (node) => [
+      { key: 'label', label: 'Label', type: 'text', value: node.value.label || '' },
+      { key: 'sub', label: 'Subtext', type: 'text', value: node.value.sub || '' },
+      { key: 'badge', label: 'Badge', type: 'number', value: node.value.badge || 0 },
+      { key: 'color', label: 'Fill Color', type: 'color', value: node.value.color || BUTTON_DEFAULTS.fill },
+      { key: 'fontSize', label: 'Font Size', type: 'number', value: node.value.fontSize || BUTTON_DEFAULTS.fontSize },
+      { key: 'cornerRadius', label: 'Corner Radius', type: 'number', value: node.value.cornerRadius || BUTTON_DEFAULTS.cornerRadius },
+      { key: 'borderWidth', label: 'Border Width', type: 'number', value: node.value.borderWidth || BUTTON_DEFAULTS.borderWidth },
+      { key: 'bevel', label: 'Bevel', type: 'number', value: node.value.bevel ?? BUTTON_DEFAULTS.bevel },
+      { key: 'bevelStrength', label: 'Bevel Strength', type: 'number', value: node.value.bevelStrength ?? BUTTON_DEFAULTS.bevelStrength },
+      { key: 'scale', label: 'Scale', type: 'number', value: node.value.scale || BUTTON_DEFAULTS.scale },
+      { key: 'brightness', label: 'Brightness', type: 'number', value: node.value.brightness ?? BUTTON_DEFAULTS.brightness },
+    ],
+  };
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...BUTTON_DEFAULTS, ...params };
+    const zoom = 1;
+
+    const rawW   = v.width  || 64;
+    const rawH   = v.height || 64;
+    const sc     = v.scale ?? p.scale ?? 1;
+    const w      = rawW * zoom * sc;
+    const h      = rawH * zoom * sc;
+    const screen = ctxMix.getXY(ctxMix, node, params);
+    const cx     = screen.x;
+    const cy     = screen.y + (v.liftY ?? p.liftY ?? 0) * zoom;
+    const left   = cx - w / 2;
+    const top    = cy - h / 2;
+    const r      = (v.cornerRadius ?? p.cornerRadius ?? 0) * zoom * sc;
+    const bw     = (v.borderWidth  ?? p.borderWidth  ?? 0) * zoom * sc;
+
+    const fillHex = v.color || p.fill;
+
+    const ctx = ctxMix.ctx;
+
+    if (v.disabled) ctx.globalAlpha *= 0.42;
+
+    if (p.shadowBlur > 0) {
+      ctx.save();
+      ctx.shadowColor   = p.shadowColor;
+      ctx.shadowOffsetX = (p.shadowOffsetX || 0) * zoom;
+      ctx.shadowOffsetY = (p.shadowOffsetY || 0) * zoom;
+      ctx.shadowBlur    = (p.shadowBlur    || 0) * zoom;
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.fillStyle = fillHex;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const base    = hexToRgb(fillHex);
+    const bevel   = p.bevel || 0;
+    const bStr    = p.bevelStrength || 0;
+    const lInt    = p.lightIntensity || 0;
+    const angle   = p.lightAngle || 315;
+    const rad     = angle * Math.PI / 180;
+    const dx      = Math.sin(rad);
+    const dy      = -Math.cos(rad);
+
+    const faceLit = shiftColor(base,  lInt * 0.14 * bevel);
+    const faceSh  = shiftColor(base, -lInt * 0.10 * bevel);
+
+    const gx0 = cx + dx * w / 2;
+    const gy0 = cy + dy * h / 2;
+    const gx1 = cx - dx * w / 2;
+    const gy1 = cy - dy * h / 2;
+
+    const faceGrad = ctx.createLinearGradient(gx0, gy0, gx1, gy1);
+    faceGrad.addColorStop(0, faceLit);
+    faceGrad.addColorStop(1, faceSh);
+
+    roundRectPath(ctx, left, top, w, h, r);
+    ctx.fillStyle = faceGrad;
+    ctx.fill();
+
+    if (bevel !== 0 && bStr > 0) {
+      const litAmt = bStr * lInt * bevel;
+      const hi     = shiftColor(base,  litAmt);
+      const lo     = shiftColor(base, -litAmt);
+      const edgeW  = bw * 1.4;
+
+      ctx.save();
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.clip();
+
+      ctx.strokeStyle = hi;
+      ctx.lineWidth   = edgeW;
+      roundRectPath(ctx, left + dx * bw * 0.5,
+                         top  + dy * bw * 0.5, w, h, r);
+      ctx.stroke();
+
+      ctx.strokeStyle = lo;
+      ctx.lineWidth   = edgeW;
+      roundRectPath(ctx, left - dx * bw * 0.5,
+                         top  - dy * bw * 0.5, w, h, r);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    if ((p.brightness || 1) < 1.0) {
+      roundRectPath(ctx, left, top, w, h, r);
+      ctx.fillStyle = `rgba(0,0,0,${(1 - p.brightness).toFixed(3)})`;
+      ctx.fill();
+    }
+
+    const label = v.label ?? v.emoji ?? v.symbol
+               ?? v.name?.substring(0, 2) ?? '';
+
+    if (label) {
+      const fSize = (p.fontSize || 32) * zoom * sc;
+      ctx.fillStyle    = p.color;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = `600 ${fSize.toFixed(1)}px "Hiragino Kaku Gothic Pro", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif`;
+
+      const labelY = v.sub ? cy - h * 0.06 : cy;
+      ctx.fillText(label, cx, labelY);
+    }
+
+    if (v.sub) {
+      const subSize = (p.fontSize || 32) * 0.36 * zoom * sc;
+      ctx.fillStyle    = p.color;
+      ctx.globalAlpha  = (v.disabled ? 0.42 : 1.0) * 0.65;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font         = `400 ${subSize.toFixed(1)}px "Hiragino Kaku Gothic Pro", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif`;
+
+      const subY = cy + h * 0.22 + (p.subOffset || 0) * zoom;
+      ctx.fillText(v.sub, cx, subY);
+    }
+
+    if (v.badge != null && v.badge !== '') {
+      const badgeR = 10 * zoom;
+      const badgeX = left + w - badgeR * 0.4;
+      const badgeY = top  - badgeR * 0.4;
+
+      ctx.globalAlpha = v.disabled ? 0.42 : 1.0;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+      ctx.fillStyle = p.badgeFill || '#e74c3c';
+      ctx.fill();
+
+      ctx.fillStyle    = p.badgeColor || '#fff';
+      ctx.font         = `700 ${(11 * zoom).toFixed(1)}px system-ui, sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(v.badge), badgeX, badgeY + 0.5);
+    }
+
+    if (params.indicatedIds && params.indicatedIds.has(v.id)) {
+      ctx.setLineDash([4 * zoom, 4 * zoom]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 2 * zoom;
+      roundRectPath(ctx, left - 4 * zoom, top - 4 * zoom,
+                    w + 8 * zoom, h + 8 * zoom,
+                    r + 4 * zoom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+
+    const v = node.value || {};
+    if (v.disabled) return;
+
+    const p    = { ...BUTTON_DEFAULTS, ...params };
+    const zoom = 1;
+
+    const sc   = p.scale || 1;
+    const rawW = v.width  || 64;
+    const rawH = v.height || 64;
+    const w    = rawW * zoom * sc;
+    const h    = rawH * zoom * sc;
+    const r    = Math.min((p.cornerRadius || 0) * zoom * sc, w / 2, h / 2);
+
+    const screen = ctxMix.getXY(ctxMix,node,params)
+    const sx   = screen.x;
+    const sy   = screen.y + (p.liftY || 0) * zoom;
+    const left = sx - w / 2;
+    const top  = sy - h / 2;
+
+    if (pt.x < left || pt.x > left + w ||
+        pt.y < top  || pt.y > top  + h) return;
+
+    const lx = pt.x - left;
+    const ly = pt.y - top;
+    if (lx < r && ly < r && (lx - r) ** 2 + (ly - r) ** 2 > r * r) return;
+    if (lx > w - r && ly < r && (lx - (w - r)) ** 2 + (ly - r) ** 2 > r * r) return;
+    if (lx < r && ly > h - r && (lx - r) ** 2 + (ly - (h - r)) ** 2 > r * r) return;
+    if (lx > w - r && ly > h - r && (lx - (w - r)) ** 2 + (ly - (h - r)) ** 2 > r * r) return;
+
+    const dxHit = pt.x - sx;
+    const dyHit = pt.y - sy;
+
+    // New Style: Pass world coordinates directly in applyDrag
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) {
+          node.value.x = wx - dxHit;
+          node.value.y = wy - dyHit;
+        },
+      },
+    };
+  }
+}
+
+sceneRegistry.registerNodeClass('button-node', ButtonNode);
+
+
+//-- endfile --
+
+
+class ButtonSetModel {
+  get name() { return 'Load Buttons'; }
+  load(app) {
+    app.clearAll();
+    const sub = app.collNode.subtree;
+    
+    const oldNodes = [
+      { type: 'button-node', value: { x: -90, y: -40, width: 64, height: 64, label: 'あ', sub: 'a' } },
+      { type: 'button-node', value: { x:   0, y: -40, width: 64, height: 64, label: 'い', sub: 'i' } },
+      { type: 'button-node', value: { x:  90, y: -40, width: 64, height: 64, label: 'う', sub: 'u' } },
+      { type: 'button-node', value: { x: -90, y:  40, width: 64, height: 64, label: 'え', sub: 'e', color: '#6b8cae' } },
+      { type: 'button-node', value: { x:   0, y:  40, width: 64, height: 64, label: 'お', sub: 'o', color: '#8b6b4a', badge: 3 } },
+      { type: 'button-node', value: { x:  90, y:  40, width: 64, height: 64, label: '✕', disabled: true } },
+    ];
+
+    oldNodes.forEach(n => sub.push(makeNode(n.type, n.value)));
+    BasicCollectionNode._sortSubtree(sub);
+    app.centerOnWorld(0, 0);
+  }
+}
+MODELS.push( new ButtonSetModel() )
+
+
+
+
+//-- endfile --
+
+class App {
+  constructor(canvas) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.cam = new Camera(); this.W = 0; this.H = 0;
+    this.panState = null; this.dragHit = null; this._downPos = null; this.selectedNode = null;
+    this.params = P;
+    
+    this.enableEdgeSnap = true;
+    this.enableRaftSnap = true;
+    this.edgeSnapController = typeof EdgeSnapController !== 'undefined' ? new EdgeSnapController() : null;
+    this.raftSnapController = typeof RaftSnapController !== 'undefined' ? new RaftSnapController() : null;
+
+    this.stockNode = makeNode('stock-strip', { height: 78 }, STOCK);
+    
+    this.collNode = makeNode('basic-collection', { 
+      connections: [], 
+      controllers: [
+        this.edgeSnapController, 
+        this.raftSnapController
+      ].filter(Boolean)
+    });
+    this.affordanceNode = makeNode('affordance-overlay', { target: this.collNode });
+    this.coneNode = makeNode('fracture-cone', { target: this.collNode });
+    
+    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, this.affordanceNode, this.coneNode ]);
+    this.rootNode = makeNode('scene-root', {}, [ this.camNode, this.stockNode ]);
+
+    this._seedLayoutDone = false;
+
+    this.resize(); this.buildHud(); this.bindInput(); this.loop();
+  }
+
+  resize() {
+    this.W = this.canvas.width = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight;
+  }
+
+  buildHud() {
+    //const P = this.params;
+    const models = MODELS;
+    const modelControls = models.map(m => ({ type: 'button', label: m.name, cls: m.btnClass, action: () => m.load(this) }));
+
+    this.hud = new HudPanel({
+      title: 'Chart Editor',
+      position: { top: 12, left: 12 },
+      controls: [
+        ...modelControls,
+        { type: 'button', label: 'Copy Points',      action: () => this.copyPoints() },
+        { type: 'button', label: 'Clear All', cls: 'danger', action: () => this.clearAll() },
+        ...CONTROLS
+      ],
+      onChange: (id, val) => {
+        if (id === 'showHints') {
+          document.getElementById('help').style.display = val ? 'block' : 'none';
+        } else if (id === 'enableEdgeSnap' || id === 'enableRaftSnap') {
+          this[id] = val;
+          this.collNode.value.controllers = [
+            this.enableEdgeSnap && this.edgeSnapController, 
+            this.enableRaftSnap && this.raftSnapController
+          ].filter(Boolean)
+        } else {
+          P[id] = val;
+        }
+      },
+    });
+
+    this._selPanel = document.createElement('div');
+    this._selPanel.className = 'hud-panel';
+    this._selPanel.style.cssText = 'position:absolute; top:12px; right:12px; display:none; min-width:220px;';
+    document.body.appendChild(this._selPanel);
+  }
+
+  updateSelectedPanel() {
+    const el = this._selPanel, node = this.selectedNode;
+    const cls = node ? Utils.classOfNode(node) : null;
+    const fields = cls?.meta?.editableFields?.(node);
+    if (!node || !fields || fields.length === 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block'; el.innerHTML = '';
+    const header = document.createElement('h3'); header.textContent = `SELECTED ${node.type.toUpperCase()}`; el.appendChild(header);
+    for (const f of fields) {
+      const row = document.createElement('div'); row.className = 'sel-row';
+      const span = document.createElement('span'); span.textContent = f.label; row.appendChild(span);
+      const inp = document.createElement('input'); inp.type = f.type; inp.value = f.value;
+      inp.addEventListener('input', () => { 
+        node.value[f.key] = f.type === 'number' ? Number(inp.value) : inp.value; 
+      });
+      row.appendChild(inp); el.appendChild(row);
+    }
+  }  
+
+  selectNode(node) { this.selectedNode = node; this.updateSelectedPanel(); }
+
+  centerOnWorld(wx, wy) {
+    const stripH = this.stockNode.value.height;
+    this.cam.ox = wx - this.W / (2 * this.cam.z);
+    this.cam.oy = wy - (this.H - stripH) / (2 * this.cam.z);
+  }
+
+  copyPoints() {
+    const pts = SilhouetteModel?.extractSilhouettePoints?.(this.collNode);
+    if (!pts || pts.length === 0) return;
+    const text = '[\n' + pts.map(p => `  [${p[0]},${p[1]}],`).join('\n') + '\n]';
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  clearAll() {
+    this.collNode.subtree.length = 0; this.collNode.value.connections.length = 0;
+    this.selectNode(null);
+  }
+
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY }; }
+    return { x: e.clientX, y: e.clientY };
+  }
+  
+  createCtxMix(sp) {
+    const cam = this.cam, w = this.W, h = this.H;
+    return { ctx: this.ctx, iterators: [], hitPoint: sp, hitResult: null, W: w, H: h,
+      getWH() { return { W: w, H: h, Z: cam.z, ox: cam.ox, oy: cam.oy }; },
+      getValue(ctxMix, node, params) {
+        return node?.flyFn ? node.flyFn(ctxMix, node, params) : node?.value;
+      },
+      getNode(ctxMix, node, params) {
+        return node?.nodeFn ? node.nodeFn(ctxMix, node, params) : node;
+      },
+      getXY: (m, n) => ({x: n.value.x, y: n.value.y}) 
+    };
+  }
+
+  _onHud(e) { return e.target.closest && e.target.closest('.hud-panel'); }
+
+  onDown(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e); this._downPos = { x: sp.x, y: sp.y };
+    const ctxMix = this.createCtxMix(sp);
+    
+    sceneRegistry.walkPhase(ctxMix, 'hit_test', this.rootNode, this.params);
+    
+    if (ctxMix.hitResult) {
+      if (ctxMix.hitResult.isStockPrototype) {
+        const proto = ctxMix.hitResult.node;
+        const wp = this.cam.toWorld(sp.x, sp.y);
+        const cls = Utils.classOfNode(proto);
+        const overrides = cls?.meta?.spawnOverrides?.(wp) ?? { x: wp.x, y: wp.y };
+        
+        const clone = cloneProto(proto, overrides);
+        this.collNode.subtree.push(clone);
+        BasicCollectionNode._sortSubtree(this.collNode.subtree);
+        
+        const cloneWmix = this.createCtxMix(wp);
+        const cloneCls = Utils.classOfNode(clone);
+        cloneCls.hit_test(cloneWmix, clone, this.params);
+        
+        if (cloneWmix.hitResult) { 
+          const ctrls = this.collNode.value.controllers;
+          if (ctrls) {
+            ctrls.forEach(c => c.wrapHit && c.wrapHit(cloneWmix, this.collNode, cloneWmix.hitResult, this.params));
+          }
+          this.dragHit = cloneWmix.hitResult; 
+        }
+        return;
+      } else {
+        if (this.selectedNode && this.selectedNode !== ctxMix.hitResult.node) this.selectNode(null);
+        this.dragHit = ctxMix.hitResult;
+        return;
+      }
+    }
+    
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e);
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      this.dragHit.interactions.applyDrag(wp.x, wp.y);
+      this.canvas.style.cursor = 'grabbing'; return;
+    }
+    if (this.panState) {
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move'; return;
+    }
+    
+    const ctxMix = this.createCtxMix(sp);
+    ctxMix.hoverOnly = true;
+    sceneRegistry.walkPhase(ctxMix, 'hit_test', this.rootNode, this.params);
+    this.canvas.style.cursor = ctxMix.hitResult ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e), dist = this._downPos ? Math.hypot(sp.x - this._downPos.x, sp.y - this._downPos.y) : 999;
+    if (this.dragHit) {
+      const onStrip = sp.y > this.H - this.stockNode.value.height, draggedNode = this.dragHit.node;
+      
+      if (this.dragHit.interactions && typeof this.dragHit.interactions.endDrag === 'function') {
+        this.dragHit.interactions.endDrag(onStrip);
+      }
+      
+      this.dragHit = null;
+      if (onStrip) {
+        // Node was deleted — clear selection if it pointed to the deleted node
+        if (this.selectedNode && !this.collNode.subtree.some(c => c === this.selectedNode)) {
+          this.selectNode(null);
+        }
+      } else if (dist < 3) {
+        this.selectNode(draggedNode);
+      } else {
+        // Drag completed — clear stale selection
+        this.selectNode(null);
+      }
+    } else {
+      if (dist < 3) this.selectNode(null);
+      this.panState = null;
+    }
+    this._downPos = null; this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY };
+    if (sp.y > this.H - this.stockNode.value.height) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    c.addEventListener('mousedown',  e => this.onDown(e)); c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));   c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  loop() {
+    if (!this._seedLayoutDone && this.W > 0 && this.H > 0) {
+      MODELS[0]?.load(this);
+      this._seedLayoutDone = true;
+    }
+
+    const c = this.ctx, P = this.params;
+    P.indicatedIds.clear();
+    if (this.selectedNode) P.indicatedIds.add(this.selectedNode.value.id);
+    if (this.dragHit) P.indicatedIds.add(this.dragHit.node.value.id);
+
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, this.W, this.H);
+    
+    const ctxMix = this.createCtxMix(null);
+    sceneRegistry.walkPhase(ctxMix, 'layout', this.rootNode, P);
+    sceneRegistry.walkPhase(ctxMix, 'draw2d', this.rootNode, P);
+
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+new App(document.getElementById('c'));
+</script>
+</body>
+</html>

@@ -1,0 +1,1796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Component Browser</title>
+<link rel="icon" type="image/x-icon" href="../wheel.ico">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
+    --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
+    --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
+    --accent: #f59e0b; --accent-dim: #b45309;
+    --success: #22c55e; --success-dim: rgba(34, 197, 94, 0.15);
+    --danger: #ef4444; --danger-dim: rgba(239, 68, 68, 0.15);
+    --warning: #eab308; --warning-dim: rgba(234, 179, 8, 0.15);
+    --blue: #60a5fa; --blue-dim: rgba(96, 165, 250, 0.15);
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Space Grotesk', sans-serif;
+    --panel-columns: 280px 1fr 1fr;
+  }
+
+  html, body { height: 100%; }
+  body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
+
+  .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+
+  header {
+    padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary);
+  }
+  header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); }
+  .header-right { display: flex; gap: 0.75rem; align-items: center; }
+
+  main { display: grid; grid-template-columns: var(--panel-columns); overflow: hidden; }
+
+  .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+    font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;
+  }
+  .panel-header .count {
+    background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 0.7rem;
+  }
+  .panel-tabs { display: flex; gap: 0.25rem; }
+  .panel-tab {
+    background: none; border: none; padding: 0.2rem 0.5rem;
+    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; border-radius: 3px; transition: all 0.15s;
+  }
+  .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+  .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
+  .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
+
+  .filter-row {
+    display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border); background: var(--bg-secondary);
+  }
+  .filter-input {
+    flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px;
+    padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-primary); outline: none;
+  }
+  .filter-input:focus { border-color: var(--accent); }
+  .filter-input::placeholder { color: var(--text-muted); }
+  .filter-input.active { border-color: var(--accent); background: rgba(245, 158, 11, 0.1); }
+  .filter-clear {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 1rem; cursor: pointer; padding: 0 0.25rem; line-height: 1;
+  }
+  .filter-clear:hover { color: var(--text-primary); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--bg-tertiary); color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-focus); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-dim); border-color: var(--accent-dim); }
+  .btn svg { width: 14px; height: 14px; }
+
+  .drop-zone {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 2rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245, 158, 11, 0.05); }
+  .drop-zone-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--text-muted); }
+  .drop-zone p { font-size: 0.85rem; color: var(--text-secondary); text-align: center; }
+  .drop-zone small { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; }
+  .drop-zone.secondary { border-style: dotted; padding: 1rem; margin-top: 0; }
+  .drop-zone.secondary .drop-zone-icon { width: 32px; height: 32px; margin-bottom: 0.5rem; }
+  .drop-zone.secondary p { font-size: 0.75rem; }
+
+  .status {
+    padding: 0.4rem 1rem; font-size: 0.7rem; color: var(--text-muted);
+    border-top: 1px solid var(--border); background: var(--bg-secondary);
+    font-family: var(--font-mono);
+  }
+  .status.success { color: var(--success); }
+  .status.error { color: var(--danger); }
+
+  /* ── Stat badges ── */
+  .stat-badge {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-secondary);
+    background: var(--bg-tertiary); padding: 0.15rem 0.45rem; border-radius: 3px;
+  }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+  .stat-badge.ok .stat-dot { background: var(--success); }
+  .stat-badge.warn .stat-dot { background: var(--warning); }
+  .stat-badge.broken .stat-dot { background: var(--danger); }
+  .stat-badge.info .stat-dot { background: var(--blue); }
+
+  /* ── File / class items ── */
+  .item {
+    padding: 0.4rem 0.6rem; border-radius: 4px; cursor: pointer;
+    font-size: 0.75rem; display: flex; align-items: center; gap: 0.5rem;
+    border-left: 2px solid transparent; transition: all 0.1s;
+  }
+  .item:hover { background: var(--bg-hover); }
+  .item.active { background: rgba(245, 158, 11, 0.08); border-left-color: var(--accent); }
+  .item .name {
+    font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-primary);
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .item .meta {
+    font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .item .tag-pill {
+    font-size: 0.55rem; padding: 0.05rem 0.3rem; border-radius: 2px;
+    background: var(--bg-tertiary); color: var(--text-muted); flex-shrink: 0;
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .item .tag-pill.nugget { background: var(--success-dim); color: var(--success); }
+  .item .tag-pill.harness { background: var(--warning-dim); color: var(--warning); }
+  .item .tag-pill.stnda { background: var(--blue-dim); color: var(--blue); }
+  .item .tag-pill.prod { background: var(--success-dim); color: var(--success); }
+  .item .tag-pill.diverged { background: var(--danger-dim); color: var(--danger); }
+
+  .group-label {
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); padding: 0.6rem 0.6rem 0.2rem; font-weight: 600;
+  }
+  .group-label:first-child { padding-top: 0.2rem; }
+
+  /* ── Size bar ── */
+  .size-bar-wrap { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+  .size-bar {
+    width: 40px; height: 5px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden;
+  }
+  .size-bar-fill { height: 100%; border-radius: 3px; background: var(--accent-dim); }
+
+  /* ── Analysis panel ── */
+  .analysis { padding: 1rem; font-size: 0.78rem; line-height: 1.6; }
+  .analysis h2 {
+    font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 0.5rem; padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .analysis h3 {
+    font-size: 0.75rem; font-weight: 600; color: var(--accent);
+    margin-top: 0.8rem; margin-bottom: 0.3rem; text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .analysis .field {
+    display: flex; gap: 0.5rem; margin-bottom: 0.2rem;
+  }
+  .analysis .field-label {
+    color: var(--text-muted); min-width: 80px; font-family: var(--font-mono);
+    font-size: 0.65rem; flex-shrink: 0;
+  }
+  .analysis .field-value {
+    color: var(--text-secondary); font-family: var(--font-mono); font-size: 0.68rem;
+    word-break: break-all;
+  }
+  .analysis .loc-list { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.3rem 0; }
+  .analysis .loc {
+    font-family: var(--font-mono); font-size: 0.62rem; color: var(--text-muted);
+    background: var(--bg-tertiary); padding: 0.1rem 0.35rem; border-radius: 2px;
+    cursor: pointer;
+  }
+  .analysis .loc:hover { background: var(--accent-dim); color: var(--text-primary); }
+  .analysis .loc.active { background: var(--accent); color: #000; }
+
+  .analysis .scene-json {
+    background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0.6rem; margin-top: 0.4rem; font-family: var(--font-mono); font-size: 0.62rem;
+    line-height: 1.5; color: var(--text-secondary); white-space: pre-wrap;
+    max-height: 300px; overflow-y: auto;
+  }
+  .analysis .dep-item {
+    font-family: var(--font-mono); font-size: 0.65rem; padding: 0.15rem 0.4rem;
+    color: var(--text-secondary); border-radius: 3px; margin-bottom: 0.1rem;
+    cursor: pointer;
+  }
+  .analysis .dep-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  /* ── Markdown panel ── */
+  .md-panel {
+    padding: 0.5rem; font-family: var(--font-mono); font-size: 0.65rem;
+    line-height: 1.5; white-space: pre-wrap; color: var(--text-secondary);
+    user-select: text; flex: 1; overflow-y: auto;
+  }
+
+  /* ── Preview overlay ── */
+  .preview-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: none; z-index: 100; align-items: center; justify-content: center;
+  }
+  .preview-overlay.open { display: flex; }
+  .preview-box {
+    background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+    width: 80vw; max-height: 85vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .preview-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.6rem 1rem; border-bottom: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent);
+  }
+  .preview-close {
+    background: none; border: none; color: var(--text-muted); font-size: 1.2rem;
+    cursor: pointer; padding: 0.2rem;
+  }
+  .preview-close:hover { color: var(--text-primary); }
+  .preview-body {
+    flex: 1; overflow-y: auto; padding: 0.8rem 1rem;
+    font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.55;
+    white-space: pre-wrap; color: var(--text-secondary); tab-size: 2;
+  }
+  .preview-body .line-num {
+    display: inline-block; min-width: 3em; text-align: right;
+    color: var(--text-muted); margin-right: 1em; user-select: none; opacity: 0.5;
+  }
+
+  /* ── Fix UI ── */
+  .fix-section { margin-top: 0.5rem; padding: 0.6rem; border-radius: 5px; border: 1px solid var(--border); background: var(--bg-tertiary); }
+  .fix-section + .fix-section { margin-top: 0.35rem; }
+  .fix-issue {
+    display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.4rem 0.5rem;
+    border-radius: 4px; margin-bottom: 0.25rem; font-size: 0.7rem;
+    border: 1px solid transparent;
+  }
+  .fix-issue.warn { border-color: rgba(234,179,8,0.25); background: rgba(234,179,8,0.04); }
+  .fix-issue.error { border-color: rgba(239,68,68,0.25); background: rgba(239,68,68,0.04); }
+  .fix-issue .fix-icon { flex-shrink: 0; font-size: 0.8rem; line-height: 1; margin-top: 0.1rem; }
+  .fix-issue .fix-detail { flex: 1; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-secondary); line-height: 1.5; }
+  .fix-issue .fix-detail strong { color: var(--text-primary); font-weight: 600; }
+  .fix-btn {
+    padding: 0.25rem 0.55rem; font-size: 0.65rem; font-family: var(--font-sans); font-weight: 600;
+    background: var(--accent); border: none; border-radius: 3px; color: #000;
+    cursor: pointer; flex-shrink: 0; transition: background 0.15s; white-space: nowrap;
+  }
+  .fix-btn:hover { background: var(--accent-dim); }
+  .fix-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .fix-summary {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;
+    font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono);
+  }
+  .fix-summary .fix-count {
+    font-weight: 700; color: var(--warning); padding: 0.1rem 0.35rem;
+    background: var(--warning-dim); border-radius: 3px;
+  }
+
+  /* ── Checkbox / Dropout UI ── */
+  .nugget-cb-wrap {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.1rem; cursor: pointer;
+  }
+  .nugget-cb-wrap:hover .dep-item { background: var(--bg-hover); color: var(--text-primary); }
+  .nugget-cb {
+    appearance: none; width: 14px; height: 14px;
+    border: 1px solid var(--border-focus); border-radius: 3px;
+    background: var(--bg-tertiary); cursor: pointer;
+    position: relative; outline: none; transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .nugget-cb:hover { border-color: var(--accent); }
+  .nugget-cb:checked { background: var(--accent); border-color: var(--accent); }
+  .nugget-cb:checked::after {
+    content: ''; position: absolute; top: 1px; left: 4px;
+    width: 4px; height: 8px; border: solid #000;
+    border-width: 0 2px 2px 0; transform: rotate(43deg);
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Component <span>Browser</span></h1>
+    <div class="header-right" id="headerRight">
+      <button class="btn" id="btnRescan" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+        Rescan
+      </button>
+      <button class="btn btn-primary" id="btnFixAll" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Fix All
+      </button>
+    </div>
+  </header>
+  <main>
+    <!-- LEFT PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-tabs" id="leftTabs">
+          <button class="panel-tab active" data-tab="files">Files</button>
+          <button class="panel-tab" data-tab="classes">Classes</button>
+          <button class="panel-tab" data-tab="glue">Glue</button>
+        </div>
+        <span class="count" id="leftCount">0</span>
+      </div>
+      <div class="filter-row">
+        <input type="text" class="filter-input" id="leftFilter" placeholder="filter...">
+        <button class="filter-clear" id="leftFilterClear">×</button>
+      </div>
+      <div class="panel-content" id="leftContent">
+        <div class="drop-zone" id="dropProd">
+          <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-2H5a2 2 0 0 0-2 2Z"/></svg>
+          <p>Drop production folder</p><small>js/ tree — nodes2d, nodes3d, omni-support</small>
+        </div>
+        <div class="drop-zone secondary" id="dropStnda">
+          <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+          <p>Drop stnda folder</p><small>*-stnda.html spike files</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- MID PANEL -->
+    <div class="panel">
+      <div class="panel-header">Analysis <span class="count" id="midCount"></span></div>
+      <div class="panel-content" id="midContent">
+        <div style="color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">Select an item to analyse</div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-tabs" id="rightTabs">
+          <button class="panel-tab active" data-tab="markdown">Markdown</button>
+          <button class="panel-tab" data-tab="json">Scene JSON</button>
+        </div>
+        <button class="btn" id="btnCopy" style="padding: 0.2rem 0.5rem; font-size: 0.65rem;">Copy</button>
+      </div>
+      <div class="md-panel" id="rightContent">Select an item to see its report</div>
+    </div>
+  </main>
+  <div class="status" id="status">Drop folders to begin</div>
+</div>
+
+<!-- Preview overlay -->
+<div class="preview-overlay" id="previewOverlay">
+  <div class="preview-box">
+    <div class="preview-header">
+      <span id="previewTitle">—</span>
+      <button class="preview-close" id="previewClose">×</button>
+    </div>
+    <div class="preview-body" id="previewBody"></div>
+  </div>
+</div>
+
+<script type="module">
+
+// ═══════════════════════════════════════════════════════════════
+// File System Access helpers
+// ═══════════════════════════════════════════════════════════════
+
+function suppressBrowserDragDrop() {
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => e.preventDefault());
+}
+
+function setupDropZone(el, onDir, onError) {
+  if (!el) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation(); el.classList.remove('drag-over');
+    for (const item of e.dataTransfer.items) {
+      if (item.kind === 'file') {
+        const handle = await item.getAsFileSystemHandle();
+        if (handle.kind === 'directory') { await onDir(handle); return; }
+      }
+    }
+    if (onError) onError('Please drop a folder, not individual files');
+  });
+  el.addEventListener('click', async () => {
+    try { const handle = await window.showDirectoryPicker(); await onDir(handle); }
+    catch (err) { if (err.name !== 'AbortError' && onError) onError(err.message); }
+  });
+}
+
+async function walkDirectory(dirHandle, opts = {}) {
+  const extensions = opts.extensions || null;
+  const skipDirs   = opts.skipDirs   || null;
+  const prefix     = opts._prefix    || '';
+  const entries    = [];
+  for await (const entry of dirHandle.values()) {
+    if (entry.name.startsWith('.')) continue;
+    const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.kind === 'directory') {
+      if (entry.name === 'node_modules') continue;
+      if (skipDirs && skipDirs.includes(entry.name)) continue;
+      // Pass 'entry' as the new dirHandle for the recursive call to track correct parent directory
+      entries.push(...await walkDirectory(entry, { extensions, skipDirs, _prefix: entryPath }));
+    } else if (entry.kind === 'file') {
+      if (extensions && !extensions.test(entry.name)) continue;
+      // Store the immediate parent directory handle to allow writing new files alongside
+      entries.push({ handle: entry, path: entryPath, parentDir: dirHandle });
+    }
+  }
+  return entries;
+}
+
+async function readFileContent(fileHandle) {
+  const file = await fileHandle.getFile();
+  return file.text();
+}
+
+async function writeFileContent(fileHandle, content) {
+  const writable = await fileHandle.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Parsing engine
+// ═══════════════════════════════════════════════════════════════
+
+const FILE_START = /^\s*(\/\/|#|\/\*)\s*--\s*file:\s*(.+?)\s*--/;
+const FILE_END   = /^\s*(\/\/|#|\/\*)\s*--\s*endfile\s*--/;
+const LINE_OUT   = /^\s*(\/\/|#|\/\*)\s*>>\s?(.*?)(\s*\*\/)?$/;
+const LINE_IN    = /^\s*(\/\/|#|\/\*)\s*<<\s?(.*?)(\s*\*\/)?$/;
+const REG_LINE   = /registerNodeClass\(\s*['"]([^'"]+)['"]\s*,\s*(\w+)/;
+const CLASS_DECL = /^(\s*)class\s+(\w+)/;
+const FUNC_DECL  = /^(\s*)(function\s+(\w+)|const\s+(\w+)\s*=\s*Object\.freeze)/;
+
+function parseFile(content, filePath) {
+  const lines = content.split('\n');
+  const classes = [];
+  const nuggets = [];
+  const registrations = [];
+  const glue = [];
+
+  // Extract classes with line ranges
+  let classStack = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cm = CLASS_DECL.exec(lines[i]);
+    if (cm && !/^\s*(\/\/|\/\*|\*)/.test(lines[i])) {
+      const indent = cm[1].length;
+      // Close any classes at same or deeper indent
+      while (classStack.length && classStack[classStack.length-1].indent >= indent) {
+        classStack[classStack.length-1].endLine = i;
+        classStack.pop();
+      }
+      const entry = { name: cm[2], startLine: i, endLine: lines.length, indent, file: filePath };
+      classes.push(entry);
+      classStack.push(entry);
+    }
+
+    const rm = REG_LINE.exec(lines[i]);
+    if (rm) {
+      registrations.push({ nodeType: rm[1], className: rm[2], file: filePath, line: i, dormant: /^\s*\/\//.test(lines[i]) });
+    }
+  }
+  // Close remaining classes by brace counting
+  for (const cls of classes) {
+    if (cls.endLine === lines.length) {
+      let depth = 0; let started = false;
+      for (let j = cls.startLine; j < lines.length; j++) {
+        for (const ch of lines[j]) {
+          if (ch === '{') { depth++; started = true; }
+          if (ch === '}') depth--;
+        }
+        if (started && depth <= 0) { cls.endLine = j + 1; break; }
+      }
+    }
+    cls.lineCount = cls.endLine - cls.startLine;
+  }
+
+  // Extract nuggets (spike_kit markers)
+  let currentNugget = null;
+  let importsFor = [];
+  let firstImportLine = -1;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const mi = LINE_IN.exec(lines[i]);
+    if (mi) {
+      importsFor.push(mi[2].trim());
+      if (firstImportLine === -1) firstImportLine = i;
+    } else if (lines[i].trim() !== '' && !FILE_START.test(lines[i])) {
+      // If we encounter standard code block, reset the tracked imports leading to a nugget
+      firstImportLine = -1;
+      importsFor = [];
+    }
+
+    const ms = FILE_START.exec(lines[i]);
+    if (ms) {
+      // Close any unclosed nugget before starting a new one
+      if (currentNugget) {
+        currentNugget.endLine = i - 1;
+        currentNugget.lineCount = currentNugget.endLine - currentNugget.startLine;
+        nuggets.push(currentNugget);
+      }
+      currentNugget = { 
+        path: ms[2].trim(), 
+        startLine: i, 
+        importStartLine: firstImportLine !== -1 ? firstImportLine : i,
+        imports: [...importsFor], 
+        exports: [], 
+        file: filePath 
+      };
+      importsFor = [];
+      firstImportLine = -1;
+    }
+    
+    if (currentNugget) {
+      const mo = LINE_OUT.exec(lines[i]);
+      if (mo) {
+        const code = mo[2].trim();
+        if (code.includes('export')) currentNugget.exports.push(code);
+        else if (code.includes('register')) currentNugget.registrations = code;
+      }
+    }
+    const me = FILE_END.exec(lines[i]);
+    if (me && currentNugget) {
+      currentNugget.endLine = i;
+      currentNugget.lineCount = i - currentNugget.startLine;
+      nuggets.push(currentNugget);
+      currentNugget = null;
+    }
+  }
+
+  // Categorise non-node classes as glue
+  const nodeClassNames = new Set(classes.filter(c => /Node|Zone|Chart|Engine|Renderer/.test(c.name)).map(c => c.name));
+  for (const cls of classes) {
+    if (!nodeClassNames.has(cls.name) && !/Node|Zone/.test(cls.name)) {
+      const isGlue = /^(Geo|Camera|MiniT|App|DemoHarness|HudPanel|EventBus|Transform|Vector2D|WarpedPolygon|ConnHelper|ConeEngine|SnapEngine|Graph|GraphOps|ContentBar|ConsolePanel|InfoPanel|NetworkEditor|Session|InputParser|DraggableCard|CardContainer|SimilarityMatrix|SessionManager|AppController|SceneNode|SubtreeIterator|DiscreteSet|Shape|Circle|Rect|Polygon)$/.test(cls.name);
+      if (isGlue) glue.push(cls);
+    }
+  }
+
+  return { classes, nuggets, registrations, glue, lineCount: lines.length };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Stnda analysis & fix engine
+// ═══════════════════════════════════════════════════════════════
+
+function classToFilePath(className) {
+  const kebab = className
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase();
+  return './' + kebab + '.js';
+}
+
+function analyzeStndaIssues(data) {
+  const { classes, nuggets, registrations } = data.parsed;
+  const issues = [];
+
+  const nuggetRanges = nuggets.map(n => ({ start: n.startLine, end: n.endLine }));
+  function isInsideNugget(lineIdx) {
+    return nuggetRanges.some(r => lineIdx >= r.start && lineIdx <= r.end);
+  }
+  // Check if a class is referenced by name in any nugget's exports or imports
+  // (handles cases where file/endfile markers don't perfectly surround the class body)
+  function isReferencedByNugget(className) {
+    return nuggets.some(n =>
+      (n.exports && n.exports.some(e => e.includes(className))) ||
+      (n.imports && n.imports.some(imp => imp.includes(className))));
+  }
+
+  const harnessNames = /^(DemoHarness|App|MiniT|Camera|HudPanel|EventBus|StockStripNode|SceneNode|SubtreeIterator)$/;
+
+  for (const cls of classes) {
+    const inNugget = isInsideNugget(cls.startLine);
+    const reg = registrations.find(r => r.className === cls.name);
+
+    if (!inNugget && !harnessNames.test(cls.name) && !isReferencedByNugget(cls.name)) {
+      const regDisplaced = reg && (reg.line < cls.startLine || reg.line >= cls.endLine + 2);
+      issues.push({
+        type: 'unmarked-class',
+        className: cls.name,
+        classStart: cls.startLine,
+        classEnd: cls.endLine,
+        suggestedPath: classToFilePath(cls.name),
+        registration: reg || null,
+        regDisplaced,
+      });
+    } else if (inNugget && reg && !isInsideNugget(reg.line)) {
+      issues.push({
+        type: 'displaced-registration',
+        className: cls.name,
+        classStart: cls.startLine,
+        classEnd: cls.endLine,
+        registration: reg,
+        regLine: reg.line,
+      });
+    }
+  }
+  return issues;
+}
+
+function generateFixedContent(content, parsed, issues) {
+  const lines = content.split('\n');
+  const result = [];
+
+  const skipLines = new Set();
+  for (const issue of issues) {
+    if (issue.registration && (issue.type === 'unmarked-class' || issue.type === 'displaced-registration')) {
+      if (issue.type === 'unmarked-class' && issue.regDisplaced) {
+        skipLines.add(issue.registration.line);
+      } else if (issue.type === 'displaced-registration') {
+        skipLines.add(issue.registration.line);
+      }
+    }
+  }
+
+  const issueByStart = new Map();
+  for (const issue of issues) {
+    if (issue.type === 'unmarked-class') issueByStart.set(issue.classStart, issue);
+  }
+
+  const displacedByEnd = new Map();
+  for (const issue of issues) {
+    if (issue.type === 'displaced-registration') displacedByEnd.set(issue.classEnd, issue);
+  }
+
+  let i = 0;
+  while (i < lines.length) {
+    if (skipLines.has(i)) {
+      i++;
+      while (i < lines.length && lines[i].trim() === '') i++;
+      continue;
+    }
+
+    const issue = issueByStart.get(i);
+    if (issue) {
+      result.push(`//<< import { ${issue.className} } from '${issue.suggestedPath}';`);
+      result.push(`//-- file: ${issue.suggestedPath} --`);
+
+      for (let j = issue.classStart; j < issue.classEnd; j++) {
+        result.push(lines[j]);
+      }
+
+      if (issue.registration && issue.regDisplaced) {
+        result.push(`//>> sceneRegistry.registerNodeClass('${issue.registration.nodeType}', ${issue.className});`);
+      }
+
+      result.push(`//>> export { ${issue.className} };`);
+      result.push('//-- endfile --');
+      result.push('');
+      i = issue.classEnd;
+
+      if (issue.registration && !issue.regDisplaced) {
+        while (i < lines.length && lines[i].trim() === '') i++;
+        if (i < lines.length && REG_LINE.test(lines[i])) {
+          const regLine = lines[i];
+          const blank = result.pop();
+          const endfile = result.pop();
+          const exportLine = result.pop();
+          result.push(`//>> ${regLine.trim()}`);
+          result.push(exportLine);
+          result.push(endfile);
+          result.push(blank);
+          i++;
+        }
+      }
+      continue;
+    }
+
+    result.push(lines[i]);
+    i++;
+  }
+
+  if (displacedByEnd.size > 0) {
+    const finalResult = [];
+    for (let j = 0; j < result.length; j++) {
+      if (FILE_END.test(result[j])) {
+        for (const [classEnd, issue] of displacedByEnd) {
+          let found = false;
+          for (let k = j - 1; k >= Math.max(0, j - 5); k--) {
+            if (result[k].includes('}') && !result[k].trim().startsWith('//')) {
+              for (let m = k; m >= Math.max(0, k - 200); m--) {
+                if (result[m].includes(`class ${issue.className}`)) { found = true; break; }
+              }
+              if (found) break;
+            }
+          }
+          if (found) {
+            finalResult.push(`sceneRegistry.registerNodeClass('${issue.registration.nodeType}', ${issue.className});`);
+            displacedByEnd.delete(classEnd);
+          }
+        }
+      }
+      finalResult.push(result[j]);
+    }
+    return finalResult.join('\n');
+  }
+
+  return result.join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════
+
+const state = {
+  prodHandle: null,
+  stndaHandle: null,
+  prodFiles: new Map(),   // path -> { handle, content, parsed, parentDir }
+  stndaFiles: new Map(),
+  allClasses: [],         // { name, file, lineCount, source:'prod'|'stnda', ... }
+  allGlue: [],
+  allRegistrations: [],
+  leftTab: 'files',
+  rightTab: 'markdown',
+  filterText: '',
+  selectedItem: null,     // { kind:'class'|'glue', key:... }  — for classes/glue tabs
+  selectedFiles: [],      // ordered array of file paths (multi-select, max 26)
+};
+
+const dom = {
+  leftContent:  document.getElementById('leftContent'),
+  midContent:   document.getElementById('midContent'),
+  rightContent: document.getElementById('rightContent'),
+  leftCount:    document.getElementById('leftCount'),
+  midCount:     document.getElementById('midCount'),
+  status:       document.getElementById('status'),
+  leftFilter:   document.getElementById('leftFilter'),
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Scanning
+// ═══════════════════════════════════════════════════════════════
+
+async function scanProd(handle) {
+  state.prodHandle = handle;
+  state.prodFiles.clear();
+  const entries = await walkDirectory(handle, { extensions: /\.(js|mjs|html)$/ });
+  for (const entry of entries) {
+    const content = await readFileContent(entry.handle);
+    const parsed = parseFile(content, entry.path);
+    state.prodFiles.set(entry.path, { handle: entry.handle, content, parsed, parentDir: entry.parentDir });
+  }
+}
+
+async function scanStnda(handle) {
+  state.stndaHandle = handle;
+  state.stndaFiles.clear();
+  const entries = await walkDirectory(handle, { extensions: /stnda\.html$/ });
+  for (const entry of entries) {
+    const content = await readFileContent(entry.handle);
+    const parsed = parseFile(content, entry.path);
+    state.stndaFiles.set(entry.path, { handle: entry.handle, content, parsed, parentDir: entry.parentDir });
+  }
+}
+
+function buildIndex() {
+  state.allClasses = [];
+  state.allGlue = [];
+  state.allRegistrations = [];
+
+  for (const [path, data] of state.prodFiles) {
+    for (const cls of data.parsed.classes) {
+      state.allClasses.push({ ...cls, source: 'prod' });
+    }
+    for (const g of data.parsed.glue) {
+      state.allGlue.push({ ...g, source: 'prod' });
+    }
+    state.allRegistrations.push(...data.parsed.registrations.map(r => ({ ...r, source: 'prod' })));
+  }
+
+  for (const [path, data] of state.stndaFiles) {
+    for (const cls of data.parsed.classes) {
+      state.allClasses.push({ ...cls, source: 'stnda' });
+    }
+    for (const g of data.parsed.glue) {
+      state.allGlue.push({ ...g, source: 'stnda' });
+    }
+    state.allRegistrations.push(...data.parsed.registrations.map(r => ({ ...r, source: 'stnda' })));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Rendering — Left Panel
+// ═══════════════════════════════════════════════════════════════
+
+function renderLeft() {
+  const filter = state.filterText.toLowerCase();
+
+  if (state.leftTab === 'files') {
+    renderFilesTab(filter);
+  } else if (state.leftTab === 'classes') {
+    renderClassesTab(filter);
+  } else {
+    renderGlueTab(filter);
+  }
+}
+
+function fileLetter(path) {
+  const idx = state.selectedFiles.indexOf(path);
+  return idx >= 0 ? String.fromCharCode(65 + idx) : null;
+}
+
+function renderFilesTab(filter) {
+  let html = '';
+  let count = 0;
+
+  function renderFileItem(path, data, sourceType) {
+    if (filter && !path.toLowerCase().includes(filter)) return '';
+    const p = data.parsed;
+    const letter = fileLetter(path);
+    const active = letter ? ' active' : '';
+    const letterBadge = letter
+      ? `<span class="tag-pill" style="background:var(--accent);color:#000;font-weight:700;min-width:1.1em;text-align:center">${letter}</span>`
+      : '';
+
+    let pills = '';
+    if (sourceType === 'stnda') {
+      const nugCount = p.nuggets.length;
+      pills = nugCount > 0
+        ? `<span class="tag-pill nugget">${nugCount} nug</span>`
+        : `<span class="tag-pill harness">raw</span>`;
+    } else {
+      const regCount = p.registrations.length;
+      if (regCount > 0) pills = `<span class="tag-pill prod">${regCount} reg</span>`;
+    }
+
+    const typePill = sourceType === 'stnda'
+      ? '<span class="tag-pill stnda">stnda</span>'
+      : '<span class="tag-pill prod">js</span>';
+    const displayName = sourceType === 'stnda' ? path.replace(/-stnda\.html$/, '') : path;
+    const clsMeta = sourceType === 'stnda' ? `${p.classes.length}c ` : '';
+
+    count++;
+    return `<div class="item${active}" data-kind="file" data-key="${escapeHtml(path)}">
+      ${letterBadge}
+      ${typePill}
+      <span class="name">${escapeHtml(displayName)}</span>
+      ${pills}
+      <span class="meta">${clsMeta}${p.lineCount}L</span>
+    </div>`;
+  }
+
+  // Stnda files first
+  const stndaEntries = [...state.stndaFiles.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+  if (stndaEntries.length) {
+    html += `<div class="group-label">Spike files (${stndaEntries.length})</div>`;
+    for (const [path, data] of stndaEntries) html += renderFileItem(path, data, 'stnda');
+  }
+
+  // Production files
+  const prodEntries = [...state.prodFiles.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+  if (prodEntries.length) {
+    html += `<div class="group-label">Production (${prodEntries.length})</div>`;
+    for (const [path, data] of prodEntries) html += renderFileItem(path, data, 'prod');
+  }
+
+  if (!stndaEntries.length && !prodEntries.length) {
+    html = '<div style="color:var(--text-muted);font-size:0.8rem;padding:1rem">Drop folders to begin scanning</div>';
+  }
+
+  dom.leftContent.innerHTML = html;
+  dom.leftCount.textContent = state.selectedFiles.length ? `${state.selectedFiles.length} sel` : count;
+  bindLeftClicks();
+}
+
+function renderClassesTab(filter) {
+  // Group by class name, show where each appears
+  const byName = new Map();
+  for (const cls of state.allClasses) {
+    if (filter && !cls.name.toLowerCase().includes(filter)) continue;
+    if (!byName.has(cls.name)) byName.set(cls.name, []);
+    byName.get(cls.name).push(cls);
+  }
+
+  const maxLines = Math.max(1, ...state.allClasses.map(c => c.lineCount));
+  let html = '';
+  let count = 0;
+
+  // Sort: classes appearing in most files first (divergence signal)
+  const sorted = [...byName.entries()].sort((a, b) => {
+    if (b[1].length !== a[1].length) return b[1].length - a[1].length;
+    return a[0].localeCompare(b[0]);
+  });
+
+  for (const [name, instances] of sorted) {
+    const active = state.selectedItem?.kind === 'class' && state.selectedItem.key === name ? ' active' : '';
+    const sizes = instances.map(i => i.lineCount);
+    const minSize = Math.min(...sizes);
+    const maxSize = Math.max(...sizes);
+    const diverged = instances.length > 1 && (maxSize - minSize) > 5;
+    const sizeStr = instances.length === 1
+      ? `${sizes[0]}L`
+      : `${minSize}–${maxSize}L`;
+    const pills = [];
+    if (instances.length > 1) pills.push(`<span class="tag-pill ${diverged ? 'diverged' : 'harness'}">${instances.length}×</span>`);
+    if (instances.some(i => i.source === 'prod')) pills.push('<span class="tag-pill prod">prod</span>');
+
+    const barW = Math.round((maxSize / maxLines) * 100);
+    html += `<div class="item${active}" data-kind="class" data-key="${escapeHtml(name)}">
+      <span class="name">${escapeHtml(name)}</span>
+      ${pills.join('')}
+      <div class="size-bar-wrap">
+        <span class="meta">${sizeStr}</span>
+        <div class="size-bar"><div class="size-bar-fill" style="width:${barW}%"></div></div>
+      </div>
+    </div>`;
+    count++;
+  }
+
+  dom.leftContent.innerHTML = html || '<div style="color:var(--text-muted);font-size:0.8rem;padding:1rem">No classes found</div>';
+  dom.leftCount.textContent = count;
+  bindLeftClicks();
+}
+
+function renderGlueTab(filter) {
+  const byName = new Map();
+  for (const g of state.allGlue) {
+    if (filter && !g.name.toLowerCase().includes(filter)) continue;
+    if (!byName.has(g.name)) byName.set(g.name, []);
+    byName.get(g.name).push(g);
+  }
+
+  let html = '';
+  let count = 0;
+  const sorted = [...byName.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+
+  for (const [name, instances] of sorted) {
+    const active = state.selectedItem?.kind === 'glue' && state.selectedItem.key === name ? ' active' : '';
+    const sizes = instances.map(i => i.lineCount);
+    const sizeStr = instances.length === 1 ? `${sizes[0]}L` : `${Math.min(...sizes)}–${Math.max(...sizes)}L`;
+    const countPill = instances.length > 1 ? `<span class="tag-pill harness">${instances.length}×</span>` : '';
+
+    html += `<div class="item${active}" data-kind="glue" data-key="${escapeHtml(name)}">
+      <span class="name">${escapeHtml(name)}</span>
+      ${countPill}
+      <span class="meta">${sizeStr}</span>
+    </div>`;
+    count++;
+  }
+
+  dom.leftContent.innerHTML = html || '<div style="color:var(--text-muted);font-size:0.8rem;padding:1rem">No glue code found</div>';
+  dom.leftCount.textContent = count;
+  bindLeftClicks();
+}
+
+function bindLeftClicks() {
+  dom.leftContent.querySelectorAll('.item').forEach(el => {
+    el.addEventListener('click', () => {
+      const kind = el.dataset.kind;
+      const key = el.dataset.key;
+
+      if (kind === 'file') {
+        // Toggle multi-select for files
+        const idx = state.selectedFiles.indexOf(key);
+        if (idx >= 0) {
+          state.selectedFiles.splice(idx, 1);
+        } else if (state.selectedFiles.length < 26) {
+          state.selectedFiles.push(key);
+        }
+        state.selectedItem = null;
+      } else {
+        // Single select for classes and glue — clears file selection
+        state.selectedItem = { kind, key };
+        state.selectedFiles = [];
+      }
+      renderLeft();
+      renderMid();
+      renderRight();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Rendering — Mid Panel (pretty analysis)
+// ═══════════════════════════════════════════════════════════════
+
+function renderMid() {
+  // If files are selected, show multi-file analysis
+  if (state.selectedFiles.length > 0) {
+    renderMidFiles();
+    return;
+  }
+  // Otherwise fall through to class/glue single-select
+  const sel = state.selectedItem;
+  if (!sel) { dom.midContent.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;padding:1rem">Select files or a class</div>'; return; }
+
+  if (sel.kind === 'class' || sel.kind === 'glue') renderMidClass(sel.key);
+}
+
+function renderMidFiles() {
+  const files = state.selectedFiles.map((path, i) => {
+    const data = state.stndaFiles.get(path) || state.prodFiles.get(path);
+    const letter = String.fromCharCode(65 + i);
+    const isStnda = state.stndaFiles.has(path);
+    return { path, data, letter, isStnda, parsed: data?.parsed };
+  }).filter(f => f.data);
+
+  let html = '<div class="analysis">';
+
+  // File listing with letters
+  html += '<h2>Selected Files</h2>';
+  for (const f of files) {
+    const shortName = f.isStnda ? f.path.replace(/-stnda\.html$/, '') : f.path;
+    html += `<div class="field">
+      <span class="field-label" style="min-width:1.5em;color:var(--accent);font-weight:700">${f.letter}</span>
+      <span class="field-value">${escapeHtml(shortName)} <span style="color:var(--text-muted)">${f.parsed.lineCount}L · ${f.parsed.classes.length}c · ${f.parsed.nuggets.length}n</span></span>
+    </div>`;
+  }
+
+  // Registrations (combined)
+  const allRegs = files.flatMap(f => f.parsed.registrations.map(r => ({ ...r, letter: f.letter })));
+  if (allRegs.length) {
+    html += '<h3>Registrations</h3>';
+    for (const r of allRegs) {
+      const dorm = r.dormant ? ' <span style="color:var(--warning)">(dormant)</span>' : '';
+      html += `<div class="dep-item"><span style="color:var(--accent);font-weight:600">${r.letter}</span> ${escapeHtml(r.nodeType)} → ${escapeHtml(r.className)}${dorm}</div>`;
+    }
+  }
+
+  // Classes table — rows are unique class names, columns are files
+  const classNames = new Set();
+  for (const f of files) for (const cls of f.parsed.classes) classNames.add(cls.name);
+
+  if (classNames.size) {
+    html += '<h3>Classes</h3>';
+    // Table header
+    html += '<table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:0.65rem">';
+    html += '<tr style="border-bottom:1px solid var(--border)">';
+    html += '<th style="text-align:left;padding:0.3rem 0.4rem;color:var(--text-muted)">Class</th>';
+    for (const f of files) {
+      html += `<th style="text-align:right;padding:0.3rem 0.4rem;color:var(--accent);min-width:2.5em">${f.letter}</th>`;
+    }
+    html += '</tr>';
+
+    // Collect class sizes per file for bar scaling
+    const allSizes = files.flatMap(f => f.parsed.classes.map(c => c.lineCount));
+    const maxSize = Math.max(1, ...allSizes);
+
+    // Sort: classes present in multiple files first, then by name
+    const sortedNames = [...classNames].sort((a, b) => {
+      const countA = files.filter(f => f.parsed.classes.some(c => c.name === a)).length;
+      const countB = files.filter(f => f.parsed.classes.some(c => c.name === b)).length;
+      if (countB !== countA) return countB - countA;
+      return a.localeCompare(b);
+    });
+
+    for (const name of sortedNames) {
+      const sizes = files.map(f => {
+        const cls = f.parsed.classes.find(c => c.name === name);
+        return cls ? cls.lineCount : null;
+      });
+      // Check divergence
+      const present = sizes.filter(s => s !== null);
+      const diverged = present.length > 1 && (Math.max(...present) - Math.min(...present)) > 5;
+
+      html += `<tr style="border-bottom:1px solid rgba(42,42,50,0.5)">`;
+      html += `<td style="padding:0.25rem 0.4rem;color:var(--text-primary);cursor:pointer" class="cls-name-cell" data-cls="${escapeHtml(name)}">${escapeHtml(name)}</td>`;
+      for (let fi = 0; fi < files.length; fi++) {
+        if (sizes[fi] !== null) {
+          const barW = Math.round((sizes[fi] / maxSize) * 100);
+          const color = diverged ? 'var(--danger)' : 'var(--accent-dim)';
+          html += `<td style="text-align:right;padding:0.25rem 0.4rem;cursor:pointer" data-preview-class="${escapeHtml(name)}" data-preview-file="${escapeHtml(files[fi].path)}">
+            <div style="display:flex;align-items:center;justify-content:flex-end;gap:0.3rem">
+              <div style="width:30px;height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden"><div style="height:100%;width:${barW}%;background:${color};border-radius:2px"></div></div>
+              <span style="color:var(--text-secondary)">${sizes[fi]}</span>
+            </div>
+          </td>`;
+        } else {
+          html += '<td style="text-align:right;padding:0.25rem 0.4rem;color:var(--text-muted)">—</td>';
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+  }
+
+  // Nuggets per file with Checkboxes and Dropout Support
+  for (const f of files) {
+    if (!f.parsed.nuggets.length) continue;
+    const shortName = f.isStnda ? f.path.replace(/-stnda\.html$/, '') : f.path;
+    html += `<h3>Nuggets ${f.letter} <span style="font-weight:400;text-transform:none;letter-spacing:0">(${escapeHtml(shortName)})</span></h3>`;
+    
+    for (let i = 0; i < f.parsed.nuggets.length; i++) {
+      const n = f.parsed.nuggets[i];
+      html += `<label class="nugget-cb-wrap">`;
+      html += `<input type="checkbox" class="nugget-cb" data-file-path="${escapeHtml(f.path)}" data-nugget-idx="${i}" checked>`;
+      html += `<div class="dep-item" style="margin:0">${escapeHtml(n.path)} <span style="color:var(--text-muted)">${n.lineCount}L</span></div>`;
+      html += `</label>`;
+
+      for (const imp of n.imports) {
+        html += `<div style="font-size:0.58rem;color:var(--text-muted);padding-left:1.8rem;font-family:var(--font-mono)">← ${escapeHtml(imp)}</div>`;
+      }
+    }
+
+    html += `<div style="margin-top:0.4rem; margin-bottom:1rem; padding-left:0.2rem">
+      <button class="btn" style="padding:0.25rem 0.6rem; font-size:0.65rem;" data-dropout-file="${escapeHtml(f.path)}">Dropout Unchecked</button>
+    </div>`;
+  }
+
+  // ── Spike-kit fix analysis for stnda files ──
+  const stndaFilesForFix = files.filter(f => f.isStnda);
+  let totalIssues = 0;
+  for (const f of stndaFilesForFix) {
+    const issues = analyzeStndaIssues(f.data);
+    if (!issues.length) continue;
+    totalIssues += issues.length;
+    const shortName = f.path.replace(/-stnda\.html$/, '');
+    html += `<h3>Fix ${f.letter} <span style="font-weight:400;text-transform:none;letter-spacing:0">(${escapeHtml(shortName)})</span></h3>`;
+    html += `<div class="fix-section">`;
+    html += `<div class="fix-summary">`;
+    html += `<span class="fix-count">${issues.length}</span> issue${issues.length !== 1 ? 's' : ''} found`;
+    html += `<button class="fix-btn" data-fix-file="${escapeHtml(f.path)}">Fix File</button>`;
+    html += `</div>`;
+
+    for (const issue of issues) {
+      if (issue.type === 'unmarked-class') {
+        html += `<div class="fix-issue warn">`;
+        html += `<span class="fix-icon">⚠</span>`;
+        html += `<div class="fix-detail">`;
+        html += `<strong>${escapeHtml(issue.className)}</strong> not wrapped in spike_kit markers`;
+        html += `<br>Will wrap as <strong>${escapeHtml(issue.suggestedPath)}</strong>`;
+        if (issue.registration && issue.regDisplaced) {
+          html += `<br>Registration <em>'${escapeHtml(issue.registration.nodeType)}'</em> at line ${issue.registration.line + 1} will be moved inside nugget`;
+        } else if (issue.registration && !issue.regDisplaced) {
+          html += `<br>Registration <em>'${escapeHtml(issue.registration.nodeType)}'</em> will be included in nugget`;
+        }
+        html += `</div></div>`;
+      } else if (issue.type === 'displaced-registration') {
+        html += `<div class="fix-issue error">`;
+        html += `<span class="fix-icon">✗</span>`;
+        html += `<div class="fix-detail">`;
+        html += `Registration <em>'${escapeHtml(issue.registration.nodeType)}'</em> → <strong>${escapeHtml(issue.className)}</strong>`;
+        html += ` at line ${issue.regLine + 1} is outside its nugget`;
+        html += `<br>Will be moved inside the nugget after the class`;
+        html += `</div></div>`;
+      }
+    }
+    html += `</div>`;
+  }
+  if (stndaFilesForFix.length && totalIssues === 0) {
+    html += `<h3>Spike-kit Markup</h3>`;
+    html += `<div style="font-size:0.7rem;color:var(--success);font-family:var(--font-mono);padding:0.4rem">✓ All classes properly marked up</div>`;
+  }
+
+  // Scene JSON for stnda files
+  const stndaFiles = files.filter(f => f.isStnda);
+  for (const f of stndaFiles) {
+    const shortName = f.path.replace(/-stnda\.html$/, '');
+    html += `<h3>Scene ${f.letter} <span style="font-weight:400;text-transform:none;letter-spacing:0">(${escapeHtml(shortName)})</span></h3>`;
+    const json = inferSceneJson(f.path, f.data);
+    html += `<div class="scene-json">${escapeHtml(JSON.stringify(json, null, 2))}</div>`;
+  }
+
+  html += '</div>';
+  dom.midContent.innerHTML = html;
+
+  // Bind preview clicks on table cells
+  dom.midContent.querySelectorAll('[data-preview-class]').forEach(el => {
+    el.addEventListener('click', () => showPreview(el.dataset.previewFile, el.dataset.previewClass));
+  });
+  
+  // Bind class name clicks to switch to class view
+  dom.midContent.querySelectorAll('.cls-name-cell').forEach(el => {
+    el.addEventListener('click', () => {
+      state.selectedItem = { kind: 'class', key: el.dataset.cls };
+      state.selectedFiles = [];
+      document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'classes'));
+      state.leftTab = 'classes';
+      renderLeft(); renderMid(); renderRight();
+    });
+  });
+
+  // Bind per-file fix buttons
+  dom.midContent.querySelectorAll('[data-fix-file]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await fixStndaFile(btn.dataset.fixFile);
+    });
+  });
+
+  // Bind dropout buttons
+  dom.midContent.querySelectorAll('[data-dropout-file]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const prevText = btn.textContent;
+      btn.textContent = 'Saving...';
+      btn.disabled = true;
+      try {
+        await executeDropout(btn.dataset.dropoutFile);
+      } catch (err) {
+        console.error('Dropout error:', err);
+        dom.status.textContent = 'Error during dropout: ' + err.message;
+        dom.status.className = 'status error';
+      } finally {
+        btn.textContent = prevText;
+        btn.disabled = false;
+      }
+    });
+  });
+
+  updateFixAllBtn();
+}
+
+function renderMidClass(name) {
+  const instances = state.allClasses.filter(c => c.name === name);
+  if (!instances.length) {
+    // Try glue
+    const glueInst = state.allGlue.filter(g => g.name === name);
+    if (glueInst.length) { renderMidClassList(name, glueInst); return; }
+    dom.midContent.innerHTML = '<div style="color:var(--text-muted);padding:1rem">Not found</div>';
+    return;
+  }
+  renderMidClassList(name, instances);
+}
+
+function renderMidClassList(name, instances) {
+  // Sort: prod first, then by file path
+  instances.sort((a, b) => {
+    if (a.source !== b.source) return a.source === 'prod' ? -1 : 1;
+    return a.file.localeCompare(b.file);
+  });
+
+  const maxSize = Math.max(...instances.map(i => i.lineCount));
+
+  let html = `<div class="analysis">`;
+  html += `<h2>${escapeHtml(name)}</h2>`;
+  html += `<div class="field"><span class="field-label">Instances</span><span class="field-value">${instances.length}</span></div>`;
+
+  const sizes = instances.map(i => i.lineCount);
+  if (instances.length > 1) {
+    const range = Math.max(...sizes) - Math.min(...sizes);
+    html += `<div class="field"><span class="field-label">Size range</span><span class="field-value">${Math.min(...sizes)}–${Math.max(...sizes)}L (Δ${range})</span></div>`;
+  }
+
+  // Check registrations
+  const regs = state.allRegistrations.filter(r => r.className === name);
+  if (regs.length) {
+    html += `<h3>Registered as</h3>`;
+    for (const r of regs) {
+      const dorm = r.dormant ? ' (dormant)' : '';
+      html += `<div class="dep-item">'${escapeHtml(r.nodeType)}'${dorm} <span style="color:var(--text-muted)">in ${escapeHtml(r.file)}</span></div>`;
+    }
+  }
+
+  html += `<h3>Locations</h3>`;
+  for (const inst of instances) {
+    const barW = Math.round((inst.lineCount / maxSize) * 100);
+    const pill = inst.source === 'prod' ? '<span class="tag-pill prod">prod</span>' : '<span class="tag-pill stnda">stnda</span>';
+    html += `<div class="item" data-preview-class="${escapeHtml(name)}" data-preview-file="${escapeHtml(inst.file)}" style="margin-bottom:0.2rem">
+      ${pill}
+      <span class="name" style="font-size:0.65rem">${escapeHtml(inst.file)}</span>
+      <div class="size-bar-wrap">
+        <span class="meta">${inst.lineCount}L</span>
+        <div class="size-bar"><div class="size-bar-fill" style="width:${barW}%"></div></div>
+      </div>
+    </div>`;
+  }
+
+  html += `</div>`;
+  dom.midContent.innerHTML = html;
+
+  dom.midContent.querySelectorAll('[data-preview-class]').forEach(el => {
+    el.addEventListener('click', () => showPreview(el.dataset.previewFile, el.dataset.previewClass));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Rendering — Right Panel (markdown / json)
+// ═══════════════════════════════════════════════════════════════
+
+function renderRight() {
+  const sel = state.selectedItem;
+
+  if (state.rightTab === 'json') {
+    renderRightJson(sel);
+  } else {
+    renderRightMarkdown(sel);
+  }
+}
+
+function renderRightMarkdown(sel) {
+  let md = '';
+
+  // Multi-file mode
+  if (state.selectedFiles.length > 0) {
+    const files = state.selectedFiles.map((path, i) => {
+      const data = state.stndaFiles.get(path) || state.prodFiles.get(path);
+      const letter = String.fromCharCode(65 + i);
+      const isStnda = state.stndaFiles.has(path);
+      return { path, data, letter, isStnda, parsed: data?.parsed };
+    }).filter(f => f.data);
+
+    md += `# Component Analysis\n\n`;
+    for (const f of files) {
+      const short = f.isStnda ? f.path.replace(/-stnda\.html$/, '') : f.path;
+      md += `- **${f.letter}** ${short} — ${f.parsed.lineCount}L, ${f.parsed.classes.length} classes, ${f.parsed.nuggets.length} nuggets\n`;
+    }
+    md += '\n';
+
+    // Registrations
+    const allRegs = files.flatMap(f => f.parsed.registrations.map(r => ({ ...r, letter: f.letter })));
+    if (allRegs.length) {
+      md += `## Registrations\n\n`;
+      for (const r of allRegs) md += `- **${r.letter}** \`${r.nodeType}\` → \`${r.className}\`${r.dormant ? ' *(dormant)*' : ''}\n`;
+      md += '\n';
+    }
+
+    // Classes table
+    const classNames = new Set();
+    for (const f of files) for (const cls of f.parsed.classes) classNames.add(cls.name);
+    if (classNames.size) {
+      md += `## Classes\n\n`;
+      md += `| Class | ${files.map(f => f.letter).join(' | ')} |\n`;
+      md += `|-------|${files.map(() => '---:').join('|')}|\n`;
+
+      const sortedNames = [...classNames].sort((a, b) => {
+        const countA = files.filter(f => f.parsed.classes.some(c => c.name === a)).length;
+        const countB = files.filter(f => f.parsed.classes.some(c => c.name === b)).length;
+        if (countB !== countA) return countB - countA;
+        return a.localeCompare(b);
+      });
+
+      for (const name of sortedNames) {
+        const cells = files.map(f => {
+          const cls = f.parsed.classes.find(c => c.name === name);
+          return cls ? String(cls.lineCount) : '—';
+        });
+        md += `| ${name} | ${cells.join(' | ')} |\n`;
+      }
+      md += '\n';
+    }
+
+    // Nuggets per file
+    for (const f of files) {
+      if (!f.parsed.nuggets.length) continue;
+      const short = f.isStnda ? f.path.replace(/-stnda\.html$/, '') : f.path;
+      md += `## Nuggets ${f.letter} (${short})\n\n`;
+      for (const n of f.parsed.nuggets) {
+        md += `### ${n.path} (${n.lineCount}L)\n\n`;
+        if (n.imports.length) {
+          md += `Imports:\n`;
+          for (const imp of n.imports) md += `- \`${imp}\`\n`;
+          md += '\n';
+        }
+      }
+    }
+
+    // Fix issues per file
+    for (const f of files) {
+      if (!f.isStnda) continue;
+      const issues = analyzeStndaIssues(f.data);
+      if (!issues.length) continue;
+      const short = f.path.replace(/-stnda\.html$/, '');
+      md += `## Fix Issues ${f.letter} (${short})\n\n`;
+      for (const issue of issues) {
+        if (issue.type === 'unmarked-class') {
+          md += `- ⚠ **${issue.className}** not wrapped → \`${issue.suggestedPath}\`\n`;
+          if (issue.registration && issue.regDisplaced) {
+            md += `  - Registration \`'${issue.registration.nodeType}'\` at L${issue.registration.line + 1} displaced\n`;
+          }
+        } else if (issue.type === 'displaced-registration') {
+          md += `- ✗ Registration \`'${issue.registration.nodeType}'\` → **${issue.className}** at L${issue.regLine + 1} outside nugget\n`;
+        }
+      }
+      md += '\n';
+    }
+
+    dom.rightContent.textContent = md;
+    return;
+  }
+
+  if (!sel) { dom.rightContent.textContent = 'Select files or a class'; return; }
+
+  if (sel.kind === 'class' || sel.kind === 'glue') {
+    const instances = (sel.kind === 'class' ? state.allClasses : state.allGlue).filter(c => c.name === sel.key);
+    md += `# ${sel.key}\n\n`;
+    md += `Appears in **${instances.length}** file(s).\n\n`;
+
+    if (instances.length > 1) {
+      const sizes = instances.map(i => i.lineCount);
+      md += `Size range: ${Math.min(...sizes)}–${Math.max(...sizes)} lines (Δ${Math.max(...sizes) - Math.min(...sizes)})\n\n`;
+    }
+
+    const regs = state.allRegistrations.filter(r => r.className === sel.key);
+    if (regs.length) {
+      md += `## Registrations\n\n`;
+      for (const r of regs) {
+        md += `- \`'${r.nodeType}'\`${r.dormant ? ' *(dormant)*' : ''} in ${r.file}\n`;
+      }
+      md += '\n';
+    }
+
+    md += `## Instances\n\n`;
+    md += `| Source | File | Lines |\n|--------|------|-------|\n`;
+    instances.sort((a, b) => a.source === 'prod' ? -1 : 1);
+    for (const inst of instances) {
+      md += `| ${inst.source} | ${inst.file} | ${inst.lineCount} |\n`;
+    }
+    md += '\n';
+  }
+
+  dom.rightContent.textContent = md;
+}
+
+function renderRightJson(sel) {
+  if (state.selectedFiles.length > 0) {
+    const scenes = {};
+    for (let i = 0; i < state.selectedFiles.length; i++) {
+      const path = state.selectedFiles[i];
+      const letter = String.fromCharCode(65 + i);
+      if (state.stndaFiles.has(path)) {
+        const data = state.stndaFiles.get(path);
+        scenes[letter] = inferSceneJson(path, data);
+      }
+    }
+    if (Object.keys(scenes).length) {
+      dom.rightContent.textContent = JSON.stringify(scenes, null, 2);
+    } else {
+      dom.rightContent.textContent = '// No stnda files in selection';
+    }
+    return;
+  }
+  dom.rightContent.textContent = '// Select stnda files to see scene JSON';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Scene JSON inference
+// ═══════════════════════════════════════════════════════════════
+
+function inferSceneJson(path, data) {
+  const p = data.parsed;
+  const content = data.content;
+
+  // Detect harness pattern
+  const hasCanvas = (content.match(/<canvas/g) || []).length;
+  const hasTHREE = /THREE|three\.module/.test(content);
+  const hasStockStrip = p.classes.some(c => c.name === 'StockStripNode');
+  const hasHud = p.classes.some(c => c.name === 'HudPanel');
+  const hasQuadrant = hasCanvas >= 4;
+
+  // Collect registered node types
+  const nodeTypes = p.registrations.map(r => ({
+    type: r.nodeType,
+    class: r.className,
+    dormant: r.dormant
+  }));
+
+  // Build scene tree
+  let scene = {};
+
+  if (hasQuadrant && hasTHREE) {
+    scene.type = 'quadrants3d';
+    scene.subtree = nodeTypes.filter(n => !n.dormant).map(n => ({ type: n.type, class: n.class }));
+  } else if (hasQuadrant) {
+    scene.type = 'quadrants2d';
+    scene.subtree = nodeTypes.filter(n => !n.dormant).map(n => ({ type: n.type, class: n.class }));
+  } else if (hasStockStrip && hasHud) {
+    scene.type = 'stock-split';
+    const mainNodes = nodeTypes.filter(n => !/stock-strip|grid/.test(n.type));
+    scene.subtree = [
+      { type: 'stock-strip', value: {} },
+      { type: 'hudifier', subtree: [
+        mainNodes.length === 1
+          ? { type: mainNodes[0].type, class: mainNodes[0].class }
+          : { type: 'composite', children: mainNodes.map(n => ({ type: n.type, class: n.class })) },
+        { type: 'hud-panel', value: { controls: '$introspectClassParams(...)' } }
+      ]}
+    ];
+  } else if (hasStockStrip) {
+    scene.type = 'stock-split';
+    const mainNodes = nodeTypes.filter(n => !/stock-strip|grid/.test(n.type));
+    scene.subtree = [
+      { type: 'stock-strip', value: {} },
+      mainNodes.length === 1
+        ? { type: mainNodes[0].type }
+        : { type: 'composite', children: mainNodes.map(n => ({ type: n.type })) }
+    ];
+  } else {
+    // Simple leaf demo or unknown
+    if (nodeTypes.length === 1) {
+      scene = { type: nodeTypes[0].type, class: nodeTypes[0].class };
+    } else if (nodeTypes.length > 1) {
+      scene.type = 'demo';
+      scene.nodes = nodeTypes.map(n => ({ type: n.type, class: n.class }));
+    } else {
+      // No registrations — infer from classes
+      const nodeClasses = p.classes.filter(c => /Node|Chart|Zone/.test(c.name) && !/MiniT|Camera|App|Harness|SceneNode/.test(c.name));
+      scene.type = 'unregistered-demo';
+      scene.classes = nodeClasses.map(c => ({ class: c.name, lines: c.lineCount }));
+    }
+  }
+
+  scene._meta = {
+    file: path,
+    canvases: hasCanvas,
+    threeJs: hasTHREE,
+    hasHud,
+    hasStockStrip,
+    totalClasses: p.classes.length,
+    totalLines: p.lineCount
+  };
+
+  return scene;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Preview overlay
+// ═══════════════════════════════════════════════════════════════
+
+function showPreview(filePath, className) {
+  const data = state.stndaFiles.get(filePath) || state.prodFiles.get(filePath);
+  if (!data) return;
+
+  const cls = data.parsed.classes.find(c => c.name === className);
+  if (!cls) return;
+
+  const lines = data.content.split('\n');
+  const start = cls.startLine;
+  const end = cls.endLine;
+  const slice = lines.slice(start, end);
+
+  let html = '';
+  for (let i = 0; i < slice.length; i++) {
+    html += `<span class="line-num">${start + i + 1}</span>${escapeHtml(slice[i])}\n`;
+  }
+
+  document.getElementById('previewTitle').textContent = `${className} — ${filePath} (${cls.lineCount}L)`;
+  document.getElementById('previewBody').innerHTML = html;
+  document.getElementById('previewOverlay').classList.add('open');
+}
+
+function hidePreview() {
+  document.getElementById('previewOverlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Dropout functionality
+// ═══════════════════════════════════════════════════════════════
+
+async function executeDropout(filePath) {
+  const data = state.stndaFiles.get(filePath) || state.prodFiles.get(filePath);
+  if (!data) throw new Error('File data not found');
+  if (!data.parentDir) throw new Error('Parent directory reference missing. Re-drop the folder to fix.');
+
+  // Find unchecked checkboxes for this file
+  const cbs = dom.midContent.querySelectorAll(`input.nugget-cb[data-file-path="${CSS.escape(filePath)}"]`);
+  const uncheckedIndices = [];
+  cbs.forEach(cb => {
+    if (!cb.checked) uncheckedIndices.push(parseInt(cb.dataset.nuggetIdx, 10));
+  });
+
+  if (uncheckedIndices.length === 0) {
+    dom.status.textContent = 'No nuggets unchecked for dropout.';
+    dom.status.className = 'status';
+    return;
+  }
+
+  const parsed = data.parsed;
+  const lines = data.content.split('\n');
+  const dropRanges = [];
+
+  // Mark line boundaries for exclusion based on the unchecked nuggets
+  uncheckedIndices.forEach(idx => {
+    const n = parsed.nuggets[idx];
+    dropRanges.push({ start: n.importStartLine, end: n.endLine });
+  });
+
+  // Filter out the lines corresponding to the unchecked nuggets
+  const newLines = lines.filter((_, i) => {
+    return !dropRanges.some(r => i >= r.start && i <= r.end);
+  });
+
+  const newContent = newLines.join('\n');
+
+  // Determine incremented filename
+  const originalName = data.handle.name;
+  const parts = originalName.split('.');
+  const ext = parts.pop();
+  const base = parts.join('.');
+
+  let counter = 1;
+  let newName = '';
+  let newHandle = null;
+
+  while (true) {
+    newName = `${base}-${counter}.${ext}`;
+    try {
+      // If this doesn't throw, the file exists, we increment and retry
+      await data.parentDir.getFileHandle(newName);
+      counter++;
+    } catch (e) {
+      if (e.name === 'NotFoundError') {
+        // File does not exist, safe to create
+        newHandle = await data.parentDir.getFileHandle(newName, { create: true });
+        break;
+      }
+      throw e; // Bubble up unexpected errors
+    }
+  }
+
+  // Write new contents
+  await writeFileContent(newHandle, newContent);
+
+  dom.status.textContent = `Dropped out ${uncheckedIndices.length} nugget(s). Saved as ${newName}`;
+  dom.status.className = 'status success';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Event wiring
+// ═══════════════════════════════════════════════════════════════
+
+suppressBrowserDragDrop();
+
+setupDropZone(document.getElementById('dropProd'), async handle => {
+  dom.status.textContent = 'Scanning production tree...';
+  await scanProd(handle);
+  buildIndex();
+  dom.status.textContent = `Production: ${state.prodFiles.size} files scanned`;
+  dom.status.className = 'status success';
+  document.getElementById('btnRescan').disabled = false;
+  renderLeft();
+}, msg => { dom.status.textContent = msg; dom.status.className = 'status error'; });
+
+setupDropZone(document.getElementById('dropStnda'), async handle => {
+  dom.status.textContent = 'Scanning stnda files...';
+  await scanStnda(handle);
+  buildIndex();
+  dom.status.textContent = `Spikes: ${state.stndaFiles.size} files scanned`;
+  dom.status.className = 'status success';
+  document.getElementById('btnRescan').disabled = false;
+  renderLeft();
+  updateFixAllBtn();
+}, msg => { dom.status.textContent = msg; dom.status.className = 'status error'; });
+
+document.getElementById('btnRescan').addEventListener('click', async () => {
+  if (state.prodHandle) await scanProd(state.prodHandle);
+  if (state.stndaHandle) await scanStnda(state.stndaHandle);
+  buildIndex();
+  renderLeft();
+  renderMid();
+  renderRight();
+  dom.status.textContent = `Rescanned: ${state.prodFiles.size} prod + ${state.stndaFiles.size} stnda files`;
+  dom.status.className = 'status success';
+  updateFixAllBtn();
+});
+
+// Left tabs
+document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t === tab));
+    state.leftTab = tab.dataset.tab;
+    renderLeft();
+  });
+});
+
+// Right tabs
+document.getElementById('rightTabs').querySelectorAll('.panel-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.getElementById('rightTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t === tab));
+    state.rightTab = tab.dataset.tab;
+    renderRight();
+  });
+});
+
+// Filter
+dom.leftFilter.addEventListener('input', () => {
+  state.filterText = dom.leftFilter.value;
+  dom.leftFilter.classList.toggle('active', state.filterText !== '');
+  renderLeft();
+});
+document.getElementById('leftFilterClear').addEventListener('click', () => {
+  state.filterText = '';
+  dom.leftFilter.value = '';
+  dom.leftFilter.classList.remove('active');
+  renderLeft();
+});
+
+// Copy
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const text = dom.rightContent.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    dom.status.textContent = 'Copied to clipboard';
+    dom.status.className = 'status success';
+  });
+});
+
+// Preview close
+document.getElementById('previewClose').addEventListener('click', hidePreview);
+document.getElementById('previewOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('previewOverlay')) hidePreview();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePreview(); });
+
+// ═══════════════════════════════════════════════════════════════
+// Fix operations
+// ═══════════════════════════════════════════════════════════════
+
+function updateFixAllBtn() {
+  const btn = document.getElementById('btnFixAll');
+  let hasIssues = false;
+  for (const [, data] of state.stndaFiles) {
+    if (analyzeStndaIssues(data).length > 0) { hasIssues = true; break; }
+  }
+  btn.disabled = !hasIssues;
+}
+
+async function fixStndaFile(path) {
+  const data = state.stndaFiles.get(path);
+  if (!data) return;
+  const issues = analyzeStndaIssues(data);
+  if (!issues.length) {
+    dom.status.textContent = `No issues in ${path}`;
+    dom.status.className = 'status';
+    return;
+  }
+  try {
+    const fixedContent = generateFixedContent(data.content, data.parsed, issues);
+    await writeFileContent(data.handle, fixedContent);
+    data.content = fixedContent;
+    data.parsed = parseFile(fixedContent, path);
+    buildIndex();
+    renderLeft(); renderMid(); renderRight();
+    updateFixAllBtn();
+    dom.status.textContent = `Fixed ${issues.length} issue${issues.length !== 1 ? 's' : ''} in ${path}`;
+    dom.status.className = 'status success';
+  } catch (err) {
+    console.error('Fix error:', err);
+    dom.status.textContent = `Error fixing ${path}: ${err.message}`;
+    dom.status.className = 'status error';
+  }
+}
+
+async function fixAllStnda() {
+  let totalFixed = 0, totalErrors = 0;
+  for (const [path, data] of state.stndaFiles) {
+    const issues = analyzeStndaIssues(data);
+    if (!issues.length) continue;
+    try {
+      const fixedContent = generateFixedContent(data.content, data.parsed, issues);
+      await writeFileContent(data.handle, fixedContent);
+      data.content = fixedContent;
+      data.parsed = parseFile(fixedContent, path);
+      totalFixed += issues.length;
+    } catch (err) {
+      console.error(`Fix error in ${path}:`, err);
+      totalErrors++;
+    }
+  }
+  buildIndex();
+  renderLeft(); renderMid(); renderRight();
+  updateFixAllBtn();
+  if (totalErrors) {
+    dom.status.textContent = `Fixed ${totalFixed} issues, ${totalErrors} file(s) errored`;
+    dom.status.className = 'status error';
+  } else if (totalFixed) {
+    dom.status.textContent = `Fixed ${totalFixed} issue${totalFixed !== 1 ? 's' : ''} across all stnda files`;
+    dom.status.className = 'status success';
+  } else {
+    dom.status.textContent = 'No issues to fix';
+    dom.status.className = 'status';
+  }
+}
+
+document.getElementById('btnFixAll').addEventListener('click', fixAllStnda);
+
+</script>
+</body>
+</html>
