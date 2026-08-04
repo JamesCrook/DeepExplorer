@@ -659,9 +659,9 @@ STOCK?.push( makeNode('pipped-polygon', { x: 0, y: 0, r: R*0.55, n: 4, tilt: Mat
 sceneRegistry.registerNodeClass('pipped-polygon', PippedPolygonNode);
 //-- endfile --
 
-//<< import { ButtonNode } from './pipped-button-node.js';
+//<< import { PippedButtonNode } from './pipped-button-node.js';
 //-- file: ./pipped-button-node.js --
-//>> export { ButtonNode };
+//>> export { PippedButtonNode };
 function hexToRgb(hex) {
   hex = (hex || '#888888').replace('#', '');
   if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -2093,7 +2093,7 @@ class TCACycleModel{
       const j = (i + 1) % N, nA = nodes[i], nB = nodes[j];
       const pipA = this._bestPip(nA.value.x, nA.value.y, nB.value.x, nB.value.y);
       const pipB = this._bestPip(nB.value.x, nB.value.y, nA.value.x, nA.value.y);
-      const pipsA = ButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nA, {}), pipsB = ButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nB, {});
+      const pipsA = PippedButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nA, {}), pipsB = PippedButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nB, {});
       const edge = makeNode('pipped-edge', { x1: pipsA[pipA].x, y1: pipsA[pipA].y, x2: pipsB[pipB].x, y2: pipsB[pipB].y });
       sub.push(edge);
       conns.push( { a: edge.value.id, pipA: 0, b: nA.value.id, pipB: pipA }, { a: edge.value.id, pipA: 1, b: nB.value.id, pipB: pipB } );
