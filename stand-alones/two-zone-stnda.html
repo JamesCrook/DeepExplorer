@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zoned Elements — Refactored with Extensible Models</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #111210; color: #c8c0b0;
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px; border-bottom: 1px solid #2a2824;
+    background: #17160f; flex-shrink: 0;
+  }
+  header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; letter-spacing: -0.03em; }
+  header .tag {
+    font-size: 10px; font-family: monospace; color: #6a6256;
+    background: #222018; padding: 2px 7px; border-radius: 4px; border: 1px solid #2a2824;
+  }
+  #container {
+    flex: 1; display: flex; flex-wrap: wrap;
+    gap: 1px; background: #2a2824; overflow: hidden;
+  }
+  .pane {
+    background: #111210; display: flex;
+    flex-direction: column; overflow: hidden;
+    position: relative;
+    transition: opacity 0.15s;
+    flex-grow: 1;    
+  }
+  .pane.pane-hidden { display: none !important; }
+  .pane .label {
+    padding: 8px 14px; font-size: 11px; font-weight: 600;
+    color: #6a6256; text-transform: uppercase;
+    letter-spacing: 0.08em; flex-shrink: 0;
+  }
+  .pane canvas { flex: 1; width: 100%; height: 100%; display: block; }
+  .pane.pane-3d canvas { width: 100% !important; height: 100% !important; }
+  .pane.pane-3d .pane-title-3d {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    color: rgba(255,255,255,0.35); pointer-events: none; z-index: 5;
+    text-transform: uppercase; white-space: nowrap;
+  }
+  #tooltip {
+    position: fixed; pointer-events: none;
+    background: #222018; border: 1px solid #3d3a32;
+    border-radius: 6px; padding: 6px 10px; z-index: 100;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45);
+    display: none; white-space: nowrap; font-size: 12px;
+  }
+  #tooltip .tt-name   { font-weight: 600; color: #e4dac6; font-family: monospace; }
+  #tooltip .tt-detail { color: #7a7060; font-size: 10px; margin-top: 2px; }
+  #tooltip .tt-extra  { color: #5a5448; font-size: 10px; margin-top: 1px; }
+</style>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<header>
+  <h1>Zoned Elements</h1>
+  <span class="tag" id="pane-count"></span>
+</header>
+
+<div id="container"></div>
+
+<div id="tooltip">
+  <div class="tt-name"></div>
+  <div class="tt-detail"></div>
+  <div class="tt-extra"></div>
+</div>
+
+<script type="module">
+
+const MODELS = []; // Array of registered model instances
+
+
+let THREE, OrbitControls;
+async function loadThree() {
+  if (THREE) return;
+  try {
+    THREE = await import('three');
+    OrbitControls = (await import('three/addons/controls/OrbitControls.js')).OrbitControls;
+  } catch(e) { console.warn('Three.js failed to load.'); }
+}
+
+function make3DPane(container) {
+  if (!THREE) return null;
+  const scene = new THREE.Scene();
+  // Protect against zero division during initial layout mounting
+  const camera = new THREE.PerspectiveCamera(50, container.clientWidth / Math.max(1, container.clientHeight), 0.1, 1000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+
+  const view = { scene, camera, renderer, controls, container };
+
+  // This observer is now scoped to the view object, allowing us to swap its target
+  // when the DOM layout reconstructs the container elements.
+  view.ro = new ResizeObserver(() => {
+    if (view.container.clientWidth > 0 && view.container.clientHeight > 0) {
+      view.camera.aspect = view.container.clientWidth / view.container.clientHeight;
+      view.camera.updateProjectionMatrix();
+      view.renderer.setSize(view.container.clientWidth, view.container.clientHeight);
+    }
+  });
+  view.ro.observe(container);
+
+  return view;
+}
+
+
+
+class HudPanel {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 60, left: 12 } } = {}) {
+    this._onChange = onChange || (() => {});
+    this._inputs = {}; 
+    this._valDisplays = {}; 
+    this._injectStyles();
+
+    this._root = document.createElement('div');
+    this._root.className = 'hud-panel';
+    this._root.style.top = position.top + 'px'; 
+    this._root.style.left = position.left + 'px';
+    
+    const header = document.createElement('h3'); 
+    header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header); 
+    this._makeDraggable(header);
+    
+    for (const ctrl of controls) this._addControl(ctrl);
+    container.appendChild(this._root);
+  }
+
+  destroy() {
+    if (this._root.parentNode) {
+      this._root.parentNode.removeChild(this._root);
+    }
+  }
+
+  _addControl(ctrl) {
+    if (ctrl.type === 'separator') this._addSeparator(ctrl);
+    else if (ctrl.type === 'button')   this._addButton(ctrl);
+    else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
+    else if (ctrl.type === 'select') this._addSelect(ctrl);
+    else this._addSlider(ctrl);
+  }
+
+  _addSlider(ctrl) {
+    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const input = document.createElement('input'); Object.assign(input, { type: 'range', min, max, step, value });
+    row.appendChild(input);
+    const val = document.createElement('span'); val.className = 'val'; val.textContent = parseFloat(value).toFixed(step % 1 === 0 ? 0 : 2);
+    row.appendChild(val);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value); val.textContent = v.toFixed(step % 1 === 0 ? 0 : 2);
+      this._onChange(id, v);
+    });
+    this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
+  }
+
+  _addButton(ctrl) {
+    const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
+    btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
+    this._root.appendChild(btn);
+  }
+
+  _addCheckbox(ctrl) {
+    const { id, label, value = false } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const sw = document.createElement('div'); sw.className = 'toggle-switch';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = !!value;
+    input.addEventListener('change', () => this._onChange(id, input.checked));
+    const slider = document.createElement('span'); slider.className = 'toggle-slider';
+    sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
+    this._inputs[id] = input; this._root.appendChild(row);
+  }
+
+  _addSelect(ctrl) {
+    const { id, label, options = [], value } = ctrl;
+    const row = document.createElement('label'); const span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const select = document.createElement('select');
+    for (const opt of options) {
+      const option = document.createElement('option');
+      option.value = opt[0]; option.textContent = opt[1];
+      if (opt[0] === String(value)) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => this._onChange(id, select.value));
+    row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
+  }  
+
+  _addSeparator(ctrl) {
+    const sep = document.createElement('div'); sep.className = 'separator';
+    if (ctrl.label) sep.textContent = ctrl.label;
+    this._root.appendChild(sep);
+  }
+
+  _makeDraggable(handle) {
+    let isDragging = false, startX, startY, startLeft, startTop;
+    handle.addEventListener('mousedown', e => {
+      isDragging = true; handle.style.cursor = 'grabbing';
+      startX = e.clientX; startY = e.clientY;
+      startLeft = parseInt(this._root.style.left || 0, 10); startTop  = parseInt(this._root.style.top  || 0, 10);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      this._root.style.left = `${startLeft + e.clientX - startX}px`; this._root.style.top  = `${startTop  + e.clientY - startY}px`;
+    });
+    window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
+  }
+
+  _injectStyles() {
+    if (document.getElementById('hud-panel-css')) return;
+    const s = document.createElement('style'); s.id = 'hud-panel-css';
+    s.textContent = `
+      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1000; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
+      .hud-panel h3 { margin: 0 0 12px; font-size: 11px; color: #b0a898; letter-spacing: 1px; cursor: grab; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase; }
+      .hud-panel h3:active { cursor: grabbing; }
+      .hud-panel label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+      .hud-panel label > span:first-child { min-width: 90px; color: #999; }
+      .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
+      .hud-panel select { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 4px; font-size: 10px; outline: none; cursor: pointer; }
+      .hud-panel .toggle-switch { position: relative; width: 28px; height: 16px; display: inline-block; flex-shrink: 0; }
+      .hud-panel .toggle-switch input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
+      .hud-panel .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); transition: .2s; border-radius: 16px; }
+      .hud-panel .toggle-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #889; transition: .2s; border-radius: 50%; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider { background-color: rgba(102, 204, 255, 0.15); border-color: #6cf; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider:before { transform: translateX(12px); background-color: #6cf; box-shadow: 0 0 4px #6cf; }
+      .hud-panel .val { min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; color: #8cf; font-weight: 600; }
+      .hud-panel .separator { margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px; }
+      .hud-btn { display: block; width: 100%; margin: 4px 0; padding: 6px 0; background: rgba(0,0,0,0.4); color: #ccc; font-size: 11px; font-family: system-ui, sans-serif; text-align: center; border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s; }
+      .hud-btn:hover { border-color: #6cf; background: rgba(102,204,255,0.08); }
+      .hud-btn.primary { color: #8cf; border-color: rgba(102,204,255,0.3); }
+      .hud-btn.primary:hover { background: rgba(102,204,255,0.12); }
+    `;
+    document.head.appendChild(s);
+  }
+}
+
+
+
+//<< import { ZonedNode } from './zoned-node.js';
+//-- file: ./zoned-node.js --
+
+const HIGHLIGHT = '#daa02e';
+
+function rrPath(ctx, x, y, w, h, rtl, rtr, rbr, rbl) {
+  ctx.beginPath();
+  ctx.moveTo(x + rtl, y); ctx.lineTo(x + w - rtr, y);
+  ctx.arcTo(x + w, y, x + w, y + rtr, rtr); ctx.lineTo(x + w, y + h - rbr);
+  ctx.arcTo(x + w, y + h, x + w - rbr, y + h, rbr); ctx.lineTo(x + rbl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - rbl, rbl); ctx.lineTo(x, y + rtl);
+  ctx.arcTo(x, y, x + rtl, y, rtl); ctx.closePath();
+}
+
+class ZonedNode {
+  static draw2d(ctxMix, node, params) {
+    const Zone = node.value.zoneClass, state = ctxMix.state;
+    const count = Zone.getCount(node.data);
+    const passes = Zone.getPasses ? Zone.getPasses(params) : 1;
+    Zone.drawBackground(ctxMix, node, params);
+    for (let pass = 0; pass < passes; pass++) {
+      state.pass = pass;
+      for (let i = 0; i < count; i++) {
+        state.index = i;
+        state.isHovered  = (i === node.value.hovered);
+        state.isSelected = node.value.selected.has(i);
+        Zone.draw2d(ctxMix, node, params);
+      }
+    }
+    if (Zone.drawOverlay) Zone.drawOverlay(ctxMix, node, params);
+  }
+  static hit_test(ctxMix, node, params) {
+    const Zone = node.value.zoneClass, state = ctxMix.state;
+    const count = Zone.getCount(node.data);
+    const order = Zone.getHitOrder ? Zone.getHitOrder(node.data, count) : null;
+    const tryIndex = i => { state.index = i; ctxMix.hitResult = null; Zone.hit_test(ctxMix, node, params); return ctxMix.hitResult != null; };
+    if (order) { for (let j = 0; j < order.length; j++) if (tryIndex(order[j])) return; }
+    else { for (let i = count - 1; i >= 0; i--) if (tryIndex(i)) return; }
+  }
+}
+//>> export { ZonedNode };
+//-- endfile --
+
+
+
+
+
+//<< import { BGAZone } from './bga-zone.js';
+//-- file: ./bga-zone.js --
+
+// ── BGA ──
+const ROW_LETTERS='ABCDEFGHJKLMNPRTUVWY', BGA_COLORS={power:'#c0392b',ground:'#2c3e50',signal:'#27ae60',nc:'#3a3828'};
+function pinLayout(W,H,data,idx){const cols=data.cols,row=Math.floor(idx/cols),col=idx%cols,margin=30;const spacing=Math.min((W-margin*2)/cols,(H-margin*2)/data.rows);const gridW=spacing*cols,gridH=spacing*data.rows;const ox=(W-gridW)/2+spacing/2,oy=(H-gridH)/2+spacing/2;return{cx:ox+col*spacing,cy:oy+row*spacing,r:spacing*0.32,row,col,pin:data.pins[idx],name:(ROW_LETTERS[row]||'?')+(col+1),spacing,gridW,gridH,ox:ox-spacing/2,oy:oy-spacing/2};}
+
+class BGAZone {
+  static getCount(data){return data.rows*data.cols;}
+  static drawBackground(ctxMix,node,params){const ctx=ctxMix.ctx,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,0);const pad=lo.spacing*0.45;ctx.fillStyle='#1a1918';ctx.strokeStyle='#333028';ctx.lineWidth=1;if(ctx.roundRect){ctx.beginPath();ctx.roundRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2,6);ctx.fill();ctx.stroke();}else{ctx.fillRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2);ctx.strokeRect(lo.ox-pad,lo.oy-pad,lo.gridW+pad*2,lo.gridH+pad*2);}ctx.fillStyle='#5a5448';ctx.beginPath();ctx.arc(lo.ox-pad/2,lo.oy-pad/2,3,0,Math.PI*2);ctx.fill();}
+  static draw2d(ctxMix,node,params){const ctx=ctxMix.ctx,state=ctxMix.state,{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,state.index);if(!lo.pin)return;let fill=BGA_COLORS[lo.pin.type]||'#555';if(state.isSelected)fill=HIGHLIGHT;else if(state.isHovered)fill='#B0A070';ctx.beginPath();ctx.arc(lo.cx,lo.cy,lo.r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(!state.isSelected){const g=ctx.createRadialGradient(lo.cx-lo.r*0.3,lo.cy-lo.r*0.3,0,lo.cx,lo.cy,lo.r);g.addColorStop(0,'rgba(255,255,255,0.18)');g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.fill();}}
+  static hit_test(ctxMix,node,params){const pt=ctxMix.hitPoint;if(!pt)return;const{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,ctxMix.state.index);if(!lo.pin)return;const dx=pt.x-lo.cx,dy=pt.y-lo.cy;if(dx*dx+dy*dy<=lo.r*lo.r)ctxMix.hitResult={node,zoneIndex:ctxMix.state.index};}
+  static getZoneInfo(ctxMix,node,params){const{W,H}=ctxMix.getHW(ctxMix,node,params);const lo=pinLayout(W,H,node.data,ctxMix.state.index);if(!lo.pin)return{name:lo.name,detail:'no connect'};return{name:lo.name,detail:lo.pin.net||lo.pin.type,extra:lo.pin.type};}
+}
+//>> export { BGAZone };
+//-- endfile --
+
+//<< import { BGAModel } from './bga-model.js';
+//-- file: ./bga-model.js --
+class BGAModel {
+  get name() { return 'BGA Package · 12×12'; }
+  get displayType() { return '2d'; }
+  constructor() {
+    this.visible = true;
+    this.zoneClass = BGAZone;
+    const rows=12,cols=12;const pins=[];for(let r=0;r<rows;r++){for(let c=0;c<cols;c++){const cr=Math.max(Math.abs(r),Math.abs(r-rows+1)),cc=Math.max(Math.abs(c),Math.abs(c-cols+1));if(cr+cc<=1){pins.push(null);continue;}if(r===0||r===rows-1||c===0||c===cols-1)pins.push({type:(r+c)%2===0?'power':'ground',net:(r+c)%2===0?'VCC':'GND'});else if(r===1||r===rows-2||c===1||c===cols-2)pins.push({type:'ground',net:'GND'});else pins.push({type:'signal',net:'IO_'+(r*cols+c)});}}
+    this.data = {rows,cols,pins};
+    this.controls = [];
+  }
+}
+MODELS.push(new BGAModel());
+//>> export { BGAModel };
+//-- endfile --
+
+
+
+
+
+
+
+
+//<< import { PlanetNode } from './planet-node.js';
+//-- file: ./planet-node.js --
+class PlanetNode {
+  build(c,node,p){if(this.group)return;const cfg=node?.value||{};this._crustRadius=cfg.crustRadius??1;this._coreRadius=cfg.coreRadius??0.6;this.group=new THREE.Group();this.clipPlane1=new THREE.Plane(new THREE.Vector3(1,0,0),0);this.clipPlane2=new THREE.Plane(new THREE.Vector3(0,0,1),0);this.clippingPlanes=[this.clipPlane1,this.clipPlane2];const tl=new THREE.TextureLoader();const et=tl.load(cfg.earthTexture??'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');this.crustMat=new THREE.MeshPhongMaterial({map:et,clippingPlanes:this.clippingPlanes,clipIntersection:true,side:THREE.DoubleSide});this.coreMat=new THREE.MeshPhongMaterial({color:0xff6600,emissive:0x441100,clippingPlanes:this.clippingPlanes,clipIntersection:true,side:THREE.DoubleSide});this.gridMat=new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.2,clippingPlanes:this.clippingPlanes,clipIntersection:true});this.planeMat1=new THREE.MeshPhongMaterial({side:THREE.DoubleSide,transparent:true,opacity:0.9});this.planeMat2=new THREE.MeshPhongMaterial({side:THREE.DoubleSide,transparent:true,opacity:0.9});const r=this._crustRadius;this.crust=new THREE.Mesh(new THREE.SphereGeometry(r,64,64),this.crustMat);this.core=new THREE.Mesh(new THREE.SphereGeometry(this._coreRadius,64,64),this.coreMat);this.grid=new THREE.Mesh(new THREE.SphereGeometry(r*1.005,32,32),this.gridMat);const pg=new THREE.CircleGeometry(r,64,-Math.PI/2,Math.PI);this.plane1=new THREE.Mesh(pg,this.planeMat1);this.plane1.rotation.y=Math.PI/2;this.plane2=new THREE.Mesh(pg,this.planeMat2);this.plane2.rotation.z=Math.PI;this.group.add(this.crust,this.core,this.grid,this.plane1,this.plane2);this._updateRadialTexture(this._coreRadius,1.0);}
+  update(c,node,params){if(!this.group)return;const rotRad=((params.rotation??0)*Math.PI)/180;const radStart=-((params.wedgeStart??0)*Math.PI)/180;const rad1=radStart-rotRad;this.clipPlane1.normal.set(Math.cos(rad1),0,Math.sin(rad1));this.plane1.rotation.y=-radStart+Math.PI/2;const radEnd=radStart+Math.PI-((params.wedgeAngle??90)*Math.PI)/180;const rad2=radEnd-rotRad;this.clipPlane2.normal.set(Math.cos(rad2),0,Math.sin(rad2));this.plane2.rotation.y=-radEnd+Math.PI/2;const cr=params.coreRadius??this._coreRadius;if(cr!==this._coreRadius){this._coreRadius=cr;this.group.remove(this.core);this.core.geometry.dispose();this.core.geometry=new THREE.SphereGeometry(cr,64,64);this.group.add(this.core);}if(params.planeOpacity!==undefined){this.planeMat1.opacity=params.planeOpacity;this.planeMat2.opacity=params.planeOpacity;}this._updateRadialTexture(this._coreRadius,params.coreOpacity??1.0);}
+  _updateRadialTexture(coreRadius,coreOpacity){if(this.radialTexture)this.radialTexture.dispose();const cv=document.createElement('canvas');const sz=512;cv.width=sz;cv.height=sz;const ctx=cv.getContext('2d');const cx=sz/2,cy=sz/2,maxR=sz/2;ctx.clearRect(0,0,sz,sz);const mg=ctx.createRadialGradient(cx,cy,0,cx,cy,maxR);mg.addColorStop(0,'#d4a373');mg.addColorStop(0.5,'#8b6f47');mg.addColorStop(1,'#654321');ctx.fillStyle=mg;ctx.beginPath();ctx.arc(cx,cy,maxR,0,Math.PI*2);ctx.fill();const cR=maxR*coreRadius;if(coreOpacity<1){ctx.globalCompositeOperation='destination-out';ctx.fillStyle=`rgba(0,0,0,${1-coreOpacity})`;ctx.beginPath();ctx.arc(cx,cy,cR,0,Math.PI*2);ctx.fill();ctx.globalCompositeOperation='source-over';}if(coreOpacity>0){ctx.globalAlpha=coreOpacity;const cg=ctx.createRadialGradient(cx,cy,0,cx,cy,cR);cg.addColorStop(0,'#ffff00');cg.addColorStop(0.3,'#ff8800');cg.addColorStop(0.7,'#ff4500');cg.addColorStop(1,'#cc3300');ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx,cy,cR,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;for(let r=0.2;r<=1;r+=0.2){ctx.beginPath();ctx.arc(cx,cy,maxR*r,0,Math.PI*2);ctx.stroke();}this.radialTexture=new THREE.CanvasTexture(cv);this.radialTexture.needsUpdate=true;this.planeMat1.map=this.radialTexture;this.planeMat1.needsUpdate=true;this.planeMat2.map=this.radialTexture;this.planeMat2.needsUpdate=true;}
+}
+
+//>> export { PlanetNode };
+//-- endfile --
+
+//<< import { PlanetModel } from './planet-model.js';
+//-- file: ./planet-model.js --
+class PlanetModel {
+  get name() { return 'Planet Cutaway'; }
+  get displayType() { return '3d'; }
+  get background() { return '#0a0a1e'; }
+  constructor() {
+    this.visible = true;
+    this.controls = [
+      {type:'separator',label:'Planet'},{id:'coreRadius',label:'Core',min:0.05,max:0.95,step:0.01,value:0.6},
+      {id:'rotation',label:'Rotation',min:0,max:360,step:1,value:0},{id:'wedgeStart',label:'Wedge start',min:0,max:360,step:1,value:0},
+      {id:'wedgeAngle',label:'Wedge angle',min:0,max:180,step:1,value:90},{id:'planeOpacity',label:'Plane α',min:0,max:1,step:0.01,value:0.9},
+      {id:'coreOpacity',label:'Core α',min:0,max:1,step:0.01,value:1.0}
+    ];
+  }
+  init(container) {
+    const v = make3DPane(container);
+    if (!v) return null;
+    v.renderer.localClippingEnabled = true; v.camera.position.set(0,0.8,3);
+    v.scene.add(new THREE.AmbientLight(0xffffff,0.5)); 
+    const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(5,3,4); v.scene.add(sun);
+    this.sg = new THREE.Group(); v.scene.add(this.sg);
+    this.nv = { value: { crustRadius:1, coreRadius:0.6 } }; 
+    this.planet = new PlanetNode(); 
+    this.planet.build(null, this.nv, {}); 
+    this.sg.add(this.planet.group);
+    return v;
+  }
+  onControl(id, val, getValues) {
+    if (!this.sg) return;
+    const p = getValues();
+    this.sg.rotation.y = (p.rotation * Math.PI) / 180;
+    this.planet.update(null, this.nv, p);
+  }
+}
+MODELS.push(new PlanetModel());
+//>> export { PlanetModel };
+//-- endfile --
+
+
+
+
+
+
+
+
+//<< import { OrganiserModel } from './organiser-model.js';
+//-- file: ./organiser-model.js --
+class OrganiserModel {
+  get name() { return 'Organiser'; }
+  get displayType() { return 'none'; }
+  
+  constructor(models) {
+    this.models = models;
+    this.visible = true;
+  }
+  
+  getControls(app) {
+    const ctrls = [{ type: 'separator', label: 'Show / Hide Panels' }];
+    this.models.forEach((m, i) => {
+      if (m === this) return;
+      let label = m.name || `Model ${i}`;
+      // Truncate at the dot or interpunct
+      label = label.split(/[.·]/)[0].trim();
+      
+      ctrls.push({
+        type: 'checkbox',
+        id: 'vis_' + i,
+        label: label,
+        value: m.visible !== false
+      });
+    });
+    ctrls.push({ type: 'button', label: 'Apply Layout', cls: 'primary', action: () => app.buildLayout() });
+    return ctrls;
+  }
+}
+MODELS.push(new OrganiserModel(MODELS));
+
+function showTooltip(ex,ey,info){
+  const ttEl=document.getElementById('tooltip');
+  ttEl.querySelector('.tt-name').textContent=info.name||'';
+  ttEl.querySelector('.tt-detail').textContent=info.detail||'';
+  ttEl.querySelector('.tt-extra').textContent=info.extra||'';
+  ttEl.querySelector('.tt-name').style.color=info.selected?'#daa02e':'#e4dac6';
+  ttEl.style.display='block';ttEl.style.left=(ex+14)+'px';ttEl.style.top=(ey-10)+'px';
+}
+function hideTooltip(){
+  document.getElementById('tooltip').style.display='none';
+}
+
+//>> export { OrganiserModel };
+//-- endfile --
+
+//<< import { DemoHarness2D } from './demo-harness2-d.js';
+//-- file: ./demo-harness2-d.js --
+class DemoHarness2D {
+  constructor(canvas,zoneClass,data){
+    this.canvas=canvas;this.rawCtx=canvas.getContext('2d',{willReadFrequently:true});
+    this.node={data,value:{zoneClass,hovered:-1,selected:new Set()},_layout:null};
+    this.params={};this._resize();this._listen();this.draw();
+    new ResizeObserver(()=>{this._resize();this.draw();}).observe(canvas);
+  }
+  _resize(){const dpr=window.devicePixelRatio||1;const rect=this.canvas.getBoundingClientRect();this.W=rect.width;this.H=rect.height;if(this.W===0||this.H===0)return;this.canvas.width=rect.width*dpr;this.canvas.height=rect.height*dpr;this.rawCtx.setTransform(dpr,0,0,dpr,0,0);}
+  _ctxMix(hp){return{ctx:this.rawCtx,state:{index:0,pass:0,isHovered:false,isSelected:false},getHW:(c,n,p)=>({W:c.W,H:c.H,Z:p.zoom||1}),W:this.W,H:this.H,hitPoint:hp||null,hitResult:null};}
+  draw(){if(!this.W||!this.H)return;this.rawCtx.clearRect(0,0,this.W,this.H);ZonedNode.draw2d(this._ctxMix(),this.node,this.params);}
+  hitTest(mx,my){const c=this._ctxMix({x:mx,y:my});ZonedNode.hit_test(c,this.node,this.params);return c.hitResult;}
+  _listen(){
+    const toL=e=>{const r=this.canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top,ex:e.clientX,ey:e.clientY};};
+    this.canvas.addEventListener('mousemove',e=>{
+      const{x,y,ex,ey}=toL(e);const hit=this.hitTest(x,y);const idx=hit?hit.zoneIndex:-1;
+      if(idx!==this.node.value.hovered){this.node.value.hovered=idx;this.draw();}
+      this.canvas.style.cursor=idx>=0?'pointer':'default';
+      if(idx>=0){const Z=this.node.value.zoneClass,c=this._ctxMix();c.state.index=idx;const info=Z.getZoneInfo(c,this.node,this.params);info.selected=this.node.value.selected.has(idx);showTooltip(ex,ey,info);}else hideTooltip();
+    });
+    this.canvas.addEventListener('mouseleave',()=>{if(this.node.value.hovered>=0){this.node.value.hovered=-1;this.draw();}hideTooltip();});
+    this.canvas.addEventListener('click',e=>{
+      const{x,y}=toL(e);const hit=this.hitTest(x,y);
+      if(hit){const sel=this.node.value.selected;if(sel.has(hit.zoneIndex))sel.delete(hit.zoneIndex);else sel.add(hit.zoneIndex);this.draw();}
+    });
+  }
+}
+
+//>> export { DemoHarness2D };
+//-- endfile --
+
+class App {
+  constructor() {
+    this.container = document.getElementById('container');
+    this.paneEls = [];
+    this.views3D = [];
+    this.hudState = {}; 
+    
+    // Default load state from models
+    MODELS.forEach((m, i) => {
+      this.hudState['vis_' + i] = m.visible !== false;
+      if (m.controls) {
+        m.controls.forEach(c => {
+          if (c.id && c.value !== undefined) this.hudState[c.id] = c.value;
+        });
+      }
+    });
+    
+    this.activeModel = MODELS.find(m => (m.displayType || '2d') !== 'none' && m.visible !== false);
+    this.buildHud();
+
+    // Async setup 3D if available
+    loadThree().then(() => {
+      this.buildLayout();
+      this.animate();
+    });
+
+    const handleResize = () => {
+      if (this._resizeTimer) clearTimeout(this._resizeTimer);
+      this._resizeTimer = setTimeout(() => this.resize(), 50);
+    };
+    new ResizeObserver(handleResize).observe(document.body);
+    window.addEventListener('resize', handleResize);
+  }
+
+  buildHud() {
+    if (this.hud) {
+      this.hud.destroy();
+    }
+    
+    const controls = [];
+    
+    // 1. Active Panel Selector (Include all visible panels + Organiser)
+    const dropdownModels = MODELS.filter(m => m.visible !== false);
+    if (!dropdownModels.includes(this.activeModel) && dropdownModels.length > 0) {
+      this.activeModel = dropdownModels[0];
+    }
+    
+    if (dropdownModels.length > 0) {
+      controls.push({ type: 'separator', label: 'Active Panel' });
+      controls.push({
+        type: 'select',
+        id: 'activePanel',
+        label: 'Controls For',
+        options: dropdownModels.map(m => [String(MODELS.indexOf(m)), 
+          m.name?.split(/[.·]/)[0].trim() || 'Unnamed']),
+        value: String(MODELS.indexOf(this.activeModel))
+      });
+      
+      if (this.activeModel) {
+        if (this.activeModel.controls) {
+          controls.push(...this.activeModel.controls);
+        } else if (this.activeModel.getControls) {
+          controls.push(...this.activeModel.getControls(this));
+        }
+      }
+    }
+    
+    this.hud = new HudPanel({
+      title: 'Zoned Elements',
+      controls,
+      onChange: (id, val) => this.handleHudChange(id, val)
+    });
+  }
+
+  handleHudChange(id, val) {
+    this.hudState[id] = val;
+    if (id === 'activePanel') {
+      this.activeModel = MODELS[parseInt(val, 10)];
+      this.buildHud();
+    } else if (id.startsWith('vis_')) {
+      const mIdx = parseInt(id.split('_')[1], 10);
+      if (MODELS[mIdx]) MODELS[mIdx].visible = val;
+    } else {
+      if (this.activeModel && this.activeModel.onControl) {
+        // Run update logic via the model
+        this.activeModel.onControl(id, val, () => this.hudState, this);
+      }
+    }
+  }
+
+  bestGrid(n) {
+    const headerEl = document.querySelector('header');
+    const headerH = headerEl ? headerEl.getBoundingClientRect().height : 40;
+    const contW = Math.max(1, window.innerWidth);
+    const contH = Math.max(1, window.innerHeight - headerH - 1);
+    let bestCols = 1, bestScore = Infinity;
+    for (let c = 1; c <= n; c++) {
+      const r = Math.ceil(n / c), aspect = (contW / c) / (contH / r);
+      const score = Math.abs(Math.log(aspect)) + (n - c * r !== 0 ? 0.3 : 0);
+      if (score < bestScore) { bestScore = score; bestCols = c; }
+    }
+    return { cols: bestCols, rows: Math.ceil(n / bestCols) };
+  }
+
+  buildLayout() {
+    this.container.innerHTML = '';
+    this.paneEls.length = 0;
+    this.views3D.length = 0;
+
+    const visibleModels = MODELS.filter(p => p.visible && (p.displayType || '2d') !== 'none');
+    const N = visibleModels.length;
+    document.getElementById('pane-count').textContent = `${N} of ${MODELS.length - 1} panels`;
+
+    if (N === 0) { this.container.style.background = '#111210'; return; }
+
+    const grid = this.bestGrid(N);
+    const headerEl = document.querySelector('header');
+    const headerH = headerEl ? headerEl.getBoundingClientRect().height : 40;
+    const contH = Math.max(1, window.innerHeight - headerH - 1);
+
+    for (const pane of visibleModels) {
+      const i = MODELS.indexOf(pane);
+      const type = pane.displayType || '2d';
+      const div = document.createElement('div');
+      div.className = 'pane' + (type === '3d' ? ' pane-3d' : '');
+      div.style.flexBasis = `calc(${100 / grid.cols}% - 1px)`;
+      div.style.height = `${contH / grid.rows}px`;
+      div.style.minWidth = '0';
+      if (pane.background) div.style.background = pane.background;
+      div.dataset.paneIndex = i;
+
+      if (type === '2d') {
+        const label = document.createElement('div'); label.className = 'label'; label.textContent = pane.name;
+        div.appendChild(label);
+        const canvas = document.createElement('canvas'); div.appendChild(canvas);
+        this.container.appendChild(div);
+        if (pane.zoneClass) new DemoHarness2D(canvas, pane.zoneClass, pane.data);
+      } else if (type === '3d') {
+        const title = document.createElement('div'); title.className = 'pane-title-3d'; title.textContent = pane.name;
+        div.appendChild(title);
+        this.container.appendChild(div);
+        
+        if (typeof pane.init === 'function') {
+           if (!pane._view) {
+             pane._view = pane.init(div);
+             // Call onControl initially to sync sliders with the 3D scene
+             if (pane.onControl) {
+                // Initialize default parameters
+                const initVals = {};
+                (pane.controls || []).forEach(c => { if(c.id) initVals[c.id] = c.value; });
+                pane.onControl(null, null, () => initVals, this);
+             }
+           } else if (pane._view) {
+             // Re-attach existing renderer DOM to the newly created pane div
+             div.insertBefore(pane._view.renderer.domElement, title);
+             
+             // Swap the ResizeObserver target to the new container so aspect ratio
+             // properly updates when the grid resizes due to visibility toggles.
+             if (pane._view.ro) {
+                 pane._view.ro.unobserve(pane._view.container);
+                 pane._view.ro.observe(div);
+             }
+             pane._view.container = div;
+           }
+           if (pane._view) this.views3D.push({ view: pane._view, paneIndex: i });
+        }
+      }
+      this.paneEls[i] = div;
+    }
+  }
+
+  resize() {
+    const visibleModels = MODELS.filter(p => p.visible && (p.displayType || '2d') !== 'none');
+    const N = visibleModels.length; if (!N) return;
+    const grid = this.bestGrid(N);
+    const headerEl = document.querySelector('header');
+    const headerH = headerEl ? headerEl.getBoundingClientRect().height : 40;
+    const contH = Math.max(1, window.innerHeight - headerH - 1);
+    
+    for (const pane of visibleModels) {
+      const i = MODELS.indexOf(pane);
+      const el = this.paneEls[i]; if (!el) continue;
+      el.style.flexBasis = `calc(${100 / grid.cols}% - 1px)`;
+      el.style.height = `${contH / grid.rows}px`;
+    }
+    for (const { view: v } of this.views3D) {
+      if (v.container.clientWidth > 0 && v.container.clientHeight > 0) {
+        v.camera.aspect = v.container.clientWidth / v.container.clientHeight;
+        v.camera.updateProjectionMatrix();
+        v.renderer.setSize(v.container.clientWidth, v.container.clientHeight);
+      }
+    }
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    for (const { view: v } of this.views3D) {
+      v.controls.update();
+      if (v.phylo) { 
+        v.phylo.group.rotation.z += 0.001; 
+        v.phylo.group.rotation.x = Math.sin(Date.now() * 0.0003) * 0.1; 
+      }
+      v.renderer.render(v.scene, v.camera);
+    }
+  }
+}
+
+// Start application
+new App();
+
+</script>
+</body>
+</html>

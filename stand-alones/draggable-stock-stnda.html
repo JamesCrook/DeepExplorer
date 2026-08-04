@@ -87,6 +87,8 @@ let sceneRegistry = new SceneRegistry();
 //-- file: ./geo.js --
 //>> export { Geo };
 class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
 
   static norm(a) { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
   static adiff(a, b) { return Math.abs(Geo.norm(a - b)); }
@@ -126,15 +128,6 @@ class Geo {
   }
 }
 //-- endfile --
-
-// Essential core defs of Geo.
-if (typeof Geo === 'undefined') {
-  window.Geo = class {}; 
-}
-
-Geo.PI = Math.PI;
-Geo.TAU = Math.PI * 2;
-
 
 //<< import { ConnHelper } from './conn-helper.js';
 //-- file: ./conn-helper.js --
@@ -330,6 +323,31 @@ class SnapEngine {
 }
 //-- endfile --
 
+function hexToRgb(hex) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function shiftColor({ r, g, b }, amt) {
+  const f = v => Math.round(Math.min(255, Math.max(0, amt > 0 ? v + (255 - v) * amt : v + v * amt)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+  else {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r); ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r); ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
+  }
+}
 
 class SubtreeIterator {
   constructor() { this.index = 0; }
@@ -659,134 +677,6 @@ STOCK?.push( makeNode('pipped-polygon', { x: 0, y: 0, r: R*0.55, n: 4, tilt: Mat
 sceneRegistry.registerNodeClass('pipped-polygon', PippedPolygonNode);
 //-- endfile --
 
-//<< import { ButtonNode } from './pipped-button-node.js';
-//-- file: ./pipped-button-node.js --
-//>> export { ButtonNode };
-function hexToRgb(hex) {
-  hex = (hex || '#888888').replace('#', '');
-  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  if (hex.length === 8) hex = hex.slice(0, 6);
-  const n = parseInt(hex, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-function shiftColor({ r, g, b }, amt) {
-  const f = v => Math.round(Math.min(255, Math.max(0, amt > 0 ? v + (255 - v) * amt : v + v * amt)));
-  return `rgb(${f(r)},${f(g)},${f(b)})`;
-}
-
-function roundRectPath(ctx, x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
-  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
-  else {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
-    ctx.arcTo(x + w, y, x + w, y + r, r); ctx.lineTo(x + w, y + h - r);
-    ctx.arcTo(x + w, y + h, x + w - r, y + h, r); ctx.lineTo(x + r, y + h);
-    ctx.arcTo(x, y + h, x, y + h - r, r); ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
-  }
-}
-
-const BTN_DEFAULTS = Object.freeze({
-  fill:          '#e0ddd4', textColor:     '#2a2a2a',
-  cornerRadius:  6,         borderWidth:   1.5,
-  bevel:         1,         bevelStrength: 0.38,
-  lightAngle:    315,       lightIntensity:0.55,
-  shadowColor:   'rgba(0,0,0,0.28)', shadowOffsetX: 1, shadowOffsetY: 1.5,
-  shadowBlur:    3,         fontSize:      11,
-});
-
-class PippedButtonNode {
-  static meta = {
-    zOrder: 1,
-    raftable: true,
-    coneParams: () => ({ n: 4, tilt: Math.PI / 4 }),
-    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, width: 70, height: 42, label: 'Btn', sub: '', color: '#e0ddd4' }),
-    editableFields: (node) => [
-      { key: 'label', label: 'Label', type: 'text', value: node.value.label || '' },
-      { key: 'sub',   label: 'Subtitle', type: 'text', value: node.value.sub || '' },
-      { key: 'color', label: 'Color', type: 'color', value: node.value.color || BTN_DEFAULTS.fill },
-    ],
-  };
-  static getCentreXY(ctxMix, node, params) { const {x, y} = ctxMix.getXY(ctxMix, node, params); return {x, y}; }
-  static getPips(ctxMix, node, params) {
-    const v = node.value, w = v.width || 70, h = v.height || 42, hw = w / 2, hh = h / 2;
-    const {x, y} = ctxMix.getXY(ctxMix, node, params);
-    return [
-        { x, y: y - hh, out: -Math.PI/2 },
-        { x: x + hw, y, out: 0 },
-        { x, y: y + hh, out: Math.PI/2 },
-        { x: x - hw, y, out: Math.PI }
-    ];
-  }
-  static draw2d(ctxMix, node, params) {
-    const ctx = ctxMix.ctx, v = node.value, p = BTN_DEFAULTS;
-    const w = v.width || 70, h = v.height || 42;
-    const {x: cx, y: cy} = ctxMix.getXY(ctxMix, node, params);
-    const left = cx - w / 2, top = cy - h / 2, cr = p.cornerRadius;
-    const bw = p.borderWidth, fillHex = v.color || p.fill, base = hexToRgb(fillHex);
-
-    ctx.save(); ctx.shadowColor = p.shadowColor; ctx.shadowOffsetX = p.shadowOffsetX;
-    ctx.shadowOffsetY = p.shadowOffsetY; ctx.shadowBlur = p.shadowBlur;
-    roundRectPath(ctx, left, top, w, h, cr);
-    ctx.fillStyle = fillHex; ctx.fill(); ctx.restore();
-
-    const angle = p.lightAngle * Math.PI / 180, dx = Math.sin(angle), dy = -Math.cos(angle);
-    const faceLit = shiftColor(base, p.lightIntensity * 0.14 * p.bevel), faceSh = shiftColor(base, -p.lightIntensity * 0.10 * p.bevel);
-    const fGrad = ctx.createLinearGradient(cx + dx * w / 2, cy + dy * h / 2, cx - dx * w / 2, cy - dy * h / 2);
-    fGrad.addColorStop(0, faceLit); fGrad.addColorStop(1, faceSh);
-    roundRectPath(ctx, left, top, w, h, cr);
-    ctx.fillStyle = fGrad; ctx.fill();
-
-    if (p.bevel > 0 && p.bevelStrength > 0) {
-      const litAmt = p.bevelStrength * p.lightIntensity * p.bevel;
-      const hi = shiftColor(base, litAmt), lo = shiftColor(base, -litAmt), edgeW = bw * 1.4;
-      ctx.save(); roundRectPath(ctx, left, top, w, h, cr); ctx.clip();
-      ctx.strokeStyle = hi; ctx.lineWidth = edgeW; roundRectPath(ctx, left + dx * bw * 0.5, top + dy * bw * 0.5, w, h, cr); ctx.stroke();
-      ctx.strokeStyle = lo; ctx.lineWidth = edgeW; roundRectPath(ctx, left - dx * bw * 0.5, top - dy * bw * 0.5, w, h, cr); ctx.stroke();
-      ctx.restore();
-    }
-
-    const label = v.label ?? '';
-    if (label) {
-      ctx.fillStyle = p.textColor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = `600 ${p.fontSize}px system-ui, sans-serif`; ctx.fillText(label, cx, v.sub ? cy - h * 0.06 : cy);
-    }
-    if (v.sub) {
-      ctx.fillStyle = p.textColor; ctx.globalAlpha = 0.6; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = `400 ${p.fontSize * 0.4}px system-ui, sans-serif`; ctx.fillText(v.sub, cx, cy + h * 0.22); ctx.globalAlpha = 1;
-    }
-
-    if (params.indicatedIds && params.indicatedIds.has(v.id)) {
-      ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      roundRectPath(ctx, left - 4, top - 4, w + 8, h + 8, cr + 4);
-      ctx.stroke(); ctx.setLineDash([]);
-    }
-  }
-
-  static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
-    if (!pt) return;
-    const v = node.value, w = v.width || 70, h = v.height || 42;
-    const {x, y} = ctxMix.getXY(ctxMix, node, params);
-    const left = x - w / 2, top = y - h / 2;
-    if (pt.x < left || pt.x > left + w || pt.y < top || pt.y > top + h) return;
-
-    const cr = BTN_DEFAULTS.cornerRadius, lx = pt.x - left, ly = pt.y - top;
-    if (lx < cr && ly < cr && (lx - cr) ** 2 + (ly - cr) ** 2 > cr * cr) return;
-    if (lx > w - cr && ly < cr && (lx - (w - cr)) ** 2 + (ly - cr) ** 2 > cr * cr) return;
-    if (lx < cr && ly > h - cr && (lx - cr) ** 2 + (ly - (h - cr)) ** 2 > cr * cr) return;
-    if (lx > w - cr && ly > h - cr && (lx - (w - cr)) ** 2 + (ly - (h - cr)) ** 2 > cr * cr) return;
-
-    const dx = pt.x - x, dy = pt.y - y;
-    ctxMix.hitResult = { node, interactions: { applyDrag(wx, wy) { node.value.x = wx - dx; node.value.y = wy - dy; } } };
-  }
-}
-STOCK?.push( makeNode('pipped-button-node',    { x: 0, y: 0, width: 40, height: 24, label: 'Button', sub: '', color: '#e0ddd4' }))
-
-sceneRegistry.registerNodeClass('pipped-button-node', PippedButtonNode);
-//-- endfile --
 
 //<< import { PippedEdgeRefNode } from './pipped-edge-ref-node.js';
 //-- file: ./pipped-edge-ref-node.js --
@@ -1508,6 +1398,7 @@ class EdgeSnapController {
 CONTROLS.push({ type: 'checkbox', id: 'enableEdgeSnap', label: 'Edge Snap', value: true })
 //-- endfile --
 
+
 //<< import { BasicCollectionNode } from './basic-collection-node.js';
 //-- file: ./basic-collection-node.js --
 //>> export { BasicCollectionNode };
@@ -1541,10 +1432,6 @@ class BasicCollectionNode {
 sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
 //-- endfile --
 
-
-//<< import { WordNode } from './word-node.js';
-//-- file: ./word-node.js --
-//>> export { WordNode };
 function hexToRgba(hex, alpha) {
   hex = (hex || '#888888').replace('#', '');
   if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -1581,161 +1468,6 @@ const WORD_DEFAULTS = Object.freeze({
   scale:          1.0,
 });
 
-class WordNode {
-  // New Style: Metadata tells the system how to interact with this node
-  static meta = {
-    zOrder: 1,
-    raftable: true,
-    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, text: 'word' }),
-    editableFields: (node) => [
-      { key: 'text', label: 'Text', type: 'text', value: node.value.text || '' },
-      { key: 'fontSize', label: 'Size', type: 'number', value: node.value.fontSize || WORD_DEFAULTS.fontSize },
-      { key: 'rotation', label: 'Rotation', type: 'number', value: node.value.rotation || WORD_DEFAULTS.rotation },
-      { key: 'color', label: 'Color', type: 'color', value: node.value.color || WORD_DEFAULTS.color },
-    ],
-  };
-
-  static getCentreXY(ctxMix, node, params) { 
-    const {x, y} = ctxMix.getXY(ctxMix, node, params); 
-    return {x, y}; 
-  }
-
-  static draw2d(ctxMix, node, params) {
-    const v = node.value || {};
-    const p = { ...WORD_DEFAULTS, ...params };
-    const text = v.text || '';
-    if (!text) return;
-
-    // New Style: Zoom is handled naturally by the Camera context scale. 
-    // We no longer multiply fSize by zoom.
-    const sc      = (p.scale || 1) * (v.scale || 1);
-    const fSize   = (v.fontSize || p.fontSize) * sc;
-    const weight  = v.fontWeight || p.fontWeight;
-    const family  = v.fontFamily || p.fontFamily;
-    const font    = `${weight} ${fSize.toFixed(1)}px ${family}`;
-    const rot     = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
-    const opacity = (v.opacity != null ? v.opacity : p.opacity);
-
-    // New Style: We extract world coordinates cleanly via the ctxMix getter.
-    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
-    const ctx = ctxMix.ctx;
-
-    ctx.save();
-    ctx.globalAlpha *= opacity;
-    ctx.translate(cx, cy);
-    if (rot) ctx.rotate(rot);
-
-    const meas = measureWord(ctx, text, font);
-
-    // ── highlight box behind selected words ──
-    // New Style: We check indicatedIds directly from params instead of a standalone Set
-    if (params.indicatedIds && params.indicatedIds.has(v.id)) {
-      const pad = (p.highlightPad || 0); // No zoom multiplier needed
-      const hr  = (p.highlightRadius || 0);
-      const hx  = -meas.width / 2 - pad;
-      const hy  = -meas.ascent - pad;
-      const hw  = meas.width + pad * 2;
-      const hh  = meas.height + pad * 2;
-      
-      ctx.fillStyle = p.highlightFill;
-      if (ctx.roundRect) {
-        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.fill();
-      } else {
-        ctx.fillRect(hx, hy, hw, hh);
-      }
-
-      ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-      ctx.lineWidth   = 1.5;
-      if (ctx.roundRect) {
-        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.stroke();
-      } else {
-        ctx.strokeRect(hx, hy, hw, hh);
-      }
-      ctx.setLineDash([]);
-    }
-
-    // ── halo / outline ──
-    const haloW = (v.haloWidth != null ? v.haloWidth : p.haloWidth) * sc;
-    if (haloW > 0) {
-      ctx.strokeStyle = hexToRgba(
-        v.haloColor || p.haloColor,
-        v.haloOpacity != null ? v.haloOpacity : p.haloOpacity
-      );
-      ctx.lineWidth   = haloW;
-      ctx.lineJoin    = 'round';
-      ctx.font        = font;
-      ctx.textAlign   = 'center';
-      ctx.textBaseline = 'alphabetic';
-      ctx.strokeText(text, 0, 0);
-    }
-
-    // ── text fill ──
-    ctx.fillStyle    = v.color || p.color;
-    ctx.font         = font;
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(text, 0, 0);
-
-    ctx.restore();
-  }
-
-  static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
-    if (!pt) return;
-
-    const v = node.value || {};
-    const text = v.text || '';
-    if (!text) return;
-
-    const p = { ...WORD_DEFAULTS, ...params };
-    const sc = (p.scale || 1) * (v.scale || 1);
-    const fSize = (v.fontSize || p.fontSize) * sc;
-    const weight = v.fontWeight || p.fontWeight;
-    const family = v.fontFamily || p.fontFamily;
-    const font = `${weight} ${fSize.toFixed(1)}px ${family}`;
-    const rot = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
-
-    // New Style: No screen conversion needed. pt is already in world space.
-    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
-
-    // Transform hit point into the word's local frame
-    let lx = pt.x - cx;
-    let ly = pt.y - cy;
-    if (rot) {
-      const cos = Math.cos(-rot), sin = Math.sin(-rot);
-      const rx = lx * cos - ly * sin;
-      const ry = lx * sin + ly * cos;
-      lx = rx; ly = ry;
-    }
-
-    const ctx = ctxMix.ctx;
-    const meas = measureWord(ctx, text, font);
-    const pad = 4;
-    const halfW = meas.width / 2 + pad;
-    const top = -meas.ascent - pad;
-    const bot = meas.descent + pad;
-
-    if (lx < -halfW || lx > halfW || ly < top || ly > bot) return;
-
-    const dxHit = pt.x - cx;
-    const dyHit = pt.y - cy;
-
-    // New Style: Pass world coordinates directly in applyDrag
-    ctxMix.hitResult = {
-      node,
-      interactions: {
-        applyDrag(wx, wy) {
-          node.value.x = wx - dxHit;
-          node.value.y = wy - dyHit;
-        },
-      },
-    };
-  }
-}
-
-sceneRegistry.registerNodeClass('word-node', WordNode);
-//-- endfile --
 
 //<< import { CameraNode } from './camera-node.js';
 //-- file: ./camera-node.js --
@@ -1870,40 +1602,23 @@ class Camera {
 }
 
 class HudPanel {
-  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 60, left: 12 } } = {}) {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 12, left: 12 } } = {}) {
     this._onChange = onChange || (() => {});
-    this._inputs = {}; 
-    this._valDisplays = {}; 
-    this._injectStyles();
-
+    this._inputs = {}; this._valDisplays = {}; this._injectStyles();
     this._root = document.createElement('div');
     this._root.className = 'hud-panel';
-    this._root.style.top = position.top + 'px'; 
-    this._root.style.left = position.left + 'px';
-    
-    const header = document.createElement('h3'); 
-    header.innerHTML = `::: &nbsp; ${title}`;
-    this._root.appendChild(header); 
-    this._makeDraggable(header);
-    
+    this._root.style.top = position.top + 'px'; this._root.style.left = position.left + 'px';
+    const header = document.createElement('h3'); header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header); this._makeDraggable(header);
     for (const ctrl of controls) this._addControl(ctrl);
     container.appendChild(this._root);
   }
-
-  destroy() {
-    if (this._root.parentNode) {
-      this._root.parentNode.removeChild(this._root);
-    }
-  }
-
   _addControl(ctrl) {
     if (ctrl.type === 'separator') this._addSeparator(ctrl);
     else if (ctrl.type === 'button')   this._addButton(ctrl);
     else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
-    else if (ctrl.type === 'select') this._addSelect(ctrl);
     else this._addSlider(ctrl);
   }
-
   _addSlider(ctrl) {
     const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
     const row = document.createElement('label'), span = document.createElement('span');
@@ -1918,13 +1633,11 @@ class HudPanel {
     });
     this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
   }
-
   _addButton(ctrl) {
     const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
     btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
     this._root.appendChild(btn);
   }
-
   _addCheckbox(ctrl) {
     const { id, label, value = false } = ctrl;
     const row = document.createElement('label'), span = document.createElement('span');
@@ -1936,28 +1649,11 @@ class HudPanel {
     sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
     this._inputs[id] = input; this._root.appendChild(row);
   }
-
-  _addSelect(ctrl) {
-    const { id, label, options = [], value } = ctrl;
-    const row = document.createElement('label'); const span = document.createElement('span');
-    span.textContent = label; row.appendChild(span);
-    const select = document.createElement('select');
-    for (const opt of options) {
-      const option = document.createElement('option');
-      option.value = opt[0]; option.textContent = opt[1];
-      if (opt[0] === String(value)) option.selected = true;
-      select.appendChild(option);
-    }
-    select.addEventListener('change', () => this._onChange(id, select.value));
-    row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
-  }  
-
   _addSeparator(ctrl) {
     const sep = document.createElement('div'); sep.className = 'separator';
     if (ctrl.label) sep.textContent = ctrl.label;
     this._root.appendChild(sep);
   }
-
   _makeDraggable(handle) {
     let isDragging = false, startX, startY, startLeft, startTop;
     handle.addEventListener('mousedown', e => {
@@ -1972,18 +1668,16 @@ class HudPanel {
     });
     window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
   }
-
   _injectStyles() {
     if (document.getElementById('hud-panel-css')) return;
     const s = document.createElement('style'); s.id = 'hud-panel-css';
     s.textContent = `
-      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1000; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
+      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 10; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
       .hud-panel h3 { margin: 0 0 12px; font-size: 11px; color: #b0a898; letter-spacing: 1px; cursor: grab; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase; }
       .hud-panel h3:active { cursor: grabbing; }
       .hud-panel label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-      .hud-panel label > span:first-child { min-width: 90px; color: #999; }
+      .hud-panel label > span:first-child { min-width: 100px; color: #999; }
       .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
-      .hud-panel select { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 4px; font-size: 10px; outline: none; cursor: pointer; }
       .hud-panel .toggle-switch { position: relative; width: 28px; height: 16px; display: inline-block; flex-shrink: 0; }
       .hud-panel .toggle-switch input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
       .hud-panel .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); transition: .2s; border-radius: 16px; }
@@ -1994,12 +1688,10 @@ class HudPanel {
       .hud-panel .separator { margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px; }
       .hud-btn { display: block; width: 100%; margin: 4px 0; padding: 6px 0; background: rgba(0,0,0,0.4); color: #ccc; font-size: 11px; font-family: system-ui, sans-serif; text-align: center; border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s; }
       .hud-btn:hover { border-color: #6cf; background: rgba(102,204,255,0.08); }
-      .hud-btn.primary { color: #8cf; border-color: rgba(102,204,255,0.3); }
-      .hud-btn.primary:hover { background: rgba(102,204,255,0.12); }
       .hud-btn.green { color: #5b5; }
       .hud-btn.green:hover { border-color: #5b5; background: rgba(80,180,80,0.08); }
       .hud-btn.danger { color: #c55; }
-      .hud-btn.danger:hover { border-color: #c55; background: rgba(200,80,80,0.08); }      
+      .hud-btn.danger:hover { border-color: #c55; background: rgba(200,80,80,0.08); }
     `;
     document.head.appendChild(s);
   }
@@ -2053,373 +1745,16 @@ class SeedModel{
 MODELS.push( new SeedModel() )
 //-- endfile --
 
-//<< import { TCACycleModel } from './tca-cycle-model.js';
-//-- file: ./tca-cycle-model.js --
-//>> export { TCACycleModel };
-class TCACycleModel{
-  get name() { return 'Load TCA Cycle'; }
-  get btnClass() { return 'green'; }
-
-  static STEPS = [
-    { id: 'oaa', label: 'OAA',  sub: 'Oxaloacetate',   color: '#4a7eff' }, { id: 'cit', label: 'Cit',  sub: 'Citrate',         color: '#3fb950' },
-    { id: 'iso', label: 'Iso',  sub: 'Isocitrate',      color: '#3fb950' }, { id: 'akg', label: 'αKG',  sub: 'α-Ketoglutarate', color: '#d29922' },
-    { id: 'sca', label: 'SCoA', sub: 'Succinyl-CoA',    color: '#d29922' }, { id: 'suc', label: 'Suc',  sub: 'Succinate',        color: '#bc8cff' },
-    { id: 'fum', label: 'Fum',  sub: 'Fumarate',         color: '#bc8cff' }, { id: 'mal', label: 'Mal',  sub: 'Malate',           color: '#4a7eff' },
-  ];
-
-  _bestPip(fromX, fromY, toX, toY) {
-    const dx = toX - fromX, dy = toY - fromY, dirs = [[0,-1],[1,0],[0,1],[-1,0]];
-    let best = 0, bestDot = -Infinity;
-    for (let i = 0; i < 4; i++) {
-      const dot = dx * dirs[i][0] + dy * dirs[i][1];
-      if (dot > bestDot) { bestDot = dot; best = i; }
-    }
-    return best;
-  }
-
-  load(app) {
-    app.clearAll();
-    const sub = app.collNode.subtree, conns = app.collNode.value.connections, tcaR1 = 170, tcaR2=190, N = TCACycleModel.STEPS.length;
-    const nodes = TCACycleModel.STEPS.map((step, i) => {
-      const a = (i / N) * Geo.TAU - Geo.PI / 2;
-      const tcaR = (i%2==0) ? tcaR1 : tcaR2; 
-      const node = makeNode('pipped-button-node', {
-        x: tcaR * Math.cos(a), y: tcaR * Math.sin(a), width: 70, height: 42, label: step.label, sub: step.sub, color: step.color,
-      });
-      sub.push(node); return node;
-    });
-
-    for (let i = 0; i < N; i++) {
-      const j = (i + 1) % N, nA = nodes[i], nB = nodes[j];
-      const pipA = this._bestPip(nA.value.x, nA.value.y, nB.value.x, nB.value.y);
-      const pipB = this._bestPip(nB.value.x, nB.value.y, nA.value.x, nA.value.y);
-      const pipsA = ButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nA, {}), pipsB = ButtonNode.getPips({ getXY: (m, n) => ({x: n.value.x, y: n.value.y}) }, nB, {});
-      const edge = makeNode('pipped-edge', { x1: pipsA[pipA].x, y1: pipsA[pipA].y, x2: pipsB[pipB].x, y2: pipsB[pipB].y });
-      sub.push(edge);
-      conns.push( { a: edge.value.id, pipA: 0, b: nA.value.id, pipB: pipA }, { a: edge.value.id, pipA: 1, b: nB.value.id, pipB: pipB } );
-    }
-    BasicCollectionNode._sortSubtree(app.collNode.subtree);
-    app.centerOnWorld(0, 0);
-  }
-}
-
-MODELS.push( new TCACycleModel() )
-//-- endfile --
-
-//<< import { SilhouetteModel } from './silhouette-model.js';
-//-- file: ./silhouette-model.js --
-//>> export { SilhouetteModel };
-class SilhouetteModel {
-  get name() { return 'Load Silhouette'; }
-  get btnClass() { return 'green'; }
-
-  static BODY_SILHOUETTE = [
-    [.50,.03],[.55,.035],[.58,.05],[.59,.08],[.585,.11],[.57,.135],[.55,.15],[.54,.16],[.545,.19],[.62,.20],[.68,.21],[.72,.23],[.74,.28],[.745,.35],[.74,.42],[.735,.50],
-    [.73,.55],[.72,.58],[.725,.60],[.73,.62],[.72,.63],[.70,.62],[.695,.59],[.64,.26],[.63,.52],[.63,.56],[.62,.62],[.61,.66],[.60,.70],
-    [.59,.73],[.58,.78],[.575,.84],[.57,.90],[.565,.94],[.575,.96],[.585,.97],[.575,.98],[.555,.975],[.54,.96],[.535,.90],[.53,.82],[.525,.76],[.51,.62],
-    [.49,.62],[.475,.76],[.47,.82],[.465,.90],[.46,.96],[.445,.975],[.425,.98],[.415,.97],[.425,.96],[.435,.94],[.43,.90],[.425,.84],[.42,.78],[.41,.73],
-    [.40,.70],[.39,.66],[.38,.62],[.37,.56],[.375,.52],[.35,.26],[.305,.59],[.30,.62],[.28,.63],[.27,.62],[.275,.60],[.28,.58],[.27,.55],[.265,.50],[.26,.42],[.255,.35],[.26,.28],
-    [.28,.23],[.32,.21],[.38,.20],[.455,.19],[.46,.16],[.45,.15],[.43,.135],[.415,.11],[.41,.08],[.42,.05],[.45,.035],
-  ];
-  
-  _normToLocal(nx, ny) { return { x: (nx - 0.5) * 500, y: (ny - 0.5) * 700 }; }
-
-  load(app) {
-    app.clearAll();
-    const sub = app.collNode.subtree, conns = app.collNode.value.connections;
-    const nodes = SilhouetteModel.BODY_SILHOUETTE.map(pt => {
-      const { x, y } = this._normToLocal(pt[0], pt[1]);
-      const node = makeNode('drag-point', { x, y, group: 'silhouette' });
-      sub.push(node); return node;
-    });
-
-    for (let i = 0; i < nodes.length; i++) {
-      const j = (i + 1) % nodes.length;
-      const edge = makeNode('pipped-edge', { x1: nodes[i].value.x, y1: nodes[i].value.y, x2: nodes[j].value.x, y2: nodes[j].value.y, group: 'silhouette' });
-      sub.push(edge);
-      conns.push( { a: edge.value.id, pipA: 0, b: nodes[i].value.id, pipB: 0 }, { a: edge.value.id, pipA: 1, b: nodes[j].value.id, pipB: 0 } );
-    }
-    BasicCollectionNode._sortSubtree(app.collNode.subtree);
-    app.centerOnWorld(0, 0);
-  }
-}
-
-MODELS.push( new SilhouetteModel() )
-//-- endfile --
 
 
-//<< import { GraphModel } from './graph-model.js';
-//-- file: ./graph-model.js --
-//>> export { GraphModel };
-// A lightweight base class for generating standard graph layouts
-class GraphModel {
-  get btnClass() { return 'green'; }
 
-  buildGraph(app, positions, edges) {
-    app.clearAll();
-    const sub = app.collNode.subtree;
-    const conns = app.collNode.value.connections;
-    const nodes = [];
 
-    // 1. Create junction nodes
-    positions.forEach((p, i) => {
-      const node = makeNode('drag-point', { 
-        x: p.x, 
-        y: p.y, 
-        label: p.label || `${i}`, 
-        color: p.color || '#445', 
-        r: 8, 
-        stroke: '#223' 
-      });
-      sub.push(node); 
-      nodes.push(node);
-    });
-
-    // 2. Create edges and wire their pips to the junctions
-    edges.forEach(([a, b]) => {
-      const nA = nodes[a], nB = nodes[b];
-      const edge = makeNode('pipped-edge', { 
-        x1: nA.value.x, y1: nA.value.y, 
-        x2: nB.value.x, y2: nB.value.y 
-      });
-      sub.push(edge);
-      conns.push(
-        { a: edge.value.id, pipA: 0, b: nA.value.id, pipB: 0 }, 
-        { a: edge.value.id, pipA: 1, b: nB.value.id, pipB: 0 }
-      );
-    });
-
-    BasicCollectionNode._sortSubtree(app.collNode.subtree);
-    app.centerOnWorld(0, 0);
-  }
-}
-//-- endfile --
-
-//<< import { ProceduralTreeModel } from './procedural-tree-model.js';
-//-- file: ./procedural-tree-model.js --
-//>> export { ProceduralTreeModel };
-// Generates Trees and Stars procedurally using a top-down hierarchical layout
-
-class ProceduralTreeModel extends GraphModel {
-  constructor(name, branching) {
-    super();
-    this._name = name;
-    this.branching = branching; // e.g. [5] for a star, [5, 2] for a 2-level tree
-  }
-  
-  get name() { return this._name; }
-  
-  load(app) {
-    const pos = [];
-    const edges = [];
-    let idCounter = 0;
-
-    const buildNode = (depth, x, y, parentId) => {
-      const myId = idCounter++;
-      // Root gets a distinct color
-      pos.push({ x, y, color: depth === 0 ? '#c66' : '#6c6' });
-      
-      if (parentId !== null) {
-        edges.push([parentId, myId]);
-      }
-
-      // If we haven't reached the bottom of our branching array, spawn children
-      if (depth < this.branching.length) {
-        const b = this.branching[depth];
-        
-        // Dynamically calculate horizontal spread so branches don't overlap as much
-        const spread = Math.pow(2.2, this.branching.length - depth) * 20; 
-        const startX = x - ((b - 1) * spread) / 2;
-        
-        for (let i = 0; i < b; i++) {
-          buildNode(depth + 1, startX + i * spread, y + 70, myId);
-        }
-      }
-    };
-
-    // Start building from the root (adjust starting Y so deep trees fit well)
-    buildNode(0, 0, -this.branching.length * 30, null);
-    this.buildGraph(app, pos, edges);
-  }
-}
-//-- endfile --
 
 // Generates complete (fully-connected) graphs procedurally in a radial layout
-//<< import { ProceduralCompleteModel } from './procedural-complete-model.js';
-//-- file: ./procedural-complete-model.js --
-//>> export { ProceduralCompleteModel };
-class ProceduralCompleteModel extends GraphModel {
-  constructor(name, n) {
-    super();
-    this._name = name;
-    this.n = n;
-  }
-  
-  get name() { return this._name; }
-  
-  load(app) {
-    const pos = [];
-    const edges = [];
-    const R = Math.max(60, this.n * 15); // Scale radius dynamically with node count
-    
-    // Position nodes in a circle
-    for (let i = 0; i < this.n; i++) {
-      pos.push({
-        x: R * Math.cos(i * Math.PI * 2 / this.n - Math.PI / 2),
-        y: R * Math.sin(i * Math.PI * 2 / this.n - Math.PI / 2)
-      });
-    }
-    
-    // Connect every node to every other node
-    for (let i = 0; i < this.n; i++) {
-      for (let j = i + 1; j < this.n; j++) {
-        edges.push([i, j]);
-      }
-    }
-    
-    this.buildGraph(app, pos, edges);
-  }
-}
 
-// Register as many custom permutations as you like!
-MODELS.push(
-  //new ProceduralTreeModel('Star Graph', [5]),
-  new ProceduralTreeModel('Load Binary Tree', [2, 2, 2]),
-  //new ProceduralTreeModel('Deep Tree', [5, 2, 2]),
-  //new ProceduralCompleteModel('K4 Graph', 4),
-  new ProceduralCompleteModel('Load K6 Graph', 6)
-);
-//-- endfile --
 
-//<< import { MoleculeModel } from './molecule-model.js';
-//-- file: ./molecule-model.js --
-//>> export { MoleculeModel };
 
-class MoleculeModel{
-  get btnClass() { return 'green'; }
 
-  static CPK = {
-    C: '#777777', H: '#e0e0e0', O: '#ff4136', N: '#4169e1',
-    S: '#ffd700', P: '#ff8c00', Cl: '#1eff00', Br: '#a62929',
-  };
-
-  _placeH(parent, bondedPositions, nH, dist) {
-    if (nH === 0) return [];
-    const angles = bondedPositions.map(b => Math.atan2(b.y - parent.y, b.x - parent.x));
-    let base = 0;
-    if (angles.length > 0) {
-      const sx = angles.reduce((s, a) => s + Math.cos(a), 0), sy = angles.reduce((s, a) => s + Math.sin(a), 0);
-      base = Math.atan2(sy, sx) + Math.PI;
-    }
-    const spread = nH === 1 ? 0 : Math.min(Math.PI * 0.75, Math.PI * 0.55 * nH), result = [];
-    for (let i = 0; i < nH; i++) {
-      const a = base + (i - (nH - 1) / 2) * (nH > 1 ? spread / (nH - 1) : 0);
-      result.push({ x: parent.x + dist * Math.cos(a), y: parent.y + dist * Math.sin(a) });
-    }
-    return result;
-  }
-
-  loadMolecule(app, def) {
-    app.clearAll();
-    const sub = app.collNode.subtree, conns = app.collNode.value.connections, HR = 38;
-    const atoms = [], allBonds = [];
-    for (const h of def.heavy) atoms.push({ symbol: h.symbol, x: h.x, y: h.y });
-    for (const [a, b] of def.bonds) allBonds.push([a, b]);
-
-    for (let i = 0; i < def.heavy.length; i++) {
-      const h = def.heavy[i];
-      if (h.nH === 0) continue;
-      const bondedPos = def.bonds.filter(([a, b]) => a === i || b === i).map(([a, b]) => a === i ? def.heavy[b] : def.heavy[a]);
-      for (const hp of this._placeH(h, bondedPos, h.nH, HR)) {
-        allBonds.push([i, atoms.length]);
-        atoms.push({ symbol: 'H', x: hp.x, y: hp.y });
-      }
-    }
-
-    const nodes = atoms.map((a, i) => {
-      const isH = a.symbol === 'H';
-      const node = makeNode('drag-point', { x: a.x, y: a.y, label: a.symbol, color: MoleculeModel.CPK[a.symbol] || '#888', r: isH ? 8 : 12, stroke: '#111', labelColor: isH ? '#222' : '#fff' });
-      sub.push(node); return node;
-    });
-
-    for (const [a, b] of allBonds) {
-      const nA = nodes[a], nB = nodes[b];
-      const edge = makeNode('pipped-edge', { x1: nA.value.x, y1: nA.value.y, x2: nB.value.x, y2: nB.value.y });
-      sub.push(edge);
-      conns.push({ a: edge.value.id, pipA: 0, b: nA.value.id, pipB: 0 }, { a: edge.value.id, pipA: 1, b: nB.value.id, pipB: 0 });
-    }
-    BasicCollectionNode._sortSubtree(app.collNode.subtree);
-    app.centerOnWorld(0, 0);
-  }
-}
-//-- endfile --
-
-//<< import { BenzeneModel } from './benzene-model.js';
-//-- file: ./benzene-model.js --
-//>> export { BenzeneModel };
-class BenzeneModel extends MoleculeModel {
-  get name() { return 'Load Benzene'; }
-  load(app) {
-    const R = 80;
-    const heavy = Array.from({ length: 6 }, (_, i) => ({ symbol: 'C', x: R * Math.cos((i * 60 - 90) * Math.PI / 180), y: R * Math.sin((i * 60 - 90) * Math.PI / 180), nH: 1 }));
-    this.loadMolecule(app, { heavy, bonds: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]] });
-  }
-}
-MODELS.push( new BenzeneModel() )
-//-- endfile --
-
-//<< import { ButanolModel } from './butanol-model.js';
-//-- file: ./butanol-model.js --
-//>> export { ButanolModel };
-class ButanolModel extends MoleculeModel {
-  get name() { return 'Load Butanol'; }
-  load(app) {
-    const zig = 28;
-    const heavy = [
-      { symbol: 'C', x: -130, y:  zig, nH: 3 }, { symbol: 'C', x:  -65, y: -zig, nH: 2 },
-      { symbol: 'C', x:    0, y:  zig, nH: 2 }, { symbol: 'C', x:   65, y: -zig, nH: 2 },
-      { symbol: 'O', x:  130, y:  zig, nH: 1 },
-    ];
-    this.loadMolecule(app, { heavy, bonds: [[0,1],[1,2],[2,3],[3,4]] });
-  }
-}
-MODELS.push( new ButanolModel() )
-//-- endfile --
-
-//<< import { WordCloudModel } from './word-cloud-model.js';
-//-- file: ./word-cloud-model.js --
-//>> export { WordCloudModel };
-class WordCloudModel {
-  get name() { return 'Load Word Cloud'; }
-  load(app) {
-    app.clearAll();
-    const sub = app.collNode.subtree;
-    
-    // Seed with the classic data from the old layout
-    const oldNodes = [
-      { type: 'word-node', value: { x:   0, y: -80, text: 'canvas',    fontSize: 52, fontWeight: 800, color: '#e4dac6' } },
-      { type: 'word-node', value: { x: 150, y: -30, text: 'scene',     fontSize: 38, fontWeight: 700, color: '#8bb8d0' } },
-      { type: 'word-node', value: { x:-160, y: -20, text: 'node',      fontSize: 44, fontWeight: 700, color: '#d4a56a' } },
-      { type: 'word-node', value: { x: -60, y:  30, text: 'render',    fontSize: 34, fontWeight: 600, color: '#a0c4a8' } },
-      { type: 'word-node', value: { x: 100, y:  50, text: 'transform', fontSize: 28, fontWeight: 600, color: '#c898b8' } },
-      { type: 'word-node', value: { x:-140, y:  80, text: 'draw',      fontSize: 40, fontWeight: 700, color: '#e07050', rotation: -12 } },
-      { type: 'word-node', value: { x:  40, y: 110, text: 'zoom',      fontSize: 22, fontWeight: 500, color: '#7a9a6a' } },
-      { type: 'word-node', value: { x: 180, y: 100, text: 'pixel',     fontSize: 26, fontWeight: 600, color: '#6a8cae', rotation: 8 } },
-      { type: 'word-node', value: { x: -30, y:-140, text: 'graph',     fontSize: 30, fontWeight: 700, color: '#c8b070', rotation: -5 } },
-      { type: 'word-node', value: { x:-180, y:-100, text: 'bevel',     fontSize: 20, fontWeight: 500, color: '#888070' } },
-      { type: 'word-node', value: { x: 200, y: -90, text: 'hit',       fontSize: 24, fontWeight: 600, color: '#d07070' } },
-      { type: 'word-node', value: { x:-100, y: 140, text: 'nugget',    fontSize: 18, fontWeight: 400, color: '#6a6256', haloWidth: 2, haloColor: '#6a6256', haloOpacity: 0.2 } },
-      { type: 'word-node', value: { x: 160, y: 150, text: 'spike',     fontSize: 20, fontWeight: 500, color: '#807060' } },
-      { type: 'word-node', value: { x:  50, y:-110, text: 'shader',    fontSize: 16, fontWeight: 400, color: '#706a80', rotation: 15 } },
-    ];
-
-    oldNodes.forEach(n => sub.push(makeNode(n.type, n.value)));
-    BasicCollectionNode._sortSubtree(sub);
-    app.centerOnWorld(0, 0);
-  }
-}
-MODELS.push( new WordCloudModel() )
-//-- endfile --
 
 class App {
   constructor(canvas) {
@@ -2442,8 +1777,10 @@ class App {
         this.raftSnapController
       ].filter(Boolean)
     });
+    this.affordanceNode = makeNode('affordance-overlay', { target: this.collNode });
     this.coneNode = makeNode('fracture-cone', { target: this.collNode });
-    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, this.coneNode ]);
+    
+    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, /*this.affordanceNode,*/ this.coneNode ]);
     this.rootNode = makeNode('scene-root', {}, [ this.camNode, this.stockNode ]);
 
     this._seedLayoutDone = false;

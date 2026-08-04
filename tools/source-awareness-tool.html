@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Source Awareness Harness</title>
+<link rel="icon" type="image/x-icon" href="../wheelblue.ico">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #0a0a0b;
+    --bg-secondary: #131316;
+    --bg-tertiary: #1a1a1f;
+    --bg-hover: #222228;
+    --border: #2a2a32;
+    --border-focus: #4a4a55;
+    --text-primary: #e8e8ec;
+    --text-secondary: #9898a4;
+    --text-muted: #5a5a66;
+    --accent: #f59e0b;
+    --accent-dim: #b45309;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #eab308;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Space Grotesk', sans-serif;
+
+    --block-html:    rgba(232, 232, 236, 0.06);
+    --block-style:   rgba(59, 130, 246, 0.10);
+    --block-script:  rgba(168, 85, 247, 0.10);
+    --block-comment: rgba(90, 90, 102, 0.12);
+    --dot-html:      #e8e8ec;
+    --dot-style:     #3b82f6;
+    --dot-script:    #a855f7;
+    --dot-comment:   #5a5a66;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  header {
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+    background: var(--bg-secondary);
+  }
+
+  h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+
+  .tag {
+    font-size: 10px; font-family: var(--font-mono); color: var(--text-muted);
+    background: var(--bg-tertiary); padding: 2px 7px; border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .header-right {
+    margin-left: auto;
+    display: flex; gap: 0.5rem; align-items: center;
+  }
+
+  .stat-badge {
+    display: flex; align-items: center; gap: 0.3rem;
+    font-family: var(--font-mono); font-size: 0.65rem;
+    padding: 0.25rem 0.5rem; border-radius: 4px;
+    background: var(--bg-tertiary); border: 1px solid var(--border);
+  }
+
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+  }
+
+  .panel {
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    font-size: 0.75rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .panel-header .count {
+    background: var(--bg-tertiary); padding: 0.15rem 0.5rem;
+    border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem;
+  }
+
+  .panel-tabs { display: flex; gap: 0.25rem; }
+
+  .panel-tab {
+    background: none; border: none;
+    padding: 0.2rem 0.5rem;
+    font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500;
+    color: var(--text-muted); cursor: pointer; border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .panel-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+  .panel-tab.active { color: var(--text-primary); background: var(--bg-tertiary); }
+
+  .panel-content { flex: 1; overflow-y: auto; }
+
+  /* Input area */
+  .input-area {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .input-area textarea {
+    flex: 1; resize: none;
+    background: var(--bg-primary); color: var(--text-primary);
+    border: none; padding: 0.75rem;
+    font-family: var(--font-mono); font-size: 0.72rem;
+    line-height: 1.65; outline: none;
+    tab-size: 2;
+  }
+
+  .input-area textarea::placeholder { color: var(--text-muted); }
+
+  /* Output lines */
+  .output-line {
+    display: flex; font-family: var(--font-mono); font-size: 0.72rem;
+    line-height: 1.65; min-height: 1.2em;
+  }
+
+  .output-line .ln {
+    width: 4ch; text-align: right; margin-right: 0.75rem;
+    color: var(--text-muted); user-select: none; flex-shrink: 0;
+    padding: 0 0.25rem;
+  }
+
+  .output-line .block-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    flex-shrink: 0; margin-top: 0.5em; margin-right: 0.5rem;
+  }
+
+  .output-line .code { white-space: pre; flex: 1; padding-right: 0.75rem; }
+
+  .output-line[data-block="html"]    { background: var(--block-html); }
+  .output-line[data-block="style"]   { background: var(--block-style); }
+  .output-line[data-block="script"]  { background: var(--block-script); }
+  .output-line[data-block="comment"] { background: var(--block-comment); }
+
+  .output-line[data-block="html"]    .block-dot { background: var(--dot-html); }
+  .output-line[data-block="style"]   .block-dot { background: var(--dot-style); }
+  .output-line[data-block="script"]  .block-dot { background: var(--dot-script); }
+  .output-line[data-block="comment"] .block-dot { background: var(--dot-comment); }
+
+  .output-line .comment-text { color: var(--text-muted); }
+  .output-line .stripped      { color: var(--danger); text-decoration: line-through; opacity: 0.45; }
+
+  /* Legend */
+  .legend {
+    display: flex; gap: 1rem; padding: 0.4rem 0.75rem;
+    border-top: 1px solid var(--border); background: var(--bg-secondary);
+    font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-muted);
+    align-items: center; flex-wrap: wrap;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+
+  .legend-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  /* Btn */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.7rem; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--bg-tertiary);
+    color: var(--text-primary); font-family: var(--font-sans);
+    font-size: 0.72rem; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+
+  .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+  .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+
+  /* Status */
+  .status {
+    font-size: 0.75rem; color: var(--text-muted);
+    padding: 0.5rem 1rem; border-top: 1px solid var(--border);
+    background: var(--bg-secondary); font-family: var(--font-mono);
+  }
+
+  .status.success { color: var(--success); }
+  .status.error   { color: var(--danger); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg-primary); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Source <span>Awareness</span> Harness</h1>
+      <span class="tag">throwaway · exercises source-awareness</span>
+      <div class="header-right" id="headerRight">
+        <button class="btn" id="btnExample">Load example</button>
+        <button class="btn btn-primary" id="btnAnalyse">Analyse</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Left: source input -->
+      <div class="panel">
+        <div class="panel-header">
+          Source
+          <span class="count" id="inputCount">0 lines</span>
+        </div>
+        <div class="input-area">
+          <textarea id="sourceInput" placeholder="Paste HTML, CSS, or JS here…" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Right: analysed output -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-tabs" id="outputTabs">
+            <button class="panel-tab active" data-tab="blocks">Blocks</button>
+            <button class="panel-tab" data-tab="stripped">Stripped</button>
+            <button class="panel-tab" data-tab="replace">Replace</button>
+          </div>
+          <span class="count" id="outputCount">—</span>
+        </div>
+        <div class="panel-content" id="outputContent"></div>
+        <div class="legend" id="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:var(--dot-html)"></span>html</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--dot-style)"></span>style</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--dot-script)"></span>script</div>
+          <div class="legend-item"><span class="legend-dot" style="background:var(--dot-comment)"></span>comment</div>
+        </div>
+      </div>
+    </main>
+
+    <div class="status" id="status">Paste source code and click Analyse</div>
+  </div>
+
+  <script>
+
+// ═══════════════════════════════════════════════════════════════
+//  NUGGET — SourceAwareness
+//
+//  Comment stripping, block classification, and block-aware
+//  replacement for HTML/CSS/JS source files. Used by the CSS
+//  Refactor and Include Path tools to parse files safely without
+//  matching inside comments or the wrong block type.
+// ═══════════════════════════════════════════════════════════════
+
+//<< import { SourceAwareness } from './source-awareness.js';
+//-- file: ./source-awareness.js --
+//>> export { SourceAwareness };
+
+class SourceAwareness {
+
+  // ── Comment stripping ─────────────────────────────────────
+
+  /**
+   * Replace comments with whitespace, preserving newlines so that
+   * line numbers stay aligned. Useful for extracting tokens from
+   * source without matching inside comments.
+   *
+   * @param {string} content   The source text.
+   * @param {string} syntax    'css' | 'html' | 'js'
+   * @returns {string}  Same-length string with comments blanked.
+   */
+  static stripComments(content, syntax) {
+    const blank = match =>
+      match.split('').map(c => c === '\n' ? '\n' : ' ').join('');
+
+    switch (syntax) {
+      case 'css':
+        return content.replace(/\/\*[\s\S]*?\*\//g, blank);
+
+      case 'html':
+        return content
+          .replace(/<!--[\s\S]*?-->/g, blank)
+          .replace(/\/\*[\s\S]*?\*\//g, blank);
+
+      case 'js':
+        return content
+          .replace(/\/\*[\s\S]*?\*\//g, blank)
+          .replace(/\/\/[^\n]*/g, blank);
+
+      default:
+        return content;
+    }
+  }
+
+  // ── Block classification ──────────────────────────────────
+
+  /**
+   * Classify each line of an HTML file into block types.
+   *
+   * Returns an array the same length as the input lines,
+   * where each element is one of:
+   *   'html'    — template / markup
+   *   'style'   — inside a <style> block
+   *   'script'  — inside a <script> block
+   *   'comment' — the line is entirely a comment (or inside one)
+   *
+   * Block boundaries are tracked across lines. A line that opens
+   * and closes a block (e.g. `<style>body{}</style>`) is classified
+   * by the block it enters. Comment regions are overlaid on top of
+   * block type, so a CSS comment inside a <style> block → 'comment'.
+   *
+   * @param {string}   content  Full file content.
+   * @param {string[]} [lines]  Pre-split lines (optional optimisation).
+   * @returns {{ blocks: string[], commentRanges: {start:number, end:number}[] }}
+   */
+  static classifyBlocks(content, lines) {
+    if (!lines) lines = content.split('\n');
+    const blocks = new Array(lines.length).fill('html');
+
+    // Pass 1: track <style> and <script> regions
+    let mode = 'html';
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (mode === 'html') {
+        if (/<style[\s>]/i.test(line))  mode = 'style';
+        if (/<script[\s>]/i.test(line)) mode = 'script';
+      }
+
+      blocks[i] = mode;
+
+      if (mode === 'style'  && /<\/style>/i.test(line))  mode = 'html';
+      if (mode === 'script' && /<\/script>/i.test(line)) mode = 'html';
+    }
+
+    // Pass 2: identify comment regions and overlay them
+    const commentRanges = this._findCommentRanges(content, lines, blocks);
+    for (const range of commentRanges) {
+      for (let i = range.start; i <= range.end; i++) {
+        // Only mark as 'comment' if the entire line is inside a comment
+        if (this._lineFullyCovered(lines, i, content, range)) {
+          blocks[i] = 'comment';
+        }
+      }
+    }
+
+    return { blocks, commentRanges };
+  }
+
+  /** Find multiline comment ranges, respecting block syntax. */
+  static _findCommentRanges(content, lines, blocks) {
+    const ranges = [];
+    let offset = 0;
+    const lineOffsets = [];
+    for (const line of lines) {
+      lineOffsets.push(offset);
+      offset += line.length + 1; // +1 for newline
+    }
+
+    const lineAt = pos => {
+      for (let i = lineOffsets.length - 1; i >= 0; i--) {
+        if (pos >= lineOffsets[i]) return i;
+      }
+      return 0;
+    };
+
+    // CSS / JS block comments: /* ... */
+    const cssRe = /\/\*[\s\S]*?\*\//g;
+    let m;
+    while ((m = cssRe.exec(content)) !== null) {
+      const startLine = lineAt(m.index);
+      const endLine   = lineAt(m.index + m[0].length - 1);
+      // Only flag if the start is inside a style or script block
+      if (blocks[startLine] === 'style' || blocks[startLine] === 'script') {
+        ranges.push({ start: startLine, end: endLine, type: '/**/' });
+      }
+    }
+
+    // HTML comments: <!-- ... -->
+    const htmlRe = /<!--[\s\S]*?-->/g;
+    while ((m = htmlRe.exec(content)) !== null) {
+      const startLine = lineAt(m.index);
+      const endLine   = lineAt(m.index + m[0].length - 1);
+      ranges.push({ start: startLine, end: endLine, type: '<!-->' });
+    }
+
+    // JS single-line comments: // ...
+    for (let i = 0; i < lines.length; i++) {
+      if (blocks[i] === 'script') {
+        const stripped = lines[i].replace(/'[^']*'|"[^"]*"|`[^`]*`/g, s => ' '.repeat(s.length));
+        if (/^\s*\/\//.test(stripped)) {
+          ranges.push({ start: i, end: i, type: '//' });
+        }
+      }
+    }
+
+    return ranges;
+  }
+
+  /** Check if a line is fully inside a comment range. */
+  static _lineFullyCovered(lines, lineIdx, content, range) {
+    if (lineIdx > range.start && lineIdx < range.end) return true;
+    if (range.start === range.end) {
+      return lines[lineIdx].trim().startsWith('//') ||
+             lines[lineIdx].trim().startsWith('/*') ||
+             lines[lineIdx].trim().startsWith('<!--');
+    }
+    if (lineIdx === range.start) {
+      const before = lines[lineIdx].substring(0, lines[lineIdx].search(/\/\*|<!--|\/\//));
+      return before.trim() === '';
+    }
+    if (lineIdx === range.end) {
+      const endMarker = range.type === '<!-->' ? '-->' : '*/';
+      const afterIdx = lines[lineIdx].indexOf(endMarker);
+      if (afterIdx === -1) return false;
+      const after = lines[lineIdx].substring(afterIdx + endMarker.length);
+      return after.trim() === '';
+    }
+    return false;
+  }
+
+  // ── Block-aware replacement ───────────────────────────────
+
+  /**
+   * Apply a line-by-line replacement only within specified block types.
+   *
+   * For each line whose block type is in `allowBlocks`, the `replacer`
+   * function is called. Lines in other blocks pass through unchanged.
+   *
+   * @param {string}   content       The full source text.
+   * @param {string[]} allowBlocks   Block types to transform, e.g. ['html', 'style'].
+   * @param {function} replacer      (line: string, lineIdx: number) → string.
+   * @param {object}   [opts]
+   * @param {boolean}  [opts.allowIfLineMatches]  Regex — if a line in a
+   *   disallowed block matches this pattern, transform it anyway
+   *   (e.g. /class\s*=/ to catch dynamic DOM in script blocks).
+   * @returns {string}  Transformed source.
+   */
+  static replaceInBlocks(content, allowBlocks, replacer, opts) {
+    const lines = content.split('\n');
+    const { blocks } = this.classifyBlocks(content, lines);
+    const override = opts?.allowIfLineMatches || null;
+    const allowSet = new Set(allowBlocks);
+
+    const result = lines.map((line, i) => {
+      const allowed = allowSet.has(blocks[i]) ||
+                      (override && override.test(line));
+      return allowed ? replacer(line, i) : line;
+    });
+
+    return result.join('\n');
+  }
+}
+
+//-- endfile --
+
+// ═══════════════════════════════════════════════════════════════
+//  HARNESS — throwaway UI to exercise SourceAwareness.
+//
+//  This is NOT part of the deliverable. It lets you paste source
+//  code and see block classification, comment stripping, and
+//  block-aware replacement in a side-by-side view.
+//
+//  In a real tool, import source-awareness.js as an ES module.
+// ═══════════════════════════════════════════════════════════════
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const statusEl = $('status');
+const setStatus = (msg, type = '') => {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+};
+
+// ── State ───────────────────────────────────────────────────
+
+const state = {
+  content: '',
+  lines: [],
+  blocks: [],
+  commentRanges: [],
+  tab: 'blocks',
+};
+
+// ── Example source ──────────────────────────────────────────
+
+const EXAMPLE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Example Page</title>
+<!-- This is an HTML comment
+     spanning two lines -->
+<style>
+  /* Reset */
+  *, *::before { box-sizing: border-box; margin: 0; }
+
+  body {
+    background: #1a1a2e;
+    color: #e0def4;
+    /* TODO: add dark mode toggle */
+    font-family: system-ui, sans-serif;
+  }
+
+  .btn-primary {
+    background: #6c63ff;
+    border: none;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+  <h1 class="title">Hello World</h1>
+  <button class="btn-primary">Click me</button>
+
+  <script>
+    // Initialize the app
+    const app = {
+      name: 'Example',
+      /* version info:
+         updated quarterly */
+      version: '1.0.0',
+    };
+
+    /*
+     * Multi-line JS block comment.
+     * This should be classified as comment.
+     */
+    function init() {
+      document.querySelector('.btn-primary')
+        .addEventListener('click', () => {
+          console.log('clicked');  // inline comment
+        });
+    }
+
+    init();
+  \x3c/script>
+</body>
+</html>`;
+
+// ── Analysis ────────────────────────────────────────────────
+
+function analyse() {
+  state.content = $('sourceInput').value;
+  if (!state.content.trim()) {
+    setStatus('Paste some source code first', 'error');
+    return;
+  }
+
+  state.lines = state.content.split('\n');
+  const result = SourceAwareness.classifyBlocks(state.content, state.lines);
+  state.blocks = result.blocks;
+  state.commentRanges = result.commentRanges;
+
+  renderOutput();
+  renderStats();
+  setStatus(
+    `${state.lines.length} lines · ` +
+    `${countBlock('html')} html · ${countBlock('style')} style · ` +
+    `${countBlock('script')} script · ${countBlock('comment')} comment`,
+    'success'
+  );
+}
+
+function countBlock(type) {
+  return state.blocks.filter(b => b === type).length;
+}
+
+// ── Rendering ───────────────────────────────────────────────
+
+function renderOutput() {
+  $('outputTabs').querySelectorAll('.panel-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === state.tab));
+
+  if (!state.lines.length) {
+    $('outputContent').innerHTML =
+      '<div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:0.8rem">Click Analyse to see results</div>';
+    $('outputCount').textContent = '—';
+    return;
+  }
+
+  switch (state.tab) {
+    case 'blocks':   renderBlocks(); break;
+    case 'stripped': renderStripped(); break;
+    case 'replace':  renderReplace(); break;
+  }
+}
+
+function renderBlocks() {
+  const el = $('outputContent');
+  el.innerHTML = state.lines.map((line, i) => {
+    const block = state.blocks[i];
+    return `<div class="output-line" data-block="${block}">` +
+      `<span class="ln">${i + 1}</span>` +
+      `<span class="block-dot"></span>` +
+      `<span class="code">${esc(line)}</span></div>`;
+  }).join('');
+  $('outputCount').textContent = state.lines.length + ' lines';
+}
+
+function renderStripped() {
+  const el = $('outputContent');
+
+  // Detect syntax from content
+  const syntax = detectSyntax(state.content);
+  const stripped = SourceAwareness.stripComments(state.content, syntax);
+  const strippedLines = stripped.split('\n');
+
+  el.innerHTML = state.lines.map((origLine, i) => {
+    const sLine = strippedLines[i] || '';
+    const isChanged = origLine !== sLine;
+    const block = state.blocks[i];
+
+    if (isChanged && origLine.trim() && !sLine.trim()) {
+      // Entire line was a comment — show struck through
+      return `<div class="output-line" data-block="comment">` +
+        `<span class="ln">${i + 1}</span>` +
+        `<span class="block-dot"></span>` +
+        `<span class="code stripped">${esc(origLine)}</span></div>`;
+    }
+
+    return `<div class="output-line" data-block="${block}">` +
+      `<span class="ln">${i + 1}</span>` +
+      `<span class="block-dot"></span>` +
+      `<span class="code">${esc(sLine)}</span></div>`;
+  }).join('');
+
+  const removedLines = state.lines.filter((l, i) => {
+    const s = strippedLines[i] || '';
+    return l.trim() && !s.trim();
+  }).length;
+  $('outputCount').textContent = `syntax: ${syntax} · ${removedLines} comment lines blanked`;
+}
+
+function renderReplace() {
+  const el = $('outputContent');
+
+  // Demo: replace all colour hex values, but only in style blocks
+  const result = SourceAwareness.replaceInBlocks(
+    state.content,
+    ['style', 'html'],
+    line => line.replace(
+      /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g,
+      match => `var(--color-${match.slice(1).toLowerCase()})`
+    ),
+    { allowIfLineMatches: /style\s*=/ }
+  );
+
+  const resultLines = result.split('\n');
+
+  el.innerHTML = state.lines.map((origLine, i) => {
+    const newLine = resultLines[i] || '';
+    const block = state.blocks[i];
+    const changed = origLine !== newLine;
+
+    return `<div class="output-line" data-block="${block}">` +
+      `<span class="ln">${i + 1}</span>` +
+      `<span class="block-dot"></span>` +
+      `<span class="code">${changed
+        ? '<span style="color:var(--accent)">' + esc(newLine) + '</span>'
+        : esc(origLine)}</span></div>`;
+  }).join('');
+
+  const changedCount = state.lines.filter((l, i) => l !== resultLines[i]).length;
+  $('outputCount').textContent = `${changedCount} lines changed · hex → var() in style+html only`;
+}
+
+function renderStats() {
+  const container = $('headerRight');
+  container.querySelectorAll('.stat-badge').forEach(el => el.remove());
+
+  const types = ['html', 'style', 'script', 'comment'];
+  const colors = {
+    html: 'var(--dot-html)', style: 'var(--dot-style)',
+    script: 'var(--dot-script)', comment: 'var(--dot-comment)'
+  };
+
+  for (const type of types) {
+    const count = countBlock(type);
+    if (count === 0) continue;
+    const badge = document.createElement('div');
+    badge.className = 'stat-badge';
+    badge.style.color = colors[type];
+    badge.innerHTML = `<span class="stat-dot"></span>${count} ${type}`;
+    container.insertBefore(badge, $('btnExample'));
+  }
+}
+
+function detectSyntax(content) {
+  if (/<html|<!doctype/i.test(content)) return 'html';
+  if (/^\s*[.#@:*]|{\s*[\w-]+\s*:/.test(content)) return 'css';
+  return 'js';
+}
+
+// ── Event wiring ────────────────────────────────────────────
+
+function init() {
+  $('btnAnalyse').addEventListener('click', analyse);
+
+  $('btnExample').addEventListener('click', () => {
+    $('sourceInput').value = EXAMPLE;
+    $('inputCount').textContent = EXAMPLE.split('\n').length + ' lines';
+    analyse();
+  });
+
+  $('sourceInput').addEventListener('input', () => {
+    const count = $('sourceInput').value.split('\n').length;
+    $('inputCount').textContent = count + ' lines';
+  });
+
+  $('outputTabs').querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      state.tab = tab.dataset.tab;
+      renderOutput();
+    });
+  });
+}
+
+init();
+
+  </script>
+</body>
+</html>

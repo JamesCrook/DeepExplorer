@@ -456,7 +456,7 @@ const FILE_END   = /^\s*(\/\/|#|\/\*)\s*--\s*endfile\s*--/;
 const LINE_OUT   = /^\s*(\/\/|#|\/\*)\s*>>\s?(.*?)(\s*\*\/)?$/;
 const LINE_IN    = /^\s*(\/\/|#|\/\*)\s*<<\s?(.*?)(\s*\*\/)?$/;
 const REG_LINE   = /registerNodeClass\(\s*['"]([^'"]+)['"]\s*,\s*(\w+)/;
-const CLASS_DECL = /^(\s*)class\s+(\w+)/;
+const CLASS_DECL = /^class\s+(\w+)/;
 const FUNC_DECL  = /^(\s*)(function\s+(\w+)|const\s+(\w+)\s*=\s*Object\.freeze)/;
 
 function parseFile(content, filePath) {
@@ -471,13 +471,13 @@ function parseFile(content, filePath) {
   for (let i = 0; i < lines.length; i++) {
     const cm = CLASS_DECL.exec(lines[i]);
     if (cm && !/^\s*(\/\/|\/\*|\*)/.test(lines[i])) {
-      const indent = cm[1].length;
+      const indent = 0;
       // Close any classes at same or deeper indent
       while (classStack.length && classStack[classStack.length-1].indent >= indent) {
         classStack[classStack.length-1].endLine = i;
         classStack.pop();
       }
-      const entry = { name: cm[2], startLine: i, endLine: lines.length, indent, file: filePath };
+      const entry = { name: cm[1], startLine: i, endLine: lines.length, indent, file: filePath };
       classes.push(entry);
       classStack.push(entry);
     }

@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chart Editor - Extensible Models</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e0e1a; color: #c8c0b0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow: hidden; user-select: none; -webkit-user-select: none;
+  }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #help {
+    position: fixed; bottom: 12px; left: 12px; font-size: 11px;
+    color: #889; pointer-events: none; z-index: 5;
+    background: rgba(15, 15, 20, 0.6); padding: 8px 12px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .sel-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .sel-row span { min-width: 60px; color: #999; font-size: 11px; }
+  .sel-row input[type=text] {
+    flex: 1; background: rgba(0,0,0,0.5); color: #fff;
+    border: 1px solid rgba(255,255,255,0.2); padding: 4px 6px;
+    border-radius: 4px; font-size: 11px; outline: none;
+    font-family: 'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+  }
+  .sel-row input[type=text]:focus { border-color: #6cf; }
+  .sel-row input[type=color] {
+    width: 32px; height: 22px; padding: 1px; cursor: pointer; border-radius: 4px;
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); outline: none;
+  }
+</style>
+</head>
+<body>
+<div id="help">
+  <strong>Scroll</strong> to zoom, drag empty space to pan.<br/>
+  <strong>Drag</strong> from strip to place blocks. Drop on strip to delete.
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const R = 30;
+const P = { 
+  opacity: 80, edgeWidth: 5, edgeOutline: 1.5, edgeBend: 0, 
+  indicatedIds: new Set(), showChartBounds: false, screenMode: false,
+  colors: { 4: { fill: '#c08428', stroke: '#9a6a1e' } }, 
+};
+
+const MODELS = []
+const STOCK = []  
+const CONTROLS = []
+
+let _nodeId = 0;
+function makeNode(type, value, subtree) {
+  return { type, value: { ...value, id: ++_nodeId }, subtree: subtree || [] };
+}
+function cloneProto(proto, overrides) {
+  const { id: _, ...rest } = proto.value;
+  return makeNode(proto.type, { ...rest, ...overrides });
+}
+
+/*------------------------------------
+DEPENDENCIES:
+
+// 1. Foundation & Math
+ class Geo { ... }
+ 
+ // 2. Registry & Utils
+ class SubtreeIterator { ... }
+ class SceneRegistry { ... }
+ let sceneRegistry = new SceneRegistry();
+ class Utils { ... }
+ 
+ // 3. Graph & Node Helpers
+ class ConnHelper { ... }
+ class PipHelper extends ConnHelper { ... }
+ class SnapControllerUtils { ... }
+ class BasicCollectionNode { ... } // (Only the static methods are strictly required  by the controllers)
+ 
+ // 4. Raft Dragging Engines (Only needed for RaftSnap)
+ class RaftConeEngine { ... }
+ class RaftSnapEngine { ... }
+ 
+ // 5. The Controllers
+ class RaftSnapController { ... }
+ class EdgeSnapController { ... }
+--------------------------------------------------------*/
+
+//<< import { Geo } from './geo.js';
+//-- file: ./geo.js --
+//>> export { Geo };
+class Geo {
+  static TAU = Math.PI * 2;
+  static PI  = Math.PI;
+
+  static norm(a) { return ((a % Geo.TAU) + Geo.TAU + Geo.PI) % Geo.TAU - Geo.PI; }
+  static adiff(a, b) { return Math.abs(Geo.norm(a - b)); }
+  static dist(a, b) { return Math.hypot(b.x - a.x, b.y - a.y); }
+  static dist2(ax, ay, bx, by) { return Math.hypot(bx - ax, by - ay); }
+  static pipsOpposite(a, b) { return Geo.adiff(a, b) > Geo.PI * 0.85; }
+
+  static verts(n, cx, cy, r, tilt) {
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = tilt + (i * Geo.TAU) / n - Geo.PI;
+      v.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    }
+    return v;
+  }
+
+  static pips(n, cx, cy, r, tilt) {
+    const vs = Geo.verts(n, cx, cy, r, tilt);
+    const p = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const mx = (vs[i].x + vs[j].x) / 2;
+      const my = (vs[i].y + vs[j].y) / 2;
+      p.push({ x: mx, y: my, out: Math.atan2(my - cy, mx - cx) });
+    }
+    return p;
+  }
+
+  static ptInPoly(px, py, vs) {
+    let ins = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+      if ((vs[i].y > py) !== (vs[j].y > py) &&
+          px < (vs[j].x - vs[i].x) * (py - vs[i].y) / (vs[j].y - vs[i].y) + vs[i].x)
+        ins = !ins;
+    }
+    return ins;
+  }
+}
+//-- endfile --
+
+class SubtreeIterator {
+  constructor() { this.index = 0; }
+  next(subtree) {
+    if (this.index >= subtree.length) return null;
+    return subtree[this.index++];
+  }
+}
+
+//<< import { SceneRegistry } from './scene-registry.js';
+//-- file: ./scene-registry.js --
+//>> export { SceneRegistry };
+class SceneRegistry {
+  constructor() {
+    this.handlers = {};
+    this.meta = {};
+  }
+
+  hasCtxMix(fn, name) {
+    const fnStr = fn.toString().trim();
+    const codeOnly = fnStr.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+    const match = codeOnly.match(/^[^(]*\(\s*([^,)\s]+)/);
+    let firstParam = '';
+    if (match) firstParam = match[1];
+    else {
+      const arrowMatch = codeOnly.match(/^([^=()\s]+)\s*=>/);
+      if (arrowMatch) firstParam = arrowMatch[1];
+    }
+    return firstParam === 'ctxMix';
+  }
+  
+  _hasHandler(nodeType, name) { return !!this.handlers[nodeType]?.[name]; }
+
+  registerNodeClass(nodeType, nodeClass, defaultParams=null) {
+    const proto = nodeClass.prototype;
+    for (let cls = nodeClass; cls && cls !== Function.prototype; cls = Object.getPrototypeOf(cls)) {
+      for (const name of Object.getOwnPropertyNames(cls)) {
+        if (['length', 'name', 'prototype'].includes(name)) continue;
+        const method = cls[name];
+        if (typeof method !== 'function') continue;
+        if (this.hasCtxMix(method, name)) {
+          if (!this._hasHandler?.(nodeType, name)) {
+            this._registerHandler(nodeType, name, (ctxMix, node, params, child) => {
+              return nodeClass[name](ctxMix, node, params, child);
+            });
+          }
+        }
+      }
+    }
+    this.meta[nodeType] = { nodeClass, defaultParams, ...(nodeClass.meta || {}) };
+  }
+
+  _registerHandler(nodeType, phase, handler) {
+    if (!this.handlers[phase]) this.handlers[phase] = {};
+    this.handlers[phase][nodeType] = handler;
+  }
+
+  dispatch(ctxMix, phase, node, params, child) {
+    const phaseHandlers = this.handlers[phase];
+    if (!phaseHandlers) return;
+    const meta = this.meta[node.type];
+    const mergedParams = meta?.defaultParams ? { ...meta.defaultParams, ...params } : params;
+    const handler = phaseHandlers[node.type] || phaseHandlers['default'];
+    if (handler) return handler(ctxMix, node, mergedParams, child);
+  }
+  
+  hasPhase(nodeType, phase) { return !!this.handlers[phase]?.[nodeType]; }
+
+  walkPhase(ctxMix, phase, node, params) {
+    if (!node) return;
+    
+    if (!node?.subtree || node?.subtree?.length === 0) {
+      this.dispatch(ctxMix, phase, node, params);
+      return;
+    }
+    
+    if (!ctxMix.iterators) ctxMix.iterators = [];
+    ctxMix.iterators.push(new SubtreeIterator());
+    
+    this.dispatch(ctxMix, 'before_' + phase, node, params);
+    
+    let child;
+    while ((child = ctxMix.iterators.at(-1).next(node.subtree)) !== null) {
+      if (ctxMix.abortPhase) break; 
+
+      this.dispatch(ctxMix, 'before_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break; 
+      
+      this.walkPhase(ctxMix, phase, child, params);
+      if (ctxMix.abortPhase) break; 
+      
+      this.dispatch(ctxMix, 'after_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break;
+    }
+    ctxMix.abortPhase = false;    
+    this.dispatch(ctxMix, 'after_' + phase, node, params);
+    ctxMix.iterators.pop();
+  }
+}
+
+let sceneRegistry = new SceneRegistry();
+
+//-- endfile --
+
+//<< import { Utils } from './utils.js';
+//-- file: ./utils.js --
+//>> export { Utils };
+class Utils {
+  static classOfNode(node) {
+    if (!node) return null;
+    return sceneRegistry.meta[node.type]?.nodeClass || null;
+  }
+  static hasAffordance(node, phaseName) {
+    return node && sceneRegistry.hasPhase(node.type, phaseName);
+  }
+}
+//-- endfile --
+
+
+
+//<< import { BasicCollectionNode } from './basic-collection-node.js';
+//-- file: ./basic-collection-node.js --
+//>> export { BasicCollectionNode };
+class BasicCollectionNode {
+  static _sortSubtree(sub) {
+    sub.sort((a, b) => {
+      const az = Utils.classOfNode(a)?.meta?.zOrder ?? 0;
+      const bz = Utils.classOfNode(b)?.meta?.zOrder ?? 0;
+      return az - bz;
+    });
+  }
+
+  static after_child_hit_test(ctxMix, node, params, child) {
+    if (ctxMix.hitResult && ctxMix.hitResult.node === child && !ctxMix.hoverOnly) {
+       const inner = ctxMix.hitResult.interactions;
+       const sub = node.subtree;
+       ctxMix.hitResult.interactions = {
+          applyDrag: (wx, wy) => { if (inner && inner.applyDrag) inner.applyDrag(wx, wy); },
+          endDrag: (onStrip) => {
+             if (inner && inner.endDrag) inner.endDrag(onStrip);
+             if (onStrip) {
+                 const idx = sub.indexOf(child);
+                 if (idx >= 0) sub.splice(idx, 1);
+             }
+          }
+       };
+    }
+  }
+}
+
+sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
+//-- endfile --
+
+
+//<< import { WordNode } from './word-node.js';
+//-- file: ./word-node.js --
+//>> export { WordNode };
+function hexToRgba(hex, alpha) {
+  hex = (hex || '#888888').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length === 8) hex = hex.slice(0, 6);
+  const n = parseInt(hex, 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function measureWord(ctx, text, font) {
+  ctx.font = font;
+  ctx.textBaseline = 'alphabetic'; // <-- Add this line to fix the offset
+  
+  const m = ctx.measureText(text);
+  const asc = m.actualBoundingBoxAscent  || m.emHeightAscent  || 0;
+  const dsc = m.actualBoundingBoxDescent || m.emHeightDescent || 0;
+  
+  return { width: m.width, ascent: asc, descent: dsc, height: asc + dsc };
+}
+
+const WORD_DEFAULTS = Object.freeze({
+  fontFamily:     '"Inter", "Helvetica Neue", system-ui, sans-serif',
+  fontSize:       28,
+  fontWeight:     700,
+  color:          '#e4dac6',
+  opacity:        1.0,
+  rotation:       0,
+  haloColor:      '#000000',
+  haloWidth:      0,
+  haloOpacity:    0.35,
+  highlightFill:  'rgba(255,255,255,0.06)',
+  highlightPad:   6,
+  highlightRadius: 4,
+  scale:          1.0,
+});
+
+class WordNode {
+  // New Style: Metadata tells the system how to interact with this node
+  static meta = {
+    zOrder: 1,
+    raftable: true,
+    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, text: 'word' }),
+    editableFields: (node) => [
+      { key: 'text', label: 'Text', type: 'text', value: node.value.text || '' },
+      { key: 'fontSize', label: 'Size', type: 'number', value: node.value.fontSize || WORD_DEFAULTS.fontSize },
+      { key: 'rotation', label: 'Rotation', type: 'number', value: node.value.rotation || WORD_DEFAULTS.rotation },
+      { key: 'color', label: 'Color', type: 'color', value: node.value.color || WORD_DEFAULTS.color },
+    ],
+  };
+
+  static getCentreXY(ctxMix, node, params) { 
+    const {x, y} = ctxMix.getXY(ctxMix, node, params); 
+    return {x, y}; 
+  }
+
+  static draw2d(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = { ...WORD_DEFAULTS, ...params };
+    const text = v.text || '';
+    if (!text) return;
+
+    // New Style: Zoom is handled naturally by the Camera context scale. 
+    // We no longer multiply fSize by zoom.
+    const sc      = (p.scale || 1) * (v.scale || 1);
+    const fSize   = (v.fontSize || p.fontSize) * sc;
+    const weight  = v.fontWeight || p.fontWeight;
+    const family  = v.fontFamily || p.fontFamily;
+    const font    = `${weight} ${fSize.toFixed(1)}px ${family}`;
+    const rot     = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+    const opacity = (v.opacity != null ? v.opacity : p.opacity);
+
+    // New Style: We extract world coordinates cleanly via the ctxMix getter.
+    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
+    const ctx = ctxMix.ctx;
+
+    ctx.save();
+    ctx.globalAlpha *= opacity;
+    ctx.translate(cx, cy);
+    if (rot) ctx.rotate(rot);
+
+    const meas = measureWord(ctx, text, font);
+
+    // ── highlight box behind selected words ──
+    // New Style: We check indicatedIds directly from params instead of a standalone Set
+    if (params.indicatedIds && params.indicatedIds.has(v.id)) {
+      const pad = (p.highlightPad || 0); // No zoom multiplier needed
+      const hr  = (p.highlightRadius || 0);
+      const hx  = -meas.width / 2 - pad;
+      const hy  = -meas.ascent - pad;
+      const hw  = meas.width + pad * 2;
+      const hh  = meas.height + pad * 2;
+      
+      ctx.fillStyle = p.highlightFill;
+      if (ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.fill();
+      } else {
+        ctx.fillRect(hx, hy, hw, hh);
+      }
+
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth   = 1.5;
+      if (ctx.roundRect) {
+        ctx.beginPath(); ctx.roundRect(hx, hy, hw, hh, hr); ctx.stroke();
+      } else {
+        ctx.strokeRect(hx, hy, hw, hh);
+      }
+      ctx.setLineDash([]);
+    }
+
+    // ── halo / outline ──
+    const haloW = (v.haloWidth != null ? v.haloWidth : p.haloWidth) * sc;
+    if (haloW > 0) {
+      ctx.strokeStyle = hexToRgba(
+        v.haloColor || p.haloColor,
+        v.haloOpacity != null ? v.haloOpacity : p.haloOpacity
+      );
+      ctx.lineWidth   = haloW;
+      ctx.lineJoin    = 'round';
+      ctx.font        = font;
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.strokeText(text, 0, 0);
+    }
+
+    // ── text fill ──
+    ctx.fillStyle    = v.color || p.color;
+    ctx.font         = font;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(text, 0, 0);
+
+    ctx.restore();
+  }
+
+  static hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt) return;
+
+    const v = node.value || {};
+    const text = v.text || '';
+    if (!text) return;
+
+    const p = { ...WORD_DEFAULTS, ...params };
+    const sc = (p.scale || 1) * (v.scale || 1);
+    const fSize = (v.fontSize || p.fontSize) * sc;
+    const weight = v.fontWeight || p.fontWeight;
+    const family = v.fontFamily || p.fontFamily;
+    const font = `${weight} ${fSize.toFixed(1)}px ${family}`;
+    const rot = (v.rotation != null ? v.rotation : p.rotation) * Math.PI / 180;
+
+    // New Style: No screen conversion needed. pt is already in world space.
+    const { x: cx, y: cy } = ctxMix.getXY(ctxMix, node, params);
+
+    // Transform hit point into the word's local frame
+    let lx = pt.x - cx;
+    let ly = pt.y - cy;
+    if (rot) {
+      const cos = Math.cos(-rot), sin = Math.sin(-rot);
+      const rx = lx * cos - ly * sin;
+      const ry = lx * sin + ly * cos;
+      lx = rx; ly = ry;
+    }
+
+    const ctx = ctxMix.ctx;
+    const meas = measureWord(ctx, text, font);
+    const pad = 4;
+    const halfW = meas.width / 2 + pad;
+    const top = -meas.ascent - pad;
+    const bot = meas.descent + pad;
+
+    if (lx < -halfW || lx > halfW || ly < top || ly > bot) return;
+
+    const dxHit = pt.x - cx;
+    const dyHit = pt.y - cy;
+
+    // New Style: Pass world coordinates directly in applyDrag
+    ctxMix.hitResult = {
+      node,
+      interactions: {
+        applyDrag(wx, wy) {
+          node.value.x = wx - dxHit;
+          node.value.y = wy - dyHit;
+        },
+      },
+    };
+  }
+}
+
+sceneRegistry.registerNodeClass('word-node', WordNode);
+//-- endfile --
+
+
+
+
+
+
+
+
+
+
+
+
+//<< import { CameraNode } from './camera-node.js';
+//-- file: ./camera-node.js --
+//>> export { CameraNode };
+class CameraNode {
+  static before_draw2d(ctxMix, node, params) {
+    const c = ctxMix.ctx;
+    const cam = node.value.cam;
+    cam.apply(c);
+    
+    const spacing = 40, l = cam.ox, t = cam.oy;
+    const W = ctxMix.W || ctxMix.getWH().W;
+    const H = ctxMix.H || ctxMix.getWH().H;
+    const r = l + W / cam.z, b = t + H / cam.z;
+    
+    c.fillStyle = '#1c1c38'; 
+    const ds = 1 / cam.z;
+    for (let x = Math.floor(l / spacing) * spacing; x <= r; x += spacing)
+      for (let y = Math.floor(t / spacing) * spacing; y <= b; y += spacing)
+        c.fillRect(x, y, ds, ds);
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    node.value.cam.reset(ctxMix.ctx);
+  }
+
+  static before_hit_test(ctxMix, node, params) {
+    node.value.savedHit = ctxMix.hitPoint;
+    if (ctxMix.hitPoint) {
+      ctxMix.hitPoint = node.value.cam.toWorld(ctxMix.hitPoint.x, ctxMix.hitPoint.y);
+    }
+  }
+
+  static after_hit_test(ctxMix, node, params) {
+    ctxMix.hitPoint = node.value.savedHit;
+  }
+}
+
+sceneRegistry.registerNodeClass('camera-node', CameraNode);
+//-- endfile --
+
+class StockStripNode {
+  static layout(ctxMix, node) {
+    const { W, H } = ctxMix.getWH();
+    const stripH = node.value.height, protos = node.subtree, y = H - stripH / 2;
+    const gap = Math.min(120, W / (protos.length + 1)), x0 = (W - gap * (protos.length - 1)) / 2;
+    protos.forEach((p, i) => {
+      const cx = x0 + gap * i, cy = y;
+      const cls = Utils.classOfNode(p);
+      if (cls && cls.setXY) cls.setXY(null, p, { x: cx, y: cy });
+      else { p.value.x = cx; p.value.y = cy; }
+    });
+  }
+
+  static before_draw2d(ctxMix, node, params) {
+    StockStripNode.layout(ctxMix, node);
+    const ctx = ctxMix.ctx, { W, H } = ctxMix.getWH(), stripH = node.value.height;
+    const opacity = (params.opacity ?? 100) / 100;
+    
+    ctx.save(); 
+    ctx.globalAlpha = opacity; 
+    ctx.fillStyle = '#16163a'; 
+    ctx.fillRect(0, H - stripH, W, stripH); 
+    ctx.restore();
+    
+    ctx.strokeStyle = '#282850'; ctx.lineWidth = 1; 
+    ctx.beginPath(); ctx.moveTo(0, H - stripH); ctx.lineTo(W, H - stripH); ctx.stroke();
+  }
+
+  static before_child_draw2d(ctxMix, node, params, child) {
+    ctxMix.ctx.save();
+    ctxMix.ctx.globalAlpha = 0.5;
+  }
+
+  static after_child_draw2d(ctxMix, node, params, child) {
+    const ctx = ctxMix.ctx, cls = Utils.classOfNode(child);
+    let cx = child.value.x, cy = child.value.y;
+    
+    if (cls && cls.getCentreXY) {
+      const center = cls.getCentreXY(ctxMix, child, params);
+      cx = center.x; cy = center.y;
+    }
+
+    if (cls && cls.getPips) {
+      for (const p of cls.getPips({ getXY: () => ({x: cx, y: cy}) }, child, params)) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Geo.TAU); 
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#556'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(child.value.label || '', cx, cy + 27);
+  }
+  
+  static before_hit_test(ctxMix, node, params) {
+    const pt = ctxMix.hitPoint;
+    if (!pt || pt.y < ctxMix.getWH().H - node.value.height) {
+      ctxMix.abortPhase = true; 
+      return;
+    }
+    StockStripNode.layout(ctxMix, node);
+  }
+
+  static after_child_hit_test(ctxMix, node, params, child) {
+    if (ctxMix.hitResult) {
+      ctxMix.hitResult.isStockPrototype = true;
+      ctxMix.abortPhase = true;
+    }
+  }
+}
+
+CONTROLS.push({ type: 'separator', label: 'Display' })
+CONTROLS.push({ id: 'opacity',     label: 'Strip Opacity', min: 0, max: 100, step: 1, value: P.opacity })
+CONTROLS.push({ type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true })
+
+sceneRegistry.registerNodeClass('stock-strip', StockStripNode);
+
+
+class Camera {
+  constructor() { this.ox = 0; this.oy = 0; this.z = 1; }
+  toWorld(sx, sy)  { return { x: sx / this.z + this.ox, y: sy / this.z + this.oy }; }
+  toScreen(wx, wy) { return { x: (wx - this.ox) * this.z, y: (wy - this.oy) * this.z }; }
+  apply(ctx) { ctx.setTransform(this.z, 0, 0, this.z, -this.ox * this.z, -this.oy * this.z); }
+  reset(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  pan(dsx, dsy) { this.ox -= dsx / this.z; this.oy -= dsy / this.z; }
+  zoomAt(sx, sy, factor) {
+    const wp = this.toWorld(sx, sy);
+    this.z = Math.max(0.15, Math.min(5, this.z * factor));
+    this.ox = wp.x - sx / this.z; this.oy = wp.y - sy / this.z;
+  }
+}
+
+class HudPanel {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 12, left: 12 } } = {}) {
+    this._onChange = onChange || (() => {});
+    this._inputs = {}; this._valDisplays = {}; this._injectStyles();
+    this._root = document.createElement('div');
+    this._root.className = 'hud-panel';
+    this._root.style.top = position.top + 'px'; this._root.style.left = position.left + 'px';
+    const header = document.createElement('h3'); header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header); this._makeDraggable(header);
+    for (const ctrl of controls) this._addControl(ctrl);
+    container.appendChild(this._root);
+  }
+  _addControl(ctrl) {
+    if (ctrl.type === 'separator') this._addSeparator(ctrl);
+    else if (ctrl.type === 'button')   this._addButton(ctrl);
+    else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
+    else if (ctrl.type === 'select') this._addSelect(ctrl);
+    else this._addSlider(ctrl);
+  }
+  _addSlider(ctrl) {
+    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const input = document.createElement('input'); Object.assign(input, { type: 'range', min, max, step, value });
+    row.appendChild(input);
+    const val = document.createElement('span'); val.className = 'val'; val.textContent = parseFloat(value).toFixed(step % 1 === 0 ? 0 : 2);
+    row.appendChild(val);
+    input.addEventListener('input', () => {
+      const v = parseFloat(input.value); val.textContent = v.toFixed(step % 1 === 0 ? 0 : 2);
+      this._onChange(id, v);
+    });
+    this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
+  }
+  _addButton(ctrl) {
+    const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
+    btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
+    this._root.appendChild(btn);
+  }
+  _addCheckbox(ctrl) {
+    const { id, label, value = false } = ctrl;
+    const row = document.createElement('label'), span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const sw = document.createElement('div'); sw.className = 'toggle-switch';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = !!value;
+    input.addEventListener('change', () => this._onChange(id, input.checked));
+    const slider = document.createElement('span'); slider.className = 'toggle-slider';
+    sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
+    this._inputs[id] = input; this._root.appendChild(row);
+  }
+  _addSelect(ctrl) {
+    const { id, label, options = [], value } = ctrl;
+    const row = document.createElement('label'); const span = document.createElement('span');
+    span.textContent = label; row.appendChild(span);
+    const select = document.createElement('select');
+    for (const opt of options) {
+      const option = document.createElement('option');
+      option.value = opt[0]; option.textContent = opt[1];
+      if (opt[0] === String(value)) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => this._onChange(id, select.value));
+    row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
+  }  
+  _addSeparator(ctrl) {
+    const sep = document.createElement('div'); sep.className = 'separator';
+    if (ctrl.label) sep.textContent = ctrl.label;
+    this._root.appendChild(sep);
+  }
+  _makeDraggable(handle) {
+    let isDragging = false, startX, startY, startLeft, startTop;
+    handle.addEventListener('mousedown', e => {
+      isDragging = true; handle.style.cursor = 'grabbing';
+      startX = e.clientX; startY = e.clientY;
+      startLeft = parseInt(this._root.style.left || 0, 10); startTop  = parseInt(this._root.style.top  || 0, 10);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      this._root.style.left = `${startLeft + e.clientX - startX}px`; this._root.style.top  = `${startTop  + e.clientY - startY}px`;
+    });
+    window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
+  }
+  _injectStyles() {
+    if (document.getElementById('hud-panel-css')) return;
+    const s = document.createElement('style'); s.id = 'hud-panel-css';
+    s.textContent = `
+      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 10; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
+      .hud-panel h3 { margin: 0 0 12px; font-size: 11px; color: #b0a898; letter-spacing: 1px; cursor: grab; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase; }
+      .hud-panel h3:active { cursor: grabbing; }
+
+
+
+      .hud-panel label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+      .hud-panel label > span:first-child { min-width: 100px; color: #999; }
+      .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
+      .hud-panel select { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 4px; font-size: 10px; outline: none; cursor: pointer; }
+      .hud-panel .toggle-switch { position: relative; width: 28px; height: 16px; display: inline-block; flex-shrink: 0; }
+      .hud-panel .toggle-switch input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
+      .hud-panel .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); transition: .2s; border-radius: 16px; }
+      .hud-panel .toggle-slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #889; transition: .2s; border-radius: 50%; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider { background-color: rgba(102, 204, 255, 0.15); border-color: #6cf; }
+      .hud-panel .toggle-switch input:checked + .toggle-slider:before { transform: translateX(12px); background-color: #6cf; box-shadow: 0 0 4px #6cf; }
+      .hud-panel .val { min-width: 32px; text-align: right; font-variant-numeric: tabular-nums; color: #8cf; font-weight: 600; }
+      .hud-panel .separator { margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px; }
+      .hud-btn { display: block; width: 100%; margin: 4px 0; padding: 6px 0; background: rgba(0,0,0,0.4); color: #ccc; font-size: 11px; font-family: system-ui, sans-serif; text-align: center; border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s; }
+      .hud-btn:hover { border-color: #6cf; background: rgba(102,204,255,0.08); }
+      .hud-btn.green { color: #5b5; }
+      .hud-btn.green:hover { border-color: #5b5; background: rgba(80,180,80,0.08); }
+      .hud-btn.danger { color: #c55; }
+      .hud-btn.danger:hover { border-color: #c55; background: rgba(200,80,80,0.08); }
+    `;
+    document.head.appendChild(s);
+  }
+}
+//-- endfile --
+
+//<< import { WordCloudModel } from './word-cloud-model.js';
+//-- file: ./word-cloud-model.js --
+//>> export { WordCloudModel };
+class WordCloudModel {
+  get name() { return 'Load Word Cloud'; }
+  load(app) {
+    app.clearAll();
+    const sub = app.collNode.subtree;
+    
+    // Seed with the classic data from the old layout
+    const oldNodes = [
+      { type: 'word-node', value: { x:   0, y: -80, text: 'canvas',    fontSize: 52, fontWeight: 800, color: '#e4dac6' } },
+      { type: 'word-node', value: { x: 150, y: -30, text: 'scene',     fontSize: 38, fontWeight: 700, color: '#8bb8d0' } },
+      { type: 'word-node', value: { x:-160, y: -20, text: 'node',      fontSize: 44, fontWeight: 700, color: '#d4a56a' } },
+      { type: 'word-node', value: { x: -60, y:  30, text: 'render',    fontSize: 34, fontWeight: 600, color: '#a0c4a8' } },
+      { type: 'word-node', value: { x: 100, y:  50, text: 'transform', fontSize: 28, fontWeight: 600, color: '#c898b8' } },
+      { type: 'word-node', value: { x:-140, y:  80, text: 'draw',      fontSize: 40, fontWeight: 700, color: '#e07050', rotation: -12 } },
+      { type: 'word-node', value: { x:  40, y: 110, text: 'zoom',      fontSize: 22, fontWeight: 500, color: '#7a9a6a' } },
+      { type: 'word-node', value: { x: 180, y: 100, text: 'pixel',     fontSize: 26, fontWeight: 600, color: '#6a8cae', rotation: 8 } },
+      { type: 'word-node', value: { x: -30, y:-140, text: 'graph',     fontSize: 30, fontWeight: 700, color: '#c8b070', rotation: -5 } },
+      { type: 'word-node', value: { x:-180, y:-100, text: 'bevel',     fontSize: 20, fontWeight: 500, color: '#888070' } },
+      { type: 'word-node', value: { x: 200, y: -90, text: 'hit',       fontSize: 24, fontWeight: 600, color: '#d07070' } },
+      { type: 'word-node', value: { x:-100, y: 140, text: 'nugget',    fontSize: 18, fontWeight: 400, color: '#6a6256', haloWidth: 2, haloColor: '#6a6256', haloOpacity: 0.2 } },
+      { type: 'word-node', value: { x: 160, y: 150, text: 'spike',     fontSize: 20, fontWeight: 500, color: '#807060' } },
+      { type: 'word-node', value: { x:  50, y:-110, text: 'shader',    fontSize: 16, fontWeight: 400, color: '#706a80', rotation: 15 } },
+    ];
+
+    oldNodes.forEach(n => sub.push(makeNode(n.type, n.value)));
+    BasicCollectionNode._sortSubtree(sub);
+    app.centerOnWorld(0, 0);
+  }
+}
+MODELS.push( new WordCloudModel() )
+//-- endfile --
+
+
+
+
+class App {
+  constructor(canvas) {
+    this.canvas = canvas; this.ctx = canvas.getContext('2d');
+    this.cam = new Camera(); this.W = 0; this.H = 0;
+    this.panState = null; this.dragHit = null; this._downPos = null; this.selectedNode = null;
+    this.params = P;
+    
+    this.enableEdgeSnap = true;
+    this.enableRaftSnap = true;
+    this.edgeSnapController = typeof EdgeSnapController !== 'undefined' ? new EdgeSnapController() : null;
+    this.raftSnapController = typeof RaftSnapController !== 'undefined' ? new RaftSnapController() : null;
+
+    this.stockNode = makeNode('stock-strip', { height: 78 }, STOCK);
+    
+    this.collNode = makeNode('basic-collection', { 
+      connections: [], 
+      controllers: [
+        this.edgeSnapController, 
+        this.raftSnapController
+      ].filter(Boolean)
+    });
+    this.affordanceNode = makeNode('affordance-overlay', { target: this.collNode });
+    this.coneNode = makeNode('fracture-cone', { target: this.collNode });
+    
+    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, this.affordanceNode, this.coneNode ]);
+    this.rootNode = makeNode('scene-root', {}, [ this.camNode, this.stockNode ]);
+
+    this._seedLayoutDone = false;
+
+    this.resize(); this.buildHud(); this.bindInput(); this.loop();
+  }
+
+  resize() {
+    this.W = this.canvas.width = window.innerWidth;
+    this.H = this.canvas.height = window.innerHeight;
+  }
+
+  buildHud() {
+    //const P = this.params;
+    const models = MODELS;
+    const modelControls = models.map(m => ({ type: 'button', label: m.name, cls: m.btnClass, action: () => m.load(this) }));
+
+    this.hud = new HudPanel({
+      title: 'Chart Editor',
+      position: { top: 12, left: 12 },
+      controls: [
+        ...modelControls,
+        { type: 'button', label: 'Copy Points',      action: () => this.copyPoints() },
+        { type: 'button', label: 'Clear All', cls: 'danger', action: () => this.clearAll() },
+        ...CONTROLS
+      ],
+      onChange: (id, val) => {
+        if (id === 'showHints') {
+          document.getElementById('help').style.display = val ? 'block' : 'none';
+        } else if (id === 'enableEdgeSnap' || id === 'enableRaftSnap') {
+          this[id] = val;
+          this.collNode.value.controllers = [
+            this.enableEdgeSnap && this.edgeSnapController, 
+            this.enableRaftSnap && this.raftSnapController
+          ].filter(Boolean)
+        } else {
+          P[id] = val;
+        }
+      },
+    });
+
+    this._selPanel = document.createElement('div');
+    this._selPanel.className = 'hud-panel';
+    this._selPanel.style.cssText = 'position:absolute; top:12px; right:12px; display:none; min-width:220px;';
+    document.body.appendChild(this._selPanel);
+  }
+
+  updateSelectedPanel() {
+    const el = this._selPanel, node = this.selectedNode;
+    const cls = node ? Utils.classOfNode(node) : null;
+    const fields = cls?.meta?.editableFields?.(node);
+    if (!node || !fields || fields.length === 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block'; el.innerHTML = '';
+    const header = document.createElement('h3'); header.textContent = `SELECTED ${node.type.toUpperCase()}`; el.appendChild(header);
+    for (const f of fields) {
+      const row = document.createElement('div'); row.className = 'sel-row';
+      const span = document.createElement('span'); span.textContent = f.label; row.appendChild(span);
+      const inp = document.createElement('input'); inp.type = f.type; inp.value = f.value;
+      inp.addEventListener('input', () => { 
+        node.value[f.key] = f.type === 'number' ? Number(inp.value) : inp.value; 
+      });
+      row.appendChild(inp); el.appendChild(row);
+    }
+  }  
+
+  selectNode(node) { this.selectedNode = node; this.updateSelectedPanel(); }
+
+  centerOnWorld(wx, wy) {
+    const stripH = this.stockNode.value.height;
+    this.cam.ox = wx - this.W / (2 * this.cam.z);
+    this.cam.oy = wy - (this.H - stripH) / (2 * this.cam.z);
+  }
+
+  copyPoints() {
+    const pts = SilhouetteModel?.extractSilhouettePoints?.(this.collNode);
+    if (!pts || pts.length === 0) return;
+    const text = '[\n' + pts.map(p => `  [${p[0]},${p[1]}],`).join('\n') + '\n]';
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  clearAll() {
+    this.collNode.subtree.length = 0; this.collNode.value.connections.length = 0;
+    this.selectNode(null);
+  }
+
+  screenPos(e) {
+    if (e.touches) { const t = e.touches[0] || e.changedTouches[0]; return { x: t.clientX, y: t.clientY }; }
+    return { x: e.clientX, y: e.clientY };
+  }
+  
+  createCtxMix(sp) {
+    const cam = this.cam, w = this.W, h = this.H;
+    return { ctx: this.ctx, iterators: [], hitPoint: sp, hitResult: null, W: w, H: h,
+      getWH() { return { W: w, H: h, Z: cam.z, ox: cam.ox, oy: cam.oy }; },
+      getValue(ctxMix, node, params) {
+        return node?.flyFn ? node.flyFn(ctxMix, node, params) : node?.value;
+      },
+      getNode(ctxMix, node, params) {
+        return node?.nodeFn ? node.nodeFn(ctxMix, node, params) : node;
+      },
+      getXY: (m, n) => ({x: n.value.x, y: n.value.y}) 
+    };
+  }
+
+  _onHud(e) { return e.target.closest && e.target.closest('.hud-panel'); }
+
+  onDown(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e); this._downPos = { x: sp.x, y: sp.y };
+    const ctxMix = this.createCtxMix(sp);
+    
+    sceneRegistry.walkPhase(ctxMix, 'hit_test', this.rootNode, this.params);
+    
+    if (ctxMix.hitResult) {
+      if (ctxMix.hitResult.isStockPrototype) {
+        const proto = ctxMix.hitResult.node;
+        const wp = this.cam.toWorld(sp.x, sp.y);
+        const cls = Utils.classOfNode(proto);
+        const overrides = cls?.meta?.spawnOverrides?.(wp) ?? { x: wp.x, y: wp.y };
+        
+        const clone = cloneProto(proto, overrides);
+        this.collNode.subtree.push(clone);
+        BasicCollectionNode._sortSubtree(this.collNode.subtree);
+        
+        const cloneWmix = this.createCtxMix(wp);
+        const cloneCls = Utils.classOfNode(clone);
+        cloneCls.hit_test(cloneWmix, clone, this.params);
+        
+        if (cloneWmix.hitResult) { 
+          const ctrls = this.collNode.value.controllers;
+          if (ctrls) {
+            ctrls.forEach(c => c.wrapHit && c.wrapHit(cloneWmix, this.collNode, cloneWmix.hitResult, this.params));
+          }
+          this.dragHit = cloneWmix.hitResult; 
+        }
+        return;
+      } else {
+        if (this.selectedNode && this.selectedNode !== ctxMix.hitResult.node) this.selectNode(null);
+        this.dragHit = ctxMix.hitResult;
+        return;
+      }
+    }
+    
+    this.panState = { lx: sp.x, ly: sp.y };
+  }
+
+  onMove(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e);
+    if (this.dragHit) {
+      const wp = this.cam.toWorld(sp.x, sp.y);
+      this.dragHit.interactions.applyDrag(wp.x, wp.y);
+      this.canvas.style.cursor = 'grabbing'; return;
+    }
+    if (this.panState) {
+      this.cam.pan(sp.x - this.panState.lx, sp.y - this.panState.ly);
+      this.panState.lx = sp.x; this.panState.ly = sp.y;
+      this.canvas.style.cursor = 'move'; return;
+    }
+    
+    const ctxMix = this.createCtxMix(sp);
+    ctxMix.hoverOnly = true;
+    sceneRegistry.walkPhase(ctxMix, 'hit_test', this.rootNode, this.params);
+    this.canvas.style.cursor = ctxMix.hitResult ? 'grab' : 'default';
+  }
+
+  onUp(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = this.screenPos(e), dist = this._downPos ? Math.hypot(sp.x - this._downPos.x, sp.y - this._downPos.y) : 999;
+    if (this.dragHit) {
+      const onStrip = sp.y > this.H - this.stockNode.value.height, draggedNode = this.dragHit.node;
+      
+      if (this.dragHit.interactions && typeof this.dragHit.interactions.endDrag === 'function') {
+        this.dragHit.interactions.endDrag(onStrip);
+      }
+      
+      this.dragHit = null;
+      if (onStrip) {
+        // Node was deleted — clear selection if it pointed to the deleted node
+        if (this.selectedNode && !this.collNode.subtree.some(c => c === this.selectedNode)) {
+          this.selectNode(null);
+        }
+      } else if (dist < 3) {
+        this.selectNode(draggedNode);
+      } else {
+        // Drag completed — clear stale selection
+        this.selectNode(null);
+      }
+    } else {
+      if (dist < 3) this.selectNode(null);
+      this.panState = null;
+    }
+    this._downPos = null; this.canvas.style.cursor = 'default';
+  }
+
+  onWheel(e) {
+    if (this._onHud(e)) return;
+    e.preventDefault();
+    const sp = { x: e.clientX, y: e.clientY };
+    if (sp.y > this.H - this.stockNode.value.height) return;
+    this.cam.zoomAt(sp.x, sp.y, e.deltaY > 0 ? 0.9 : 1.1);
+  }
+
+  bindInput() {
+    const c = this.canvas;
+    c.addEventListener('mousedown',  e => this.onDown(e)); c.addEventListener('mousemove',  e => this.onMove(e));
+    c.addEventListener('mouseup',    e => this.onUp(e));   c.addEventListener('mouseleave', e => this.onUp(e));
+    c.addEventListener('wheel',      e => this.onWheel(e), { passive: false });
+    c.addEventListener('touchstart', e => this.onDown(e),  { passive: false });
+    c.addEventListener('touchmove',  e => this.onMove(e),  { passive: false });
+    c.addEventListener('touchend',   e => this.onUp(e),    { passive: false });
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  loop() {
+    if (!this._seedLayoutDone && this.W > 0 && this.H > 0) {
+      MODELS[0]?.load(this);
+      this._seedLayoutDone = true;
+    }
+
+    const c = this.ctx, P = this.params;
+    P.indicatedIds.clear();
+    if (this.selectedNode) P.indicatedIds.add(this.selectedNode.value.id);
+    if (this.dragHit) P.indicatedIds.add(this.dragHit.node.value.id);
+
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = '#12122a'; c.fillRect(0, 0, this.W, this.H);
+    
+    const ctxMix = this.createCtxMix(null);
+    sceneRegistry.walkPhase(ctxMix, 'layout', this.rootNode, P);
+    sceneRegistry.walkPhase(ctxMix, 'draw2d', this.rootNode, P);
+
+    requestAnimationFrame(() => this.loop());
+  }
+}
+
+new App(document.getElementById('c'));
+</script>
+</body>
+</html>

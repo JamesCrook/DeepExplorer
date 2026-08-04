@@ -64,30 +64,28 @@ function cloneProto(proto, overrides) {
 /*------------------------------------
 DEPENDENCIES:
 
-klass with a k to prevent dumb utility from marking up!
-
 // 1. Foundation & Math
-klass Geo { ... }
-
-// 2. Registry & Utils
-klass SubtreeIterator { ... }
-klass SceneRegistry { ... }
-let sceneRegistry = new SceneRegistry();
-klass Utils { ... }
-
-// 3. Graph & Node Helpers
-klass ConnHelper { ... }
-klass PipHelper extends ConnHelper { ... }
-klass SnapControllerUtils { ... }
-klass BasicCollectionNode { ... } // (Only the static methods are strictly required by the controllers)
-
-// 4. Raft Dragging Engines (Only needed for RaftSnap)
-klass RaftConeEngine { ... }
-klass RaftSnapEngine { ... }
-
-// 5. The Controllers
-klass RaftSnapController { ... }
-klass EdgeSnapController { ... }
+ class Geo { ... }
+ 
+ // 2. Registry & Utils
+ class SubtreeIterator { ... }
+ class SceneRegistry { ... }
+ let sceneRegistry = new SceneRegistry();
+ class Utils { ... }
+ 
+ // 3. Graph & Node Helpers
+ class ConnHelper { ... }
+ class PipHelper extends ConnHelper { ... }
+ class SnapControllerUtils { ... }
+ class BasicCollectionNode { ... } // (Only the static methods are strictly required  by the controllers)
+ 
+ // 4. Raft Dragging Engines (Only needed for RaftSnap)
+ class RaftConeEngine { ... }
+ class RaftSnapEngine { ... }
+ 
+ // 5. The Controllers
+ class RaftSnapController { ... }
+ class EdgeSnapController { ... }
 --------------------------------------------------------*/
 
 //<< import { Geo } from './geo.js';
@@ -134,12 +132,7 @@ class Geo {
     return ins;
   }
 }
-
 //-- endfile --
-
-
-
-
 
 class SubtreeIterator {
   constructor() { this.index = 0; }
@@ -256,10 +249,7 @@ class Utils {
     return node && sceneRegistry.hasPhase(node.type, phaseName);
   }
 }
-
 //-- endfile --
-
-
 
 //<< import { FlyWeightIterator } from './fly-weight-iterator.js';
 //-- file: ./fly-weight-iterator.js --
@@ -275,7 +265,6 @@ class FlyWeightIterator {
     return subtree[0];
   }
 }
-
 //-- endfile --
 
 //<< import { FlyWeightNode } from './fly-weight-node.js';
@@ -309,8 +298,6 @@ class FlyWeightNode {
 }
 
 sceneRegistry.registerNodeClass('flyweight-node', FlyWeightNode);
-
-
 //-- endfile --
 
 //<< import { BasicCollectionNode } from './basic-collection-node.js';
@@ -347,18 +334,9 @@ sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
 //-- endfile --
 
 
-
-
-/*------------------- CUT AND PASTE ME -----------------
-
-This section can be added to multi-stock-stnda to flesh it out... 
-*/
-
-
 //<< import { WordNode } from './word-node.js';
 //-- file: ./word-node.js --
 //>> export { WordNode };
-
 function hexToRgba(hex, alpha) {
   hex = (hex || '#888888').replace('#', '');
   if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -394,8 +372,6 @@ const WORD_DEFAULTS = Object.freeze({
   highlightRadius: 4,
   scale:          1.0,
 });
-
-//-- endfile --
 
 class WordNode {
   // New Style: Metadata tells the system how to interact with this node
@@ -553,10 +529,9 @@ class WordNode {
 sceneRegistry.registerNodeClass('word-node', WordNode);
 //-- endfile --
 
-
-
-
-
+//<< import { FrameNode } from './frame-node.js';
+//-- file: ./frame-node.js --
+//>> export { FrameNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    FrameNode — generic, content-agnostic frame with drag, resize, and screen-fit.
@@ -572,14 +547,8 @@ sceneRegistry.registerNodeClass('word-node', WordNode);
    What it provides to children via ctxMix:
      ctxMix.getHW() → { cw, ch }   — current frame content dimensions
    ──────────────────────────────────────────────────────────────────────────── */
-
-//<< import { FrameNode } from './frame-node.js';
-//-- file: ./frame-node.js --
-//>> export { FrameNode };
 class FrameNode {
-
   /* ── geometry helpers (private) ────────────────────────────────────────── */
-
   static _pad(node) {
     const p = node.value.padding;
     if (p == null) return { left: 80, right: 80, top: 100, bottom: 100 };
@@ -834,11 +803,15 @@ class FrameNode {
 }
 
 sceneRegistry.registerNodeClass('frame-node', FrameNode);
+//-- endfile --
+
+//<< import { RamachandranChartNode } from './ramachandran-chart-node.js';
+//-- file: ./ramachandran-chart-node.js --
+//>> export { RamachandranChartNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Ramachandran-specific chart nodes — read dimensions from ctxMix.getHW()
    ──────────────────────────────────────────────────────────────────────────── */
-
 const REGION_SETS = {
   general: {
     favored: [
@@ -922,11 +895,6 @@ const RC_DEFAULTS = Object.freeze({
   diagonalColor:    'rgba(255, 255, 255, 0.08)',
 });
 
-//-- endfile --
-
-//<< import { RamachandranChartNode } from './ramachandran-chart-node.js';
-//-- file: ./ramachandran-chart-node.js --
-//>> export { RamachandranChartNode };
 class RamachandranChartNode {
 
   static _geom(ctxMix, p) {
@@ -1109,7 +1077,6 @@ class RamachandranChartNode {
 }
 
 sceneRegistry.registerNodeClass('ramachandran-chart', RamachandranChartNode);
-
 //-- endfile --
 
 //<< import { RamachandranPointNode } from './ramachandran-point-node.js';
@@ -1177,7 +1144,11 @@ class RamachandranPointNode {
 }
 
 sceneRegistry.registerNodeClass('ramachandran-point', RamachandranPointNode);
+//-- endfile --
 
+//<< import { RamachandranModel } from './ramachandran-model.js';
+//-- file: ./ramachandran-model.js --
+//>> export { RamachandranModel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Value function — reads frame dimensions from ctxMix.getHW()
@@ -1220,11 +1191,6 @@ const ramachandranPointValueFn = (ctxMix, fwParent, params, index) => {
    Model — assembles the scene graph using frame-node
    ──────────────────────────────────────────────────────────────────────────── */
 
-//-- endfile --
-
-//<< import { RamachandranModel } from './ramachandran-model.js';
-//-- file: ./ramachandran-model.js --
-//>> export { RamachandranModel };
 class RamachandranModel {
   get name() { return 'Load Ramachandran'; }
 
@@ -1265,7 +1231,6 @@ MODELS.push( new RamachandranModel() )
 
 
 CONTROLS.push(
-//  { type: 'button', label: 'Load Residues', cls: 'green', action: () => new RamachandranModel().load(this) },
   { type: 'separator', label: 'Plot Setting' },
   { type: 'select', id: 'regionSet', label: 'Region Set', options: [['general', 'General'], ['glycine', 'Glycine'], ['proline', 'Proline'], ['preProline', 'Pre-Proline']], value: 'general' },
   { type: 'checkbox', id: 'showRegions', label: 'Show Regions', value: true },
@@ -1274,25 +1239,23 @@ CONTROLS.push(
   { type: 'separator', label: 'Framework' },
   { type: 'checkbox', id: 'showChartBounds', label: 'Show Frame', value: P.showChartBounds },
   { type: 'checkbox', id: 'screenMode', label: 'Screen Auto-Fit', value: P.screenMode },
-//  { type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true },
 )
 
+//-- endfile --
 
+
+//<< import { AxisNode } from './axis-node.js';
+//-- file: ./axis-node.js --
+//>> export { AxisNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Chart-specific nodes — each reads dimensions from ctxMix.getHW()
    ──────────────────────────────────────────────────────────────────────────── */
-
 const AXIS_DEFAULTS = Object.freeze({
   axisColor: '#504838', axisWidth: 1.5, tickLength: 5, tickWidth: 1,
   gridColor: 'rgba(255,255,255,0.04)', gridWidth: 0.5, showGrid: true,
 });
 
-//-- endfile --
-
-//<< import { AxisNode } from './axis-node.js';
-//-- file: ./axis-node.js --
-//>> export { AxisNode };
 class AxisNode {
   static draw2d(ctxMix, node, params) {
     const v = node.value || {}, p = { ...AXIS_DEFAULTS, ...params };
@@ -1334,17 +1297,17 @@ class AxisNode {
   }
 }
 sceneRegistry.registerNodeClass('axis-node', AxisNode);
+//-- endfile --
+
+//<< import { BarElementNode } from './bar-element-node.js';
+//-- file: ./bar-element-node.js --
+//>> export { BarElementNode };
 
 const BAR_DEFAULTS = Object.freeze({
   barFill: '#4a90c4', barFillHi: '#6ab0e8', barOpacity: 0.72, barGap: 0.28,
   barRadius: 3, barStroke: 'rgba(90,160,220,0.25)', barStrokeW: 1,
 });
 
-//-- endfile --
-
-//<< import { BarElementNode } from './bar-element-node.js';
-//-- file: ./bar-element-node.js --
-//>> export { BarElementNode };
 class BarElementNode {
   static draw2d(ctxMix, node, params) {
     const v = ctxMix.getValue(ctxMix, node, params);
@@ -1386,7 +1349,11 @@ class BarElementNode {
   }
 }
 sceneRegistry.registerNodeClass('bar-element', BarElementNode);
+//-- endfile --
 
+//<< import { LineDotNode } from './line-dot-node.js';
+//-- file: ./line-dot-node.js --
+//>> export { LineDotNode };
 
 const LINE_DEFAULTS = Object.freeze({
   lineColor: '#e05040', lineColorHi: '#ff7860', lineWidth: 2.5, dotRadius: 4.5,
@@ -1394,11 +1361,6 @@ const LINE_DEFAULTS = Object.freeze({
   hitRadius: 12, smooth: 0.22,
 });
 
-//-- endfile --
-
-//<< import { LineDotNode } from './line-dot-node.js';
-//-- file: ./line-dot-node.js --
-//>> export { LineDotNode };
 class LineDotNode {
   static draw2d(ctxMix, node, params) {
     const v = ctxMix.getValue(ctxMix, node, params);
@@ -1471,6 +1433,11 @@ class LineChartNode {
   }
 }
 sceneRegistry.registerNodeClass('line-chart-node', LineChartNode);
+//-- endfile --
+
+//<< import { ClimateModel } from './climate-model.js';
+//-- file: ./climate-model.js --
+//>> export { ClimateModel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Value functions — read frame dimensions from ctxMix.getHW()
@@ -1527,11 +1494,6 @@ const lineDotValueFn = (ctxMix, fwParent, params, index) => {
    Model — assembles the scene graph using frame-node
    ──────────────────────────────────────────────────────────────────────────── */
 
-//-- endfile --
-
-//<< import { ClimateModel } from './climate-model.js';
-//-- file: ./climate-model.js --
-//>> export { ClimateModel };
 class ClimateModel {
   get name() { return 'Load Climate'; }
   load(app) {
@@ -1590,39 +1552,13 @@ class ClimateModel {
   }
 }
 
-
-
 MODELS.push( new ClimateModel() )
-/*
-CONTROLS.push(
-//  { type: 'button', label: 'Load Residues', cls: 'green', action: () => new RamachandranModel().load(this) },
-  { type: 'separator', label: 'Plot Setting' },
-  { type: 'select', id: 'regionSet', label: 'Region Set', options: [['general', 'General'], ['glycine', 'Glycine'], ['proline', 'Proline'], ['preProline', 'Pre-Proline']], value: 'general' },
-  { type: 'checkbox', id: 'showRegions', label: 'Show Regions', value: true },
-  { type: 'checkbox', id: 'showGrid', label: 'Show Grid', value: true },
-  { id: 'aspectRatio', label: 'Aspect Ratio', min: 0.5, max: 2.0, step: 0.1, value: 1.0 },
-  { type: 'separator', label: 'Framework' },
-  { type: 'checkbox', id: 'showChartBounds', label: 'Show Frame', value: P.showChartBounds },
-  { type: 'checkbox', id: 'screenMode', label: 'Screen Auto-Fit', value: P.screenMode },
-//  { type: 'checkbox', id: 'showHints', label: 'Show Hints', value: true },
-)
-*/
-
-
-
-
-
-/*-----------------------------
-End of pastable section
-*/
-
+//-- endfile --
 
 
 //<< import { CameraNode } from './camera-node.js';
 //-- file: ./camera-node.js --
 //>> export { CameraNode };
-//-- endfile --
-
 class CameraNode {
   static before_draw2d(ctxMix, node, params) {
     const c = ctxMix.ctx;
@@ -1752,20 +1688,33 @@ class Camera {
   }
 }
 
-
-
 class HudPanel {
-  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 12, left: 12 } } = {}) {
+  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 60, left: 12 } } = {}) {
     this._onChange = onChange || (() => {});
-    this._inputs = {}; this._valDisplays = {}; this._injectStyles();
+    this._inputs = {}; 
+    this._valDisplays = {}; 
+    this._injectStyles();
+
     this._root = document.createElement('div');
     this._root.className = 'hud-panel';
-    this._root.style.top = position.top + 'px'; this._root.style.left = position.left + 'px';
-    const header = document.createElement('h3'); header.innerHTML = `::: &nbsp; ${title}`;
-    this._root.appendChild(header); this._makeDraggable(header);
+    this._root.style.top = position.top + 'px'; 
+    this._root.style.left = position.left + 'px';
+    
+    const header = document.createElement('h3'); 
+    header.innerHTML = `::: &nbsp; ${title}`;
+    this._root.appendChild(header); 
+    this._makeDraggable(header);
+    
     for (const ctrl of controls) this._addControl(ctrl);
     container.appendChild(this._root);
   }
+
+  destroy() {
+    if (this._root.parentNode) {
+      this._root.parentNode.removeChild(this._root);
+    }
+  }
+
   _addControl(ctrl) {
     if (ctrl.type === 'separator') this._addSeparator(ctrl);
     else if (ctrl.type === 'button')   this._addButton(ctrl);
@@ -1773,6 +1722,7 @@ class HudPanel {
     else if (ctrl.type === 'select') this._addSelect(ctrl);
     else this._addSlider(ctrl);
   }
+
   _addSlider(ctrl) {
     const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
     const row = document.createElement('label'), span = document.createElement('span');
@@ -1787,11 +1737,13 @@ class HudPanel {
     });
     this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
   }
+
   _addButton(ctrl) {
     const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
     btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
     this._root.appendChild(btn);
   }
+
   _addCheckbox(ctrl) {
     const { id, label, value = false } = ctrl;
     const row = document.createElement('label'), span = document.createElement('span');
@@ -1803,6 +1755,7 @@ class HudPanel {
     sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
     this._inputs[id] = input; this._root.appendChild(row);
   }
+
   _addSelect(ctrl) {
     const { id, label, options = [], value } = ctrl;
     const row = document.createElement('label'); const span = document.createElement('span');
@@ -1817,11 +1770,13 @@ class HudPanel {
     select.addEventListener('change', () => this._onChange(id, select.value));
     row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
   }  
+
   _addSeparator(ctrl) {
     const sep = document.createElement('div'); sep.className = 'separator';
     if (ctrl.label) sep.textContent = ctrl.label;
     this._root.appendChild(sep);
   }
+
   _makeDraggable(handle) {
     let isDragging = false, startX, startY, startLeft, startTop;
     handle.addEventListener('mousedown', e => {
@@ -1836,18 +1791,16 @@ class HudPanel {
     });
     window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
   }
+
   _injectStyles() {
     if (document.getElementById('hud-panel-css')) return;
     const s = document.createElement('style'); s.id = 'hud-panel-css';
     s.textContent = `
-      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 10; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
+      .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1000; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; }
       .hud-panel h3 { margin: 0 0 12px; font-size: 11px; color: #b0a898; letter-spacing: 1px; cursor: grab; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); text-transform: uppercase; }
       .hud-panel h3:active { cursor: grabbing; }
-
-
-
       .hud-panel label { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-      .hud-panel label > span:first-child { min-width: 100px; color: #999; }
+      .hud-panel label > span:first-child { min-width: 90px; color: #999; }
       .hud-panel input[type=range] { flex: 1; accent-color: #6cf; cursor: pointer; }
       .hud-panel select { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 4px; font-size: 10px; outline: none; cursor: pointer; }
       .hud-panel .toggle-switch { position: relative; width: 28px; height: 16px; display: inline-block; flex-shrink: 0; }
@@ -1860,6 +1813,8 @@ class HudPanel {
       .hud-panel .separator { margin: 14px 0 8px 0; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1); font-size: 9px; color: #a59d8c; text-transform: uppercase; letter-spacing: 1px; }
       .hud-btn { display: block; width: 100%; margin: 4px 0; padding: 6px 0; background: rgba(0,0,0,0.4); color: #ccc; font-size: 11px; font-family: system-ui, sans-serif; text-align: center; border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; cursor: pointer; transition: background .15s, border-color .15s; }
       .hud-btn:hover { border-color: #6cf; background: rgba(102,204,255,0.08); }
+      .hud-btn.primary { color: #8cf; border-color: rgba(102,204,255,0.3); }
+      .hud-btn.primary:hover { background: rgba(102,204,255,0.12); }
       .hud-btn.green { color: #5b5; }
       .hud-btn.green:hover { border-color: #5b5; background: rgba(80,180,80,0.08); }
       .hud-btn.danger { color: #c55; }
@@ -1868,23 +1823,7 @@ class HudPanel {
     document.head.appendChild(s);
   }
 }
-
 //-- endfile --
-
-
-
-
-
-
-// A lightweight base class for generating standard graph layouts
-
-// Generates Trees and Stars procedurally using a top-down hierarchical layout
-
-
-// Generates complete (fully-connected) graphs procedurally in a radial layout
-
-
-
 
 //<< import { WordCloudModel } from './word-cloud-model.js';
 //-- file: ./word-cloud-model.js --
@@ -1919,6 +1858,7 @@ class WordCloudModel {
   }
 }
 MODELS.push( new WordCloudModel() )
+//-- endfile --
 
 
 //<< import { ButtonNode, DEFAULTS, hexToRgb, shiftColor, roundRectPath } from '../deep-explorer/js/nodes2d/button-node.js';
@@ -2207,11 +2147,10 @@ class ButtonNode {
 }
 
 sceneRegistry.registerNodeClass('button-node', ButtonNode);
-
-
 //-- endfile --
 
-
+//<< import { ButtonSetModel } from './button-set-model.js';
+//-- file: ./button-set-model.js --
 class ButtonSetModel {
   get name() { return 'Load Buttons'; }
   load(app) {
@@ -2233,10 +2172,7 @@ class ButtonSetModel {
   }
 }
 MODELS.push( new ButtonSetModel() )
-
-
-
-
+//>> export { ButtonSetModel };
 //-- endfile --
 
 class App {
@@ -2263,7 +2199,7 @@ class App {
     this.affordanceNode = makeNode('affordance-overlay', { target: this.collNode });
     this.coneNode = makeNode('fracture-cone', { target: this.collNode });
     
-    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, this.affordanceNode, this.coneNode ]);
+    this.camNode = makeNode('camera-node', { cam: this.cam }, [ this.collNode, /*this.affordanceNode*/, this.coneNode ]);
     this.rootNode = makeNode('scene-root', {}, [ this.camNode, this.stockNode ]);
 
     this._seedLayoutDone = false;

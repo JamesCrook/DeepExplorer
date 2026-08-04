@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AST Explorer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-primary: #0a0a0b; --bg-secondary: #131316; --bg-tertiary: #1a1a1f;
+      --bg-hover: #222228; --border: #2a2a32; --border-focus: #4a4a55;
+      --text-primary: #e8e8ec; --text-secondary: #9898a4; --text-muted: #5a5a66;
+      --accent: #f59e0b; --accent-dim: #b45309;
+      --success: #22c55e; --danger: #ef4444; --warning: #eab308;
+      --c-rule: #a855f7; --c-entry: #3b82f6; --c-term: #06b6d4;
+      --font-mono: 'JetBrains Mono', monospace; --font-sans: 'Space Grotesk', sans-serif;
+    }
+    html, body { height: 100%; }
+    body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; }
+    .app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; overflow: hidden; }
+
+    header { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); }
+    h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; }
+    h1 span { color: var(--accent); }
+    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+    .stat-badge { display: flex; align-items: center; gap: 0.3rem; font-family: var(--font-mono); font-size: 0.65rem; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border); }
+    .stat-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    main { display: grid; grid-template-columns: 260px 1fr 1fr; overflow: hidden; }
+    .panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .panel:last-child { border-right: none; }
+    .panel-header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; }
+    .panel-header .count { background: var(--bg-tertiary); padding: 0.15rem 0.5rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.7rem; }
+    .panel-content { flex: 1; overflow-y: auto; padding: 0.5rem; }
+
+    .drop-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem 1rem; border: 2px dashed var(--border); margin: 0.5rem; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+    .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: rgba(245,158,11,0.05); }
+    .drop-zone-icon { width: 36px; height: 36px; margin-bottom: 0.75rem; color: var(--text-muted); }
+    .drop-zone p { font-size: 0.82rem; color: var(--text-secondary); text-align: center; }
+    .drop-zone small { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.4rem; text-align: center; }
+
+    .grammar-list { padding: 0.4rem 0.5rem; display: flex; flex-direction: column; gap: 0.2rem; }
+    .grammar-chip { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 4px; background: var(--bg-tertiary); border: 1px solid var(--border); font-family: var(--font-mono); font-size: 0.72rem; }
+    .grammar-chip .gc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+    .grammar-chip .gc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .grammar-chip .gc-count { color: var(--text-muted); font-size: 0.6rem; flex-shrink: 0; }
+
+    .section-label { font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.5rem 0.5rem 0.2rem; font-weight: 600; color: var(--text-muted); }
+    .rule-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.4rem; border-radius: 3px; font-size: 0.75rem; min-height: 28px; }
+    .rule-row:hover { background: var(--bg-hover); }
+    .rule-name { font-family: var(--font-mono); font-size: 0.72rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rule-name.entry { color: var(--c-entry); font-weight: 600; }
+    .rule-name.sub { color: var(--text-secondary); }
+    .rule-type { font-family: var(--font-mono); font-size: 0.55rem; text-transform: uppercase; padding: 0.05rem 0.3rem; border-radius: 2px; flex-shrink: 0; }
+    .rule-type.seq { color: var(--c-term); background: rgba(6,182,212,0.12); }
+    .rule-type.or  { color: var(--c-rule); background: rgba(168,85,247,0.12); }
+    .rule-type.rep { color: var(--accent); background: rgba(245,158,11,0.12); }
+    .rule-go { background: none; border: 1px solid var(--border); border-radius: 3px; color: var(--text-muted); cursor: pointer; font-family: var(--font-mono); font-size: 0.6rem; padding: 0.15rem 0.4rem; flex-shrink: 0; transition: all 0.15s; }
+    .rule-go:hover { border-color: var(--accent); color: var(--accent); background: rgba(245,158,11,0.08); }
+    .rule-go.suggested { border-color: var(--accent); color: var(--accent); background: rgba(245,158,11,0.12); font-weight: 600; }
+
+    .input-area { flex: 1; width: 100%; background: var(--bg-primary); border: none; color: var(--text-primary); font-family: var(--font-mono); font-size: 0.78rem; line-height: 1.6; padding: 0.75rem; resize: none; outline: none; tab-size: 2; }
+    .input-area::placeholder { color: var(--text-muted); }
+    .input-meta { padding: 0.4rem 0.75rem; border-top: 1px solid var(--border); background: var(--bg-secondary); display: flex; gap: 1rem; align-items: center; }
+    .input-meta span { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted); }
+
+    .output-area { flex: 1; width: 100%; overflow: auto; padding: 0.75rem; font-family: var(--font-mono); font-size: 0.72rem; line-height: 1.55; white-space: pre-wrap; word-break: break-all; color: var(--text-secondary); }
+    .output-area .tk { color: var(--c-entry); }
+    .output-area .vl { color: var(--success); }
+    .output-area .ky { color: var(--text-muted); }
+    .output-area .nu { color: var(--accent); }
+    .parse-banner { padding: 0.5rem 0.75rem; font-family: var(--font-mono); font-size: 0.65rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+    .parse-banner.ok      { color: var(--success); }
+    .parse-banner.partial { color: var(--warning); }
+    .parse-banner.fail    { color: var(--danger); }
+
+    .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-tertiary); color: var(--text-primary); font-family: var(--font-sans); font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .btn:hover { background: var(--bg-hover); border-color: var(--border-focus); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+    .status-bar { font-size: 0.75rem; color: var(--text-muted); padding: 0.5rem 1rem; border-top: 1px solid var(--border); background: var(--bg-secondary); font-family: var(--font-mono); }
+    .status-bar.success { color: var(--success); }
+    .status-bar.error   { color: var(--danger); }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem; text-align: center; height: 100%; }
+
+    .filter-row { display: flex; gap: 0.25rem; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
+    .filter-input { flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; padding: 0.25rem 0.5rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-primary); outline: none; }
+    .filter-input:focus { border-color: var(--accent); }
+    .filter-input::placeholder { color: var(--text-muted); }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>AST <span>Explorer</span></h1>
+      <div class="header-actions">
+        <div class="stat-badge"><div class="stat-dot" style="background:var(--c-rule)"></div><span id="statRules">0</span> rules</div>
+        <div class="stat-badge"><div class="stat-dot" style="background:var(--c-entry)"></div><span id="statEntries">0</span> entry</div>
+        <button class="btn" id="btnCopy" disabled>Copy JSON</button>
+      </div>
+    </header>
+    <main>
+      <div class="panel">
+        <div class="panel-header">Grammars <span class="count" id="grammarCount">0</span></div>
+        <div class="drop-zone" id="dropGrammar">
+          <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+          <p>Drop grammar files</p>
+          <small>.js — Parser.addSeq / addOr / addRep</small>
+        </div>
+        <div class="grammar-list" id="grammarList"></div>
+        <div class="filter-row" id="filterRow" style="display:none">
+          <input type="text" class="filter-input" id="filterInput" placeholder="filter rules...">
+        </div>
+        <div class="panel-content" id="ruleList">
+          <div class="empty-state">Load a grammar to see rules</div>
+        </div>
+      </div>
+      <div class="panel" id="inputPanel">
+        <div class="panel-header">Input <span class="count" id="inputLen">0</span></div>
+        <textarea class="input-area" id="inputArea" placeholder="Paste or drop content to parse..."></textarea>
+        <div class="input-meta">
+          <span id="metaChars">0 chars</span>
+          <span id="metaLines">0 lines</span>
+          <span id="metaFile" style="color:var(--accent)"></span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">AST Output</div>
+        <div id="banner"></div>
+        <div class="output-area panel-content" id="outputArea">
+          <div class="empty-state">Parse something to see the AST</div>
+        </div>
+      </div>
+    </main>
+    <div class="status-bar" id="statusBar">Drop a grammar .js file to begin</div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    // AstNode — minimal AST node used by Parser
+    // ═══════════════════════════════════════════════════════════════
+    //<< const { AstNode } = await import('./ast-node.js');
+    //-- file: ./ast-node.js --
+    //>> export { AstNode };
+    class AstNode {
+      constructor(token, rule = null, subtree = [], value = null, jref = 0, jend = null) {
+        this.token = token;
+        this.type = token;
+        this.rule = rule;
+        this.subtree = subtree;
+        this.value = value;
+        this.jref = jref;
+        this.jend = jend || (jref + (value ? value.length : 0));
+      }
+    }
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // Parser — singleton PEG parser
+    // ═══════════════════════════════════════════════════════════════
+    //<< const { Parser } = await import('./parser.js');
+    //-- file: ./parser.js --
+    //>> import { AstNode } from './ast-node.js';
+    //>> export { Parser };
+    const Parser = (() => {
+      const productions = {};
+      let input = '', position = 0, ast = null, stack = [];
+      const parser = {};
+
+      function addRule(type, name, data) {
+        productions[name] = { type, data };
+        return parser;
+      }
+
+      function matchItem(item) {
+        if (item instanceof RegExp) {
+          const match = item.exec(input.slice(position));
+          if (!match) return false;
+          position += match[0].length;
+          ast.jend = position;
+          if (!match[1]) return true;
+          if (ast.value == null) { ast.value = match; return true; }
+          ast.subtree.push(new AstNode('anonymous_regexp', null, [], match,
+            position - match[0].length, position));
+          return true;
+        }
+        const prod = productions[item];
+        if (!prod) { console.error('Unknown rule:', item); return false; }
+        descend(item, prod);
+        return ruleHandlers[prod.type](item, prod.data);
+      }
+
+      function descend(name, prod) {
+        const node = new AstNode(name, prod, [], null, position, position);
+        stack.push({ position, ast });
+        if (ast) ast.subtree.push(node);
+        ast = node;
+      }
+
+      function backtrack() {
+        if (stack.length < 1) return false;
+        const p = stack.pop();
+        position = p.position;
+        ast = p.ast;
+        if (ast) ast.subtree.pop();
+        return false;
+      }
+
+      function reduce() {
+        ast.jend = position;
+        if (stack.length < 1) return true;
+        ast = stack.pop().ast;
+        return true;
+      }
+
+      const ruleHandlers = {
+        seq(_, data) {
+          for (const item of data)
+            if (!matchItem(item)) return backtrack();
+          return reduce();
+        },
+        or(_, data) {
+          for (const item of data)
+            if (matchItem(item)) return reduce();
+          return backtrack();
+        },
+        rep(_, data) {
+          let cycleStart = position;
+          for (let i = 0; ; i++) {
+            if (i % data.length === 0) {
+              if (i > 0 && position === cycleStart) break;
+              cycleStart = position;
+            }
+            if (!matchItem(data[i % data.length])) {
+              if (i < 1) return backtrack();
+              break;
+            }
+          }
+          return reduce();
+        }
+      };
+
+      function parse(rule, text) {
+        input = text; position = 0; stack = []; ast = null;
+        descend('root');
+        matchItem(rule);
+        ast.jend = position;
+        return ast;
+      }
+
+      parser.productions = productions;
+      parser.listRules = () => Object.keys(productions);
+      parser.getProduction = name => productions[name];
+      parser.createParserFromRule = rule => ({ parse: text => parse(rule, text), rule });
+      parser.addSeq = (n, d) => addRule('seq', n, d);
+      parser.addOr  = (n, d) => addRule('or',  n, d);
+      parser.addRep = (n, d) => addRule('rep', n, d);
+      parser.parse = parse;
+      return parser;
+    })();
+    window.Parser = Parser;
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // GrammarLoader — eval grammar source against the Parser
+    // ═══════════════════════════════════════════════════════════════
+    //<< const { GrammarLoader } = await import('./grammar-loader.js');
+    //-- file: ./grammar-loader.js --
+    //>> import { Parser } from './parser.js';
+    //>> import { AstNode } from './ast-node.js';
+    //>> export { GrammarLoader };
+    const GrammarLoader = {
+      /** Patterns to strip from grammar source before eval. */
+      STRIP: [
+        /^\s*import\s+.*$/gm,
+        /^\s*export\s+.*$/gm,
+        /^\s*if\s*\(typeof window\b.*$/gm,
+      ],
+
+      /**
+       * Load grammar source into the Parser.
+       * @param {string} source  Raw .js file contents
+       * @returns {{ ok: boolean, newRules: string[], error?: string }}
+       */
+      load(source) {
+        const before = new Set(Parser.listRules());
+        const cleaned = this.STRIP.reduce((s, re) => s.replace(re, ''), source);
+        let error = null;
+        try {
+          new Function('Parser', 'AstNode', cleaned)(Parser, AstNode);
+        } catch (e) {
+          error = e.message;
+        }
+        const newRules = Parser.listRules().filter(r => !before.has(r));
+        if (error && !newRules.length)
+          return { ok: false, newRules, error };
+        return { ok: true, newRules, warning: error };
+      },
+    };
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // AstSerialize — convert AST to JSON, syntax-highlight JSON
+    // ═══════════════════════════════════════════════════════════════
+    //<< const { AstSerialize } = await import('./ast-serialize.js');
+    //-- file: ./ast-serialize.js --
+    //>> export { AstSerialize };
+    const AstSerialize = {
+      /** Convert an AstNode tree to a plain object. */
+      toJSON(node) {
+        if (!node) return null;
+        const obj = { token: node.token };
+        if (node.value)
+          obj.value = node.value[1] !== undefined ? node.value[1] : node.value[0];
+        obj.span = [node.jref, node.jend];
+        if (node.subtree?.length)
+          obj.children = node.subtree.map(c => AstSerialize.toJSON(c));
+        return obj;
+      },
+
+      /**
+       * Compact JSON formatter.
+       *   - { and } sit on lines with content, never alone.
+       *   - Short all-primitive arrays (like span) are inlined.
+       *   - Children arrays get one element per line.
+       */
+      compact(val, depth = 0) {
+        if (val === null) return 'null';
+        if (typeof val !== 'object') return JSON.stringify(val);
+        const pad = '  '.repeat(depth);
+        const inner = '  '.repeat(depth + 1);
+
+        if (Array.isArray(val)) {
+          if (!val.length) return '[]';
+          // All-primitive array → inline
+          if (val.every(v => v === null || typeof v !== 'object'))
+            return '[' + val.map(v => JSON.stringify(v)).join(', ') + ']';
+          // Complex array → one item per line, ] on last item's line
+          const parts = val.map(v => inner + this.compact(v, depth + 1));
+          parts[parts.length - 1] += ' ]';
+          return '[\n' + parts.join(',\n');
+        }
+
+        // Object — separate children (complex) from scalar props
+        const keys = Object.keys(val);
+        const scalarKeys = keys.filter(k => k !== 'children');
+        const scalars = scalarKeys.map(k =>
+          JSON.stringify(k) + ': ' + this.compact(val[k], depth));
+
+        if (!('children' in val))
+          return '{ ' + scalars.join(', ') + ' }';
+
+        const childStr = this.compact(val.children, depth + 1);
+        return '{ ' + scalars.join(', ') + ',\n'
+          + inner + '"children": ' + childStr + ' }';
+      },
+
+      /** HTML-highlight a compact JSON string for the output panel. */
+      highlight(json) {
+        const h = json
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return h
+          .replace(
+            /(&quot;token&quot;)\s*:\s*(&quot;(?:[^&]|&(?!quot;))*?&quot;)/g,
+            '<span class="ky">$1</span>: <span class="tk">$2</span>'
+          )
+          .replace(
+            /(&quot;(?:value|span|children)&quot;)\s*:/g,
+            '<span class="ky">$1</span>:'
+          )
+          .replace(
+            /:\s*(&quot;(?:[^&]|&(?!quot;))*?&quot;)/g,
+            ': <span class="vl">$1</span>'
+          )
+          .replace(
+            /:\s*(\[(-?\d+),\s*(-?\d+)\])/g,
+            ': <span class="nu">$1</span>'
+          );
+      },
+    };
+    //-- endfile --
+
+    // ═══════════════════════════════════════════════════════════════
+    // RuleSuggest — heuristic: pick the best entry-point rule
+    // ═══════════════════════════════════════════════════════════════
+    //<< const { RuleSuggest } = await import('./rule-suggest.js');
+    //-- file: ./rule-suggest.js --
+    //>> import { Parser } from './parser.js';
+    //>> export { RuleSuggest };
+    const RuleSuggest = {
+      /** Entry-point rules start with an uppercase letter. */
+      isEntry: name => /^[A-Z]/.test(name),
+
+      /** Sniff table: [test, rulePattern]. First match wins. */
+      SNIFF: [
+        [(text, file) => file.endsWith('.svg') || text.startsWith('<svg'),  /svg/i],
+        [(text, file) => file.endsWith('.json') || /^[\[{]/.test(text),    /json/i],
+        [(text, file) => file.endsWith('.md')   || text.startsWith('#'),   /markdown/i],
+        [(text, file) => file.endsWith('.js')   || /^(?:const|let|var|function|import|export)\b/.test(text), /javascript/i],
+        [(text, _)    => text.startsWith('<'),                             /svg|html|xml/i],
+      ],
+
+      /**
+       * Suggest the best entry-point rule for given input.
+       * @param {string} text      The input content
+       * @param {string} fileName  The input file name (may be empty)
+       * @returns {string|null}    Rule name, or null
+       */
+      suggest(text, fileName = '') {
+        const entries = Parser.listRules().filter(this.isEntry);
+        if (!entries.length) return null;
+        const trimmed = text.trim();
+        const file = fileName.toLowerCase();
+        for (const [test, pattern] of this.SNIFF) {
+          if (test(trimmed, file)) {
+            const match = entries.find(r => pattern.test(r));
+            if (match) return match;
+          }
+        }
+        return entries[0];
+      },
+    };
+    //-- endfile --
+
+
+    // ═══════════════════════════════════════════════════════════════
+    //  ── Harness: UI state, rendering, wiring ──
+    // ═══════════════════════════════════════════════════════════════
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                               .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+    const state = {
+      grammars: [],     // [{ name, newRules }]
+      ruleFilter: '',
+      inputFileName: '',
+      lastJSON: '',
+    };
+
+    // ── Status bar ───────────────────────────────────────────────
+
+    function setStatus(text, type = '') {
+      const el = $('statusBar');
+      el.textContent = text;
+      el.className = 'status-bar' + (type ? ' ' + type : '');
+    }
+
+    // ── Drop zone helper ─────────────────────────────────────────
+
+    function setupDrop(el, { onFiles, accept, multi = true, clickBrowse = false }) {
+      el.addEventListener('dragover', e => {
+        e.preventDefault(); e.stopPropagation();
+        el.classList.add('drag-over');
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation();
+        el.classList.remove('drag-over');
+        const files = [...e.dataTransfer.files];
+        if (files.length) onFiles(files);
+      });
+      if (clickBrowse) {
+        el.addEventListener('click', () => {
+          const inp = document.createElement('input');
+          inp.type = 'file';
+          if (accept) inp.accept = accept;
+          inp.multiple = multi;
+          inp.onchange = () => onFiles([...inp.files]);
+          inp.click();
+        });
+      }
+    }
+
+    // ── Grammar loading (UI wrapper around GrammarLoader) ────────
+
+    function loadGrammarFile(name, source) {
+      const result = GrammarLoader.load(source);
+      if (!result.ok) {
+        setStatus(`Error in ${name}: ${result.error}`, 'error');
+        return;
+      }
+      state.grammars.push({ name, newRules: result.newRules });
+      if (result.warning)
+        setStatus(`Loaded ${name} — ${result.newRules.length} new rules (trailing error ignored: ${result.warning})`, 'success');
+      else
+        setStatus(`Loaded ${name} — ${result.newRules.length} new rules`, 'success');
+      renderGrammars();
+      renderRules();
+    }
+
+    function handleGrammarDrop(files) {
+      for (const f of files) {
+        if (!f.name.endsWith('.js')) {
+          setStatus(`Skipped ${f.name} — not a .js file`, 'error');
+          continue;
+        }
+        f.text().then(src => loadGrammarFile(f.name, src));
+      }
+    }
+
+    // ── Input handling ───────────────────────────────────────────
+
+    function handleInputDrop(files) {
+      files[0].text().then(text => {
+        $('inputArea').value = text;
+        state.inputFileName = files[0].name;
+        $('metaFile').textContent = files[0].name;
+        updateInputMeta();
+        const rule = RuleSuggest.suggest(text, files[0].name);
+        if (rule) doParse(rule);
+      });
+    }
+
+    function updateInputMeta() {
+      const text = $('inputArea').value;
+      $('metaChars').textContent = text.length + ' chars';
+      $('metaLines').textContent = (text ? text.split('\n').length : 0) + ' lines';
+      $('inputLen').textContent = text.length;
+      renderRules();
+    }
+
+    // ── Parse ────────────────────────────────────────────────────
+
+    function doParse(ruleName) {
+      const text = $('inputArea').value;
+      if (!text.trim()) {
+        setStatus('Nothing to parse — paste or drop some content', 'error');
+        return;
+      }
+
+      const t0 = performance.now();
+      let root;
+      try {
+        root = Parser.parse(ruleName, text);
+      } catch (e) {
+        showBanner('fail', `Parse error: ${e.message}`);
+        $('outputArea').innerHTML = '';
+        setStatus(`Parse failed: ${e.message}`, 'error');
+        return;
+      }
+      const ms = (performance.now() - t0).toFixed(1);
+      const consumed = root.jend, total = text.length;
+      const pct = total > 0 ? ((consumed / total) * 100).toFixed(1) : '100';
+
+      if (consumed < total) {
+        const rest = text.slice(consumed);
+        const preview = rest.length > 60 ? rest.slice(0, 60) + '…' : rest;
+        showBanner('partial',
+          `Parsed ${pct}% (${consumed}/${total} chars) in ${ms}ms — stopped before: "${preview}"`);
+      } else {
+        showBanner('ok', `✓ Fully parsed ${total} chars in ${ms}ms using ${ruleName}`);
+      }
+
+      const json = AstSerialize.toJSON(root);
+      state.lastJSON = AstSerialize.compact(json);
+      $('outputArea').innerHTML = AstSerialize.highlight(state.lastJSON);
+      $('btnCopy').disabled = false;
+      setStatus(`Parsed with ${ruleName} — ${pct}% consumed, ${ms}ms`, 'success');
+    }
+
+    function showBanner(kind, text) {
+      $('banner').innerHTML = `<div class="parse-banner ${kind}">${esc(text)}</div>`;
+    }
+
+    // ── Render: grammar chips ────────────────────────────────────
+
+    function renderGrammars() {
+      $('grammarCount').textContent = state.grammars.length;
+      $('grammarList').innerHTML = state.grammars.map(g =>
+        `<div class="grammar-chip">
+          <span class="gc-dot"></span>
+          <span class="gc-name" title="${esc(g.name)}">${esc(g.name)}</span>
+          <span class="gc-count">${g.newRules.length} rules</span>
+        </div>`
+      ).join('');
+    }
+
+    // ── Render: rule list ────────────────────────────────────────
+
+    function renderRules() {
+      const all = Parser.listRules();
+      const entries = all.filter(RuleSuggest.isEntry);
+      $('statRules').textContent = all.length;
+      $('statEntries').textContent = entries.length;
+      $('filterRow').style.display = all.length ? '' : 'none';
+
+      if (!all.length) {
+        $('ruleList').innerHTML = '<div class="empty-state">Load a grammar to see rules</div>';
+        return;
+      }
+
+      const filter = state.ruleFilter.toLowerCase();
+      const filtered = all.filter(r => !filter || r.toLowerCase().includes(filter));
+      const suggested = RuleSuggest.suggest($('inputArea').value, state.inputFileName);
+
+      const groups = [
+        ['Entry Points', filtered.filter(RuleSuggest.isEntry)],
+        ['Rules',        filtered.filter(r => !RuleSuggest.isEntry(r))],
+      ];
+
+      let html = '';
+      for (const [label, rules] of groups) {
+        if (!rules.length) continue;
+        html += `<div class="section-label">${label}</div>`;
+        for (const name of rules) {
+          const type = Parser.getProduction(name)?.type || '?';
+          const isEntry = RuleSuggest.isEntry(name);
+          const isSugg = name === suggested;
+          html += `<div class="rule-row">
+            <span class="rule-name ${isEntry ? 'entry' : 'sub'}">${esc(name)}</span>
+            <span class="rule-type ${type}">${type}</span>
+            <button class="rule-go${isSugg ? ' suggested' : ''}" data-rule="${esc(name)}">${isSugg ? '▸ Go' : 'Go'}</button>
+          </div>`;
+        }
+      }
+      $('ruleList').innerHTML = html;
+
+      // Delegated click handler (re-attaches because innerHTML was replaced)
+      $('ruleList').onclick = e => {
+        const btn = e.target.closest('.rule-go');
+        if (btn) doParse(btn.dataset.rule);
+      };
+    }
+
+    // ── Init ─────────────────────────────────────────────────────
+
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop',     e => e.preventDefault());
+
+    setupDrop($('dropGrammar'), {
+      onFiles: handleGrammarDrop, accept: '.js', clickBrowse: true,
+    });
+    setupDrop($('inputPanel'), {
+      onFiles: handleInputDrop,
+    });
+
+    $('inputArea').addEventListener('input', updateInputMeta);
+    $('filterInput').addEventListener('input', e => {
+      state.ruleFilter = e.target.value;
+      renderRules();
+    });
+    $('btnCopy').addEventListener('click', () => {
+      if (!state.lastJSON) return;
+      navigator.clipboard.writeText(state.lastJSON)
+        .then(() => setStatus('JSON copied to clipboard', 'success'))
+        .catch(() => setStatus('Copy failed', 'error'));
+    });
+  </script>
+</body>
+</html>
