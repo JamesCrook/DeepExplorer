@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HexView</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #08090d;
+    overflow: hidden;
+    height: 100vh;
+    user-select: none;
+    font-family: -apple-system, sans-serif;
+  }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  
+  #controls {
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(12,14,22,0.92);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px; padding: 18px 20px 14px; width: 270px;
+    backdrop-filter: blur(20px); box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 10;
+  }
+  .sec { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .sec:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .sec-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .sec-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .sec-name { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #8892a6; }
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  .row:last-child { margin-bottom: 0; }
+  .lbl { font-size: 10px; color: #5a6375; width: 52px; flex-shrink: 0; }
+  .val { font-size: 10px; color: #7a8597; width: 32px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  
+  input[type="range"] { -webkit-appearance: none; flex: 1; height: 3px; border-radius: 2px; background: #1a1e2a; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #5b8def; cursor: pointer; border: 2px solid #0c0e16; }
+  
+  input[type="color"] {
+    -webkit-appearance: none; border: none; width: 100%; height: 16px; 
+    border-radius: 3px; cursor: pointer; padding: 0; background: none; flex: 1;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; }
+
+  .drop-hint { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #3d4860; pointer-events: none; z-index: 5; transition: opacity 0.3s; }
+  .drop-overlay { display: none; position: fixed; inset: 0; background: rgba(8,9,13,0.85); z-index: 100; justify-content: center; align-items: center; font-size: 18px; color: #5b8def; border: 2px dashed rgba(91,141,239,0.3); margin: 20px; border-radius: 16px; }
+  .drop-overlay.active { display: flex; }
+  .zoom-readout { position: fixed; bottom: 24px; left: 20px; font-size: 10px; color: #3d4860; font-variant-numeric: tabular-nums; pointer-events: none; z-index: 5; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="drop-hint" id="dropHint">drop any file to inspect · scroll to zoom</div>
+<div class="drop-overlay" id="dropOverlay">drop file</div>
+<div class="zoom-readout" id="zoomOut">100%</div>
+
+<div id="controls">
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-dot" style="background:#5b8def" id="themeDotHex"></div>
+      <span class="sec-name">Hex</span>
+    </div>
+    <div class="row"><span class="lbl">Strip Col</span><input type="color" id="iStripColorHex" value="#141047"></div>
+    <div class="row"><span class="lbl">Crop</span><input type="range" id="sHexCrop" min="0" max="100" value="0"><span class="val" id="vHexCrop">0%</span></div>
+    <div class="row"><span class="lbl">Strip</span><input type="range" id="sHexStrip" min="0" max="100" value="75"><span class="val" id="vHexStrip">75%</span></div>
+  </div>
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-dot" style="background:#a06cd5" id="themeDotBits"></div>
+      <span class="sec-name">Bits</span>
+    </div>
+    <div class="row"><span class="lbl">Strip Col</span><input type="color" id="iStripColorBits" value="#0c0a08"></div>
+    <div class="row"><span class="lbl">Overlap</span><input type="range" id="sBitOvlp" min="0" max="100" value="82"><span class="val" id="vBitOvlp">82%</span></div>
+    <div class="row"><span class="lbl">Crop</span><input type="range" id="sBitCrop" min="0" max="100" value="0"><span class="val" id="vBitCrop">0%</span></div>
+    <div class="row"><span class="lbl">Strip</span><input type="range" id="sBitStrip" min="0" max="100" value="50"><span class="val" id="vBitStrip">50%</span></div>
+    <div class="row"><span class="lbl">Flash</span><input type="range" id="sBitFlash" min="0" max="100" value="15"><span class="val" id="vBitFlash">15%</span></div>
+  </div>
+  <div class="sec">
+    <div class="sec-head">
+      <div class="sec-dot" style="background:#e8b634" id="themeDotAscii"></div>
+      <span class="sec-name">Ascii</span>
+    </div>
+    <div class="row"><span class="lbl">Strip Col</span><input type="color" id="iStripColorAscii" value="#2d1b0b"></div>
+    <div class="row"><span class="lbl">Crop</span><input type="range" id="sAscCrop" min="0" max="100" value="45"><span class="val" id="vAscCrop">45%</span></div>
+    <div class="row"><span class="lbl">Strip</span><input type="range" id="sAscStrip" min="0" max="100" value="75"><span class="val" id="vAscStrip">75%</span></div>
+  </div>
+</div>
+
+<script>
+const C = {
+  bg:'#08090d', rowAlt:'rgba(255,255,255,0.012)', offsetText:'#3a4050',
+  scrollTrack:'rgba(255,255,255,0.03)', scrollThumb:'rgba(91,141,239,0.25)',
+  hexText:'#9ca8be', hexZero:'#4a5468', hexHigh:'#7eaaef', hexGroup:'rgba(255,255,255,0.018)',
+  bitBg:'#0a0d16', bitBgFront:'#0c1020', bitBorder:'#121828',
+  bitOne:'#c084fc', bitOneBg:'rgba(192,132,252,0.07)', bitZero:'#586070',
+  bitSep:'rgba(255,255,255,0.03)', bitShadow:'rgba(0,0,0,0.4)',
+  //bitBlockColors:['#2563eb','#0284c7','#4f46e5','#0891b2','#3b82f6','#0ea5e9','#6366f1','#06b6d4'],
+  bitBlockColors:['#4573eb','#9244c7','#5583fb','#a254d7','#4ba2f6','#4ea5e9','#43a6f1','#46a6d4'],
+
+  ascPrint:'#e8b634', ascDot:'#2e2840', border:'rgba(255,255,255,0.06)'
+};
+const MONO = '"SF Mono","Fira Code","Cascadia Code","JetBrains Mono","Consolas",monospace';
+const hex2 = b => b.toString(16).padStart(2,'0');
+const hex8 = n => n.toString(16).padStart(8,'0');
+const isPrint = b => b >= 0x20 && b <= 0x7e;
+
+// Rounded rectangle path utility
+function rr(ctx, x, y, w, h, r) {
+  if(h <= 0 || w <= 0) return;
+  r = Math.min(r, h/2, w/2);
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function makeDemoData() {
+  const d = new Uint8Array(2048);
+  [0x47,0x47,0x55,0x46].forEach((b,i) => d[i] = b);
+  d[4]=3; d[8]=12; d[16]=5;
+  const s = (str,off) => { d[off] = str.length; for(let i=0; i<str.length; i++) d[off+1+i] = str.charCodeAt(i); };
+  s('general.architecture', 24); d[45]=8; s('llama', 49);
+  s('general.name', 56); d[69]=8; s('Meta-Llama-3.1-8B-Instruct', 73);
+  d[96]=0b10110011; d[97]=0b01001101; d[98]=0b11110000; d[99]=0b00001111;
+  d[100]=0b10101010; d[101]=0b01010101; d[102]=0b11001100; d[103]=0b00110011;
+  for(let i=104; i<112; i++) d[i] = 0xFF;
+  for(let i=112; i<d.length; i++) {
+    const p = i % 128;
+    if(p<12) d[i] = 0; else if(p<40) d[i] = (i*7+0x41) & 0x7F;
+    else if(p<56) d[i] = (i*3) & 0xFF; else if(p<64) d[i] = ((i&1)?0xDE:0xAD);
+    else if(p<80) d[i] = (Math.sin(i*0.1)*127+128)|0; else d[i] = (i*13+37) & 0xFF;
+  }
+  return d;
+}
+
+const DEMO_LABELS = {
+  96:['CWR','ECE','URG','ACK','PSH','RST','SYN','FIN'],
+  97:['NS','CWR','ECE','URG','ACK','PSH','RST','SYN'],
+  98:['DO','DO','DO','DO','RSV','RSV','RSV','RSV'],
+  99:['FIN','SYN','RST','PSH','ACK','URG','ECE','CWR'],
+};
+
+class AppState {
+  constructor() {
+    this.hexCrop = 0;
+    this.hexStrip = 0.75;
+    
+    this.bitOverlap = 0.82;
+    this.bitCrop = 0;
+    this.bitStrip = 0.50;
+    this.bitFlash = 0.15;
+    
+    this.ascCrop = 0.45;
+    this.ascStrip = 0.75;
+    
+    this.stripColorHex = '#141047';
+    this.stripColorBits = '#0c0a08';
+    this.stripColorAscii = '#2d1b0b';
+    
+    this.scrollY = 0;
+    this.zoom = 1;
+    this.hover = null;
+  }
+}
+
+class DataManager {
+  constructor(initialData) {
+    this.data = initialData;
+    this.bitLabels = DEMO_LABELS;
+    this.stacks = {}; // Tracks depth order of bit cards per row
+    this.NBC = 4;     // Number of bit cards per row
+  }
+
+  loadData(newData) {
+    this.data = newData;
+    this.stacks = {};
+  }
+
+  getStack(rowIndex) {
+    if (!this.stacks[rowIndex]) {
+      this.stacks[rowIndex] = Array.from({length: this.NBC}, (_, i) => i);
+    }
+    return this.stacks[rowIndex];
+  }
+
+  promoteCard(rowIndex, cardIndex) {
+    const stack = this.getStack(rowIndex).slice();
+    const idx = stack.indexOf(cardIndex);
+    if (idx > 0) {
+      stack.splice(idx, 1);
+      stack.unshift(cardIndex); // Bring to front
+    }
+    this.stacks[rowIndex] = stack;
+  }
+}
+
+class CanvasRenderer {
+  constructor(canvas, state, dataManager) {
+    this.cv = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.state = state;
+    this.dm = dataManager;
+    this.dpr = window.devicePixelRatio || 1;
+    
+    // Layout Geometry Constants
+    this.BPR = 32; // Bytes per row
+    this.BPC = 8;  // Bytes per card
+    this.HEX_H = 20; this.BIT_H = 20; this.ASC_H = 20;
+    this.SEC_GAP = 1; this.ROW_GAP = 3;
+    this.PAD = 12; this.OFF_W = 64; this.OFF_GAP = 8;
+    
+    this.bitHits = [];
+  }
+
+  resize() {
+    this.W = window.innerWidth;
+    this.H = window.innerHeight;
+    this.cv.width = this.W * this.dpr;
+    this.cv.height = this.H * this.dpr;
+    this.cv.style.width = this.W + 'px';
+    this.cv.style.height = this.H + 'px';
+    
+    this.cX = this.PAD + this.OFF_W + this.OFF_GAP;
+    this.cW = this.W - this.cX - this.PAD - 8;
+    this.byteW = this.cW / this.BPR;
+    this.bitCellW = this.cW / (this.BPC * 8);
+  }
+
+  get tabPeek() { return this.BIT_H * (1 - this.state.bitOverlap); }
+  
+  _bitSectionH() {
+    const frontVis = this.BIT_H * (1 - this.state.bitOverlap * this.state.bitCrop);
+    return (this.dm.NBC - 1) * this.tabPeek + frontVis;
+  }
+  
+  _rowH() {
+    let h = 0;
+    const hexVisH = this.HEX_H * (1 - this.state.hexCrop);
+    if (hexVisH > 0) h += hexVisH + this.SEC_GAP * (1 - this.state.hexCrop);
+    
+    const bh = this._bitSectionH();
+    if (bh > 0.01) h += bh + this.SEC_GAP;
+    
+    const ascVisH = this.ASC_H * (1 - this.state.ascCrop);
+    if (ascVisH > 0) h += ascVisH;
+    
+    return Math.max(h + this.ROW_GAP, 5);
+  }
+
+  paint() {
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    
+    // Clear screen
+    ctx.fillStyle = C.bg; 
+    ctx.fillRect(0, 0, this.W, this.H);
+
+    ctx.scale(this.state.zoom, this.state.zoom);
+    
+    const vH = this.H / this.state.zoom;
+    const rh = this._rowH();
+    const numRows = Math.ceil(this.dm.data.length / this.BPR);
+    const total = numRows * rh;
+    const maxS = Math.max(0, total - vH + this.PAD * 2);
+    
+    this.state.scrollY = Math.max(0, Math.min(this.state.scrollY, maxS));
+    this.bitHits = [];
+    
+    const first = Math.max(0, Math.floor(this.state.scrollY / rh) - 1);
+    const last = Math.min(numRows - 1, Math.ceil((this.state.scrollY + vH) / rh) + 1);
+    
+    for (let r = first; r <= last; r++) {
+      const y = r * rh - this.state.scrollY + this.PAD;
+      const off = r * this.BPR;
+      if (off >= this.dm.data.length) continue;
+      const bytes = this.dm.data.slice(off, Math.min(off + this.BPR, this.dm.data.length));
+      this._drawRow(ctx, y, bytes, off, r);
+    }
+    
+    this._scrollbar(ctx, total, vH);
+  }
+
+  _scrollbar(ctx, totalH, viewH) {
+    if (totalH <= viewH) return;
+    const vW = this.W / this.state.zoom;
+    const tx = vW - 5, th = viewH - 8;
+    const tH = Math.max(16, (viewH / totalH) * th);
+    const tY = 4 + (this.state.scrollY / (totalH - viewH)) * (th - tH);
+    ctx.fillStyle = C.scrollTrack; rr(ctx, tx, 4, 3, th, 1.5); ctx.fill();
+    ctx.fillStyle = C.scrollThumb; rr(ctx, tx, tY, 3, tH, 1.5); ctx.fill();
+  }
+
+  _drawRow(ctx, startY, bytes, off, ri) {
+    let y = startY;
+    if (ri % 2 === 1) {
+      ctx.fillStyle = C.rowAlt;
+      ctx.fillRect(0, y - 1, this.W / this.state.zoom, this._rowH());
+    }
+
+    // Anchor offset text visually and clip it so it crops cleanly
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, y - 1, this.cX, this._rowH() + 2); ctx.clip();
+    ctx.font = `11px ${MONO}`; ctx.fillStyle = C.offsetText; ctx.textBaseline = 'middle';
+    ctx.fillText(hex8(off), this.PAD, y + 11);
+    ctx.restore();
+
+    const hexVisH = this.HEX_H * (1 - this.state.hexCrop);
+    if (hexVisH > 0) {
+      ctx.fillStyle = C.bg; ctx.fillRect(this.cX, y, this.cW, hexVisH);
+      this._hexCard(ctx, this.cX, y, this.cW, this.HEX_H, bytes); // Anchor to full height
+      y += hexVisH + this.SEC_GAP * (1 - this.state.hexCrop);
+    }
+    
+    const bh = this._bitSectionH();
+    if (bh > 0.01) {
+      this._bitSection(ctx, this.cX, y, this.cW, bytes, off, ri);
+      y += bh + this.SEC_GAP;
+    }
+    
+    const ascVisH = this.ASC_H * (1 - this.state.ascCrop);
+    if (ascVisH > 0) {
+      ctx.fillStyle = C.bg; ctx.fillRect(this.cX, y, this.cW, ascVisH);
+      this._asciiCard(ctx, this.cX, y, this.cW, this.ASC_H, bytes); // Anchor to full height
+    }
+  }
+
+  _drawDataStrip(ctx, x, y, w, fullH, fontH, stripFrac, drawGroups, stripColor) {
+    const stripH = Math.max(1, (fontH + 8) * stripFrac);
+    const midY = y + fullH / 2 + 1;
+    const stripY = midY - stripH / 2;
+    
+    rr(ctx, x, stripY, w, stripH, 2);
+    ctx.fillStyle = stripColor; 
+    ctx.fill();
+    ctx.strokeStyle = C.border; 
+    ctx.lineWidth = 0.5; 
+    ctx.stroke();
+
+    if (drawGroups) {
+      for (let g = 0; g < this.BPR; g += 8) {
+        if ((g / 8) % 2 === 1) {
+          ctx.fillStyle = C.hexGroup;
+          ctx.fillRect(x + g * this.byteW, stripY, 8 * this.byteW, stripH);
+        }
+      }
+    }
+    return { midY, stripY };
+  }
+
+  _hexCard(ctx, x, y, w, fullH, bytes) {
+    const { midY } = this._drawDataStrip(ctx, x, y, w, fullH, 15, this.state.hexStrip, true, this.state.stripColorHex);
+    ctx.font = `15px ${MONO}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    
+    for (let i = 0; i < bytes.length; i++) {
+      const bx = x + i * this.byteW + this.byteW / 2;
+      const b = bytes[i];
+      ctx.fillStyle = b === 0 ? C.hexZero : isPrint(b) ? C.hexText : C.hexHigh;
+      ctx.fillText(hex2(b), bx, midY);
+    }
+  }
+
+  _asciiCard(ctx, x, y, w, fullH, bytes) {
+    const { midY } = this._drawDataStrip(ctx, x, y, w, fullH, 13, this.state.ascStrip, false, this.state.stripColorAscii);
+    ctx.font = `13px ${MONO}`; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    
+    for (let i = 0; i < bytes.length; i++) {
+      const bx = x + i * this.byteW + this.byteW / 2;
+      if (isPrint(bytes[i])) {
+        ctx.fillStyle = C.ascPrint;
+        ctx.fillText(String.fromCharCode(bytes[i]), bx, midY);
+      } else {
+        ctx.fillStyle = C.ascDot;
+        ctx.fillText('\u00b7', bx, midY);
+      }
+    }
+  }
+
+  _bitSection(ctx, x, y, w, bytes, off, ri) {
+    const stack = this.dm.getStack(ri);
+    const tp = this.tabPeek;
+    const ch = this.BIT_H;
+    const visH = this._bitSectionH();
+    
+    ctx.fillStyle = C.bg; ctx.fillRect(x, y, w, visH);
+    ctx.save(); ctx.beginPath(); ctx.rect(x - 1, y, w + 2, visH); ctx.clip();
+    
+    const frontY = y + (this.dm.NBC - 1) * tp;
+
+    for (let depth = this.dm.NBC - 1; depth >= 0; depth--) {
+      const ci = stack[depth];
+      const cy = frontY - depth * tp;
+      const start = ci * this.BPC;
+      const end = Math.min(start + this.BPC, bytes.length);
+      if (start >= bytes.length) continue;
+      
+      const cb = bytes.slice(start, end);
+      const isFront = depth === 0;
+      const isHover = this.state.hover && this.state.hover.row === ri && this.state.hover.card === ci;
+
+      if (isFront && this.dm.NBC > 1) {
+        ctx.fillStyle = C.bitShadow;
+        ctx.fillRect(x, cy - 1, w, 1.5);
+      }
+
+      this._bitCard(ctx, x, cy, w, ch, cb, ci, off + start, isFront, isHover);
+
+      const frontVisH = ch * (1 - this.state.bitOverlap * this.state.bitCrop);
+      const tabBot = isFront ? cy + frontVisH : cy + Math.min(tp, ch);
+      this.bitHits.push({ x, y: cy, w, h: Math.max(tabBot - cy, 1), row: ri, card: ci, depth });
+    }
+    ctx.restore();
+  }
+
+  _bitCard(ctx, x, y, w, h, bytes, blockIdx, byteOff, isFront, isHover) {
+    const accent = C.bitBlockColors[blockIdx] || C.bitBlockColors[0];
+
+    // Card background
+    rr(ctx, x, y, w, h, 2);
+    ctx.fillStyle = isFront ? C.bitBgFront : isHover ? 'rgba(18,28,48,0.95)' : C.bitBg;
+    ctx.fill();
+    ctx.strokeStyle = isHover ? accent + '44' : C.bitBorder;
+    ctx.lineWidth = 0.5; ctx.stroke();
+
+    // Draw the background strip (provides the midY baseline for digits)
+    const { midY, stripY } = this._drawDataStrip(ctx, x, y, w, h, 14, this.state.bitStrip, false, this.state.stripColorBits);
+
+    const cw = this.bitCellW;
+    const flashH = Math.max(1, h * this.state.bitFlash); 
+    const barStartX = x + blockIdx * this.BPC * this.byteW;
+    
+    // Draw segmented bit flashes mapped to the original Hex columns (Stagger)
+    ctx.fillStyle = isFront ? accent + 'ff' : accent + 'cc';
+    
+    for (let i = 0; i < bytes.length; i++) {
+      const byteStartX = barStartX + (i * this.byteW);
+      
+      for (let seg = 0; seg < 4; seg++) {
+        const segW = this.byteW / 4;
+        let drawX = byteStartX + seg * segW;
+        let drawW = segW - 1.0;
+        
+        // Larger gap at 8-bit (byte) boundary
+        if (seg === 0) { drawX += 1.5; drawW -= 1.5; }
+        if (seg === 3) { drawW -= 1.5; }
+        
+        // Draw at the top of the background strip
+        ctx.fillRect(drawX, stripY, drawW, flashH);
+      }
+    }
+
+    // Draw bits and labels
+    for (let i = 0; i < bytes.length; i++) {
+      const b = bytes[i];
+      const absB = byteOff + i;
+      const labels = this.dm.bitLabels[absB];
+
+      if (i > 0) {
+        ctx.strokeStyle = C.bitSep; ctx.lineWidth = 0.5;
+        ctx.beginPath(); ctx.moveTo(x + i * 8 * cw, y + 1); ctx.lineTo(x + i * 8 * cw, y + h - 1); ctx.stroke();
+      }
+
+      for (let bit = 7; bit >= 0; bit--) {
+        const bi = i * 8 + (7 - bit);
+        const bx = x + bi * cw;
+        const val = (b >> bit) & 1;
+
+        if (val) {
+          ctx.fillStyle = C.bitOneBg;
+          ctx.fillRect(bx + 0.5, y, cw - 1, h);
+        }
+
+        const label = labels ? labels[7 - bit] : null;
+
+        if (label) {
+          ctx.save();
+          ctx.translate(bx + cw / 2, midY);
+          ctx.rotate(-Math.PI / 2);
+          ctx.font = `${val ? 'bold ' : ''}7px ${MONO}`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = val ? accent : '#5a6278';
+          ctx.fillText(label, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.font = `9px ${MONO}`;
+          ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+          ctx.fillStyle = val ? C.bitOne : C.bitZero;
+          ctx.fillText(val ? '1' : '0', bx + cw / 2, midY);
+        }
+      }
+    }
+  }
+}
+
+class HexAppController {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.state = new AppState();
+    this.dm = new DataManager(makeDemoData());
+    this.renderer = new CanvasRenderer(canvas, this.state, this.dm);
+    this.drag = null;
+    
+    this.initEvents();
+    this.initUI();
+    
+    this.renderer.resize();
+    this.renderer.paint();
+  }
+
+  initEvents() {
+    const cv = this.canvas;
+    
+    window.addEventListener('resize', () => { 
+      this.renderer.resize(); 
+      this.renderer.paint(); 
+    });
+
+    document.getElementById('controls').addEventListener('pointerdown', e => e.stopPropagation());
+
+    cv.addEventListener('pointerdown', e => {
+      this.drag = { startX: e.clientX, startY: e.clientY, startScroll: this.state.scrollY, moved: false };
+      cv.classList.add('dragging'); cv.setPointerCapture(e.pointerId);
+    });
+
+    cv.addEventListener('pointermove', e => {
+      if (this.drag) {
+        const dx = Math.abs(e.clientX - this.drag.startX), dy = Math.abs(e.clientY - this.drag.startY);
+        if (dx > 3 || dy > 3) this.drag.moved = true;
+        this.state.scrollY = this.drag.startScroll + (this.drag.startY - e.clientY) / this.state.zoom;
+        this.renderer.paint();
+        return;
+      }
+      
+      const rect = cv.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) / this.state.zoom;
+      const my = (e.clientY - rect.top) / this.state.zoom;
+      
+      let nh = null;
+      for (let i = this.renderer.bitHits.length - 1; i >= 0; i--) {
+        const h = this.renderer.bitHits[i];
+        if (h.depth === 0) continue;
+        if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) { nh = { row: h.row, card: h.card }; break; }
+      }
+      
+      const chg = (!this.state.hover && nh) || (this.state.hover && !nh) || 
+                  (this.state.hover && nh && (this.state.hover.row !== nh.row || this.state.hover.card !== nh.card));
+      if (chg) {
+        this.state.hover = nh;
+        cv.style.cursor = nh ? 'pointer' : 'grab';
+        this.renderer.paint();
+      }
+    });
+
+    cv.addEventListener('pointerup', e => {
+      if (this.drag && !this.drag.moved) {
+        const rect = cv.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) / this.state.zoom;
+        const my = (e.clientY - rect.top) / this.state.zoom;
+        
+        for (let i = this.renderer.bitHits.length - 1; i >= 0; i--) {
+          const h = this.renderer.bitHits[i];
+          if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) { 
+            if (h.depth > 0) {
+              this.dm.promoteCard(h.row, h.card);
+              this.renderer.paint();
+            }
+            break;
+          }
+        }
+      }
+      this.drag = null; cv.classList.remove('dragging');
+    });
+
+    cv.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = cv.getBoundingClientRect();
+      const screenY = e.clientY - rect.top;
+      const vYbefore = this.state.scrollY + screenY / this.state.zoom;
+
+      const factor = e.deltaY > 0 ? 0.93 : 1.08;
+      this.state.zoom = Math.max(0.25, Math.min(5, this.state.zoom * factor));
+
+      this.state.scrollY = vYbefore - screenY / this.state.zoom;
+      document.getElementById('zoomOut').textContent = Math.round(this.state.zoom * 100) + '%';
+      this.renderer.paint();
+    }, { passive: false });
+
+    // File Drop logic
+    const ov = document.getElementById('dropOverlay');
+    let dc = 0;
+    document.addEventListener('dragenter', e => { e.preventDefault(); dc++; ov.classList.add('active'); });
+    document.addEventListener('dragleave', () => { dc--; if(dc <= 0) { ov.classList.remove('active'); dc = 0; }});
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => {
+      e.preventDefault(); dc = 0; ov.classList.remove('active');
+      const f = e.dataTransfer.files[0]; if(!f) return;
+      document.getElementById('dropHint').style.opacity = '0';
+      const r = new FileReader();
+      r.onload = () => {
+        this.dm.loadData(new Uint8Array(r.result));
+        this.state.scrollY = 0;
+        this.renderer.paint();
+      };
+      r.readAsArrayBuffer(f);
+    });
+  }
+
+  initUI() {
+    // Utility to bind sliders to AppState keys
+    const wire = (sid, vid, key, sc = 0.01) => {
+      const sl = document.getElementById(sid), vl = document.getElementById(vid);
+      sl.addEventListener('input', () => { 
+        this.state[key] = +sl.value * sc; 
+        vl.textContent = sl.value + '%'; 
+        this.renderer.paint(); 
+      });
+    };
+
+    wire('sHexCrop', 'vHexCrop', 'hexCrop');
+    wire('sHexStrip', 'vHexStrip', 'hexStrip');
+    
+    wire('sBitOvlp', 'vBitOvlp', 'bitOverlap');
+    wire('sBitCrop', 'vBitCrop', 'bitCrop');
+    wire('sBitStrip', 'vBitStrip', 'bitStrip');
+    wire('sBitFlash', 'vBitFlash', 'bitFlash');
+    
+    wire('sAscCrop', 'vAscCrop', 'ascCrop');
+    wire('sAscStrip', 'vAscStrip', 'ascStrip');
+
+    // Bind color pickers
+    const bindColor = (inputId, dotId, stateKey) => {
+      const colPick = document.getElementById(inputId);
+      const themeDot = document.getElementById(dotId);
+      colPick.addEventListener('input', e => {
+        this.state[stateKey] = e.target.value;
+        themeDot.style.background = e.target.value;
+        this.renderer.paint();
+      });
+    };
+
+    // Note: The original 'Theme' section was removed as per the request to have individual colors
+    bindColor('iStripColorHex', 'themeDotHex', 'stripColorHex');
+    bindColor('iStripColorBits', 'themeDotBits', 'stripColorBits');
+    bindColor('iStripColorAscii', 'themeDotAscii', 'stripColorAscii');
+    
+    // Initialize dots
+    document.getElementById('themeDotHex').style.background = this.state.stripColorHex;
+    document.getElementById('themeDotBits').style.background = this.state.stripColorBits;
+    document.getElementById('themeDotAscii').style.background = this.state.stripColorAscii;
+  }
+}
+
+// Bootstrap
+window.addEventListener('load', () => {
+  new HexAppController(document.getElementById('c'));
+});
+</script>
+</body>
+</html>
