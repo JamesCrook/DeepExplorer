@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tests — multi-zone-stnda</title>
+<style>
+  body   { background:#14140f; color:#c8c0ac; font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;
+           margin:0; padding:20px 24px; }
+  h1     { font-size:15px; font-weight:600; color:#e4dac6; margin:0 0 4px; }
+  .sub   { color:#7a7264; margin:0 0 18px; }
+  .grp   { color:#e4dac6; margin:16px 0 4px; font-weight:600; }
+  .pass  { color:#7fa650; } .fail { color:#d4674a; } .note { color:#7a7264; }
+  .line  { white-space:pre-wrap; padding-left:16px; }
+  .tally { margin-top:20px; padding-top:12px; border-top:1px solid #2c2a22; font-weight:600; }
+  canvas { display:none; }
+  .filebtn { background:#2c2a22; color:#c8c0ac; border:1px solid #45412f; border-radius:4px;
+             padding:5px 12px; cursor:pointer; display:inline-block; }
+  .filebtn:hover { background:#38352a; }
+  .filebtn input { display:none; }
+  #picker { margin-bottom:12px; }
+  button { background:#2c2a22; color:#c8c0ac; border:1px solid #45412f; border-radius:4px;
+           padding:5px 12px; font:inherit; cursor:pointer; margin-bottom:14px; }
+  button:hover { background:#38352a; }
+</style>
+</head>
+<body>
+<h1>multi-zone-stnda — test harness</h1>
+<p class="sub">Plain JavaScript. No framework, no build step, no server required.</p>
+<p id="status" class="note">starting…</p>
+<div id="picker" style="display:none">
+  <label class="filebtn">choose file<input type="file" id="file" accept=".html,text/html"></label>
+  <span class="note"> — or drop the app's .html anywhere on this page</span>
+</div>
+<button id="rerun">re-run</button>
+<div id="out"></div>
+<canvas id="probe" width="800" height="600"></canvas>
+
+<script type="module">
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOW THIS FILE WORKS
+
+   It loads the application, then exercises it.  There is no framework and no
+   build step: `group`, `ok` and `eq` below are the whole of it, about fifteen
+   lines.  Anything assertable goes in a `test(...)` block; blocks are
+   independent and may be deleted freely.
+
+   The point of this file is the LLM development loop, not human QA — the 24
+   droppable example models are the real test suite, because they show whether
+   things still LOOK right.  This one catches the other kind of breakage: the
+   silent kind, where a refactor leaves a plausible-looking wrong answer.
+
+   NOTE TO A FUTURE LLM WORKING ON THIS CODEBASE
+
+   What these tests are.  A regression net for architectural invariants:
+   ids stay out of the runtime, index stays out of leaf classes, `value` stays
+   serialisable, pip sets are mutated rather than recreated, and each snap
+   controller stays independently droppable.  They are NOT a specification of
+   correct behaviour and will never tell you a chromosome band is drawn in the
+   wrong place.  A green run means "nothing known broke", not "this is right".
+
+   So: if you find yourself choosing between making a test pass and making the
+   code right, stop and ask.  If a rename or a deleted model breaks a test,
+   that is the test needing an update, not evidence the change was wrong.
+
+   Green is not enough.  Three assertions here once passed for the wrong
+   reason — one masked by a different rule catching the same case, one that
+   never reached the code path it named, one missing its precondition.  They
+   were found only by deliberately breaking the app and checking the harness
+   noticed.  When you touch an area these tests cover, mutate it (delete a
+   guard, return a constant) and confirm a test fails.  If none does, the
+   coverage is decorative; fix that before trusting it.
+
+   Add tests as you go.  Each `test(...)` is independent, so the cost is low.
+
+   WHERE THIS WAS HEADED, AS OF THE LAST SESSION
+
+   A *resolver* is anything answering getValue / setValue / getNode.  A ctxMix
+   is one (it spreads Values and may override a member); Values itself is the
+   identity case, for callers outside a walk.  So `fn(ctxMix, ...)` inside a
+   walk, `fn(Values, ...)` outside one, and no method needs to know which it
+   got.  This replaced WORLD_CTX, a separate getXY channel, and four `null`
+   arguments.  Position is now one field of the value like any other, which is
+   what lets a node be flyweighted, or have its coordinates rewritten by an
+   ancestor (a cartesian-to-polar node would override getValue for its
+   subtree).  Geometry methods may use ONLY the value channel — not the
+   canvas, the hit point or getWH — because the pip manager calls them with
+   Values and nothing else is there to ask.  There is a test for that.
+
+   A hit yields two different things and they are not interchangeable.  The
+   rebound closures are a CURSOR: fast, already positioned, valid only while
+   the underlying sequence holds still — a changed count or a scrolled
+   visibleRange and index 47 is a different item.  A PATH is the durable
+   identity, re-resolvable and checkable.  Anything remembered past the
+   current turn — selection above all — should store paths.
+
+   Selection is not special.  It is one affordance among many, and `redness`
+   should cost nothing to add.  The direction is a single walk taking a
+   predicate and a patch: collect matching paths, then apply, two passes so a
+   patch cannot perturb its own predicate.  clear_selection folds into it as
+   the case with no predicate.  Two constraints: that walk must not use the
+   drawing cull (visibleRange would skip off-screen items), and EPHEMERAL
+   cannot stay a hardcoded name list once affordances are open-ended.
+
+   What still blocks flyweighting a node: flyFn/setFn are installed on the
+   proto and never cleared, so an out-of-walk read resolves against a stale
+   index; pip sets key on node identity, so N items would share one
+   state.pipSets; FlyweightArrayNode._install is wired to three phase names,
+   so any new phase arrives unscoped; and the controllers write through the
+   channel but still read node.value directly.  Non-leaf flyweights need the
+   index to be scoped on descent rather than installed on one node — which is
+   the same mechanism as the polar node, and needs the registry to own the
+   walk context (a frame stack, popped by walkPhase, never by a handler).
+   That one change is the shared prerequisite for nested flyweights, the
+   polar node, the predicate walk, and the zoned-overlay that would let the
+   stock strip stop reaching sideways into the arena.
+
+   Known and left alone: FrameNode's screen mode writes to the model during a
+   draw phase, and keeps _screenSnap to recover from it; PipperNode.layout is
+   declared as a bare phase on a node that always has children, so it never
+   fires and edge geometry is maintained by settle() from the drag paths
+   instead.
+
+   Running it headlessly is an approximation: canvas behaviour is stubbed, and
+   anything visual still needs a human eye on the real models.
+
+   LOADING THE APP.  The app ships as one HTML file with its module inline.
+   This page reads that file as text, pulls out the module, appends an export
+   line, and imports it as a blob.  That is the whole build step, done at run
+   time in the browser.  Three ways in, tried in order:
+
+     1. fetch('./multi-zone-stnda.html')  — works when served over http(s),
+        and on file:// in browsers that allow it.
+     2. drop the app's .html file anywhere on this page.
+     3. click "choose file" and pick it.
+
+   Opening this page straight off the disk is fine: if fetch is blocked by the
+   file:// origin rules, it falls through to the picker automatically.  No
+   server, no node, and nothing to add to the app itself.
+
+   IT RUNS AGAINST A SLICE, TOO.  Drop a generated build — three models, a
+   quarter of the nuggets — and the tests that reach for something it does not
+   contain report `skip` rather than FAIL.  Two mechanisms: the export list is
+   built from what the file actually declares, so a missing controller cannot
+   stop the module linking; and a test that throws naming an absent binding is
+   counted as skipped.  A test with no subject in this build (no SeedModel, no
+   drag-point) says so with `note` and returns, which is the idiom already used
+   for the model lookups.  So green means the same thing on a four-nugget slice
+   as on the whole spike.
+
+   THE DEPENDENCY GRAPH IS TESTED.  Each nugget declares its imports in //>>
+   comments, and the batch tool computes a build's closure from those and from
+   nothing else.  The last group of tests reads the app as *text* and checks
+   the declarations against the code: a symbol used but not imported, an import
+   naming a nugget that does not export it, a nugget nothing reaches.  Those
+   comments are maintained by hand, or by an LLM, so they need a net under
+   them; this is it.  If you move a function between nuggets, that group tells
+   you what you forgot.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const APP_FILE = './multi-zone-stnda.html';
+
+/* The app's exports, filled in once it loads. Tests close over these, so they
+   must not be read until boot() has run.
+
+   makeNode and MODELS are not top-level names any more — they live on SYS, the
+   nugget holding the things that exist once.  They are unpacked below so the
+   test bodies read as they always did. */
+let sceneRegistry, SYS, makeNode, MODELS, Utils, Geo, PipKinds, PipSetManager,
+    PipperNode, SnapEngine, Values, FlyweightArrayNode, RaftSnapController,
+    EdgeSnapController, makeArray, makeZoomableCamera, makeZoomableFrame,
+    DemoHarness2D, HudPanel, App;
+
+/* What we would like to see inside the app.  Not a requirement: a sliced build
+   legitimately lacks most of it, and the tests that need what is missing are
+   skipped rather than failed. */
+const WANTED = ['sceneRegistry', 'SYS', 'Utils', 'Geo', 'PipKinds', 'PipSetManager',
+  'PipperNode', 'SnapEngine', 'Values', 'FlyweightArrayNode', 'RaftSnapController',
+  'EdgeSnapController', 'makeArray', 'makeZoomableCamera', 'makeZoomableFrame',
+  'DemoHarness2D', 'HudPanel', 'App'];
+
+/* Only sceneRegistry and SYS are non-negotiable: without them there is no app
+   to test, whatever else was sliced away. */
+const ESSENTIAL = ['sceneRegistry', 'SYS'];
+
+const MISSING = new Set();      // names this build does not contain
+let APP_SRC = '';               // the spike's own text, for the graph tests
+
+/* Turn the app's HTML into an importable module.  Two edits: stop it building
+   its own UI, and let us see inside it. */
+async function importApp(html) {
+  const m = html.match(/<script type="module">([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('no inline module found in that file');
+  APP_SRC = html;
+  MISSING.clear();
+
+  const body = m[1].replace(/\bnew App\(\);/, '/* boot suppressed by the tests */');
+
+  /* Export only what this build actually declares.  Naming an absent binding
+     in the export list is a link error, so a fixed list would mean the tests
+     could load the full spike and nothing else. */
+  const declares = name =>
+    new RegExp(`^(?:class|const|let|var|function|async function)\\s+${name}\\b`, 'm').test(body);
+  const present = WANTED.filter(declares);
+  for (const n of WANTED) if (!present.includes(n)) MISSING.add(n);
+
+  const src = body + `\nexport { ${present.join(', ')} };\n`;
+
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  try {
+    const ns = await import(url);
+    ({ sceneRegistry, SYS, Utils, Geo, PipKinds, PipSetManager,
+       PipperNode, SnapEngine, Values, FlyweightArrayNode, RaftSnapController,
+       EdgeSnapController, makeArray, makeZoomableCamera, makeZoomableFrame,
+       DemoHarness2D, HudPanel, App } = ns);
+    const gone = ESSENTIAL.filter(k => ns[k] === undefined);
+    if (gone.length) throw new Error('app is missing: ' + gone.join(', '));
+    makeNode = SYS.makeNode;
+    MODELS   = SYS.MODELS;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* ── the entire framework ──────────────────────────────────────────────── */
+
+const out = document.getElementById('out');
+let passed = 0, failed = 0;
+
+const emit = (cls, text) => {
+  const d = document.createElement('div');
+  d.className = cls;
+  d.textContent = text;
+  out.appendChild(d);
+};
+
+const group = name => emit('grp', name);
+const note  = text => emit('line note', text);
+const ok    = (cond, msg) => cond ? (passed++, emit('line pass', '  ok   ' + msg))
+                                  : (failed++, emit('line fail', '  FAIL ' + msg));
+const show  = v => v && typeof v === 'object'
+  ? (v.name || (Array.isArray(v) ? `[${v.length}]` : Object.prototype.toString.call(v)))
+  : String(v);
+const eq    = (a, b, msg) => a === b ? ok(true, msg)
+                                     : ok(false, `${msg}  (want ${show(b)}, got ${show(a)})`);
+const near  = (a, b, msg, tol = 0.001) => ok(Math.abs(a - b) < tol, `${msg}  (want ~${b}, got ${a})`);
+
+const SUITE = [];
+const test = (name, fn) => SUITE.push([name, fn]);      // collected, run later
+
+let skipped = 0;
+
+/* A test that reaches for something this build does not contain is not a
+   failure — it is a test that does not apply to this slice.  The distinction
+   matters once builds are generated per model: a green run on a four-nugget
+   slice should mean the same thing as a green run on the whole spike. */
+const runOne = (name, fn) => {
+  group(name);
+  try { fn(); }
+  catch (e) {
+    const msg = (e && e.message) || '';
+    const absent = [...MISSING].find(k => msg.includes(k));
+    if (absent) { skipped++; emit('line note', `  skip  needs ${absent}, not in this build`); }
+    else { failed++; emit('line fail', '  THREW ' + msg); }
+  }
+};
+
+/* ── a context the phase walk will accept ─────────────────────────────────
+   Uses a real canvas, so isPointInPath and measureText behave as they do in
+   the app.  Everything else mirrors what DemoHarness2D supplies.            */
+
+const canvas = () => document.getElementById('probe');
+
+function mix(hitPoint, cam) {
+  const v = cam?.value || {};
+  return {
+    // A ctxMix is a resolver with a canvas attached: it takes the value
+    // channel whole, exactly as DemoHarness2D does, and adds pane geometry.
+    ...Values,
+    ctx: canvas().getContext('2d'),
+    iterators: [],
+    state: { index: 0, pass: 0, isHovered: false, isSelected: false },
+    getWH: () => ({ W: 800, H: 600, Z: v.zoom || 1, ox: v.scrollX || 0, oy: v.scrollY || 0 }),
+    viewport: { x: 0, y: 0, w: 800, h: 600 },
+    W: 800, H: 600,
+    hitPoint: hitPoint || null,
+    hitResult: null,
+  };
+}
+
+const walk = (phase, root, params = {}, hitPoint = null, cam = null) => {
+  const m = mix(hitPoint, cam);
+  sceneRegistry.walkPhase(m, phase, root, params);
+  return m;
+};
+
+/* Sweep a pane for the first thing that answers a hit. */
+function findHit(root, cam, step = 9) {
+  // Draw first. In the app a draw always precedes a hit test, which is what
+  // leaves a camera transform on the context — the condition under which
+  // isPointInPath silently reads the wrong units.
+  walk('draw2d', root, {}, null, cam);
+  for (let x = 5; x < 795; x += step)
+    for (let y = 5; y < 595; y += step) {
+      const m = walk('hit_test', root, {}, { x, y }, cam);
+      if (m.hitResult) return { hit: m.hitResult, x, y };
+    }
+  return null;
+}
+
+/* ── scene-building shorthands ────────────────────────────────────────────── */
+
+const P = {};
+const STEP = 30 * Math.cos(Math.PI / 4) * 2;          // two abutting r=30 squares
+const tile = (x, y) => makeNode('pipped-polygon', { x, y, r: 30, n: 4, tilt: Math.PI / 4 });
+const edge = (x1, y1, x2, y2) => makeNode('pipped-edge', { x1, y1, x2, y2 });
+const junction = (x, y) => makeNode('drag-point', { x, y, r: 5 });
+
+function arena(controllers = []) {
+  const a = makeNode('pipper-node', {});
+  a.inst = { controllers };
+  return a;
+}
+
+/* Grab a node the way the harness does, and return its interactions. */
+function grab(a, node, at) {
+  const hit = {
+    node,
+    interactions: { applyDrag(x, y) { node.value.x = x; node.value.y = y; } },
+  };
+  const m = mix(at || { x: node.value.x, y: node.value.y });
+  m.hitResult = hit;
+  PipperNode.claim(m, a, hit, P);
+  return hit.interactions;
+}
+
+const allSets = mgr => mgr.sets;
+const consistent = mgr => {
+  for (const set of mgr.sets)
+    for (const e of set)
+      if (mgr.setFor(e.node, e.pip) !== set) return false;
+  return true;
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PIP KINDS — capability records, never mutated in place
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('pip kinds', () => {
+  const mgr = new PipSetManager();
+  const t = tile(0, 0), e = edge(0, 0, 40, 0), j = junction(0, 0);
+
+  eq(mgr.kindAt(t, 0), PipKinds.TILE,     'a tile pip anchors');
+  eq(mgr.kindAt(e, 1), PipKinds.EDGE_END, 'an edge pip follows');
+  eq(mgr.kindAt(j, 0), PipKinds.JUNCTION, 'a junction pip splits');
+
+  ok(Object.isFrozen(PipKinds.TILE), 'kind records are frozen — swapped, not edited');
+  ok(!mgr.isFollower(t) && mgr.isFollower(e) && mgr.isFollower(j), 'follower classification');
+  ok(mgr.isEdge(e) && !mgr.isEdge(j),  'an edge is a follower that does not split');
+  ok(mgr.isJunction(j) && !mgr.isJunction(e), 'a junction is a follower that does');
+});
+
+test('a kind may supply the geometry its class omits', () => {
+  const mgr = new PipSetManager();
+  for (const type of ['button-node', 'word-node', 'ramachandran-point']) {
+    const n = makeNode(type, { x: 5, y: 7, width: 64, height: 64, text: 'x', label: 'x' });
+    const pips = mgr.pipsOf(n, P);
+    eq(pips.length, 1, `${type} has one pip, from its kind`);
+    ok(pips[0].x === 5 && pips[0].y === 7, `${type} pip sits at the node`);
+    ok(!Utils.classOfNode(n)?.getPips, `${type} declares no getPips of its own`);
+    Utils.setPipFn(n)?.(Values, n, { idx: 0, x: 40, y: 50 });
+    ok(n.value.x === 40 && n.value.y === 50, `${type} moves via the kind's setPipPos`);
+  }
+});
+
+/* Geometry methods may use only the value channel, never the canvas, the hit
+   point or getWH — because the pip manager and the controllers call them from
+   outside any walk, where the resolver is Values and nothing else is there to
+   ask.  Reaching for ctxMix.getWH inside getPips would break every controller
+   path in a way no 2D model would reveal, so assert it directly. */
+test('geometry answers to Values alone, outside any walk', () => {
+  const GEOMETRY = ['getPips', 'getCentreXY', 'getVerts', 'getSnapSegments'];
+  const probe = { x: 11, y: 13, x1: 0, y1: 0, x2: 20, y2: 0, r: 6, n: 4, tilt: 0,
+                  width: 64, height: 42, text: 'x', label: 'x', rings: [], totalR: 10 };
+  let called = 0;
+  for (const type of Object.keys(sceneRegistry.meta)) {
+    const cls = sceneRegistry.meta[type]?.nodeClass;
+    if (!cls) continue;
+    const n = makeNode(type, { ...probe });
+    for (const name of GEOMETRY) {
+      if (typeof cls[name] !== 'function') continue;
+      try { cls[name](Values, n, {}); called++; }
+      catch (e) { ok(false, `${type}.${name} needs more than the value channel: ${e.message}`); }
+    }
+  }
+  // A build with no pip-capable class has nothing to check here, which is not
+  // the same as failing.  Same idiom as the model lookups elsewhere.
+  if (!called) return note('  no class in this build declares a geometry method');
+  ok(called > 0, `${called} geometry methods answered with Values as the resolver`);
+
+  // And the write half: a kind's setPipPos routes through setValue, so it too
+  // must be satisfied by Values.
+  if (!sceneRegistry.meta['drag-point']) return note('  no drag-point in this build');
+  const j = makeNode('drag-point', { x: 0, y: 0, r: 5 });
+  Utils.setPipFn(j)?.(Values, j, { idx: 0, x: 3, y: 4 });
+  ok(j.value.x === 3 && j.value.y === 4, 'setPipPos writes through Values');
+});
+
+test('a value read may be a copy, so writes go through the channel', () => {
+  const n = makeNode('drag-point', { x: 1, y: 2, r: 5 });
+  ok(Values.getValue(Values, n, {}) === n.value, 'with no ephemera, no copy is made');
+
+  Values.setValue(Values, n, {}, { selected: true });
+  ok(n.state.selected === true, 'selection went to state');
+  ok(n.value.selected === undefined, 'and not to value');
+
+  const v = Values.getValue(Values, n, {});
+  ok(v !== n.value, 'once selected, the read is a copy');
+  ok(v.selected === true && v.x === 1, 'carrying ephemera alongside content');
+
+  // The trap this discipline exists to close.
+  v.x = 99;
+  ok(n.value.x === 1, 'writing to that copy does not reach the node');
+  Values.setValue(Values, n, {}, { x: 99 });
+  ok(n.value.x === 99, 'setValue does');
+});
+
+/* Draw a node and count how often it reached for a given canvas call.  Used
+   to check that an affordance actually reaches the canvas, rather than that a
+   flag was merely set somewhere. */
+function drawCalls(node, method, params = {}) {
+  const m = mix();
+  let n = 0;
+  const real = m.ctx;
+  m.ctx = new Proxy(real, {
+    get(t, k) {
+      const got = t[k];
+      if (k === method && typeof got === 'function') {
+        return (...a) => { n++; return got.apply(t, a); };
+      }
+      return typeof got === 'function' ? got.bind(t) : got;
+    },
+  });
+  sceneRegistry.walkPhase(m, 'draw2d', node, params);
+  return n;
+}
+
+/* Indication used to travel in params.indicatedIds, a per-frame set keyed on
+   value.id — which a flyweight cannot use, N items sharing one id.  It is now
+   read from the value like any other field, so the same walk that serves a
+   plain node serves an item, and a new affordance needs no new plumbing. */
+test('indication is read from the value, not from a set of ids', () => {
+  const CASES = [
+    ['pipped-polygon',    { x: 0, y: 0, r: 30, n: 4, tilt: 0 },                 'setLineDash'],
+    ['pipped-button-node',{ x: 0, y: 0, width: 70, height: 42, label: 'b' },    'setLineDash'],
+    ['drag-point',        { x: 0, y: 0, r: 5 },                                 'setLineDash'],
+    ['pipped-edge',       { x1: -20, y1: 0, x2: 20, y2: 0 },                    'setLineDash'],
+    ['word-node',         { x: 0, y: 0, text: 'hi', fontSize: 20 },             'setLineDash'],
+    ['button-node',       { x: 0, y: 0, width: 64, height: 64, label: 'b' },    'setLineDash'],
+    ['frame-node',        { x: 0, y: 0, cw: 200, ch: 150, resizeMode: 'corners' }, 'fillRect'],
+  ];
+
+  for (const [type, value, method] of CASES) {
+    if (!sceneRegistry.meta[type]) { note(`  ${type} not registered`); continue; }
+    /* A frame's affordances are drawn in before_/after_ brackets, because a
+       node with a subtree must say whether it acts before its children or
+       after them — the bare phase is for leaves, which have no such choice.
+       So give the frame a child. */
+    const node = makeNode(type, { ...value },
+      type === 'frame-node' ? [makeNode('chrome-node', {})] : []);
+
+    const plain = drawCalls(node, method);
+    Values.setValue(Values, node, {}, { selected: true });
+    const chosen = drawCalls(node, method);
+    ok(chosen > plain, `${type}: selecting it changes what is drawn`);
+
+    Values.setValue(Values, node, {}, { selected: false });
+    eq(drawCalls(node, method), plain, `${type}: clearing it puts things back`);
+
+    Values.setValue(Values, node, {}, { hovered: true });
+    ok(drawCalls(node, method) > plain, `${type}: hovering indicates it too`);
+    Values.setValue(Values, node, {}, { hovered: false });
+
+    ok(node.value.selected === undefined && node.value.hovered === undefined,
+       `${type}: and neither landed in value`);
+  }
+
+  // Nothing carries indication in params any more.
+  ok(!('indicatedIds' in P), 'params carries no id set');
+});
+
+/* A drag writes through the same channel as everything else.  It matters
+   because the closure outlives the walk: it takes Values as its resolver, and
+   a node that intercepts writes — a flyweight proto, or a family that decides
+   a move means something other than x and y — is obeyed rather than assigned
+   past.  Where that lands is the family's business, not the leaf's. */
+test('a drag writes through the channel', () => {
+  const CASES = [
+    ['pipped-polygon',     { x: 0, y: 0, r: 30, n: 4, tilt: 0 }],
+    ['pipped-button-node', { x: 0, y: 0, width: 70, height: 42, label: 'b' }],
+    ['drag-point',         { x: 0, y: 0, r: 5 }],
+    ['pipped-edge',        { x1: -20, y1: 0, x2: 20, y2: 0 }],
+    ['word-node',          { x: 0, y: 0, text: 'hi', fontSize: 20 }],
+    ['button-node',        { x: 0, y: 0, width: 64, height: 64, label: 'b' }],
+    ['frame-node',         { x: 0, y: 0, cw: 200, ch: 150, resizeMode: false }],
+  ];
+
+  /* The frame needs a child so its brackets fire, but one that answers no hit
+     of its own — otherwise the child wins the point and the frame's own body
+     drag never surfaces. */
+  const build = (type, value) => makeNode(type, { ...value },
+    type === 'frame-node' ? [makeNode('chrome-node', {})] : []);
+
+  for (const [type, value] of CASES) {
+    if (!sceneRegistry.meta[type]) { note(`  ${type} not registered`); continue; }
+
+    // 1. an ordinary node moves.
+    const node = build(type, value);
+    const m = walk('hit_test', node, {}, { x: 0, y: 0 });
+    const drag = m.hitResult?.interactions?.applyDrag;
+    if (!drag) { ok(false, `${type}: nothing to drag`); continue; }
+
+    const before = JSON.stringify(node.value);
+    drag(40, 25);
+    ok(JSON.stringify(node.value) !== before, `${type}: dragging moves it`);
+
+    // 2. a node that intercepts writes is obeyed, and value is left alone.
+    const shared = build(type, value);
+    const seen = [];
+    shared.setFn = (res, n, p, patch) => { seen.push(patch); return true; };
+
+    const m2 = walk('hit_test', shared, {}, { x: 0, y: 0 });
+    const drag2 = m2.hitResult?.interactions?.applyDrag;
+    const frozen = JSON.stringify(shared.value);
+    drag2?.(40, 25);
+
+    ok(seen.length > 0, `${type}: the drag reached setValue`);
+    ok(seen.every(p => Object.keys(p).length > 0), `${type}: carrying a patch`);
+    eq(JSON.stringify(shared.value), frozen, `${type}: and did not assign past it`);
+  }
+});
+
+/* Removing a node means removing it from both holdings.  The subtree and the
+   pip sets each hold it, and a node spliced from one but not the other stays
+   joined to its neighbours: still walked, still driving followers to pips
+   that nothing draws any more. */
+test('removing a node releases its joins as well as its place', () => {
+  const a = arena([new EdgeSnapController()]);
+  const t1 = tile(0, 0), t2 = tile(200, 0), e = edge(0, 0, 200, 0);
+  a.subtree.push(t1, t2, e);
+
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: e, pip: 0 }, { node: t1, pip: 1 }, P);
+  mgr.join({ node: e, pip: 1 }, { node: t2, pip: 3 }, P);
+  eq(mgr.sets.length, 2, 'the edge spans both tiles');
+
+  Utils.removeChild(a, t1, P);
+
+  ok(!a.subtree.includes(t1), 'the tile has left the subtree');
+  ok(!mgr.sets.some(set => set.some(x => x.node === t1)), 'and no set still holds it');
+  ok(!mgr.entriesOf(t1).length, 'its own slots are clear too');
+  ok(consistent(mgr), 'the remaining sets are self-consistent');
+  ok(!a.subtree.includes(e), 'and the edge left dangling was reaped');
+
+  // The caller names no type: it asks the parent, which answers or does not.
+  const plain = makeNode('basic-collection', {}, [tile(0, 0)]);
+  const only = plain.subtree[0];
+  Utils.removeChild(plain, only, P);
+  ok(!plain.subtree.includes(only), 'a parent with only a subtree just splices');
+  ok(!Utils.classOfNode(plain)?.removeChild, 'and answers no removeChild of its own');
+  ok(!!Utils.classOfNode(a)?.removeChild, 'while an arena does');
+
+  // A departing follower takes nothing with it: an edge is just an edge.
+  const b = arena([new EdgeSnapController()]);
+  const u = tile(0, 0), v = tile(200, 0), f = edge(0, 0, 200, 0);
+  b.subtree.push(u, v, f);
+  const m2 = PipperNode.manager(b);
+  m2.join({ node: f, pip: 0 }, { node: u, pip: 1 }, P);
+  m2.join({ node: f, pip: 1 }, { node: v, pip: 3 }, P);
+
+  Utils.removeChild(b, f, P);
+  ok(b.subtree.includes(u) && b.subtree.includes(v), 'removing the edge keeps the tiles');
+  ok(consistent(m2), 'and leaves the sets consistent');
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   The app layer knows the scene graph only through its API.
+
+   App, the harness and the HUD sit above the graph: they drive it, and must
+   not know what is in it.  Every node type they need to treat specially is a
+   thing the graph should have been asked instead — the node classes answer
+   for themselves, which is how a class can be dropped, or a new one added,
+   without the app being edited to suit.  Their whole vocabulary is
+   sceneRegistry, Utils, Values, SYS and the make-* builders.
+
+   Central infrastructure is where this leaks, because it is where a special
+   case is easiest to write and hardest to see.  This test was added after
+   `parent.type === 'pipper-node'` was written into App.removeSelectedNode —
+   with a comment above it correctly explaining why an arena must be asked
+   properly, and the code below it doing the opposite.  It should have been
+   Utils.removeChild, which asks.
+   ───────────────────────────────────────────────────────────────────────── */
+test('the app layer names no node type and no node class', () => {
+  const LAYER = [['App', App], ['DemoHarness2D', DemoHarness2D],
+                 ['HudPanel', HudPanel]];
+  const registered = Object.keys(sceneRegistry.meta);
+  const strip = src => src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+  for (const [name, cls] of LAYER) {
+    if (typeof cls !== 'function') { note(`  ${name} not reachable`); continue; }
+    const src = strip(cls.toString());
+
+    // A registered type named as a literal: a special case for one class.
+    const types = registered.filter(t => src.includes(`'${t}'`) || src.includes(`"${t}"`));
+    ok(types.length === 0,
+       `${name} names no node type` + (types.length ? `: ${types.join(', ')}` : ''));
+
+    // A node class, controller, manager or engine reached for directly.
+    const held = [...new Set(src.match(/\b[A-Z]\w*(?:Node|Controller|Manager|Engine|Kinds)\b/g) || [])];
+    ok(held.length === 0,
+       `${name} reaches for no scene-graph class` + (held.length ? `: ${held.join(', ')}` : ''));
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PIP SETS — references, not identifiers
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('sets hold references', () => {
+  const mgr = new PipSetManager();
+  const a = tile(0, 0), b = tile(STEP, 0);
+  const set = mgr.join({ node: a, pip: 1 }, { node: b, pip: 3 }, P);
+
+  ok(set, 'abutting tiles join');
+  eq(mgr.setFor(a, 1), set, 'the pip -> set slot resolves without searching');
+  eq(mgr.setFor(b, 3), set, 'both sides are slotted');
+  eq(mgr.setFor(a, 0), null, 'an untouched pip has no set');
+
+  a.value.id = 999; b.value.id = 999;                 // ids are meaningless now
+  eq(mgr.setFor(a, 1), set, 'connectivity survives an id collision');
+});
+
+test('constraints', () => {
+  const mgr = new PipSetManager();
+  const a = tile(0, 0), b = tile(STEP, 0), c = tile(0, STEP);
+
+  ok(!mgr.canJoin({ node: a, pip: 0 }, { node: b, pip: 3 }, P),
+     'tile pips that do not face each other refuse');
+
+  mgr.join({ node: a, pip: 1 }, { node: b, pip: 3 }, P);
+  ok(!mgr.canJoin({ node: a, pip: 1 }, { node: c, pip: 3 }, P), 'a tile pip is single-use');
+
+  const e = edge(0, 0, 10, 0);
+  ok(!mgr.canJoin({ node: e, pip: 0 }, { node: a, pip: 1 }, P),
+     'a tile-to-tile set is exclusive');
+
+  // Single-use, isolated from the exclusivity rule: a nexus, not a raft join.
+  const solo = new PipSetManager();
+  const st = tile(0, 0), first = edge(21.21, 0, 90, 0), second = edge(21.21, 0, 90, 90);
+  ok(solo.join({ node: first, pip: 0 }, { node: st, pip: 1 }, P), 'one edge takes a tile pip');
+  ok(!solo.canJoin({ node: second, pip: 0 }, { node: st, pip: 1 }, P),
+     'and that tile pip then refuses a second edge directly');
+  ok(!solo.canJoin({ node: st, pip: 1 }, { node: second, pip: 0 }, P),
+     'the refusal is symmetric — argument order does not matter');
+  ok(solo.canJoin({ node: second, pip: 0 }, { node: first, pip: 0 }, P),
+     'the second edge must join the nexus through the first');
+  ok(mgr.canJoin({ node: e, pip: 0 }, { node: tile(500, 500), pip: 0 }, P),
+     'an edge may reach a free tile pip');
+});
+
+test('rafting can be forbidden by rule alone', () => {
+  const strict = new PipSetManager({ maxTilePips: 1 });
+  const a = tile(0, 0), b = tile(STEP, 0);
+  eq(strict.join({ node: a, pip: 1 }, { node: b, pip: 3 }, P), null, 'no tile-to-tile join forms');
+  ok(strict.join({ node: edge(0, 0, 10, 0), pip: 0 }, { node: a, pip: 1 }, P),
+     'edges still attach');
+});
+
+test('merging mutates in place so held references stay valid', () => {
+  const mgr = new PipSetManager();
+  const t1 = tile(0, 0), t2 = tile(0, 300);
+  const e1 = edge(21.21, 0, 100, 100), e2 = edge(21.21, 300, 100, 100);
+
+  const held = mgr.join({ node: e1, pip: 0 }, { node: t1, pip: 1 }, P);
+  mgr.join({ node: e2, pip: 0 }, { node: t2, pip: 1 }, P);
+  eq(mgr.sets.length, 2, 'two sets to begin with');
+
+  mgr.join({ node: e1, pip: 1 }, { node: e2, pip: 1 }, P);   // the free ends meet
+  const merged = mgr.setFor(e1, 1);
+  eq(mgr.setFor(e2, 1), merged, 'the absorbed member repoints to the survivor');
+  eq(held.length, 2, 'an unrelated set is untouched');
+
+  /* A set must never be recreated: code elsewhere holds these arrays.
+     Two established sets are joined, so the merge path really runs. */
+  const m2 = new PipSetManager();
+  const q = [edge(0, 0, 50, 0), edge(0, 0, 0, 50), edge(0, 0, -50, 0), edge(0, 0, 0, -50)];
+  const setA = m2.join({ node: q[0], pip: 0 }, { node: q[1], pip: 0 }, P);
+  const setB = m2.join({ node: q[2], pip: 0 }, { node: q[3], pip: 0 }, P);
+  eq(m2.sets.length, 2, 'two established sets');
+
+  const held2 = setA;                       // as a caller would hold it
+  m2.join({ node: q[0], pip: 0 }, { node: q[2], pip: 0 }, P);
+  eq(m2.setFor(q[0], 0), held2, 'the array the caller holds is still the live set');
+  eq(held2.length, 4, 'it grew in place to hold all four');
+  eq(m2.sets.length, 1, 'and the absorbed array left the collection');
+  ok(m2.sets[0] === held2, 'the survivor is the very array, not a copy');
+  ok(consistent(mgr), 'every slot points at the set that holds it');
+});
+
+test('one traversal, several predicates', () => {
+  const mgr = new PipSetManager();
+  const a = tile(0, 0), b = tile(STEP, 0), far = tile(600, 0), e = edge(0, 0, 40, 0);
+  mgr.join({ node: a, pip: 1 }, { node: b, pip: 3 }, P);
+  mgr.join({ node: e, pip: 0 }, { node: a, pip: 0 }, P);
+  mgr.join({ node: e, pip: 1 }, { node: far, pip: 2 }, P);
+
+  eq(mgr.raft(a).size, 2,      'raft() follows tile joins only');
+  eq(mgr.component(a).size, 4, 'component() follows everything');
+  ok(!mgr.raft(a).has(e),      'the raft excludes the edge');
+});
+
+test('removal prunes', () => {
+  const mgr = new PipSetManager();
+  const t = tile(0, 0), e1 = edge(0, 0, 40, 0), e2 = edge(0, 0, 0, 40);
+  mgr.join({ node: e1, pip: 0 }, { node: t, pip: 1 }, P);
+  mgr.join({ node: e2, pip: 0 }, { node: e1, pip: 0 }, P);
+  eq(mgr.sets[0].length, 3, 'a nexus of three');
+
+  mgr.removeNode(e1);
+  eq(mgr.sets[0].length, 2, 'the departed member is gone');
+  eq(mgr.setFor(e1, 0), null, 'its slot is cleared');
+  mgr.removeNode(e2);
+  eq(mgr.sets.length, 0, 'a set below two members is pruned');
+});
+
+test('strained joins give way', () => {
+  const mgr = new PipSetManager();
+  const a = tile(0, 0), b = tile(STEP, 0);
+  mgr.join({ node: a, pip: 1 }, { node: b, pip: 3 }, P);
+  b.value.x += 40;
+  mgr.breakStrained(5, P);
+  eq(mgr.sets.length, 0, 'the stretched join broke');
+  eq(mgr.setFor(a, 1), null, 'both slots freed');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IDS AT REST — text carries ids, the runtime does not
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('ids resolve on load and are projected fresh on save', () => {
+  const seed = MODELS.find(m => m.constructor.name === 'SeedModel');
+  if (!seed) return note('  no SeedModel');
+  const scene = seed.getScene();
+  const specs = scene.value.connections;
+
+  ok(specs.length > 0, 'the model emits id-based specs');
+  ok(specs.every(s => typeof s.a === 'number' && typeof s.b === 'number'),
+     'specs are id pairs — the form a PEG parser would produce');
+
+  const a = arena();
+  PipperNode.loadScene(a, scene, P);
+  const mgr = PipperNode.manager(a);
+  eq(mgr.sets.length, specs.length, 'every spec resolved to a set');
+  ok(mgr.sets.every(s => s.every(e => a.subtree.includes(e.node))),
+     'sets hold live subtree nodes, not ids');
+
+  const back = mgr.toSpecs(a.subtree);
+  eq(back.length, mgr.sets.length, 'one spec per set on the way out');
+  ok(back.every(s => s.every(e => typeof e.id === 'number')), 'fresh ids generated');
+});
+
+test('every model that carries connections loads', () => {
+  for (const m of MODELS.filter(m => m.getScene)) {
+    const scene = m.getScene();
+    const a = arena();
+    PipperNode.loadScene(a, scene, P);
+    const mgr = PipperNode.manager(a);
+    ok(consistent(mgr), `${m.constructor.name}: ${scene.subtree.length} nodes, ${mgr.sets.length} sets`);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTROLLERS — each independently droppable
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('both controllers: a raft fractures along the cone', () => {
+  const a = arena([new EdgeSnapController(), new RaftSnapController()]);
+  const t1 = tile(0, 0), t2 = tile(STEP, 0), t3 = tile(STEP * 2, 0);
+  a.subtree = [t1, t2, t3];
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: t1, pip: 1 }, { node: t2, pip: 3 }, P);
+  mgr.join({ node: t2, pip: 1 }, { node: t3, pip: 3 }, P);
+
+  const drag = grab(a, t1);
+  drag.applyDrag(-30, -30);
+  drag.applyDrag(-200, -200);
+  drag.endDrag(false);
+
+  ok(!mgr.raft(t2).has(t1), 't1 fractured away');
+  ok(mgr.raft(t2).has(t3),  't2 and t3 stayed rafted');
+  ok(!a.state.raftDrag && !a.state.draggedPips, 'drag state cleared');
+  ok(a.subtree.every(n => !n.state?.dragOrigin), 'position snapshots cleared');
+  ok(consistent(mgr), 'sets consistent after the drag');
+});
+
+test('raft alone (edges dropped): the join simply breaks', () => {
+  const a = arena([new RaftSnapController()]);
+  const t1 = tile(0, 0), t2 = tile(STEP, 0);
+  a.subtree = [t1, t2];
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: t1, pip: 1 }, { node: t2, pip: 3 }, P);
+
+  const drag = grab(a, t1);
+  drag.applyDrag(-30, -30);
+  drag.applyDrag(-300, -300);
+  drag.endDrag(false);
+
+  eq(mgr.sets.length, 0, 'the join broke');
+  eq(a.subtree.length, 2, 'no edge spawned — nothing here understands edges');
+});
+
+test('edges alone (rafting dropped): a tile drags its edges with it', () => {
+  const a = arena([new EdgeSnapController()]);
+  const t = tile(0, 0), e = edge(21.21, 0, 200, 0), j = junction(200, 0);
+  a.subtree = [t, e, j];
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: e, pip: 0 }, { node: t, pip: 1 }, P);
+  mgr.join({ node: e, pip: 1 }, { node: j, pip: 0 }, P);
+
+  const drag = grab(a, t);
+  drag.applyDrag(0, -100);
+  ok(mgr.setFor(t, 1), 'the tile keeps its edge while moving');
+
+  const tip = mgr.pipsOf(e, P)[0], anchor = mgr.pipsOf(t, P)[1];
+  near(Math.hypot(tip.x - anchor.x, tip.y - anchor.y), 0, 'the edge end tracked the tile pip');
+  drag.endDrag(false);
+  ok(mgr.setFor(t, 1), 'still attached after the drop');
+});
+
+test('splitting a pair leaves an edge behind', () => {
+  const a = arena([new EdgeSnapController(), new RaftSnapController()]);
+  const t1 = tile(0, 0), t2 = tile(STEP, 0);
+  a.subtree = [t1, t2];
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: t1, pip: 1 }, { node: t2, pip: 3 }, P);
+
+  const drag = grab(a, t1);
+  drag.applyDrag(-30, -30);
+  drag.applyDrag(-300, -300);
+  drag.endDrag(false);
+
+  const edges = a.subtree.filter(n => n.type === 'pipped-edge');
+  eq(edges.length, 1, 'an edge took the place of the broken join');
+  eq(mgr.entriesOf(edges[0]).length, 2, 'attached at both ends');
+});
+
+test('a tile join outranks the edges in its way', () => {
+  const a = arena([new EdgeSnapController(), new RaftSnapController()]);
+  const t1 = tile(0, 0), t2 = tile(STEP + 6, 0);            // 6px short of abutting
+  const j1 = junction(0, -200), j2 = junction(0, 200);
+  const e1 = edge(21.21, 0, 0, -200), e2 = edge(STEP + 6 - 21.21, 0, 0, 200);
+  a.subtree = [t1, t2, j1, j2, e1, e2];
+  const mgr = PipperNode.manager(a);
+  mgr.join({ node: e1, pip: 0 }, { node: t1, pip: 1 }, P);
+  mgr.join({ node: e1, pip: 1 }, { node: j1, pip: 0 }, P);
+  mgr.join({ node: e2, pip: 0 }, { node: t2, pip: 3 }, P);
+  mgr.join({ node: e2, pip: 1 }, { node: j2, pip: 0 }, P);
+
+  ok(SnapEngine.apply(mgr, a, a.subtree, new Set([t2]), 12, P), 'the tiles snapped');
+
+  const held = mgr.setFor(t1, 1);
+  ok(held && held === mgr.setFor(t2, 3), 'the tiles now share a set');
+  ok(held.every(e => mgr.kindAt(e.node, e.pip).anchors), 'and that set is tile-only');
+  ok(!a.subtree.includes(e1) && !a.subtree.includes(e2), 'the squeezed-out edges were deleted');
+  ok(!mgr.squeezable({ node: t1, pip: 1 }), 'an existing tile join is not itself squeezable');
+
+  /* A junction is not an edge, so no controller reaps it — the manager itself
+     must release the pip, or the tiles can never abut. */
+  const b = arena([new EdgeSnapController(), new RaftSnapController()]);
+  const u1 = tile(0, 0), u2 = tile(STEP + 6, 0);
+  const stray = junction(21.21, 0);
+  b.subtree = [u1, u2, stray];
+  const m3 = PipperNode.manager(b);
+  m3.join({ node: stray, pip: 0 }, { node: u1, pip: 1 }, P);
+  ok(m3.setFor(u1, 1), 'a junction sits on the tile pip');
+
+  ok(SnapEngine.apply(m3, b, b.subtree, new Set([u2]), 12, P), 'the tiles still snap');
+  const joined = m3.setFor(u1, 1);
+  ok(joined && joined === m3.setFor(u2, 3), 'the tile join formed');
+  ok(joined.every(e => m3.kindAt(e.node, e.pip).anchors), 'the junction was released from it');
+  ok(consistent(mgr), 'sets consistent');
+});
+
+test('only one junction survives in a set', () => {
+  const a = arena([new EdgeSnapController()]);
+  const mgr = PipperNode.manager(a);
+  const older = junction(100, 0), newer = junction(100, 0);
+  const e1 = edge(0, 0, 100, 0), e2 = edge(100, 0, 200, 0);
+  a.subtree = [older, newer, e1, e2];
+
+  mgr.join({ node: e1, pip: 1 }, { node: older, pip: 0 }, P);
+  mgr.join({ node: e2, pip: 0 }, { node: older, pip: 0 }, P);
+  mgr.join({ node: newer, pip: 0 }, { node: e1, pip: 1 }, P);
+  PipperNode.setDraggedRefs(a, [{ node: newer, pip: 0 }], P);
+
+  new EdgeSnapController()._absorbDuplicateJunctions(a, P);
+
+  const set = mgr.setFor(newer, 0);
+  eq(set ? set.filter(e => mgr.isJunction(e.node)).length : 0, 1, 'one junction remains');
+  ok(!a.subtree.includes(older), 'the incumbent was absorbed');
+  ok(a.subtree.includes(newer),  'the newcomer, being dragged, won');
+  eq(a.subtree.filter(n => n.type === 'pipped-edge').length, 2, 'both edges survive');
+  ok(consistent(mgr), 'sets consistent');
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLYWEIGHT — a leaf never learns that it is shared
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const ARRAY_MODELS = () => MODELS.filter(m => m.arrayNode);
+
+test('every family draws, hits and describes itself', () => {
+  for (const m of ARRAY_MODELS()) {
+    const found = findHit(m.sceneRoot, null);
+    if (!found) { note(`  ${m.constructor.name}: no hit found`); continue; }
+
+    const a = Values.access(mix(), found.hit, {});
+    const tip = a.getTooltip();
+    ok(tip && tip.name, `${m.constructor.name} → "${tip && tip.name}"`);
+    ok(found.hit.node.index === undefined, `${m.constructor.name} hit carries no index`);
+    ok(!a.draggable, `${m.constructor.name} item is selectable, not draggable`);
+  }
+});
+
+test('the app reaches an item only through interactions', () => {
+  const m = ARRAY_MODELS()[0];
+  if (!m) return note('  no array models');
+  const found = findHit(m.sceneRoot, null);
+  if (!found) return note('  no hit');
+
+  // The hit lands on the shared proto: that is fine, because nothing reads it.
+  const proto = found.hit.node;
+  const own = Object.keys(proto.value || {}).filter(k => k !== 'id');
+  ok(own.length === 0, 'the proto carries no item data of its own');
+
+  const a = Values.access(mix(), found.hit, {});
+  const v = a.getValue();
+  ok(v && Object.keys(v).length > 0, 'but the interaction yields the item value');
+  ok(v.tooltip, 'including its tooltip, as content rather than a method');
+});
+
+test('selection is written and read through the same channel', () => {
+  const m = ARRAY_MODELS()[0];
+  if (!m) return note('  no array models');
+  const found = findHit(m.sceneRoot, null);
+  if (!found) return note('  no hit');
+  const a = Values.access(mix(), found.hit, {});
+
+  ok(!a.getValue().selected, 'not selected to begin with');
+  ok(a.setValue({ selected: true }), 'setValue reports a change');
+  ok(a.getValue().selected, 'and the item now reads as selected');
+  ok(!a.setValue({ selected: true }), 'setting it again reports no change');
+  ok(a.setValue({ selected: false }), 'clearing reports a change');
+  ok(!a.getValue().selected, 'and it reads as unselected');
+});
+
+test('a model may refuse selection', () => {
+  const data = [{ a: 1 }, { a: 2 }];
+  const openArray = makeArray('tree-ring', { rings: data, totalR: 10 },
+    { count: 2, getValue: (mix, n, p, i) => ({ ...data[i] }) });
+  const shut = makeArray('tree-ring', { rings: data, totalR: 10 },
+    { count: 2, selectable: false, getValue: (mix, n, p, i) => ({ ...data[i] }) });
+
+  const flyOf = root => root.subtree.find(n => n.type === 'flyweight-array')
+                     ?? root.subtree.flatMap(n => n.subtree || []).find(n => n.type === 'flyweight-array');
+  const fo = flyOf(openArray), fs = flyOf(shut);
+  ok(fo.inst.setValue(mix(), fo, {}, 0, { selected: true }), 'a selectable family accepts it');
+  ok(!fs.inst.setValue(mix(), fs, {}, 0, { selected: true }), 'one that opts out does not');
+});
+
+test('visiting order is a generator, and can be culled', () => {
+  const hex = MODELS.find(m => m.constructor.name === 'HexViewModel');
+  if (!hex) return note('  no HexViewModel');
+  const fly = hex.arrayNode.subtree.find(n => n.type === 'flyweight-array')
+           ?? hex.arrayNode.subtree.flatMap(n => n.subtree || []).find(n => n.type === 'flyweight-array');
+
+  const order = FlyweightArrayNode._order(mix(), fly, {}, 'draw2d');
+  ok(typeof order[Symbol.iterator] === 'function', 'the order is iterable');
+  ok(typeof order.next === 'function', 'and lazy — a generator, not an array');
+
+  const visited = [...order];
+  const total = FlyweightArrayNode.count(fly);
+  ok(fly.inst.visibleRange, 'a large dump narrows to what is on screen');
+
+  // The cull must actually bite: a pane shows far fewer rows than the dump has.
+  const [from, to] = fly.inst.visibleRange(mix(), fly, {});
+  ok(to - from < total, `range ${from}..${to} is narrower than ${total}`);
+  ok(visited.length === to - from, `${visited.length} visited, matching the range`);
+  ok(visited.every(i => i >= from && i < to), 'and nothing outside it was visited');
+});
+
+test('a model can still reach its own data and array', () => {
+  // makeArray returns a wrapper — a collection, maybe around a clip — so the
+  // data and the array node must be reachable without knowing the shape.
+  for (const m of ARRAY_MODELS()) {
+    const root = m.arrayNode;
+    ok(root.value?.data, `${m.constructor.name}: data reachable from the root`);
+    ok(root.inst?.flyweight?.type === 'flyweight-array',
+       `${m.constructor.name}: the array is reachable too`);
+  }
+});
+
+test('controls that change the data take effect', () => {
+  const hex = MODELS.find(x => x.constructor.name === 'HexViewModel');
+  if (!hex) return note('  no HexViewModel');
+  const data = hex.arrayNode.value.data;
+  const fly = hex.arrayNode.inst.flyweight;
+  const log2 = data.layoutConfig.log2;
+
+  ok(data.configs, 'the model reaches its configs');
+  const before = FlyweightArrayNode.count(fly);
+  hex.onControl('layout_log2', log2 + 1, () => ({}), null);
+  const after = FlyweightArrayNode.count(fly);
+  ok(after !== before, `count follows the control: ${before} -> ${after}`);
+
+  // Shared geometry must follow too, not sit in a cache keyed on pane size.
+  const item = fly.inst.getValue(mix(), fly, {}, 0);
+  ok(item && item.bpr === (1 << (log2 + 1)), 'item geometry followed the change');
+
+  hex.onControl('hex_fontSize', 21, () => ({}), null);
+  ok(data.configs.hex.fontSize === 21, 'a per-config control writes through');
+  hex.onControl('layout_log2', log2, () => ({}), null);
+});
+
+test('the model supplies each item its own resolved geometry', () => {
+  /* The leaf reads coordinates, never derives them. If a family stops
+     supplying them, or supplies the same to every item, this fails. */
+  // [ keys every item must carry, the key that must differ between items ]
+  const GEOM = {
+    ChromosomeModel: [['y1', 'y2', 'cx'], 'y1'],
+    BGAModel:        [['cx', 'cy', 'r'], 'cx'],
+    HeatmapModel:    [['ox', 'oy', 'scale'], 'organ'],   // a shared frame,
+    MouseModel:      [['ox', 'oy', 'mw'], 'shape'],      // differing contents
+    TreeRingModel:   [['cx', 'cy', 'innerR2', 'outerR2'], 'outerR2'],
+    HexViewModel:    [['top', 'chunkH'], 'top'],
+  };
+  for (const m of ARRAY_MODELS()) {
+    const spec = GEOM[m.constructor.name];
+    if (!spec) continue;
+    const [keys, varies] = spec;
+    const fly = m.arrayNode.inst.flyweight;
+    const a = fly.inst.getValue(mix(), fly, {}, 0);
+    const b = fly.inst.getValue(mix(), fly, {}, 1);
+    ok(keys.every(k => a?.[k] !== undefined),
+       `${m.constructor.name} items carry ${keys.join(', ')}`);
+    ok(a?.[varies] !== b?.[varies],
+       `${m.constructor.name} items differ in ${varies}`);
+  }
+});
+
+test('a leaf works standalone, with no family above it', () => {
+  if (!sceneRegistry.meta['tree-ring']) return note('  no tree-ring in this build');
+  const ring = makeNode('tree-ring', { innerR: 20, outerR: 34, width: 14, year: 1998, lightness: 0.6 });
+  const coll = makeNode('basic-collection', {}, [ring]);
+
+  walk('draw2d', coll, {});
+  ok(true, 'drew with no shared geometry');
+
+  const centre = walk('hit_test', coll, {}, { x: 400, y: 300 });
+  ok(!centre.hitResult, 'a ring is an annulus — the centre is a miss');
+  const band = walk('hit_test', coll, {}, { x: 400 + 300 * (27 / 34), y: 300 });
+  ok(band.hitResult, 'and a point inside its own band is a hit');
+
+  // The very same selection channel works on an ordinary node.
+  const a = Values.access(mix(), { node: ring }, {});
+  ok(a.setValue({ selected: true }), 'setValue reports a change');
+  ok(a.getValue().selected, 'the ring reads as selected');
+  ok(ring.value.selected === undefined, 'and selection did not land in value');
+  ok(ring.state.selected === true, 'it went to state, where ephemera belongs');
+});
+
+test('no leaf class mentions an index or a plate', () => {
+  const LEAVES = ['chromosome-band', 'piano-key', 'bga-pin', 'organ-region',
+                  'mouse-button', 'tree-ring', 'hex-chunk'];
+  for (const type of LEAVES) {
+    const cls = sceneRegistry.meta[type]?.nodeClass;
+    if (!cls) { note(`  ${type}: not registered`); continue; }
+    const src = Object.getOwnPropertyNames(cls)
+      .filter(k => typeof cls[k] === 'function')
+      .map(k => cls[k].toString()).join('\n');
+    ok(!/node\.index/.test(src) && !/\bplate\b/.test(src),
+       `${type} mentions neither an index nor a plate`);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CAMERA — a world point stays put under any pan or zoom
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('hit testing is camera-independent', () => {
+  const m = MODELS.find(x => x.constructor.name === 'MouseModel');
+  if (!m) return note('  no MouseModel');
+  const cam = m.sceneRoot;
+  const v = cam.value;
+  const saved = { zoom: v.zoom, sx: v.scrollX, sy: v.scrollY };
+
+  v.zoom = 1; v.scrollX = 0; v.scrollY = 0;
+  const found = findHit(cam, cam, 7);
+  if (!found) { note('  nothing hit at identity'); Object.assign(v, saved); return; }
+
+  const worldToScreen = (wx, wy) => {
+    const z = v.zoom || 1;
+    const cx = v.centerOrigin ? 400 : 0, cy = v.centerOrigin ? 300 : 0;
+    return { x: (wx - (v.scrollX || 0)) * z + cx, y: (wy - (v.scrollY || 0)) * z + cy };
+  };
+
+  for (const [zoom, sx, sy] of [[1,0,0],[2.5,0,0],[0.4,0,0],[1,120,-80],[2,-60,45],[3.3,200,150]]) {
+    v.zoom = zoom; v.scrollX = sx; v.scrollY = sy;
+    const s = worldToScreen(found.x, found.y);
+    walk('draw2d', cam, {}, null, cam);          // leave a transform behind
+    const m2 = walk('hit_test', cam, {}, s, cam);
+    ok(!!m2.hitResult, `zoom ${zoom}, pan ${sx},${sy} — same world point still hits`);
+  }
+  Object.assign(v, { zoom: saved.zoom, scrollX: saved.sx, scrollY: saved.sy });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHOLE-SCENE SWEEP — the cheapest test in the file, and the one that has
+   caught the most.  Every model, every phase, no exceptions.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test('every model constructs, lays out, draws and hit-tests', () => {
+  ok(MODELS.length > 0, `${MODELS.length} models registered`);
+  let drawn = 0, hits = 0;
+  for (const m of MODELS) {
+    if (!m.sceneRoot) continue;
+    walk('layout', m.sceneRoot, {});
+    walk('draw2d', m.sceneRoot, {});
+    drawn++;
+    for (const p of [{ x: 400, y: 300 }, { x: 0, y: 0 }, { x: 410, y: 290 }])
+      if (walk('hit_test', m.sceneRoot, {}, p).hitResult) hits++;
+  }
+  // A 3D-only build has no sceneRoot to walk: nothing to check, not a failure.
+  if (!drawn) return note('  no 2D model in this build');
+  ok(drawn > 0, `${drawn} scenes laid out and drawn without throwing`);
+  ok(hits > 0, `${hits} hit results across the sweep`);
+});
+
+test('no ephemeral state has crept back into value', () => {
+  // value is for enduring serialisable content. Functions, live objects and
+  // drag-time caches belong in state (recomputable) or inst (configured).
+  // `connections` is deliberately absent: id-based specs are legitimate content
+  // on an unloaded scene template. What must never appear is a live one.
+  const BANNED = ['controllers', 'valueFn', 'getValue', 'arenaNode', 'cameraNode',
+                  'zoneClass', 'hovered', 'selected', 'draggedPips', 'proximityPairs',
+                  'raftDrag', 'snapEdges', 'plate', 'wrapped'];
+  const seen = new Set();
+  const visit = node => {
+    if (!node || seen.has(node)) return;
+    seen.add(node);
+    for (const k of Object.keys(node.value || {})) {
+      if (BANNED.includes(k)) ok(false, `${node.type}.value.${k} should not be in value`);
+      if (typeof node.value[k] === 'function') ok(false, `${node.type}.value.${k} is a function`);
+    }
+    (node.subtree || []).forEach(visit);
+  };
+  for (const m of MODELS) visit(m.sceneRoot);
+  ok(true, `${seen.size} nodes checked for value hygiene`);
+});
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DEPENDENCY GRAPH — the //>> import lines must match the code
+
+   Every nugget declares what it needs.  Those declarations are the only graph:
+   the batch tool computes a build's closure from them and from nothing else,
+   so a declaration that has drifted from the code produces a slice that is
+   wrong in a way no amount of looking at the spike will reveal.
+
+   The three checks below are cheap and they are the reason the comments can be
+   trusted to an LLM.  If you move a symbol between nuggets and forget the
+   import line, the first test names the nugget and the symbol.
+
+   They read the app's own text rather than its module namespace, so they see
+   what a slicing tool sees, not what the browser managed to link.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Strip comments and string bodies, so a name mentioned in prose or inside a
+   literal does not read as a use.  The nugget prose is thorough enough that
+   skipping this step reports roughly fifty phantom dependencies. */
+const stripComments = src => src
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^[ \t]*\/\/.*$/gm, '');
+
+/* Comments and string bodies both gone: for the symbol scan, a name inside a
+   literal is not a use either. */
+const stripCode = src => stripComments(src)
+  .replace(/'(?:[^'\\]|\\.)*'/g, '""')
+  .replace(/`(?:[^`\\]|\\.)*`/g, '""');
+
+/* The spike's nuggets, as the batch tool reads them. */
+function readNuggets(src) {
+  const lines = src.split('\n');
+  const out = [];
+  let cur = null;
+  for (const line of lines) {
+    const start = /^\/\/-- file: (\S+) --/.exec(line);
+    if (start) { cur = { path: start[1], imports: [], exports: [], body: [] }; continue; }
+    if (!cur) continue;
+    if (/^\/\/-- endfile/.test(line)) {
+      cur.body = cur.body.join('\n');
+      cur.code = stripCode(cur.body);       // for symbol references
+      cur.live = stripComments(cur.body);   // for type strings, which ARE literals
+      out.push(cur); cur = null; continue;
+    }
+    if (line.startsWith('//>>')) {
+      const code = line.slice(4).trim();
+      const from = /from\s+['"]([^'"]+)['"]/.exec(code) || /^import\s+['"]([^'"]+)['"]/.exec(code);
+      const syms = /^(?:import|export)\s*\{([^}]*)\}/.exec(code);
+      const names = syms ? syms[1].split(',').map(x => x.trim()).filter(Boolean) : [];
+      if (code.startsWith('import')) cur.imports.push({ from: from && from[1], names });
+      else if (code.startsWith('export')) cur.exports.push(...names);
+      continue;
+    }
+    cur.body.push(line);
+  }
+  return out;
+}
+
+/* Top-level declarations, and which nugget makes each. */
+function ownerOf(nuggets) {
+  const own = new Map();
+  for (const n of nuggets)
+    for (const re of [/^class (\w+)/gm, /^(?:const|let|var)\s+([\w, ]+?)\s*[=;]/gm,
+                      /^(?:async )?function\s+(\w+)/gm])
+      for (const m of n.body.matchAll(re))
+        for (const name of m[1].split(',').map(x => x.trim()))
+          if (/^\w+$/.test(name) && !own.has(name)) own.set(name, n.path);
+  return own;
+}
+
+/* Everything a nugget binds itself, at any depth: locals shadow imports, and
+   two models declare their own `const R` over the one SYS carries. */
+function boundIn(nugget) {
+  const bound = new Set();
+  for (const re of [/\bclass\s+(\w+)/g, /\b(?:const|let|var)\s+([\w, ]+?)\s*[=;]/g,
+                    /\bfunction\s+(\w+)/g, /\bcatch\s*\(\s*(\w+)/g])
+    for (const m of nugget.code.matchAll(re))
+      for (const name of m[1].split(',').map(x => x.trim()))
+        if (/^\w+$/.test(name)) bound.add(name);
+  for (const m of nugget.code.matchAll(/\(([^()]*)\)\s*(?:=>|\{)/g))
+    for (const p of m[1].match(/\b[a-zA-Z_]\w*\b/g) || []) bound.add(p);
+  return bound;
+}
+
+const usesName = (code, name) => {
+  const re = new RegExp(`(?<![.\\w$])${name}\\b`, 'g');
+  for (const m of re.exec(code) ? code.matchAll(re) : []) {
+    if (/^\s*:/.test(code.slice(m.index + name.length))) continue;   // object key
+    return true;
+  }
+  return false;
+};
+
+test('every nugget declares what it uses', () => {
+  const nuggets = readNuggets(APP_SRC);
+  ok(nuggets.length > 0, `${nuggets.length} nuggets found`);
+
+  const own = ownerOf(nuggets);
+  const gaps = [];
+  for (const n of nuggets) {
+    const bound = boundIn(n);
+    const imported = new Set(n.imports.flatMap(i => i.names));
+    for (const [name, home] of own) {
+      if (home === n.path || bound.has(name) || imported.has(name)) continue;
+      if (usesName(n.code, name)) gaps.push(`${n.path} uses ${name} (from ${home})`);
+    }
+  }
+  ok(gaps.length === 0, 'no nugget reaches for an undeclared symbol'
+     + (gaps.length ? `: ${gaps.slice(0, 6).join('; ')}${gaps.length > 6 ? ' …' : ''}` : ''));
+});
+
+test('every declared import resolves', () => {
+  const nuggets = readNuggets(APP_SRC);
+  const byPath = new Map(nuggets.map(n => [n.path, n]));
+  const bad = [];
+  for (const n of nuggets)
+    for (const imp of n.imports) {
+      const target = byPath.get(imp.from);
+      if (!target) { bad.push(`${n.path} imports ${imp.from}, which is not a nugget here`); continue; }
+      for (const name of imp.names)
+        if (!target.exports.includes(name))
+          bad.push(`${n.path} imports ${name} from ${imp.from}, which does not export it`);
+    }
+  ok(bad.length === 0, 'every import names a nugget that exports it'
+     + (bad.length ? `: ${bad.slice(0, 6).join('; ')}${bad.length > 6 ? ' …' : ''}` : ''));
+});
+
+test('every nugget is reachable, and every type it builds is registered', () => {
+  const nuggets = readNuggets(APP_SRC);
+  const byPath = new Map(nuggets.map(n => [n.path, n]));
+
+  /* Entries are App and the models: nothing imports a model, because a model
+     pushes itself into SYS.MODELS at load and App reads the list. */
+  const entries = nuggets.map(n => n.path)
+                         .filter(p => p === './app.js' || /-model\.js$/.test(p));
+  const seen = new Set(), queue = [...entries];
+  while (queue.length) {
+    const p = queue.shift();
+    if (seen.has(p) || !byPath.has(p)) continue;
+    seen.add(p);
+    for (const imp of byPath.get(p).imports) queue.push(imp.from);
+  }
+  /* Two nuggets are dead and known to be: Camera is never instantiated (the
+     pane-camera node superseded it) and camera-node is registered but never
+     built.  Listed rather than tolerated silently, so that deleting them is a
+     one-line change here and a new orphan is a red test. */
+  const KNOWN_DEAD = ['./camera.js', './camera-node.js'];
+
+  const orphans = nuggets.map(n => n.path).filter(p => !seen.has(p));
+  const unexpected = orphans.filter(p => !KNOWN_DEAD.includes(p));
+  const revived = KNOWN_DEAD.filter(p => byPath.has(p) && seen.has(p));
+  if (orphans.length) note(`  dead: ${orphans.join(', ')}`);
+  ok(unexpected.length === 0,
+     'no nugget is unreachable' + (unexpected.length ? `: ${unexpected.join(', ')}` : ''));
+  ok(revived.length === 0,
+     'nothing on the dead list came back to life'
+     + (revived.length ? `: ${revived.join(', ')} — delete it from KNOWN_DEAD` : ''));
+
+  /* A type registered nowhere is untyped by design and falls through to the
+     registry's default handler.  A type registered somewhere but absent from a
+     build is a slice that will throw when it draws. */
+  const registered = new Set();
+  for (const n of nuggets)
+    for (const m of n.body.matchAll(/registerNodeClass\(\s*'([\w-]+)'/g)) registered.add(m[1]);
+
+  const built = new Set();
+  for (const n of nuggets)
+    for (const m of n.live.matchAll(/(?:SYS\.)?makeNode\(\s*'([\w-]+)'/g)) built.add(m[1]);
+
+  const unknown = [...built].filter(t => !registered.has(t));
+  note(`  ${registered.size} types registered, ${built.size} built, `
+       + `${unknown.length} untyped (${unknown.join(', ') || 'none'})`);
+  ok(built.size > 0, 'the survey found the makeNode call sites');
+});
+
+/* ── running ───────────────────────────────────────────────────────────── */
+
+function runAll() {
+  out.textContent = '';
+  passed = failed = 0;
+  for (const [name, fn] of SUITE) runOne(name, fn);
+
+  const tally = document.createElement('div');
+  tally.className = 'tally ' + (failed ? 'fail' : 'pass');
+  const skips = skipped ? `, ${skipped} skipped` : '';
+  tally.textContent = failed ? `${passed} passed, ${failed} FAILED` + skips
+                             : `${passed} passed, 0 failed`;
+  out.appendChild(tally);
+  if (typeof process !== 'undefined') globalThis.__tally = { passed, failed };
+}
+
+/* ── getting the app in ─────────────────────────────────────────────────── */
+
+const status = document.getElementById('status');
+const picker = document.getElementById('picker');
+const say = (text, cls) => { status.className = cls || 'note'; status.textContent = text; };
+
+async function boot(html, how) {
+  try {
+    await importApp(html);
+    say(`loaded via ${how} — ${MODELS.length} models`, 'note');
+    picker.style.display = 'none';
+    runAll();
+  } catch (e) {
+    say('could not load: ' + e.message, 'fail');
+    picker.style.display = '';
+  }
+}
+
+/* 1. fetch, for http(s) and for file:// where the browser permits it. */
+async function tryFetch() {
+  try {
+    const r = await fetch(APP_FILE);
+    if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+    return await r.text();
+  } catch {
+    return null;                       // blocked or absent: fall through
+  }
+}
+
+/* 2. drop the file anywhere on the page. */
+document.addEventListener('dragover', e => { e.preventDefault(); document.body.style.opacity = 0.75; });
+document.addEventListener('dragleave', () => { document.body.style.opacity = 1; });
+document.addEventListener('drop', async e => {
+  e.preventDefault();
+  document.body.style.opacity = 1;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) boot(await file.text(), 'drop');
+});
+
+/* 3. pick it. */
+document.getElementById('file').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (file) boot(await file.text(), 'file picker');
+});
+
+document.getElementById('rerun').onclick = () => (MODELS ? runAll() : location.reload());
+
+say('looking for ' + APP_FILE + ' …');
+const fetched = await tryFetch();
+if (fetched) {
+  boot(fetched, 'fetch');
+} else {
+  say(`Could not fetch ${APP_FILE} — the file:// origin rules usually block that. ` +
+      `Drop the app's .html file anywhere on this page, or choose it below.`, 'note');
+  picker.style.display = '';
+}
+</script>
+</body>
+</html>

@@ -313,7 +313,7 @@ body {
 .servers {
   background: #111118; display: flex; flex-direction: column;
   align-items: center; padding: 12px 0; gap: 8px; border-right: 1px solid #1a1b24;
-  position: relative; z-index: 100;
+  position: relative; z-index: 100;  overflow-y: auto; min-height:0;
 }
 .srv {
   width: calc(var(--srv-btn-size) * 1px); height: calc(var(--srv-btn-size) * 1px);

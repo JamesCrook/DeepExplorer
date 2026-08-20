@@ -307,6 +307,14 @@
   <header>
     <h1>Component <span>Browser</span></h1>
     <div class="header-right" id="headerRight">
+      <button class="btn" id="btnBatchPlan" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        Execute Batch Plan
+      </button>
       <button class="btn" id="btnRescan" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
         Rescan
@@ -531,6 +539,10 @@ function parseFile(content, filePath) {
         startLine: i, 
         importStartLine: firstImportLine !== -1 ? firstImportLine : i,
         imports: [...importsFor], 
+        deps: [],          // modules this nugget declares it needs
+        needs: [],         // named symbols it expects to import
+        provides: [],      // named symbols it exports
+        types: [],         // 'type-string' it passes to makeNode
         exports: [], 
         file: filePath 
       };
@@ -542,9 +554,24 @@ function parseFile(content, filePath) {
       const mo = LINE_OUT.exec(lines[i]);
       if (mo) {
         const code = mo[2].trim();
-        if (code.includes('export')) currentNugget.exports.push(code);
-        else if (code.includes('register')) currentNugget.registrations = code;
+        if (code.startsWith('export')) {
+          currentNugget.exports.push(code);
+          const em = /export\s*\{([^}]*)\}/.exec(code);
+          if (em) for (const sym of em[1].split(','))
+            if (sym.trim()) currentNugget.provides.push(sym.trim());
+        } else if (code.startsWith('import')) {
+          // Two shapes:  import { A, B } from './x.js';   and   import './x.js';
+          // The second is registry-mediated: the type string is the only
+          // reference, so there is no symbol to name.
+          const dm = /from\s+['"]([^'"]+)['"]/.exec(code) || /^import\s+['"]([^'"]+)['"]/.exec(code);
+          if (dm) currentNugget.deps.push(dm[1]);
+          const sm = /import\s*\{([^}]*)\}/.exec(code);
+          if (sm) for (const sym of sm[1].split(','))
+            if (sym.trim()) currentNugget.needs.push(sym.trim());
+        } else if (code.includes('register')) currentNugget.registrations = code;
       }
+      const tm = /makeNode\(\s*'([\w-]+)'/.exec(lines[i]);
+      if (tm) currentNugget.types.push(tm[1]);
     }
     const me = FILE_END.exec(lines[i]);
     if (me && currentNugget) {
@@ -994,6 +1021,7 @@ function bindLeftClicks() {
       renderLeft();
       renderMid();
       renderRight();
+      updateBatchBtn();      
     });
   });
 }
@@ -1194,7 +1222,9 @@ function renderMidFiles() {
       state.selectedFiles = [];
       document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'classes'));
       state.leftTab = 'classes';
-      renderLeft(); renderMid(); renderRight();
+      renderLeft(); 
+      renderMid(); 
+      renderRight();
     });
   });
 
@@ -1613,29 +1643,192 @@ async function executeDropout(filePath) {
   while (true) {
     newName = `${base}-${counter}.${ext}`;
     try {
-      // If this doesn't throw, the file exists, we increment and retry
       await data.parentDir.getFileHandle(newName);
       counter++;
     } catch (e) {
-      if (e.name === 'NotFoundError') {
-        // File does not exist, safe to create
-        newHandle = await data.parentDir.getFileHandle(newName, { create: true });
-        break;
-      }
-      throw e; // Bubble up unexpected errors
+      if (e.name === 'NotFoundError') { newHandle = await data.parentDir.getFileHandle(newName, { create: true }); break; }
+      throw e; 
     }
   }
 
-  // Write new contents
   await writeFileContent(newHandle, newContent);
-
   dom.status.textContent = `Dropped out ${uncheckedIndices.length} nugget(s). Saved as ${newName}`;
   dom.status.className = 'status success';
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Event wiring
-// ═══════════════════════════════════════════════════════════════
+
+/* ─────────────────────────────────────────────────────────────────────────────
+Build plans.
+
+A plan names models.  Everything else — node classes, substrate, shell — is
+computed from the //>> import lines in the spike itself.  There is no table of
+dependencies here any more: if a slice comes out wrong, the spike's imports are
+wrong, and the closure check below says which nugget is at fault.
+
+SHELL is the one thing a plan cannot name, because nothing imports a model: a
+model pushes itself into SYS.MODELS at load, and App reads the list.  So App is
+always an entry, and every model named in the plan is an entry beside it.
+──────────────────────────────────────────────────────────────────────────── */
+
+const SHELL = ["./app.js"];
+
+const BATCH_PLAN = [
+  { suffix: "misc-demo",        models: ["hex-view", "button-set", "word-cloud"] },
+  { suffix: "zone-demo",        models: ["tree-ring", "mouse", "heatmap", "bga", "piano", "chromosome"] },
+  { suffix: "chart-demo",       models: ["ramachandran", "climate"] },
+  { suffix: "3d-demo",          models: ["planet", "phylotaxis", "dumbbell", "ground-plane"] },
+  { suffix: "little-demo",      models: ["butanol", "benzene", "procedural-complete",
+                                         "procedural-tree", "seed", "tca-cycle", "silhouette"] },
+  { suffix: "stock-strip-demo", models: ["stock-strip", "butanol", "benzene", "procedural-complete",
+                                         "procedural-tree", "seed", "tca-cycle", "silhouette"] },
+  { suffix: "raft-demo",        models: ["stock-strip", "seed"] },
+
+//{ suffix: "climate-demo",     models: ["climate"] },
+//{ suffix: "tree-ring-demo",   models: ["tree-ring"] },
+//{ suffix: "planet-demo",      models: ["planet"] },
+];
+
+/* Turn a plan's model names into nugget paths.  A name matches the model
+   nugget whose path is `./<name>-model.js`, so a plan reads as a list of
+   things you can see on screen rather than a list of files. */
+function resolveModels(names, parsedNuggets) {
+  const out = [], missing = [];
+  for (const name of names) {
+    const path = "./" + name + "-model.js";
+    if (parsedNuggets.some(n => n.path === path)) out.push(path);
+    else missing.push(name);
+  }
+  return { paths: out, missing };
+}
+
+// --- Batch Execution Subroutine ---
+
+/* Transitive closure over the dependencies each nugget declares. */
+function getRequiredModules(entries, parsedNuggets) {
+  const byPath = {};
+  for (const n of parsedNuggets) byPath[n.path] = n;
+
+  const required = new Set();
+  const queue = [...entries];
+  while (queue.length) {
+    const mod = queue.shift();
+    if (required.has(mod)) continue;
+    required.add(mod);
+    const n = byPath[mod];
+    if (n) for (const dep of n.deps) queue.push(dep);
+  }
+  return required;
+}
+
+/* What the slice would leave dangling.  Three kinds:
+     - a declared dependency on a module the slice dropped
+     - a named import nothing in the slice exports
+     - a makeNode type whose class exists in the spike but was sliced away
+   A type registered nowhere in the spike is untyped by design (it falls
+   through to the registry's default handler) and is not an error. */
+function checkClosure(required, parsedNuggets) {
+  const byPath = {};
+  for (const n of parsedNuggets) byPath[n.path] = n;
+
+  const provided = new Set();
+  for (const p of required) (byPath[p]?.provides || []).forEach(s => provided.add(s));
+
+  const registeredAll = new Set(), registeredKept = new Set();
+  for (const n of parsedNuggets) {
+    const m = /registerNodeClass\(\s*['"]([\w-]+)['"]/.exec(n.registrations || '');
+    if (m) { registeredAll.add(m[1]); if (required.has(n.path)) registeredKept.add(m[1]); }
+  }
+
+  const problems = [];
+  for (const p of required) {
+    const n = byPath[p];
+    if (!n) continue;
+    for (const d of n.deps)
+      if (!required.has(d)) problems.push(`${p} needs module ${d}`);
+    for (const sym of n.needs)
+      if (!provided.has(sym)) problems.push(`${p} imports ${sym}, which nothing in the slice exports`);
+    for (const t of n.types)
+      if (registeredAll.has(t) && !registeredKept.has(t))
+        problems.push(`${p} builds '${t}', whose class was sliced away`);
+  }
+  return problems;
+}
+
+async function executeBatchPlan() {
+  if (state.selectedFiles.length === 0) {
+    dom.status.textContent = 'Please select a file to execute the batch plan against.';
+    dom.status.className = 'status error';
+    return;
+  }
+  
+  let successCount = 0;
+
+  for (const filePath of state.selectedFiles) {
+    const data = state.stndaFiles.get(filePath) || state.prodFiles.get(filePath);
+    if (!data || !data.parentDir) continue;
+
+    for (const plan of BATCH_PLAN) {
+      const { paths, missing } = resolveModels(plan.models, data.parsed.nuggets);
+      if (missing.length) {
+        console.warn(`${plan.suffix}: no model nugget for ${missing.join(', ')}`);
+      }
+      const requiredSet = getRequiredModules([...paths, ...SHELL], data.parsed.nuggets);
+      const problems = checkClosure(requiredSet, data.parsed.nuggets);
+      if (problems.length) {
+        console.warn(`${plan.suffix}: ${problems.length} unbound reference(s)`);
+        problems.forEach(p => console.warn('   ' + p));
+      }
+      
+      const dropRanges = [];
+      data.parsed.nuggets.forEach(n => {
+        if (!requiredSet.has(n.path)) {
+          // Track range for deletion if nugget is NOT required
+          dropRanges.push({ start: n.importStartLine, end: n.endLine });
+        }
+      });
+      
+      const lines = data.content.split('\n');
+      const newLines = lines.filter((_, i) => !dropRanges.some(r => i >= r.start && i <= r.end));
+      const newContent = newLines.join('\n');
+      
+      const originalName = data.handle.name;
+      const parts = originalName.split('.');
+      const ext = parts.pop();
+      const base = parts.join('.');
+      
+      // Determine safe filename (Never overwrite)
+      let newName = `${base}-${plan.suffix}.${ext}`;
+      let counter = 1;
+      let newHandle = null;
+
+      while (true) {
+        try {
+          await data.parentDir.getFileHandle(newName);
+          // If execution gets here, the file exists. Increment and try again.
+          newName = `${base}-${plan.suffix}-${counter}.${ext}`;
+          counter++;
+        } catch (e) {
+          if (e.name === 'NotFoundError') {
+            newHandle = await data.parentDir.getFileHandle(newName, { create: true });
+            break;
+          }
+          throw e; // Unhandled OS Error
+        }
+      }
+
+      await writeFileContent(newHandle, newContent);
+      successCount++;
+    }
+  }
+  
+  dom.status.textContent = `Batch plan complete: Created ${successCount} new files.`;
+  dom.status.className = 'status success';
+}
+
+function updateBatchBtn() {
+  const btn = document.getElementById('btnBatchPlan');
+  btn.disabled = state.selectedFiles.length === 0;
+}
 
 suppressBrowserDragDrop();
 
@@ -1647,6 +1840,7 @@ setupDropZone(document.getElementById('dropProd'), async handle => {
   dom.status.className = 'status success';
   document.getElementById('btnRescan').disabled = false;
   renderLeft();
+  updateBatchBtn();
 }, msg => { dom.status.textContent = msg; dom.status.className = 'status error'; });
 
 setupDropZone(document.getElementById('dropStnda'), async handle => {
@@ -1658,6 +1852,7 @@ setupDropZone(document.getElementById('dropStnda'), async handle => {
   document.getElementById('btnRescan').disabled = false;
   renderLeft();
   updateFixAllBtn();
+  updateBatchBtn();
 }, msg => { dom.status.textContent = msg; dom.status.className = 'status error'; });
 
 document.getElementById('btnRescan').addEventListener('click', async () => {
@@ -1670,9 +1865,20 @@ document.getElementById('btnRescan').addEventListener('click', async () => {
   dom.status.textContent = `Rescanned: ${state.prodFiles.size} prod + ${state.stndaFiles.size} stnda files`;
   dom.status.className = 'status success';
   updateFixAllBtn();
+  updateBatchBtn();
 });
 
-// Left tabs
+// Wire up the new batch plan button
+document.getElementById('btnBatchPlan').addEventListener('click', async () => {
+  const btn = document.getElementById('btnBatchPlan');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = 'Processing...';
+  btn.disabled = true;
+  try { await executeBatchPlan(); }
+  catch (err) { console.error('Batch error:', err); dom.status.textContent = 'Error: ' + err.message; dom.status.className = 'status error'; }
+  finally { btn.innerHTML = originalText; btn.disabled = false; }
+});
+
 document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t === tab));
@@ -1681,7 +1887,6 @@ document.getElementById('leftTabs').querySelectorAll('.panel-tab').forEach(tab =
   });
 });
 
-// Right tabs
 document.getElementById('rightTabs').querySelectorAll('.panel-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.getElementById('rightTabs').querySelectorAll('.panel-tab').forEach(t => t.classList.toggle('active', t === tab));
@@ -1690,12 +1895,12 @@ document.getElementById('rightTabs').querySelectorAll('.panel-tab').forEach(tab 
   });
 });
 
-// Filter
 dom.leftFilter.addEventListener('input', () => {
   state.filterText = dom.leftFilter.value;
   dom.leftFilter.classList.toggle('active', state.filterText !== '');
   renderLeft();
 });
+
 document.getElementById('leftFilterClear').addEventListener('click', () => {
   state.filterText = '';
   dom.leftFilter.value = '';
@@ -1703,7 +1908,6 @@ document.getElementById('leftFilterClear').addEventListener('click', () => {
   renderLeft();
 });
 
-// Copy
 document.getElementById('btnCopy').addEventListener('click', () => {
   const text = dom.rightContent.textContent;
   navigator.clipboard.writeText(text).then(() => {
@@ -1712,16 +1916,9 @@ document.getElementById('btnCopy').addEventListener('click', () => {
   });
 });
 
-// Preview close
 document.getElementById('previewClose').addEventListener('click', hidePreview);
-document.getElementById('previewOverlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('previewOverlay')) hidePreview();
-});
+document.getElementById('previewOverlay').addEventListener('click', e => { if (e.target === document.getElementById('previewOverlay')) hidePreview(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePreview(); });
-
-// ═══════════════════════════════════════════════════════════════
-// Fix operations
-// ═══════════════════════════════════════════════════════════════
 
 function updateFixAllBtn() {
   const btn = document.getElementById('btnFixAll');

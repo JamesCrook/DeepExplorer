@@ -984,8 +984,8 @@ class BasicCollectionNode {
     }
   }
 
-  static _wrapDrag(ctxMix, collNode, child) {
-    const subtree = collNode.subtree;
+  static _wrapDrag(ctxMix, arenaNode, child) {
+    const subtree = arenaNode.subtree;
     const inner = ctxMix.hitResult.interactions;
     const idx = subtree.indexOf(child);
     if (idx >= 0) { subtree.splice(idx, 1); subtree.push(child); }
@@ -1518,15 +1518,15 @@ class App {
     
     // Create Frame Containers
     const blockTray = makeNode('frame-container', { padding: 40 });
-    const collNode = makeNode('basic-collection', {});
-    blockTray.subtree.push(collNode);
+    const arenaNode = makeNode('basic-collection', {});
+    blockTray.subtree.push(arenaNode);
     
     // Seed few blocks around origin
     const tilt = Math.PI / 4;
     const step = this.params.nodeSize * Math.cos(Math.PI / 4) * 2;
     for (let row = -1; row <= 1; row++) {
       for (let col = -1; col <= 1; col++) {
-        collNode.subtree.push(
+        arenaNode.subtree.push(
           makeNode('pipped-polygon', { x: col * step - 300, y: row * step, r: this.params.nodeSize, n: 4, tilt })
         );
       }

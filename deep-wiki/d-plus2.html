@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深 d-plus</title>
+<link rel="icon" type="image/x-icon" href="../../wheel.ico">
+
+<!-- Panel + widget styles. Must come BEFORE the inline block below: -->
+<!-- omni-controls.css sets its own `body { background:#1a1a2e; ... }`, and -->
+<!-- the later inline rules win on equal specificity. -->
+<link rel="stylesheet" href="../css/omni-controls.css">
+<link rel="stylesheet" href="../css/omni-scene.css">
+
+<style>
+/* Prose fallbacks. Anything no widget rule claims still renders. */
+.md-p  { padding: 4px 20px; line-height: 1.55; color: var(--text-2, #8789a3); }
+.md-h  { padding: 14px 20px 4px; font-weight: 600; color: var(--text-1, #d8dae5); }
+.md-li { padding: 2px 20px 2px 34px; line-height: 1.5; position: relative;
+         color: var(--text-2, #8789a3); }
+.md-li::before { content: '•'; position: absolute; left: 20px; opacity: .5; }
+.md-hr { border: 0; border-top: 1px solid var(--border, #2e3048); margin: 12px 20px; }
+.cfg-actions {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 10px 14px 14px; border-top: 1px solid var(--border, #2e3048);
+  margin-top: 6px;
+}
+.cfg-actions button {
+  font: 11px/1 system-ui, sans-serif; padding: 6px 9px; border-radius: 4px;
+  cursor: pointer; border: 1px solid var(--border, #2e3048);
+  background: var(--surface-2, #242536); color: var(--text-2, #8789a3);
+}
+.cfg-actions button:hover:not([disabled]) {
+  border-color: var(--accent, #6e9ef7); color: var(--text-1, #d8dae5);
+}
+.cfg-actions button[disabled] { opacity: .35; cursor: default; }
+.cfg-actions .cfg-status {
+  flex-basis: 100%; color: var(--text-3, #5c5e78);
+  font: 11px/1.4 system-ui, sans-serif; padding-top: 2px;
+}
+.dp-boot-err {
+  margin: 40px auto; max-width: 640px; padding: 18px 22px;
+  border: 1px solid #4a3535; border-radius: 6px;
+  background: #241c1c; color: #d8b0b0;
+  font: 13px/1.6 ui-monospace, monospace; white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<!-- Must be a CLASSIC script, and must precede the module below. -->
+<!-- Module scripts are deferred, so this always runs first; an import could -->
+<!-- not do it, because imports are hoisted and would boot the app first. -->
+<script>window.OMNI_SCENE_NO_AUTOBOOT = true;</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+
+import { OmniSceneApp }     from '../js/apps/omni-scene-app.js';
+import { OmniControlPanel } from '../js/omni-support/omni-control-panel.js';
+import { SCENES }           from '../js/omni-support/scene.js';
+import { createWidget, _esc }
+                             from '../js/omni-support/omni-widget.js';
+import { sceneRegistry }     from '../js/omni-support/scene.js';
+
+import { RuleSet, transform, readFlatYaml, esc,
+         FetchSource, OverlaySource, LocalStore }
+                             from './mdplus.js';
+import { ConfigStack }       from './mdconfig.js';
+
+
+// ═══════════════════════════════════════════════════════════════
+//  DeepExplorer — markdown-driven explorer UI, scene-graph aware
+// ═══════════════════════════════════════════════════════════════
+//
+//  Content now lives in ./content as ordinary markdown. A file's ROLE — not
+//  the column it lands in — decides which rules may match it:
+//
+//      content/_rules.md          rules + cast, vault-wide
+//      content/_servers.md        role: servers
+//      content/<server>/_index.md role: index
+//      content/<server>/<Note>.md role: note   (or chat, via %%doc role=chat%%)
+//
+//  Nothing is pinned to a column: a line marked %%server%% builds a server
+//  icon wherever it appears, and a click is routed by node._nav, not by the
+//  zone the widget happens to sit in.
+//
+//  A folder may add its own _rules.md; later rules win by id. Nothing below
+//  parses markdown — mdplus.js hands over { type, value, _content } nodes,
+//  which is exactly what createWidget already consumed.
+
+
+class DeepExplorer {
+
+  constructor(container, config) {
+    this.el = container;
+    this.source = config.source;
+    this.diagrams = config.diagrams || {};
+    this.bot = config.bot;
+    this.onMessage = config.onMessage || null;
+
+    this.config = new ConfigStack(this.source);
+    // Declarations contributed by rendered documents. Kept because reloading
+    // the layers rebuilds `decls` from scratch, which would otherwise drop
+    // every control island the open documents had supplied.
+    this._absorbed = new Map();
+
+    this.ruleset = null;         // vault rules, merged with the server's
+    this.vaultRules = null;
+    this.activeServerId = null;
+    this.serverMeta = new Map(); // server id -> { default, icon }
+    this._noLocalRules = new Set();  // servers known to have no _rules.md
+
+    this.liveStage    = null;    // the card whose scene the panel drives
+    this.engagedStage = null;    // the card that currently receives wheel
+    this.stageApps    = new Map();   // card -> OmniSceneApp
+    this._stageRO = null;
+    this._stageIO = null;
+    this._scrollHandler = null;
+    this._prevScroller = null;
+
+    this._createShell();
+    this._createPanel();
+    // Lightweight context for chat-layout widgets.  Panel widgets use
+    // WidgetContext.fromPanel(panel) separately; this just lets code islands
+    // find the validator and diagrams find their registry.
+    this._widgetCtx = { panel: this.panel };
+    this._bindEvents();
+  }
+
+  // ── Boot ──────────────────────────────────────────────────
+
+  //  Config resolves BEFORE anything renders, because the corpus list and the
+  //  CSS variables both come out of it. _project.md is the bootstrap: it names
+  //  the layer sequence and holds the corpora. A vault that predates it still
+  //  boots from _servers.md with no config at all.
+
+  async start(initialServer) {
+    this.projectPath = await this._resolveProject();
+    if (this.projectPath) {
+      await this.config.load(this.projectPath);
+      this.config.applyCss(document.documentElement);
+      this.config.installCss(document);
+      // The panel writes CSS vars; config reads them back. Nothing in the
+      // panel or the control widgets knows config exists.
+      const stops = [document.documentElement, document.body].map(root =>
+        this.config.observe(root, (keys) => this._onConfigChanged(keys)));
+      const sweep = () => this._sweepConfig();
+      document.addEventListener('pointerup', sweep, true);
+      document.addEventListener('change', sweep, true);
+      this._stopObserving = () => {
+        stops.forEach(f => f());
+        document.removeEventListener('pointerup', sweep, true);
+        document.removeEventListener('change', sweep, true);
+      };
+    }
+    this.vaultRules = RuleSet.fromMarkdown(await this.source.read('_rules.md'));
+    this.ruleset = this.vaultRules;
+    await this._load(this.projectPath || '_servers.md', 'servers', 'zone-col1');
+    const first = this.el.querySelector('.srv[data-target]')?.dataset.target;
+    await this.loadTarget(
+      initialServer || this.config.get('default-corpus') || first, 'server');
+  }
+
+  async _resolveProject() {
+    for (const p of ['_project.md', '_servers.md']) {
+      try { await this.source.read(p); return p; } catch { /* try the next */ }
+    }
+    throw new Error('no _project.md or _servers.md in this vault');
+  }
+
+  /** Session changes are live but provisional. The affordance is deliberate:
+   *  the same drag never means "try this" in one mode and "keep this" in
+   *  another — trying is free, keeping is a click. */
+  /** Config actions live in col2, next to the controls they act on, and are
+   *  declared in the settings index like anything else. So this only reflects
+   *  state onto whatever the content happens to have rendered — and must
+   *  tolerate their absence, because most corpora will not carry them. */
+  _onConfigChanged() { this._syncConfigUi(); }
+
+  /** Persist the session. A read-only source fails loudly and hands back the
+   *  island, so the fallback is the same click-to-apply fence as everywhere
+   *  else rather than a silent no-op. */
+  async saveConfig() {
+    this._sweepConfig();          // nothing in flight gets left behind
+    try {
+      const res = await this.config.flush();
+      return res ? { saved: true, path: res.path, keys: res.keys }
+                 : { saved: false, reason: 'nothing to save' };
+    } catch (err) {
+      return { saved: false, reason: err.message, island: this.config.serialize() };
+    }
+  }
+
+  revertConfig() {
+    this.config.revert();
+    this._repaint();
+    this._syncConfigUi();
+  }
+
+  /** Custom properties go inline on :root, which outranks any stylesheet and
+   *  shares the style attribute with the panel's own writes — later write
+   *  wins, no cascade fight. The generated sheet carries only raw
+   *  declarations, for values no variable reaches. */
+  _repaint() {
+    this.config.applyCss(document.documentElement);
+    this.config.installCss(document);
+  }
+
+  /** Backstop for changes the observer cannot see.
+   *
+   *  The observer watches the style attribute of :root and body, which is
+   *  where the panel writes, so it carries the normal case on its own. A
+   *  control that wrote through a stylesheet rule instead would mutate no
+   *  attribute and go unnoticed — hence this.
+   *
+   *  It runs when a gesture ENDS and before anything reads config out. An
+   *  earlier version polled on a 700ms timer, gated on markup classes that
+   *  turned out not to exist; a drag produces exactly one pointerup, which is
+   *  both cheaper and more precise, and depends on recognising nothing. */
+  _sweepConfig() {
+    // Read through the inheriting element: a panel write on :root shows here
+    // by inheritance, and a write on body shows as body's own inline value.
+    const changed = this.config.captureCss(document.body);
+    if (changed.length) this._onConfigChanged(changed);
+    else this._syncConfigUi();
+  }
+
+  /** The browser layer as a real file. Downloading it is what makes it
+   *  portable: paste it into the vault's _local.md and it becomes permanent
+   *  and shared, at which point the browser copy can be discarded. */
+  downloadConfig(name = '_local.md') {
+    this._sweepConfig();
+    const files = this.config.source?.overlays?.() || {};
+    const text = Object.values(files).join('\n\n') ||
+                 this.config.serialize(this.config.keys());
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return text;
+  }
+
+  /** Discard the browser layer. Everything the vault declares surfaces again
+   *  on the next load, so this is undo for "I set this months ago". */
+  async clearLocalConfig() {
+    this.config.source?.clearLocal?.();
+    this.config.revert();
+    await this.config.load(this.projectPath);
+    for (const text of this._absorbed.values()) this.config.absorbDoc(text);
+    this._repaint();
+    this._syncConfigUi();
+  }
+
+  /** Reflect state onto whatever config buttons the content happens to have
+   *  rendered. The buttons are markdown+ (an `html` fence in Settings.md), so
+   *  this must tolerate their absence entirely. */
+  /** Pre-parse and cache config payloads on `[data-nav="config"]` elements.
+   *  Called once per document render; _syncConfigUi and _markConfigChoice
+   *  then read the cache instead of JSON.parsing every element every time. */
+  _cacheConfigPayloads() {
+    this._cfgPayloadCache = new WeakMap();
+    for (const el of this.el.querySelectorAll('[data-nav="config"]')) {
+      try {
+        const p = JSON.parse(el.dataset.payload || 'null');
+        if (p) this._cfgPayloadCache.set(el, p);
+      } catch { /* ignore */ }
+    }
+  }
+
+  _getCfgPayload(el) {
+    if (this._cfgPayloadCache?.has(el)) return this._cfgPayloadCache.get(el);
+    try { return JSON.parse(el.dataset.payload || 'null'); } catch { return null; }
+  }
+
+  _syncConfigUi() {
+    const dirty = this.config.session.size;
+    const held  = Object.keys(this.config.source?.overlays?.() || {}).length;
+
+    // Collect which config keys have elements — from cache, no JSON.parse.
+    const cfgKeys = new Set();
+    for (const el of this.el.querySelectorAll('[data-nav="config"]')) {
+      const p = this._getCfgPayload(el);
+      if (p?.key) cfgKeys.add(p.key);
+    }
+    for (const key of cfgKeys) this._markConfigChoice(key);
+
+    for (const el of this.el.querySelectorAll('[data-cfg-count]')) {
+      el.textContent = dirty
+        ? `${dirty} unsaved change${dirty === 1 ? '' : 's'}`
+        : (held ? 'saved in this browser' : 'no local settings');
+    }
+    for (const el of this.el.querySelectorAll('[data-cfg-act="save"], [data-cfg-act="revert"]')) {
+      el.toggleAttribute('disabled', dirty === 0);
+    }
+    for (const el of this.el.querySelectorAll('[data-cfg-act="clear"]')) {
+      el.toggleAttribute('disabled', held === 0);
+    }
+    // Downloading the resolved settings is always possible, even with an
+    // empty browser layer — that is how you seed a vault _local.md.
+    for (const el of this.el.querySelectorAll('[data-cfg-act="download"]')) {
+      el.removeAttribute('disabled');
+    }
+  }
+
+  // ── Shell ─────────────────────────────────────────────────
+  //
+  //  col2 is split so the panel and the markdown never fight over the same
+  //  element. #panel-controls is STABLE for the panel's lifetime — the panel
+  //  holds a direct reference to it, so if markdown ever replaced it the
+  //  panel would be left writing into a detached node. Markdown owns only
+  //  #zone-col2-head and #zone-col2-topics.
+
+  _createShell() {
+    this.el.innerHTML = `<div class="app">
+      <div id="zone-col1" class="servers"></div>
+      <div class="channels">
+        <div id="zone-col2-head"></div>
+        <div class="ch-body">
+          <div id="zone-col2-topics"></div>
+          <div class="col2-sep"></div>
+          <div id="panel-controls" class="controls"></div>
+        </div>
+      </div>
+      <div class="chat-col">
+        <div id="zone-col3"></div>
+        <div id="zone-widgets"></div>
+      </div></div>`;
+  }
+
+  /** One panel, shared by every stage card. Whichever card is live calls
+   *  _rebuildContext() and re-points the panel at its own scene. */
+  _createPanel() {
+    this.panelControlsEl = this.el.querySelector('#panel-controls');
+    this.panel = new OmniControlPanel({
+      elements: {
+        container: this.panelControlsEl,
+        controls:  this.panelControlsEl,
+        // No multiscroller: the panel skips the strip entirely when absent.
+        // "Scenes" and "Explore" stay topic links in col2 for now.
+      },
+      sliderConfig:  [],
+      presets:       {},
+      enablePanZoom: false,   // Omni2d owns pan/zoom on its own canvas
+      manageLayout:  false,   // never touch <body> — the chat grid owns layout
+      onRender:      () => {},
+      onResize:      () => {},
+      onTopicSelect: (detail) => this._onPanelTopic(detail),
+    });
+  }
+
+  _onPanelTopic(detail) {
+    if (detail.topic?.scene) this._scrollToScene(detail.topic.scene);
+  }
+
+  // ── Node preparation ──────────────────────────────────────
+  //
+  //  Rules emit a widget type and a value; three types need a little more
+  //  before createWidget can take them, and one is not a widget at all.
+  //  This is the only place in the app that knows a widget type by name.
+
+  _prepare(nodes, meta) {
+    const out = [];
+    for (const node of nodes) {
+
+      // `%%index default=…; icon=…%%` — configuration, not content.
+      if (node.type === 'meta') { Object.assign(meta, node.value); continue; }
+
+      // A `— …` line under the note's H1 is the channel subtitle.
+      if (node.type === 'subtitle') {
+        const prev = out[out.length - 1];
+        if (prev?.type === 'chatheader') prev.value.desc = node.value.desc;
+        continue;
+      }
+
+      // One island holds many sliders; the widget is per-slider.
+      if (node.type === 'controls') {
+        // Seeded from resolved config, so a slider opens where the user left
+        // it instead of snapping to the island default and saving that back.
+        for (const c of this.config.seedControls(readFlatYaml(node._content))) {
+          out.push({ type: 'control', value: c, _content: null });
+        }
+        continue;
+      }
+
+      // The rule's `split` already made this a list; it needs the registry.
+      if (node.type === 'diagrams') node._diagrams = this.diagrams;
+
+      if (node.type === 'header') {
+        node._content = `<span class="domain">${esc(meta.icon || '深')}</span> ` +
+          node._content +
+          ` <span class="stage-track" style="color:var(--text-3);font-weight:400;font-size:11px"></span>`;
+      }
+
+      if (node.type === 'code') node.validator = OmniControlPanel.validateSpec;
+
+      out.push(node);
+    }
+    return out;
+  }
+
+  // ── Rendering ─────────────────────────────────────────────
+  //
+  //  Unchanged from the {Split} era except for its input: it takes nodes
+  //  rather than text. meta.sticky wraps a fragment in a position:sticky
+  //  section; chatheader opens the chat-msgs scroller.
+
+  _render(nodes) {
+    const container = document.createDocumentFragment();
+    const extra = {};              // zoneOut nodes, e.g. the chat input
+    let currentSection = null;
+    let chatMsgs = null;
+
+    for (const node of nodes) {
+      let el;
+      try {
+        el = createWidget(node).mount(this._widgetCtx, node, {});
+      } catch (err) {
+        console.error('d-plus: widget "' + node.type + '" failed', err, node);
+        continue;
+      }
+      if (!el) continue;
+
+      // Navigation lives on the element, not in the click handler: the rule
+      // said what a click does, so the handler needs no knowledge of types.
+      if (node._nav) {
+        const t = el.querySelector?.('.ch, .srv') || el;
+        const target = node.value?.note ?? node.value?.url ?? node.value?.id;
+        if (t.dataset) {
+          t.dataset.nav = node._nav;
+          if (target !== undefined) t.dataset.target = target;
+          // A single opaque string was enough while every click loaded a
+          // document. It is not enough for a click that SETS something, so
+          // the whole value rides along. `nav` still says what the click
+          // does; the payload says what to do it with.
+          if (node.value && typeof node.value === 'object') {
+            try { t.dataset.payload = JSON.stringify(node.value); }
+            catch { /* nothing serialisable — target alone still works */ }
+          }
+        }
+      }
+
+      if (node._zone) {
+        (extra[node._zone] ||= document.createDocumentFragment()).appendChild(el);
+        continue;
+      }
+
+      const target = chatMsgs || container;
+      const sticky = sceneRegistry.meta[node.type]?.defaultParams?.sticky;
+
+      if (sticky) {
+        // Close previous sticky section
+        if (currentSection) target.appendChild(currentSection);
+        // Open new one: sticky-head pins, children scroll beneath
+        currentSection = document.createElement('div');
+        currentSection.className = 'sticky-section';
+        const head = document.createElement('div');
+        head.className = 'sticky-head';
+        head.appendChild(el);
+        currentSection.appendChild(head);
+
+      } else if (node.type === 'chatheader') {
+        // ChatHeader produces just the bar; we open the scroller.
+        container.appendChild(el);
+        chatMsgs = document.createElement('div');
+        chatMsgs.className = 'chat-msgs';
+
+      } else {
+        // Non-sticky fragments: go inside the open section (as
+        // siblings of sticky-head), or directly into the target.
+        if (currentSection) currentSection.appendChild(el);
+        else target.appendChild(el);
+      }
+    }
+
+    if (currentSection) (chatMsgs || container).appendChild(currentSection);
+    if (chatMsgs) container.appendChild(chatMsgs);
+    return { main: container, extra };
+  }
+
+  _mountInto(id, frag) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = '';
+    if (frag) el.appendChild(frag);
+  }
+
+  // ── Loading ───────────────────────────────────────────────
+
+  async _load(path, role, targetId, meta = {}) {
+    const text = await this.source.read(path);
+    // A document may declare its own role; re-run if it does.
+    let { nodes, unmatched, controlIslands } = transform(text, this.ruleset, role);
+    const declared = nodes.find(n => n.type === 'meta' && n.value?.role);
+    if (declared && declared.value.role !== role) {
+      ({ nodes, unmatched, controlIslands } = transform(text, this.ruleset, declared.value.role));
+    }
+    if (unmatched.length) {
+      console.debug(`d-plus: ${unmatched.length} unmatched block(s) in ${path}`,
+        unmatched.map(b => `${b.kind}: ${b.text.slice(0, 60)}`));
+    }
+    // Control islands are declarations wherever they sit. transform() already
+    // extracted their bodies, so pass them straight through — no re-parse.
+    if (controlIslands.length) {
+      this._absorbed.set(path, controlIslands);
+      this.config.absorbDoc(controlIslands);
+    }
+
+    const { main, extra } = this._render(this._prepare(nodes, meta));
+    this._mountInto(targetId, main);
+    for (const [z, frag] of Object.entries(extra)) {
+      this._mountInto('zone-' + z.replace(/\./g, '-'), frag);
+    }
+
+    // ── Generic post-processing ──────────────────────────────
+    //
+    // These used to live in _loadNote exclusively. They work on any
+    // scrolling container in any zone — a stage in col2 or a sticky
+    // section in a fourth column would be handled identically.
+
+    const zone = document.getElementById(targetId);
+    if (zone) {
+      const scroller = zone.querySelector('.chat-msgs') || zone;
+      const heads = scroller.querySelectorAll('.sticky-head');
+      if (heads.length) this._initStickyObservers(scroller);
+
+      const stages = scroller.querySelectorAll('.scene-stage');
+      if (stages.length) this._initStages(scroller);
+    }
+
+    this._cacheConfigPayloads();
+    this._syncConfigUi();
+
+    return meta;
+  }
+
+  // ── Navigation ────────────────────────────────────────────
+  //
+  //  One entry point. `kind` comes from the rule that built the link, so
+  //  switching server is no longer a special case — it is the branch that
+  //  happens to load two files instead of one.
+
+  async loadTarget(target, kind = 'note', payload = null) {
+    if (kind === 'config') return this._applyConfig(payload);
+    if (!target) return;
+    if (kind === 'server') return this._loadServer(target);
+    if (kind === 'index')  return this._loadIndex(target);
+    return this._loadNote(target);
+  }
+
+  /** `nav: config` — a click that sets a key rather than loading a document.
+   *  The rule names the key and the value, so this knows neither. */
+  _applyConfig(payload) {
+    if (!payload?.key) return;
+    this.config.set(payload.key, payload.value);
+    // A theme moves many keys at once, so repaint everything rather than
+    // the one key set() would touch.
+    this._repaint();
+    this._markConfigChoice(payload.key);
+    this._onConfigChanged([payload.key]);
+  }
+
+  /** Mark the chosen option in any list of settings for the same key. */
+  _markConfigChoice(key) {
+    const current = String(this.config.get(key));
+    this.el.querySelectorAll('[data-nav="config"]').forEach(el => {
+      const p = this._getCfgPayload(el);
+      if (!p || p.key !== key) return;
+      el.classList.toggle('active', String(p.value) === current);
+    });
+  }
+
+  async _loadServer(id) {
+    this.activeServerId = id;
+    this.el.querySelectorAll('.srv[data-server-id]').forEach(el => {
+      const isActive = el.dataset.serverId === id;
+      el.classList.toggle('active', isActive);
+      el.classList.toggle('dormant', !isActive);
+    });
+
+    // A folder may refine the vault ruleset; later rules win by id. The miss
+    // is cached — the browser logs a failed fetch whatever we catch here.
+    this.ruleset = this.vaultRules;
+    if (!this._noLocalRules.has(id)) {
+      try {
+        const local = await this.source.read(`${id}/_rules.md`);
+        this.ruleset = this.vaultRules.merge(RuleSet.fromMarkdown(local));
+      } catch { this._noLocalRules.add(id); }
+    }
+
+    this._teardownStages();
+    this._mountInto('zone-col3', null);
+    this._mountInto('zone-widgets', null);
+
+    const meta = await this._loadIndex(id);
+    if (meta?.default) await this._loadNote(meta.default);
+  }
+
+  async _loadIndex(id) {
+    const meta = await this._load(`${id}/_index.md`, 'index', 'zone-col2-topics');
+    this.serverMeta.set(id, meta);
+    this._noteRole = meta.notes || 'note';
+    return meta;
+  }
+
+  async _loadNote(name) {
+    const id = this.activeServerId;
+    if (!id) return;
+    this._teardownStages();
+    try {
+      await this._load(`${id}/${name}.md`, this._noteRole || 'note', 'zone-col3');
+    } catch (err) {
+      console.warn('d-plus: no note "' + name + '" in ' + id, err);
+      return;
+    }
+    if (!this.stageApps.size) this.panel.setContext({ sliderConfig: [] });
+  }
+
+  // ── Sticky observers ──────────────────────────────────────
+
+  _initStickyObservers(scrollContainer) {
+    scrollContainer.querySelectorAll('.sticky-head').forEach(head => {
+      const sentinel = document.createElement('div');
+      sentinel.style.cssText = 'height:1px;margin-bottom:-1px;';
+      head.parentElement.insertBefore(sentinel, head);
+      new IntersectionObserver(([entry]) => {
+        const above = entry.boundingClientRect.top < scrollContainer.getBoundingClientRect().top;
+        head.classList.toggle('is-stuck', !entry.isIntersecting && above);
+      }, { root: scrollContainer, threshold: 0 }).observe(sentinel);
+    });
+  }
+
+  // ── Stages ────────────────────────────────────────────────
+
+  _teardownStages() {
+    for (const app of this.stageApps.values()) {
+      try { app._stopAnimLoop(); app.activeBackend?.deactivate(); } catch (e) { /* nothing to undo */ }
+    }
+    this.stageApps.clear();
+    this.liveStage = null;
+    this.engagedStage = null;
+    this._stageRO?.disconnect();  this._stageRO = null;
+    this._stageIO?.disconnect();  this._stageIO = null;
+    if (this._scrollHandler && this._prevScroller) {
+      this._prevScroller.removeEventListener('scroll', this._scrollHandler);
+    }
+    this._scrollHandler = null;
+  }
+
+  _initStages(scroller) {
+    const stages = [...scroller.querySelectorAll('.scene-stage')];
+    if (!stages.length) return;
+
+    for (const stage of stages) this._mountStage(stage);
+
+    // Resize: Omni2d.resize() measures the canvas's parentElement, which is
+    // zero-sized until the card is laid out. Re-measure whenever it changes.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._stageRO = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const app = this.stageApps.get(e.target);
+          if (!app?.activeBackend) continue;
+          app.activeBackend.resize();
+          app.render();
+        }
+      });
+      stages.forEach(s => this._stageRO.observe(s));
+    }
+
+    // Dormancy: a card scrolled out of view costs nothing. Its last frame
+    // stays on its canvas; nothing redraws until it returns.
+    if (typeof IntersectionObserver !== 'undefined') {
+      this._stageIO = new IntersectionObserver(entries => {
+        for (const e of entries) {
+          const app = this.stageApps.get(e.target);
+          if (!app) continue;
+          e.target.dataset.visible = e.isIntersecting ? '1' : '0';
+          if (e.isIntersecting) {
+            app.activeBackend?.resize();
+            app.render();
+            if (app.currentScene?.animated) app._startAnimLoop();
+          } else {
+            app._stopAnimLoop();
+            if (this.engagedStage === e.target) this._engageStage(null);
+          }
+        }
+      }, { root: scroller, threshold: 0 });
+      stages.forEach(s => this._stageIO.observe(s));
+    }
+
+    let queued = false;
+    this._scrollHandler = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; this._updateLiveStage(scroller); });
+    };
+    this._prevScroller = scroller;
+    scroller.addEventListener('scroll', this._scrollHandler, { passive: true });
+    this._updateLiveStage(scroller);
+  }
+
+  /** Build a shell for one card and hand it to a real OmniSceneApp.
+   *  Reusing OmniSceneApp means Omni2d still receives the `this` it expects —
+   *  no backend code is touched or duplicated here. */
+  _mountStage(card) {
+    if (this.stageApps.has(card)) return;
+    const sceneId = card.dataset.stageScene;
+    const mount = card.querySelector('[data-stage-mount]');
+    if (!mount) return;
+
+    if (!SCENES.find(s => s.id === sceneId)) {
+      mount.insertAdjacentHTML('beforeend',
+        `<div class="stage-err">No scene registered with id "${_esc(sceneId || '')}"</div>`);
+      return;
+    }
+
+    // Mirrors OmniApp's multi-layer stack: a sized wrapper (Omni2d.resize
+    // measures it), the canvas flowing normally, the other backends overlaid.
+    const stack = document.createElement('div');
+    stack.className = 'layer-stack';
+    const uid = card.dataset.stageId || sceneId;
+    const canvas = document.createElement('canvas');
+    canvas.id = 'scene-canvas-' + uid;
+    const v3d = document.createElement('div');
+    v3d.id = 'scene-viewport-3d-' + uid;
+    const vhtml = document.createElement('div');
+    vhtml.id = 'scene-viewport-html-' + uid;
+    for (const el of [v3d, vhtml]) {
+      el.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
+    }
+    stack.append(canvas, v3d, vhtml);
+    mount.appendChild(stack);
+
+    const shell = {
+      container: card,
+      layers: {
+        'scene-canvas':        canvas,
+        'scene-viewport-3d':   v3d,
+        'scene-viewport-html': vhtml,
+      },
+      controls:      this.panelControlsEl,
+      multiscroller: null,
+    };
+
+    let app;
+    try {
+      app = new OmniSceneApp({ shell, controls: this.panel, defaultScene: sceneId });
+    } catch (err) {
+      console.error('d-plus: scene "' + sceneId + '" failed to load', err);
+      mount.insertAdjacentHTML('beforeend',
+        `<div class="stage-err">${_esc(sceneId)} failed to load — see console</div>`);
+      return;
+    }
+    this.stageApps.set(card, app);
+
+    // ── Wheel gating ───────────────────────────────────────
+    // Omni2d's wheel handler calls preventDefault() unconditionally, which is
+    // correct when the canvas IS the page. Here it sits inside the chat
+    // scroller, and the live card is pinned exactly where the cursor rests —
+    // so unguarded, scrolling the chat would silently zoom the scene.
+    // A capture-phase listener on the mount runs before the canvas's own
+    // handler and stops the event reaching it unless the card is engaged.
+    mount.addEventListener('wheel', (e) => {
+      if (card !== this.engagedStage) e.stopPropagation();
+    }, { capture: true });
+
+    // Pointer down engages the card and makes it live. Click and drag stay
+    // available on any visible card — engagement only gates the wheel.
+    card.addEventListener('pointerdown', () => {
+      this._engageStage(card);
+      this._setLive(card);
+    });
+  }
+
+  _engageStage(card) {
+    if (this.engagedStage === card) return;
+    this.engagedStage?.classList.remove('is-engaged');
+    this.engagedStage = card;
+    card?.classList.add('is-engaged');
+  }
+
+  /** Live stage = the last one whose sticky head has reached the top.
+   *  Measure the head, not the stage: .sticky-head carries top padding, so a
+   *  pinned stage sits below the scroller top and would never qualify. */
+  _updateLiveStage(scroller) {
+    const stages = [...scroller.querySelectorAll('.scene-stage')];
+    if (!stages.length) return;
+    const top = scroller.getBoundingClientRect().top;
+    let live = stages[0];
+    for (const s of stages) {
+      const head = s.closest('.sticky-head') || s;
+      if (head.getBoundingClientRect().top <= top + 1) live = s;
+    }
+    this._setLive(live);
+  }
+
+  /** Point the shared panel at this card's scene. */
+  _setLive(stage) {
+    if (!stage || stage === this.liveStage) return;
+    this.el.querySelectorAll('.scene-stage').forEach(s =>
+      s.classList.toggle('is-live', s === stage));
+    this.liveStage = stage;
+
+    const scene = stage.dataset.stageScene || '';
+    const track = this.el.querySelector('#zone-col2-head .stage-track');
+    if (track) track.textContent = scene ? '· ' + scene : '';
+    this.el.querySelectorAll('#zone-col2-topics .ch[data-scene]').forEach(ch =>
+      ch.classList.toggle('active', ch.dataset.scene === scene));
+
+    // This is the whole point of the shared panel: the live app rebuilds the
+    // sidebar from its own layer tree, and re-points onRender at itself.
+    const app = this.stageApps.get(stage);
+    if (app) { app._rebuildContext(); app.render(); }
+  }
+
+  _scrollToScene(scene) {
+    const scroller = this.el.querySelector('.chat-msgs');
+    if (!scroller) return;
+    const stage = scroller.querySelector(`.scene-stage[data-stage-scene="${scene}"]`);
+    if (!stage) return;
+    const section = stage.closest('.sticky-section') || stage;
+    const delta = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' });
+  }
+
+  // ── Events ────────────────────────────────────────────────
+
+  _bindEvents() {
+    this.el.addEventListener('click', e => {
+      // Config actions are content: an `html` fence in Settings.md renders
+      // them, and the existing raw-html rule puts them wherever it is written.
+      const act = e.target.closest('[data-cfg-act]');
+      if (act) {
+        e.preventDefault();
+        const which = act.dataset.cfgAct;
+        if (which === 'save')     this.saveConfig().then(() => this._syncConfigUi());
+        if (which === 'revert') { this.revertConfig(); this._syncConfigUi(); }
+        if (which === 'download') this.downloadConfig();
+        if (which === 'clear')    this.clearLocalConfig();
+        return;
+      }
+
+      // Clicking away from a card releases the wheel back to the chat.
+      if (!e.target.closest('.scene-stage')) this._engageStage(null);
+
+      // A scene topic scrolls rather than loads. Don't set active here —
+      // scrolling makes that stage live, and _setLive marks it.
+      const scene = e.target.closest('[data-scene]');
+      if (scene) { this._scrollToScene(scene.dataset.scene); return; }
+
+      // Everything else the rules made navigable routes through one call.
+      // A wikilink in prose is a note link unless it says otherwise.
+      const nav = e.target.closest('[data-nav], a.wikilink');
+      if (nav) {
+        e.preventDefault();
+        const ch = nav.closest('.ch');
+        if (ch) {
+          const body = ch.closest('.ch-body');
+          if (body) body.querySelectorAll('.ch:not([data-scene])')
+            .forEach(c => c.classList.remove('active'));
+          ch.classList.add('active');
+        }
+        let payload = null;
+        if (nav.dataset.payload) {
+          try { payload = JSON.parse(nav.dataset.payload); } catch { /* ignore */ }
+        }
+        this.loadTarget(nav.dataset.target ?? nav.dataset.note,
+                        nav.dataset.nav || 'note', payload);
+        return;
+      }
+
+      if (e.target.classList.contains('chat-send')) { this._handleSend(); return; }
+    });
+
+    this.el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.target.classList.contains('chat-input')) this._handleSend();
+    });
+  }
+
+  _appendMsg(msgs, author, html) {
+    const w = createWidget({
+      type: 'message',
+      value: { name: author.name, role: author.role, avatar: author.avatar, time: 'just now' },
+      _content: html,
+    });
+    msgs.appendChild(w.mount(this._widgetCtx, w.config, {}));
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  _handleSend() {
+    const input = this.el.querySelector('.chat-input');
+    const msgs = this.el.querySelector('.chat-msgs');
+    if (!input || !msgs) return;
+    const text = input.value.trim();
+    if (!text) return;
+    this._appendMsg(msgs, { name: 'you', role: 'u1', avatar: 'me' }, _esc(text));
+    input.value = '';
+
+    const addReply = (html) => this._appendMsg(msgs, this.bot, html);
+    setTimeout(() => {
+      if (this.onMessage) this.onMessage(text, addReply);
+      else this._defaultReply(text, addReply);
+    }, 300);
+  }
+
+  _defaultReply(text, addReply) {
+    if (text.startsWith('\\help')) {
+      addReply('<strong>Commands</strong><br><code>\\ui</code> — Show dashboard<br><code>\\help</code> — This message<br><code>\\related</code> — Show linked channels<br><code>\\idiolect [term]</code> — Look up a term<br><code>\\config [key]</code> — Show config and where it came from<br><code>\\save</code> — Persist changed settings');
+    } else if (text.startsWith('\\config')) {
+      const key = text.slice(7).trim();
+      if (key === 'clear') {
+        this.config.source?.clearLocal?.();
+        addReply('Browser layer cleared. Reload to resolve from the vault alone.');
+      } else if (key === 'vars') {
+        const row = (t, list) => `<strong>${t}</strong> (${list.length})<br>` +
+          (list.length ? '<code>' + list.join('</code> <code>') + '</code>' : '<em>none</em>') + '<br><br>';
+        this.config.auditVars(document).then(a => addReply(
+          row('Driven — config sets these and your CSS uses them', a.driven) +
+          row('Inert — config sets these but no stylesheet reads them', a.inert) +
+          row('Undriven — your CSS uses these but no theme sets them', a.undriven) +
+          'Anything under <em>inert</em> is a theme entry doing nothing; ' +
+          'anything under <em>undriven</em> is a knob a theme could take over.'));
+      } else if (key === 'download') {
+        this.downloadConfig();
+        addReply('Downloading <code>_local.md</code>. The same button lives on the ' +
+                 'Settings page — it needs <code>content/gear/Settings.md</code> installed.');
+      } else if (key === 'export') {
+        const files = this.config.source?.overlays?.() || {};
+        addReply(Object.keys(files).length
+          ? Object.entries(files).map(([p, t]) =>
+              `<strong>${_esc(p)}</strong><pre>${_esc(t)}</pre>`).join('')
+          : 'Nothing held in the browser layer.');
+      } else if (key) {
+        const ex = this.config.explain(key);
+        addReply(`<strong>${_esc(key)}</strong> = <code>${_esc(String(ex.value))}</code><br>` +
+          (ex.trail.length
+            ? ex.trail.map(t => `${t.active ? '→ ' : '&nbsp;&nbsp;&nbsp;'}<code>${_esc(String(t.value))}</code> from ${_esc(t.layer)}`).join('<br>')
+            : 'not declared in any layer'));
+      } else {
+        addReply('<strong>Config layers</strong><br><code>' +
+          this.config.layers.join('</code> → <code>') + '</code>' +
+          (this.config.missing.length ? '<br>absent: <code>' + this.config.missing.join('</code> <code>') + '</code>' : '') +
+          '<br>writes: <code>' + _esc(String(this.config.writes)) + '</code>' +
+          '<br><br><strong>Values</strong><br>' +
+          this.config.keys().map(k => `<code>${_esc(k)}</code> = ${_esc(String(this.config.get(k)))}`).join('<br>') +
+          '<br><br><code>\\config &lt;key&gt;</code> — where a value came from<br>' +
+          '<code>\\config vars</code> — which theme variables your CSS actually reads<br>' +
+          '<code>\\config download</code> — download the browser layer as _local.md<br>' +
+          '<code>\\config export</code> — the browser layer as text, to paste into the vault<br>' +
+          '<code>\\config clear</code> — discard the browser layer<br>' +
+          '<code>\\save</code> — persist changed settings');
+      }
+    } else if (text.startsWith('\\save')) {
+      this.saveConfig().then(r => addReply(r.saved
+        ? `Saved ${r.keys.length} setting(s) to <code>${_esc(r.path)}</code>.`
+        : `Not saved — ${_esc(r.reason)}` +
+          (r.island ? `<br><br>Paste this into your vault:<br><pre>${_esc(r.island)}</pre>` : '')));
+    } else if (text.startsWith('\\scenes')) {
+      addReply('<strong>Registered scenes</strong><br><code>' +
+        SCENES.map(s => s.id).join('</code> · <code>') + '</code>');
+    } else {
+      addReply('Bring your <a href="#">own LLM</a> to get AI-powered answers. Configure your API key in settings to enable the assistant.');
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  Domain content
+// ═══════════════════════════════════════════════════════════════
+//
+//  The pages are gone — they are markdown files under ./content now.
+//  The diagram SVGs are the one thing still baked in; they want to become
+//  ./content/diagrams/*.svg once OmniScene can write them.
+
+const BOT = { name: 'Deep Explorer', role: 'bot', avatar: '深' };
+
+const DIAGRAMS = {
+  arch: { name: 'Architecture', desc: 'Libraries, adapters, subsystem links',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="8" y="8" width="42" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="29" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Cycles</text>
+      <rect x="60" y="8" width="50" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="85" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">OpenSubdiv</text>
+      <rect x="120" y="8" width="42" height="18" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="141" y="21" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Embree</text>
+      <rect x="20" y="52" width="42" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="41" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">GHOST</text>
+      <rect x="72" y="52" width="36" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="90" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">BKE</text>
+      <rect x="118" y="52" width="36" height="18" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="136" y="65" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">DEG</text>
+      <line x1="29" y1="26" x2="90" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+      <line x1="85" y1="26" x2="90" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+      <line x1="141" y1="26" x2="136" y2="52" stroke="#3d4a6a" stroke-width="0.7"/>
+    </svg>` },
+  flow: { name: 'Data Flow', desc: 'Mesh → modifiers → depsgraph → render',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="5" y="32" width="32" height="16" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="21" y="44" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Mesh</text>
+      <line x1="37" y1="40" x2="48" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="48" y="32" width="32" height="16" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="64" y="44" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">Mods</text>
+      <line x1="80" y1="40" x2="91" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="91" y="32" width="32" height="16" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="107" y="44" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">DEG</text>
+      <line x1="123" y1="40" x2="134" y2="40" stroke="#4a5580" stroke-width="1"/>
+      <rect x="134" y="32" width="40" height="16" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="154" y="44" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">Render</text>
+    </svg>` },
+  pipeline: { name: 'Annotation Pipeline', desc: 'Sources → annotation → SwissProt',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <rect x="5" y="12" width="30" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="20" y="23" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">PDB</text>
+      <line x1="35" y1="19" x2="48" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="48" y="12" width="35" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="65" y="23" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">Align</text>
+      <line x1="83" y1="19" x2="96" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="96" y="12" width="35" height="14" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="113" y="23" text-anchor="middle" fill="#dba06a" font-size="6" font-family="monospace">Annot</text>
+      <line x1="131" y1="19" x2="140" y2="19" stroke="#4a5580" stroke-width="1"/>
+      <rect x="140" y="12" width="30" height="14" rx="3" fill="none" stroke="#dba06a" stroke-width="1"/><text x="155" y="23" text-anchor="middle" fill="#dba06a" font-size="6" font-family="monospace">SP</text>
+      <rect x="5" y="50" width="40" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="25" y="61" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">GenBank</text>
+      <line x1="45" y1="57" x2="65" y2="26" stroke="#4a5580" stroke-width="0.7"/>
+      <rect x="60" y="50" width="45" height="14" rx="3" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="82" y="61" text-anchor="middle" fill="#6e9ef7" font-size="6" font-family="monospace">Literature</text>
+      <line x1="105" y1="57" x2="113" y2="26" stroke="#4a5580" stroke-width="0.7"/>
+    </svg>` },
+  complex: { name: 'Relational Structure', desc: 'Proteins → complexes → pathways',
+    svg: `<svg width="180" height="80" viewBox="0 0 180 80">
+      <circle cx="40" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="40" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P1</text>
+      <circle cx="90" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="90" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P2</text>
+      <circle cx="140" cy="28" r="10" fill="none" stroke="#6e9ef7" stroke-width="1"/><text x="140" y="31" text-anchor="middle" fill="#6e9ef7" font-size="7" font-family="monospace">P3</text>
+      <line x1="50" y1="28" x2="80" y2="28" stroke="#dba06a" stroke-width="1.2"/>
+      <line x1="100" y1="28" x2="130" y2="28" stroke="#dba06a" stroke-width="1.2"/>
+      <rect x="50" y="56" width="80" height="14" rx="7" fill="none" stroke="#dba06a" stroke-width="1"/><text x="90" y="67" text-anchor="middle" fill="#dba06a" font-size="7" font-family="monospace">Complex</text>
+      <line x1="65" y1="38" x2="75" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+      <line x1="90" y1="38" x2="90" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+      <line x1="115" y1="38" x2="105" y2="56" stroke="#4a5580" stroke-width="0.7" stroke-dasharray="3,2"/>
+    </svg>` },
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+//  Boot
+// ═══════════════════════════════════════════════════════════════
+
+const explorer = new DeepExplorer(document.body, {
+  // A read-only vault with a writable layer in front. `_local.md` lives in
+  // the overlay until a real writable source (File System Access, or a
+  // server) replaces the store — nothing above this line changes when it does.
+  source:   new OverlaySource(new FetchSource('./content'), new LocalStore()),
+  diagrams: DIAGRAMS,
+  bot:      BOT,
+});
+
+// No argument: the default corpus is config, so it can be changed from the
+// Settings page and persists like any other setting.
+explorer.start().catch(err => {
+  console.error('d-plus: boot failed', err);
+  document.body.innerHTML =
+    `<div class="dp-boot-err"><strong>d-plus could not load its content.</strong>
+${_esc(err.message || String(err))}
+
+Content is read from ./content — serve this directory over http
+(simplehttpserver is fine); file:// will not work.</div>`;
+});
+
+window.dplus = explorer;
+
+</script>
+</body>
+</html>
