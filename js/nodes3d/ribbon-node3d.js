@@ -4,7 +4,7 @@ import { Spherical } from '../../js/utilities2/spherical.js';
 import * as THREE from 'three';
 
 /**
- * RibbonNode — owns a RibbonUI and optional route computation.
+ * RibbonNode3D — owns a RibbonUI and optional route computation.
  *
  * AST wiring:
  *   new MiniAstNode('ribbon3d', [], {
@@ -64,7 +64,7 @@ const ALL_RIBBON_PARAMS = [
 // Route params that trigger recomputation of control points
 const ROUTE_PARAMS = ['fromLat', 'fromLon', 'toLat', 'toLon', 'arcHeight'];
 
-class RibbonNode extends SceneNode {
+class RibbonNode3D extends SceneNode {
 
   static rebuildParams = [...ROUTE_PARAMS, ...FULL_REBUILD_PARAMS];
   static updateParams = ALL_RIBBON_PARAMS;
@@ -289,9 +289,9 @@ class RibbonNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ribbon3d', RibbonNode);
+sceneRegistry.registerNodeClass('ribbon3d', RibbonNode3D);
 
-export { RibbonNode };
+export { RibbonNode3D };
 
 // Auto-generated exports
 if (typeof window !== 'undefined') window.ALL_RIBBON_PARAMS = ALL_RIBBON_PARAMS;

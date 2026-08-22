@@ -289,9 +289,9 @@ class PostitNode {
 
       // Restore hitPoint to screen coordinates
       node._savedHitPoint = ctxMix.hitPoint ? { ...ctxMix.hitPoint } : null;
-      if (ctxMix.screenHitPoint) {
-        ctxMix.hitPoint = { ...ctxMix.screenHitPoint };
-      }
+      //if (ctxMix.screenHitPoint) {
+      //  ctxMix.hitPoint = { ...ctxMix.screenHitPoint };
+      //}
 
       // Push frame center into params (stamp-frame pattern).
       // Ribbon worldToScreen: wx*zoom + panX + canvasW/2

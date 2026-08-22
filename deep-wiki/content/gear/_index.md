@@ -109,9 +109,12 @@
 
 ## Opens With %%bg=#3a5050; fg=#80b8b0%%
 
+- S Streams %%set=default-corpus; to=streams%%
+- G Garden %%set=default-corpus; to=garden%%
+- L Library %%set=default-corpus; to=library%%
 - 🦊 Blender %%set=default-corpus; to=blender%%
 - 🧬 SwissProt %%set=default-corpus; to=swissprot%%
-- 🎨 OmniScene %%set=default-corpus; to=omniscene%%
+- 🌋  OmniScene %%set=default-corpus; to=omniscene%%
 - ⚙ Settings %%set=default-corpus; to=gear%%
 
 ## Settings File

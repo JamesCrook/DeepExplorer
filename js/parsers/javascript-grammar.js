@@ -1,5 +1,6 @@
 import {Parser} from './parser.js'
 
+// #javascript/grammar
 // ── JavaScript (flat-expression, ~70 rules) ─────────────
 Parser
   // ── Program ──
@@ -164,7 +165,8 @@ Parser
   .addSeq('js_bracket_full', [/^(\[)\s*/, 'js_comma_list', /^\s*(\])/])
   .addSeq('js_bracket_empty', [/^(\[\s*\])/])
 
-  .addRep('js_comma_list', [/^\s*/, 'js_expression', 'maybe_comma'])
+  .addRep('js_comma_list', [/^\s*/, 'js_expression', 'js_maybe_comma'])
+  .addSeq('js_maybe_comma', [/^\s*/, /^(,?)/])
 
   // ── Arrow (only the => and body; params already parsed as paren_group or ident) ──
   .addSeq('js_arrow', [/^(=>)\s*/, 'js_arrow_body'])

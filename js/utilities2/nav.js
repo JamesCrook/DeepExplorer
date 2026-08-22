@@ -31,8 +31,8 @@
    Call NavMenu.clear() to reset, NavMenu.setItems(config) to replace.
 */
 
-import { OmniWidget, createWidget, parseDslValue, _esc, WidgetContext } from '../omni-support/omni-widget.js';
-import { sceneRegistry }  from '../omni-support/scene.js';
+import { WidgetContext } from '../omni-support/omni-widget.js';
+import { sceneRegistry } from '../omni-support/scene.js';
 // ============================================================
 // STYLES (OmniBase dark theme)
 // ============================================================
@@ -358,13 +358,20 @@ class NavMenu {
     this.dropdown.innerHTML = '';
 
     if (this.config.length > 0) {
-      WidgetFactory.buildControls(this.config, this._ctx, this.dropdown);
+      const ctx = this._ctx;
+      ctx.parentEl = this.dropdown;
+      ctx.parentStack = [];
+
+      const ast = {
+        type: 'panel', value: {},
+        subtree: this.config.map(item => NavMenu._coerceNavItem(item)),
+      };
+      sceneRegistry.runPhases(ctx, ast, {}, ['mount']);
     }
 
     // Append widget-generated elements (from OmniControlPanel._rebuildSubmenus)
     if (this._widgetElements.length > 0) {
       if (this.config.length > 0) {
-        // Divider between app items and widget items
         const div = document.createElement('div');
         div.className = 'nav-menu-divider';
         this.dropdown.appendChild(div);
@@ -377,7 +384,6 @@ class NavMenu {
     const hasItems = this.config.length > 0 || this._widgetElements.length > 0;
     this.btn.classList.toggle('has-menu', hasItems);
 
-    // If items were added and we were in back mode, switch to hamburger
     if (this.isBackMode && hasItems) {
       this.isBackMode = false;
       this._setHamburgerIcon();
@@ -386,6 +392,23 @@ class NavMenu {
         this._toggle();
       };
     }
+  }
+
+  /** Coerce a normalized nav config item into an AST node. */
+  static _coerceNavItem(item) {
+    if (item.type === 'nav-submenu') {
+      return {
+        type: 'nav-submenu',
+        value: { label: item.label },
+        subtree: (item.subtree || []).map(sub => NavMenu._coerceNavItem(sub)),
+      };
+    }
+    return {
+      type: item.type || 'nav-item',
+      value: { label: item.label, href: item.href, checked: item.checked },
+      inst: { action: item.action, onChange: item.onChange },
+      subtree: [],
+    };
   }
 }
 

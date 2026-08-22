@@ -1,7 +1,7 @@
 import {Parser} from './parser.js'
 import {SyntaxProcessor} from './syntax-processor.js'
 
-// #asy/spec/grammar
+// #asy/grammar
 
 Parser
   // ============ Asymptote ============

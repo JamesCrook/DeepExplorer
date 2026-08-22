@@ -135,6 +135,14 @@ default note into col3 — which is why navigation is a kind and not a column.
   nav: server
   with: icon=$<icon>; id=$<url>; url=$<url>; name=$<name|url>
 
+- id: server-pic
+  on: item
+  where: servers
+  match: ^\s*\[!\[(?<alt>[^\]]+)\]\((?<pic>[^\)]+)\)\]\((?<url>[^\)]+)\)
+  emit: server
+  nav: server
+  with: icon=Z; alt=$<alt>; pic=$<pic>; id=$<url>; url=$<url>; name=None
+
 - id: server
   on: item
   where: servers
@@ -190,6 +198,13 @@ sidebar without touching col3.
   scalar: $<label>
   provides: bg,fg
   match: ^(?<label>.+)$
+
+- id: index-banner
+  on: item
+  where: index
+  match: ^\s*!!\[(?<alt>[^\]]+)\]\((?<pic>[^\)]+)\)
+  emit: banner
+  with: icon=V; alt=$<alt>; pic=$<pic>; id=none; url=none; name=None
 
 - id: topic-coverage
   on: item

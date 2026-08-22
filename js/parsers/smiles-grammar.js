@@ -1,6 +1,6 @@
 import {Parser} from './parser.js'
 
-// #mol/smiles/grammar
+// #mol/smiles
 
 // ── SMILES (OpenSMILES-complete) ────────────────────────
 Parser

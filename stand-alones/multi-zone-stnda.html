@@ -12,6 +12,25 @@
       height: 100vh; overflow: hidden;
       display: flex; flex-direction: column;
     }
+
+:root {
+  --bg: #14151e; --surface: #1c1d2b; --surface-2: #242536;
+  --surface-hover: #2a2c3e; --border: #2e3048;
+  --text-1: #d8dae5; --text-2: #8789a3; --text-3: #5c5e78;
+  --accent: #6e9ef7; --accent-dim: #6e9ef733;
+  --wiki: #dba06a; --docstring: #6b7a8d;
+  --channel-active: #2e3050;
+  --msg-font-size: 13.5px;
+  --srv-btn-size: 44;
+  --srv-icon-pct: 65;
+  /* morphable slider geometry */
+  --ms-track-h: 24; --ms-pip-h: 28; --ms-pip-w: 3;
+  --ms-fill-op: 0.18; --ms-track-r: 4; --ms-text-y: 0;
+  --ms-pip-bri: 1.4; --ms-label-inset: 8;
+  /* server icon dormant state */
+  --srv-dormant-sat: 0.33; --srv-dormant-bri: 0.66;
+}
+
     header {
       display: flex; align-items: center; gap: 14px;
       padding: 10px 20px; border-bottom: 1px solid #2a2824;
@@ -77,6 +96,55 @@
       width: 32px; height: 22px; padding: 1px; cursor: pointer; border-radius: 4px;
       background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); outline: none;
     }
+
+/* ── Morphable slider (ms-*) — track/fill/pip whose geometry is CSS-var-driven ── */
+.morph-slider {
+  position: relative; height: 32px; margin: 2px 6px; padding: 0 8px;
+  cursor: ew-resize; user-select: none; touch-action: none;
+  display: flex; align-items: center;
+}
+.ms-track {
+  position: absolute; left: 8px; right: 8px; top: 50%;
+  transform: translateY(-50%);
+  height: calc(var(--ms-track-h) * 1px);
+  border-radius: calc(var(--ms-track-r) * 1px);
+  background: var(--surface-2); overflow: hidden;
+}
+.ms-fill {
+  height: 100%; width: 50%;
+  background: rgba(110,158,247, var(--ms-fill-op));
+  pointer-events: none;
+}
+.ms-pip {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--ms-pip-w) * 1px);
+  height: calc(var(--ms-pip-h) * 1px);
+  border-radius: 12px;
+  background: var(--surface-hover);
+  pointer-events: none; transition: background 0.15s;
+  filter: brightness(var(--ms-pip-bri));
+}
+.morph-slider:hover .ms-pip { background: var(--accent-dim); transition-duration: 0.06s; }
+.morph-slider.engaged .ms-pip { background: var(--accent); }
+.ms-label, .ms-val {
+  position: absolute;
+  top: calc(50% + var(--ms-text-y) * 1px);
+  transform: translateY(-50%); pointer-events: none;
+}
+.ms-label {
+  left: calc(var(--ms-label-inset) * 1px + 8px);
+  font-size: 11px; color: var(--text-2);
+}
+.ms-val {
+  right: calc(var(--ms-label-inset) * 1px + 8px);
+  font-family: 'SF Mono','Consolas',monospace;
+  font-size: 10px; color: var(--text-3);
+}
+.morph-slider.engaged .ms-val { color: var(--accent); }
+
+
+
   </style>
 
   <script type="importmap">
@@ -879,6 +947,15 @@ class SceneRegistry {
   }
 
   hasPhase(nodeType, phase) { return !!this.handlers[phase]?.[nodeType]; }
+  
+  // ── AST tree walk ──────────────────────────────────────────
+  runPhases(ctxMix, root, params, phases = ['measure', 'position', 'draw']) {
+    ctxMix.iterators = [];
+    ctxMix.flyweight = {};
+    for (const phase of phases) {
+      this.walkPhase(ctxMix, phase, root, params);
+    }
+  }
 
   walkPhase(ctxMix, phase, node, params) {
     if (!node) return;
@@ -3627,12 +3704,198 @@ class PippedEdgeRefNode {
     };
   }
 }
+
+class MorphSliderWidget {
+
+  static mount(ctxMix, node, params) {
+//    if (ctxMix.compact) {
+//      const id = node.id;
+//      if (!id) return null;
+//      const cfg = {
+//        type: 'nav-item', label: node.label || node.group || id,
+//        action: () => {
+//          const section = document.getElementById(`section-${id}`);
+//          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+//        },
+//      };
+//      return createWidget(cfg).mount(ctxMix, cfg, params);
+//    }
+
+    // Compatability hack... we permit values directly on node.
+    // in future they will need to be in node.value. 
+    if( node.value)
+      node = node.value;
+
+    const pid = node.id;
+    const initVal = node.isData
+      ? (node.dataValue || node.default)
+      : (params[pid] ?? node.default ?? node.min ?? 0);
+
+    const { el, setValue, getValue, valEl } = MorphSliderWidget.buildMorphSlider({
+      label:    node.label,
+      min:      node.min ?? 0,
+      max:      node.max ?? 100,
+      step:     node.step,
+      value:    initVal,
+      disabled: node.disabled,
+      format:   node.format
+        ? (v => formatValue(v, node.format))
+        : node.formatFn || undefined,
+      onChange: v => {
+        if (node.isData) {
+          ctxMix.onParamChange(pid, v, true, ctxMix.panel);
+        } else {
+          ctxMix.setParam(pid, v);
+          ctxMix.onParamChange(pid, v, false, ctxMix.panel);
+        }
+        if (node.onChange) node.onChange(v, ctxMix.panel);
+        ctxMix.render();
+        ctxMix.clearActivePreset();
+      },
+    });
+
+    // Keep the same id conventions so preset morph / param sync can find them
+    el.id = pid;
+    valEl.id = `${pid}-val`;
+    el.dataset.sliderId = pid;
+    ctxMix.parentEl?.appendChild(el);
+    return el;
+  }
+
+  // ── Static factory — the core DOM builder ───────────────────
+  //
+  //  Returns { el, setValue(v), getValue(), valEl } where el is the
+  //  root .morph-slider div and setValue repositions the pip/fill/
+  //  readout programmatically (preset morph, param sync, etc).
+  //
+  //  @param {Object} opts
+  //  @param {string}   opts.label
+  //  @param {number}   opts.min
+  //  @param {number}   opts.max
+  //  @param {number}   opts.step
+  //  @param {number}   opts.value     — initial value
+  //  @param {Function} [opts.format]  — (v) => display string
+  //  @param {Function} [opts.onChange] — (v) => void
+  //  @param {boolean}  [opts.disabled]
+
+  static buildMorphSlider(opts) {
+    const min = +opts.min, max = +opts.max, step = +(opts.step || 1);
+    const fmt = opts.format || (v => {
+      // Auto-format: up to 2 decimals if step is fractional
+      return step % 1 !== 0 ? (+v).toFixed(2) : String(Math.round(+v));
+    });
+
+    const el = document.createElement('div');
+    el.className = 'morph-slider';
+    if (opts.disabled) el.style.opacity = '0.4';
+
+    const track = document.createElement('div');
+    track.className = 'ms-track';
+    const fill = document.createElement('div');
+    fill.className = 'ms-fill';
+    track.appendChild(fill);
+
+    const pip = document.createElement('div');
+    pip.className = 'ms-pip';
+
+    const lbl = document.createElement('span');
+    lbl.className = 'ms-label';
+    lbl.textContent = opts.label || '';
+
+    const val = document.createElement('span');
+    val.className = 'ms-val';
+
+    el.append(track, pip, lbl, val);
+
+    // ── Internal state ───────────────────────────────────
+    let currentValue = +(opts.value ?? min);
+
+    function pctFromValue(v) {
+      return max === min ? 0 : (v - min) / (max - min);
+    }
+
+    function valueFromPct(pct) {
+      let v = min + pct * (max - min);
+      // Snap to step
+      v = Math.round(v / step) * step;
+      return Math.max(min, Math.min(max, +v.toFixed(10)));
+    }
+
+    function render(v) {
+      const pct = pctFromValue(v) * 100;
+      fill.style.width = pct + '%';
+      pip.style.left   = pct + '%';
+      val.textContent   = fmt(v);
+    }
+
+    // Public: set value from outside (preset morph, param sync)
+    function setValue(v) {
+      currentValue = +v;
+      render(currentValue);
+    }
+
+    render(currentValue);
+
+    // ── Pointer interaction ──────────────────────────────
+    if (!opts.disabled) {
+      const update = (clientX) => {
+        const rect = track.getBoundingClientRect();
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        currentValue = valueFromPct(pct);
+        render(currentValue);
+        if (opts.onChange) opts.onChange(currentValue);
+      };
+
+      let engaged = false;
+
+      el.addEventListener('pointerdown', e => {
+        engaged = true;
+        el.classList.add('engaged');
+        el.setPointerCapture(e.pointerId);
+        update(e.clientX);
+      });
+      el.addEventListener('pointermove', e => {
+        if (engaged) update(e.clientX);
+      });
+      el.addEventListener('pointerup', () => {
+        engaged = false;
+        el.classList.remove('engaged');
+      });
+      el.addEventListener('pointercancel', () => {
+        engaged = false;
+        el.classList.remove('engaged');
+      });
+    }
+
+    // Expose the value element for external id assignment
+    el._valEl   = val;
+    el._setValue = setValue;
+    el._getValue = () => currentValue;
+
+    // Backward-compat: the panel reads/writes .value like an <input>.
+    // defineProperty so it's not enumerable (won't confuse iteration).
+    Object.defineProperty(el, 'value', {
+      get: () => currentValue,
+      set: v => { setValue(+v); },
+      configurable: true,
+    });
+
+    return { el, setValue, getValue: () => currentValue, valEl: val };
+  }
+}
+
+sceneRegistry.registerNodeClass('morph-slider', MorphSliderWidget);
+
+
+
 SYS.STOCK?.push( SYS.makeNode('pipped-edge',    { x1: 0, y1: 0, x2: 40, y2: 0, label: 'Edge' }))
 
 SYS.CONTROLS.push({ type: 'separator', label: 'Edges' })
 SYS.CONTROLS.push({ id: 'edgeWidth',   label: 'Width',   min: 1,    max: 12,  step: 0.5, value: SYS.P.edgeWidth })
-SYS.CONTROLS.push({ id: 'edgeBend',    label: 'Bend',    min: -1.5, max: 1.5, step: 0.05,value: SYS.P.edgeBend })
+SYS.CONTROLS.push({ id: 'edgeBend1',    label: 'Bend',    min: -1.5, max: 1.5, step: 0.05,value: SYS.P.edgeBend })
 SYS.CONTROLS.push({ id: 'edgeOutline', label: 'Outline', min: 0,    max: 6,   step: 0.5, value: SYS.P.edgeOutline })
+SYS.CONTROLS.push({ type: 'morph-slider', id: 'edgeBend',   label: 'Bend2',    min: -1.5, max: 1.5, step: 0.05,value: SYS.P.edgeBend })
+
 
 sceneRegistry.registerNodeClass('pipped-edge', PippedEdgeRefNode);
 //-- endfile --
@@ -5045,133 +5308,420 @@ function make3DPane(container) {
 //>> export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-HudPanel — the floating control panel: sliders, checkboxes, dropdowns and
-buttons, built from the control descriptors a model returns.
+HudPanelLite — standalone floating panel using sceneRegistry.walkPhase
 
-It knows nothing of the scene graph.  A build with no controls can drop it,
-which is why it is a nugget rather than part of the shell.
+Compatible with OmniWidget conventions so hud-* node types work in either
+system. The ctxMix shape matches what OmniWidgets expect:
+
+  parentEl       current DOM parent (pushed/popped by containers)
+  parentStack    push/pop array
+  params         live params object (built from controls)
+  sectionParams  null (no per-section params in HudPanelLite)
+  setParam       (id, val) => write to params
+  render         () => trigger redraw
+  onParamChange  (id, val) => notification callback
+  clearActivePreset  () => clear preset highlights
+  panel          null (no OmniControlPanel)
+
+Node conventions (same as OmniWidget):
+  node.value     serialisable data (id, label, min, max, step, options, …)
+  node.inst      non-serialisable (action callbacks)
+  node.subtree   child nodes
+
+Drop this file into an all-in-one stnda build by pasting after the
+sceneRegistry definition. No imports needed.
 ──────────────────────────────────────────────────────────────────────────── */
 
+
+// ═══════════════════════════════════════════════════════════════
+//  NODE CLASSES — compatible with both HudPanelLite and OmniWidget
+// ═══════════════════════════════════════════════════════════════
+
+class HudPanelNode {
+
+  static before_mount(ctxMix, node, params) {
+    const v = node.value || {};
+
+    const root = document.createElement('div');
+    root.className = 'hud-panel';
+    root.style.top  = (v.position?.top  ?? 60) + 'px';
+    root.style.left = (v.position?.left ?? 12) + 'px';
+
+    const header = document.createElement('h3');
+    header.innerHTML = `::: &nbsp; ${v.title || 'Controls'}`;
+    root.appendChild(header);
+    HudPanelNode._makeDraggable(root, header);
+
+    node._el = root;
+
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl = root;
+  }
+
+  static after_mount(ctxMix, node, params) {
+    const container = ctxMix.parentStack.pop();
+    container.appendChild(node._el);
+    ctxMix.parentEl = container;
+  }
+
+  static _makeDraggable(root, handle) {
+    let dragging = false, sx, sy, sl, st;
+    handle.addEventListener('mousedown', e => {
+      dragging = true; handle.style.cursor = 'grabbing';
+      sx = e.clientX; sy = e.clientY;
+      const r = root.getBoundingClientRect();
+      sl = r.left; st = r.top;
+      root.style.right = 'auto';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      root.style.left = (sl + e.clientX - sx) + 'px';
+      root.style.top  = (st + e.clientY - sy) + 'px';
+    });
+    window.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; handle.style.cursor = 'grab'; }
+    });
+  }
+}
+
+
+class HudSliderNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const { id, label, min = 0, max = 1, step = 0.01 } = v;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[id] ?? v.value ?? min;
+
+    // Capture params ref for closure safety (see OmniWidget writeParam pattern)
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (k, val) => { sectionP[k] = val; }
+      : (k, val) => { ctxMix.setParam(k, val); };
+
+    const row = document.createElement('label');
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(span);
+
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'range', min, max, step, value: initVal });
+    row.appendChild(input);
+
+    const val = document.createElement('span');
+    val.className = 'val';
+    val.textContent = parseFloat(initVal).toFixed(step % 1 === 0 ? 0 : 2);
+    row.appendChild(val);
+
+    input.addEventListener('input', () => {
+      const num = parseFloat(input.value);
+      val.textContent = num.toFixed(step % 1 === 0 ? 0 : 2);
+      writeParam(id, num);
+      ctxMix.onParamChange(id, num);
+      ctxMix.render();
+    });
+
+    if (id) { input.id = id; val.id = `${id}-val`; }
+    ctxMix.parentEl.appendChild(row);
+  }
+}
+
+
+class HudButtonNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const btn = document.createElement('button');
+    btn.className = 'hud-btn' + (v.cls ? ' ' + v.cls : '');
+    btn.textContent = v.label;
+    btn.addEventListener('click', node.inst?.action || (() => {}));
+    ctxMix.parentEl.appendChild(btn);
+  }
+}
+
+
+class HudCheckboxNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const { id, label } = v;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[id] ?? v.value ?? false;
+
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (k, val) => { sectionP[k] = val; }
+      : (k, val) => { ctxMix.setParam(k, val); };
+
+    const row = document.createElement('label');
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(span);
+
+    const sw = document.createElement('div');
+    sw.className = 'toggle-switch';
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!initVal;
+    input.addEventListener('change', () => {
+      writeParam(id, input.checked);
+      ctxMix.onParamChange(id, input.checked);
+      ctxMix.render();
+    });
+
+    const slider = document.createElement('span');
+    slider.className = 'toggle-slider';
+
+    sw.appendChild(input);
+    sw.appendChild(slider);
+    row.appendChild(sw);
+
+    if (id) input.id = id;
+    ctxMix.parentEl.appendChild(row);
+  }
+}
+
+
+class HudSelectNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const { id, label, options = [] } = v;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[id] ?? v.value;
+
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (k, val) => { sectionP[k] = val; }
+      : (k, val) => { ctxMix.setParam(k, val); };
+
+    const row = document.createElement('label');
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(span);
+
+    const select = document.createElement('select');
+    for (const opt of options) {
+      const option = document.createElement('option');
+      option.value = opt[0];
+      option.textContent = opt[1];
+      if (opt[0] === String(initVal)) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => {
+      writeParam(id, select.value);
+      ctxMix.onParamChange(id, select.value);
+      ctxMix.render();
+    });
+
+    row.appendChild(select);
+    if (id) select.id = id;
+    ctxMix.parentEl.appendChild(row);
+  }
+}
+
+
+class HudColorNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const { id, label } = v;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[id] ?? v.value ?? '#ffffff';
+
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (k, val) => { sectionP[k] = val; }
+      : (k, val) => { ctxMix.setParam(k, val); };
+
+    const row = document.createElement('label');
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(span);
+
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'color', value: initVal });
+    input.addEventListener('input', () => {
+      writeParam(id, input.value);
+      ctxMix.onParamChange(id, input.value);
+      ctxMix.render();
+    });
+
+    row.appendChild(input);
+    if (id) input.id = id;
+    ctxMix.parentEl.appendChild(row);
+  }
+}
+
+
+class HudSeparatorNode {
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const sep = document.createElement('div');
+    sep.className = 'separator';
+    if (v.label) sep.textContent = v.label;
+    ctxMix.parentEl.appendChild(sep);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  REGISTRATIONS
+// ═══════════════════════════════════════════════════════════════
+
+sceneRegistry.registerNodeClass('hud-panel',     HudPanelNode);
+sceneRegistry.registerNodeClass('hud-slider',    HudSliderNode);
+sceneRegistry.registerNodeClass('hud-button',    HudButtonNode);
+sceneRegistry.registerNodeClass('hud-checkbox',  HudCheckboxNode);
+sceneRegistry.registerNodeClass('hud-select',    HudSelectNode);
+sceneRegistry.registerNodeClass('hud-color',     HudColorNode);
+sceneRegistry.registerNodeClass('hud-separator', HudSeparatorNode);
+
+
+// ═══════════════════════════════════════════════════════════════
+//  TYPE MAP — hud shorthand → registered node type
+// ═══════════════════════════════════════════════════════════════
+
+const _HUD_TYPE_MAP = {
+  button:         'hud-button',
+  checkbox:       'hud-checkbox',
+  select:         'hud-select',
+  color:          'hud-color',
+  separator:      'hud-separator',
+  'morph-slider': 'morph-slider',   // bridges to OmniWidget when available
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HudPanelLite
+// ═══════════════════════════════════════════════════════════════
+
 class HudPanel {
-  constructor({ title = 'Controls', container = document.body, controls = [], onChange, position = { top: 60, left: 12 } } = {}) {
+
+  /**
+   * @param {Object}   opts
+   * @param {string}   opts.title       — panel heading
+   * @param {Element}  opts.container   — DOM parent for the floating panel
+   * @param {Array}    opts.controls    — control definitions
+   * @param {Function} opts.onChange     — (id, val) notification
+   * @param {Function} [opts.onRender]  — () called after every param change
+   * @param {Object}   [opts.position]  — { top, left }
+   * @param {Object}   [opts.params]    — reuse an existing params object
+   */
+  constructor({
+    title     = 'Controls',
+    container = document.body,
+    controls  = [],
+    onChange,
+    onRender,
+    position  = { top: 60, left: 12 },
+    params,
+  } = {}) {
     this._onChange = onChange || (() => {});
-    this._inputs = {}; 
-    this._valDisplays = {}; 
-    this._injectStyles();
+    this._onRender = onRender || (() => {});
 
-    this._root = document.createElement('div');
-    this._root.className = 'hud-panel';
-    this._root.style.top = position.top + 'px'; 
-    this._root.style.left = position.left + 'px';
+    HudPanel._injectStyles();
 
-    const header = document.createElement('h3'); 
-    header.innerHTML = `::: &nbsp; ${title}`;
-    this._root.appendChild(header); 
-    this._makeDraggable(header);
+    // ── Build params from controls (or reuse provided) ──
+    this.params = params || {};
+    if (!params) {
+      for (const c of controls) {
+        if (c.id && c.value !== undefined) {
+          this.params[c.id] = c.value;
+        }
+      }
+    }
 
-    for (const ctrl of controls) this._addControl(ctrl);
-      container.appendChild(this._root);
+    // ── Coerce controls into AST ────────────────────────
+    const children = controls.map(c => {
+      const type = _HUD_TYPE_MAP[c.type] || 'hud-slider';
+      // Separate serialisable from non-serialisable
+      const { action, ...rest } = c;
+      return {
+        type,
+        value:   rest,
+        inst:    action ? { action } : {},
+        subtree: [],
+      };
+    });
+
+    const root = {
+      type:    'hud-panel',
+      value:   { title, position },
+      subtree: children,
+    };
+
+    // ── Minimal WidgetContext-compatible ctxMix ──────────
+    const self = this;
+
+    const ctxMix = {
+      parentEl:       container,
+      parentStack:    [],
+      params:         this.params,
+      sectionParams:  null,
+      panel:          null,
+      iterators:      [],
+      flyweight:      {},
+
+      setParam(id, val) {
+        self.params[id] = val;
+      },
+      render() {
+        self._onRender();
+      },
+      onParamChange(id, val) {
+        self._onChange(id, val);
+      },
+      clearActivePreset() {
+        // Future: clear preset button highlights
+      },
+      closeMenu() {},
+    };
+
+    // ── Walk ─────────────────────────────────────────────
+    sceneRegistry.runPhases(ctxMix, root, this.params, ['mount']);
+
+    // ── Collect results ──────────────────────────────────
+    this._root = root._el;
+    this._ast  = root;  // retained for future update walks
   }
 
   destroy() {
-    if (this._root.parentNode) {
+    if (this._root?.parentNode) {
       this._root.parentNode.removeChild(this._root);
     }
   }
 
-  _addControl(ctrl) {
-    if (ctrl.type === 'separator') this._addSeparator(ctrl);
-    else if (ctrl.type === 'button')   this._addButton(ctrl);
-    else if (ctrl.type === 'checkbox') this._addCheckbox(ctrl);
-    else if (ctrl.type === 'select') this._addSelect(ctrl);
-    else if (ctrl.type === 'color') this._addColor(ctrl);
-    else this._addSlider(ctrl);
-  }
-
-  _addSlider(ctrl) {
-    const { id, label, min = 0, max = 1, step = 0.01, value = min } = ctrl;
-    const row = document.createElement('label'), span = document.createElement('span');
-    span.textContent = label; row.appendChild(span);
-    const input = document.createElement('input'); Object.assign(input, { type: 'range', min, max, step, value });
-    row.appendChild(input);
-    const val = document.createElement('span'); val.className = 'val'; val.textContent = parseFloat(value).toFixed(step % 1 === 0 ? 0 : 2);
-    row.appendChild(val);
-    input.addEventListener('input', () => {
-      const v = parseFloat(input.value); val.textContent = v.toFixed(step % 1 === 0 ? 0 : 2);
-      this._onChange(id, v);
-    });
-    this._inputs[id] = input; this._valDisplays[id] = val; this._root.appendChild(row);
-  }
-
-  _addButton(ctrl) {
-    const btn = document.createElement('button'); btn.className = 'hud-btn' + (ctrl.cls ? ' ' + ctrl.cls : '');
-    btn.textContent = ctrl.label; btn.addEventListener('click', ctrl.action || (() => {}));
-    this._root.appendChild(btn);
-  }
-
-  _addCheckbox(ctrl) {
-    const { id, label, value = false } = ctrl;
-    const row = document.createElement('label'), span = document.createElement('span');
-    span.textContent = label; row.appendChild(span);
-    const sw = document.createElement('div'); sw.className = 'toggle-switch';
-    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = !!value;
-    input.addEventListener('change', () => this._onChange(id, input.checked));
-    const slider = document.createElement('span'); slider.className = 'toggle-slider';
-    sw.appendChild(input); sw.appendChild(slider); row.appendChild(sw);
-    this._inputs[id] = input; this._root.appendChild(row);
-  }
-
-  _addSelect(ctrl) {
-    const { id, label, options = [], value } = ctrl;
-    const row = document.createElement('label'); const span = document.createElement('span');
-    span.textContent = label; row.appendChild(span);
-    const select = document.createElement('select');
-    for (const opt of options) {
-      const option = document.createElement('option');
-      option.value = opt[0]; option.textContent = opt[1];
-      if (opt[0] === String(value)) option.selected = true;
-      select.appendChild(option);
+  /** Update a control's DOM to reflect a new value (e.g. from a preset). */
+  updateControl(id, value) {
+    this.params[id] = value;
+    const input = document.getElementById(id);
+    if (input) {
+      if (input.type === 'checkbox') input.checked = !!value;
+      else input.value = value;
     }
-    select.addEventListener('change', () => this._onChange(id, select.value));
-    row.appendChild(select); this._inputs[id] = select; this._root.appendChild(row);
-  }  
-
-  _addColor(ctrl) {
-    const { id, label, value = '#ffffff' } = ctrl;
-    const row = document.createElement('label'); const span = document.createElement('span');
-    span.textContent = label; row.appendChild(span);
-    const input = document.createElement('input'); Object.assign(input, { type: 'color', value });
-    input.addEventListener('input', () => this._onChange(id, input.value));
-    row.appendChild(input); this._inputs[id] = input; this._root.appendChild(row);
+    const valEl = document.getElementById(`${id}-val`);
+    if (valEl) {
+      valEl.textContent = typeof value === 'number'
+        ? value.toFixed(value % 1 === 0 ? 0 : 2) : String(value);
+    }
   }
 
-  _addSeparator(ctrl) {
-    const sep = document.createElement('div'); sep.className = 'separator';
-    if (ctrl.label) sep.textContent = ctrl.label;
-    this._root.appendChild(sep);
+  /** Bulk update from a preset snapshot. */
+  applyPreset(preset) {
+    for (const [id, value] of Object.entries(preset)) {
+      this.updateControl(id, value);
+    }
   }
 
-  _makeDraggable(handle) {
-    let isDragging = false, startX, startY, startLeft, startTop;
-    handle.addEventListener('mousedown', e => {
-      isDragging = true; handle.style.cursor = 'grabbing';
-      startX = e.clientX; startY = e.clientY;
-      const rect = this._root.getBoundingClientRect();
-      startLeft = rect.left; startTop = rect.top;
-      this._root.style.right = 'auto'; // Break free from right-alignment
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', e => {
-      if (!isDragging) return;
-      this._root.style.left = `${startLeft + e.clientX - startX}px`; 
-      this._root.style.top  = `${startTop  + e.clientY - startY}px`;
-    });
-    window.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; handle.style.cursor = 'grab'; } });
-  }
 
-  _injectStyles() {
-    if (document.getElementById('hud-panel-css')) return;
-    const s = document.createElement('style'); s.id = 'hud-panel-css';
+  // ── Styles (injected once) ────────────────────────────
+
+  static _injected = false;
+
+  static _injectStyles() {
+    if (HudPanel._injected) return;
+    HudPanel._injected = true;
+
+    const s = document.createElement('style');
+    s.id = 'hud-panel-css';
     s.textContent = `
   .hud-panel { position: absolute; background: rgba(18, 18, 22, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 14px 18px; color: #ddd; font: 11px/1.6 system-ui, sans-serif; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1000; min-width: 260px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); user-select: none; max-height: calc(100vh - 40px); overflow-y: auto; }
   .hud-panel::-webkit-scrollbar { width: 6px; }

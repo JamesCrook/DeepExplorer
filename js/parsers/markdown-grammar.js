@@ -8,7 +8,6 @@ import {Parser} from './parser.js'
 // Emphasis is captured as markers, paired downstream.
 
 // #markdown/grammar
-
 Parser
 
   // ── Document ──

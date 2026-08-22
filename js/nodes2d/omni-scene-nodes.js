@@ -13,6 +13,7 @@
 
 import { sceneRegistry } from '../omni-support/scene.js';
 import { Transform }     from '../omni-support/transform.js';
+import './drag-point-node.js';
 import './handle-frame-node.js';
 
 
@@ -87,10 +88,10 @@ class LayerNode {
 
   // ── T push: center + zoom ──
   //
-  // Centering: if the layer has center:true, T gets centered
+  // Centering: if the layer has center:true, ctxMix.gets centered
   // within the current box (screen-space origin at box center + pan).
   //
-  // Zoom: if the layer's OWN params include zoom, T gets zoomed.
+  // Zoom: if the layer's OWN params include zoom, ctxMix.gets zoomed.
   // This is the single source of truth for zoom in T — adapter
   // nodes (UncenterNode, ZoomPanNode) must NOT also push zoom
   // into T (they still apply ctx.scale for legacy rendering).
@@ -188,6 +189,36 @@ function makeBox(w, h) {
            tl() { return { x: 0, y: 0 }; }, br() { return { x: this._w, y: this._h }; } };
 }
 
+// ═══════════════════════════════════════════════════════
+//  Shared helpers attached via ctxMix
+//  Each helper is contract between a node and the 
+//  ctxMix, node, params collection. 
+// ═══════════════════════════════════════════════════════
+
+/** 
+ * This is a centred contract, cx and cy will be frame centre 
+ * width and height are 
+ * */
+function frameRect( ctxMix, node, p) {
+  const v  = node.value || {};
+  const zoom = p.zoom || 1;
+  const rawW = v.width  || 200;
+  const rawH = v.height || 100;
+  const pad  = (p.framePadding || 0) * zoom;
+  const w    = rawW * zoom + pad * 2;
+  const h    = rawH * zoom + pad * 2;
+  const cx   = (v.x || 0) * zoom;
+  const cy   = (v.y || 0) * zoom;
+  return { cx, cy, w, h, left: cx - w / 2, top: cy - h / 2, zoom, v };
+}
+
+/** 
+ * This is about the minimal contract
+ * W and H are retrieved from the ctx.
+ */
+function getWH( ctxMix, node, params ){
+  return { W: ctxMix.W, H: ctxMix.H}
+}
 
 // ═══════════════════════════════════════════════════════
 //  SCENE ROOT — clear + background, init T and box
@@ -195,22 +226,29 @@ function makeBox(w, h) {
 
 class SceneRootNode {
 
-  static before_draw2d(ctxMix, node, params) {
+  static setDiagramRoot(ctxMix){
     const ctx = ctxMix.ctx;
-    if (!ctx) return;
+    if (!ctx) return {};
     const dpr = window.devicePixelRatio || 1;
     const W = ctx.canvas.width / dpr;
     const H = ctx.canvas.height / dpr;
+    ctxMix.W = W;
+    ctxMix.H = H;
+    // ── Initialize transform system ──
+    ctxMix.T   = new Transform({ x: 0, y: 0 }, 1, 1);
+    ctxMix.getWH = ((ctxMix, node, params)=>{return {W:ctxMix.W, H:ctxMix.H}});
+    ctxMix.frameRect = frameRect;
+    ctxMix.box = makeBox(W, H);
+    return {ctx, W, H};
+  }
+
+  static before_draw2d(ctxMix, node, params) {
+    const {ctx,W,H} = SceneRootNode.setDiagramRoot( ctxMix );
+    if (!ctx) return;
     ctx.save();
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = node.value?.bg || '#0f0f23';
     ctx.fillRect(0, 0, W, H);
-    ctxMix.W = W;
-    ctxMix.H = H;
-
-    // ── Initialize transform system ──
-    ctxMix.T   = new Transform({ x: 0, y: 0 }, 1, 1);
-    ctxMix.box = makeBox(W, H);
 
     // ── Attach ctx helpers ──
     ctxMix.directCtx      = () => _directCtx(ctxMix);
@@ -220,22 +258,16 @@ class SceneRootNode {
   static after_draw2d(ctxMix) { ctxMix.ctx?.restore(); }
 
   static before_hit_test(ctxMix, node, params) {
-    const ctx = ctxMix.ctx;
+    const {ctx,W,H} = SceneRootNode.setDiagramRoot( ctxMix )
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const W = ctx.canvas.width / dpr;
-    const H = ctx.canvas.height / dpr;
-    ctxMix.W = W;
-    ctxMix.H = H;
 
     // ── Persisted originals (legacy, used by non-migrated nodes) ──
-    ctxMix.canvasW = W;
-    ctxMix.canvasH = H;
-    if (ctxMix.hitPoint) ctxMix.screenHitPoint = { ...ctxMix.hitPoint };
+    //ctxMix.canvasW = W;
+    //ctxMix.canvasH = H;
 
-    // ── Initialize transform system ──
-    ctxMix.T   = new Transform({ x: 0, y: 0 }, 1, 1);
-    ctxMix.box = makeBox(W, H);
+    // We need to copy, so as not to have a definitive top level version.
+    if (ctxMix.hitPoint) 
+      ctxMix.screenHitPoint = { ...ctxMix.hitPoint };
   }
 }
 
@@ -304,77 +336,8 @@ class SimplePathNode {
 sceneRegistry.registerNodeClass('simple-path', SimplePathNode);
 
 
-// ═══════════════════════════════════════════════════════
-//  DRAG POINT — migrated to T + directCtx
-//
-//  draw2d: uses directCtx() to draw at T.toScreen positions.
-//    Point radius and labels are zoom-independent (fixed screen px).
-//  hit_test: compares screen hitPoint against T.toScreen.
-//    applyDrag uses T.toLocal to convert back.
-// ═══════════════════════════════════════════════════════
-
-class DragPointNode {
-
-  static draw2d(ctxMix, node, params) {
-    const T = ctxMix.T;
-    if (!T) return;
-    const v = node.value || {};
-    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
-    const r = params.pointRadius || 6;
-    const color = v.color || params.pointColor || '#4fc3f7';
-
-    const ctx = ctxMix.directCtx();
-    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 1;
-    ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = color; ctx.fill();
-    ctx.shadowColor = 'transparent';
-    ctx.strokeStyle = '#ffffffaa'; ctx.lineWidth = 1.5; ctx.stroke();
-
-    if (ctxMix.highlighted?.has(node)) {
-      ctx.beginPath(); ctx.arc(s.x, s.y, r + 4, 0, Math.PI * 2);
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
-      ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
-    }
-    if (v.name) {
-      ctx.fillStyle = '#ffffffcc'; ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(v.name, s.x, s.y - r - 3);
-    }
-    if (v.emoji) {
-      ctx.fillStyle = '#000000'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = (2 * r - 1) + 'px Arial';
-      const fd = r / 6;
-      ctx.fillText(v.emoji, s.x + fd * 0.33, s.y + fd);
-    }
-    ctx.restore();
-  }
-
-  static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
-    const T  = ctxMix.T;
-    if (!pt || !T) return;
-    const v = node.value || {};
-    const s = T.toScreen({ x: v.x || 0, y: v.y || 0 });
-    const dx = pt.x - s.x, dy = pt.y - s.y;
-    if (dx * dx + dy * dy > ((params.pointRadius || 6) + 5) ** 2) return;
-
-    const Ts = T.clone();
-    ctxMix.hitResult = {
-      node,
-      interactions: {
-        applyDrag(screenX, screenY) {
-          const local = Ts.toLocal({ x: screenX - dx, y: screenY - dy });
-          node.value.x = local.x;
-          node.value.y = local.y;
-        },
-      },
-    };
-  }
-}
-
-sceneRegistry.registerNodeClass('drag-point', DragPointNode);
 
 
 export {
-  LayerNode, SceneRootNode, CornerRectNode, SimplePathNode, DragPointNode, makeBox,
+  LayerNode, SceneRootNode, CornerRectNode, SimplePathNode, makeBox,
 };

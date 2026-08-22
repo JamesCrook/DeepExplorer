@@ -1,7 +1,7 @@
 import {Parser} from './parser.js'
 
 // ── SQLite SQL ──────────────────────────────────────────
-// #sql/spec/grammar
+// #sql/grammar
 Parser
   .addRep('SQL', ['sql_stmt', /^\s*;?\s*/])
 

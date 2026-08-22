@@ -255,21 +255,6 @@ const FRAME_DEFAULTS = Object.freeze({
 });
 
 
-// ═══════════════════════════════════════════════════════
-//  Shared geometry helpers
-// ═══════════════════════════════════════════════════════
-
-/** Compute the drawn frame rect (centre-based, with padding). */
-function _frameRect(v, p, zoom) {
-  const rawW = v.width  || 200;
-  const rawH = v.height || 100;
-  const pad  = (p.framePadding || 0) * zoom;
-  const w    = rawW * zoom + pad * 2;
-  const h    = rawH * zoom + pad * 2;
-  const cx   = (v.x || 0) * zoom;
-  const cy   = (v.y || 0) * zoom;
-  return { cx, cy, w, h, left: cx - w / 2, top: cy - h / 2 };
-}
 
 
 // ═══════════════════════════════════════════════════════
@@ -284,11 +269,9 @@ class FrameNode {
     const ctx = ctxMix.ctx;
     if (!ctx) return;
 
-    const v  = node.value || {};
     const p  = { ...FRAME_DEFAULTS, ...params };
-    const zoom = p.zoom || 1;
 
-    const { left, top, w, h } = _frameRect(v, p, zoom);
+    const { cx, cy, left, top, w, h, zoom, v } = ctxMix.frameRect( ctxMix, node, p);
 
     const depth    = (p.edgeDepth || 0) * zoom;
     const cr       = Math.min((p.edgeCornerRadius || 0) * zoom, w / 2, h / 2);
@@ -344,7 +327,7 @@ class FrameNode {
     }
 
     // ── Translate so children draw relative to frame centre ──
-    const { cx, cy } = _frameRect(v, p, zoom);
+    //const { cx, cy } = _frameRect( ctxMix, node, p);
     ctx.translate(cx, cy);
 
     // ── Push T for children (screen-space shift) ──
@@ -371,12 +354,10 @@ class FrameNode {
     const pt = ctxMix.hitPoint;
     if (!pt) return;
 
-    const v    = node.value || {};
     const p    = { ...FRAME_DEFAULTS, ...params };
-    const zoom = p.zoom || 1;
     const T    = ctxMix.T;
 
-    const { w, h } = _frameRect(v, p, zoom);
+    const { w, h, v, zoom } = ctxMix.frameRect( ctxMix, node, p);
     const depth = (p.edgeDepth || 0) * zoom;
     const hitW  = w + depth * 2;
     const hitH  = h + depth * 2;

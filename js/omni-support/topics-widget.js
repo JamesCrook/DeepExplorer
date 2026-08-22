@@ -2,49 +2,21 @@
    topics-widget.js — Topic links for OmniControlPanel
    ============================================
 
-   Registers the 'topics' section type with WidgetFactory. Import this 
-   file for its side effect:
+   Registers the 'topics' and 'topic-link' types with sceneRegistry.
 
-     import './topics-widget.js';
+   The topics widget is a container; its children are topic-link nodes
+   produced by coerceToAST. The walker handles iteration.
 
-   The topics widget is a container of decorative clickable text.
-
-   Config:
-
-     { type: 'topics', group: 'Explore', id: 'explore', abbrev: 'Exp',
-       topics: [
-         { id: 'bmesh', label: 'BMesh', icon: 'B', meta: '58%',
-           bg: '#3d4a6a', fg: '#8eaad8', active: true, href: '#bmesh' },
-         { id: 'mesh',  label: 'Mesh',  icon: 'M' },
-       ],
-       onSelect: (topic, panel) => { ... },   // optional
-     }
-
-   Every field is plain JSON, so a topics section can travel inside a
-   markdown code island and be compiled by
-   OmniControlPanel.setContextFromSpec().
-
-   The widget does not decide what a topic link means. It marks the
-   selection and reports it; the host routes it (swap the slider set,
-   scroll a card, send a prompt).
-
-   Place in: omni-support/topics-widget.js  (beside layers-widget.js, which
-   omni-control-panel.js imports as './layers-widget.js')
+   topic-link registers navVersion: 'nav-item' so the nav coercion
+   picks up each topic as a nav-item inside a nav-submenu.
 */
 
-import { OmniWidget, createWidget, parseDslValue, _esc }
-                             from './omni-widget.js';
-import { sceneRegistry }     from './scene.js';
+import { OmniWidget } from './omni-widget.js';
+import { sceneRegistry } from './scene.js';
 
 // ════════════════════════════════════════════════════════════════
-//  Styles
+//  Styles (injected once)
 // ════════════════════════════════════════════════════════════════
-//
-//  Injected once, on first use. Deliberately theme-neutral —
-//  translucent greys inherit whatever palette the host uses, and the
-//  omni-topic* names cannot collide with existing omni-controls.css
-//  rules. Move into omni-controls.css whenever convenient; nothing
-//  else depends on this block.
 
 const TOPIC_CSS = `
 .omni-topics { display: flex; flex-direction: column; gap: 2px; }
@@ -83,89 +55,80 @@ function ensureTopicStyles() {
 
 
 // ════════════════════════════════════════════════════════════════
-//  TopicsWidget
+//  TopicsWidget — container for topic-link children
 // ════════════════════════════════════════════════════════════════
 
 class TopicsWidget extends OmniWidget {
 
-  // Defaults inherited: wrapInGroup = true (gives the .control-group +
-  // h3 header), showInStrip = true (gives a multiscroller tab).
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const topics = node.topics || [];
-      if (!topics.length) return null;
-      const cfg = {
-        type: 'nav-submenu', label: node.group || 'Topics',
-        subtree: topics.map(topic => ({
-          type: 'nav-item', label: topic.label || topic.id || 'Topic',
-          action: () => {
-            const item = document.querySelector(
-              `.omni-topic[data-topic-id="${CSS.escape(topic.id || '')}"]`
-            );
-            if (item) TopicsWidget._markActive(item.parentElement, item);
-            if (node.onSelect) node.onSelect(topic, ctxMix.panel);
-          },
-        })),
-      };
-      return WidgetFactory.create(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static before_mount(ctxMix, node, params) {
     ensureTopicStyles();
 
     const list = document.createElement('div');
     list.className = 'omni-topics';
 
-    for (const topic of (node.topics || [])) {
-      list.appendChild(this._buildItem(topic, list, node, ctxMix));
-    }
-
-    return list;
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl = list;
   }
 
-  _buildItem(topic, list, node, ctxMix) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'omni-topic';
-    item.dataset.topicId = topic.id || '';
-    if (topic.active) item.classList.add('active');
-
-    const ico = document.createElement('span');
-    ico.className = 'omni-topic-ico';
-    ico.textContent = topic.icon || '·';
-    if (topic.bg) ico.style.background = topic.bg;
-    if (topic.fg) ico.style.color = topic.fg;
-
-    const lbl = document.createElement('span');
-    lbl.className = 'omni-topic-lbl';
-    lbl.textContent = topic.label || topic.id || '';
-
-    item.append(ico, lbl);
-
-    if (topic.meta) {
-      const meta = document.createElement('span');
-      meta.className = 'omni-topic-meta';
-      meta.textContent = topic.meta;
-      item.appendChild(meta);
-    }
-
-    item.addEventListener('click', () => {
-      TopicsWidget._markActive(list, item);
-      if (node.onSelect) node.onSelect(topic, ctxMix.panel);
-    });
-
-    return item;
-  }
-
-  static _markActive(list, item) {
-    if (!list) return;
-    list.querySelectorAll('.omni-topic').forEach(el => el.classList.remove('active'));
-    item.classList.add('active');
+  static after_mount(ctxMix, node, params) {
+    const list = ctxMix.parentEl;
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+    ctxMix.parentEl.appendChild(list);
   }
 }
 
 
-// ── Self-register (same pattern as layers-widget.js) ─────────────
-sceneRegistry.registerNodeClass('topics', TopicsWidget);
+// ════════════════════════════════════════════════════════════════
+//  TopicLinkWidget — a single clickable topic (leaf)
+// ════════════════════════════════════════════════════════════════
 
-export { TopicsWidget };
+class TopicLinkWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'omni-topic';
+    item.dataset.topicId = v.id || '';
+    if (v.active) item.classList.add('active');
+
+    const ico = document.createElement('span');
+    ico.className = 'omni-topic-ico';
+    ico.textContent = v.icon || '·';
+    if (v.bg) ico.style.background = v.bg;
+    if (v.fg) ico.style.color = v.fg;
+
+    const lbl = document.createElement('span');
+    lbl.className = 'omni-topic-lbl';
+    lbl.textContent = v.label || v.id || '';
+
+    item.append(ico, lbl);
+
+    if (v.meta) {
+      const meta = document.createElement('span');
+      meta.className = 'omni-topic-meta';
+      meta.textContent = v.meta;
+      item.appendChild(meta);
+    }
+
+    item.addEventListener('click', () => {
+      // Mark active within parent list
+      const list = item.parentElement;
+      if (list) {
+        list.querySelectorAll('.omni-topic').forEach(el => el.classList.remove('active'));
+      }
+      item.classList.add('active');
+      if (node.inst?.action) node.inst.action();
+    });
+
+    ctxMix.parentEl.appendChild(item);
+  }
+}
+
+
+// ── Registration ─────────────────────────────────────────────
+sceneRegistry.registerNodeClass('topics',     TopicsWidget,     { navVersion: 'nav-submenu', wrapInGroup: true, showInStrip: true });
+sceneRegistry.registerNodeClass('topic-link', TopicLinkWidget,  { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
+
+export { TopicsWidget, TopicLinkWidget };

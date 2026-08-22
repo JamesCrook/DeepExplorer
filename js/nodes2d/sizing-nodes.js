@@ -211,12 +211,7 @@ class BoxNode {
       node._boxHitState = null;
     }
     node._hitResultBefore = null;
-
-    if (node._savedW !== undefined) {
-      ctxMix.W = node._savedW;
-      ctxMix.H = node._savedH;
-      node._savedW = undefined;
-    }
+    BoxNode.after_draw2d(ctxMix, node, params)
   }
 }
 

@@ -4,65 +4,28 @@ import { sceneRegistry, MiniAstNode } from './scene.js';
    omni-widget.js — Widget Classes for Controls & Nav
    ============================================
 
-   Extracts every control type from OmniControlPanel._build*() into
-   standalone widget classes that can render into BOTH the sidebar
-   controls panel AND the hamburger nav menu.
+   SCENE GRAPH MODEL
+   ─────────────────
+   All panel and nav widgets use the scene graph walker (walkPhase).
+   Widgets register static methods on sceneRegistry:
 
-   Each widget implements:
-     buildControl(ctx)   → DOM element for the controls panel
-     buildMenuItem(ctx)  → NavMenu item config (or null to skip)
+     Leaf nodes:   static mount(ctxMix, node, params)
+     Containers:   static before_mount / after_mount
 
-   The same sliderConfig array drives both surfaces:
+   DOM insertion is via ctxMix.parentEl — widgets never return elements.
+   Non-serialisable callbacks live on node.inst.
+   Serialisable data lives on node.value.
 
-     const ctx = WidgetContext.fromPanel(panel);
-     mountWidgets(sliderConfig, ctx, containerEl);
+   Nav is a separate AST produced by coerceToAST(config, { menu:true }).
+   The navVersion registration on each type controls whether and how
+   a panel widget maps to a nav node.
 
-   ── Config compatibility ─────────────────────────────────────
-   All existing section configs work unchanged.  Type dispatch:
-
-     config.type          widget class
-     ─────────────        ─────────────────────
-     (none, has sliders)  SliderGroupWidget
-     'presets'            PresetWidget
-     'select'             SelectWidget
-     'button'             ButtonWidget
-     'toggle'         NEW ToggleWidget
-     'filedrop'           FileDropWidget
-     'status'             StatusWidget
-     'info'               InfoWidget
-     'dynamic'            DynamicWidget
-     'custom'             CustomWidget
-     'layers'             LayersWidget
-     'addbar'             AddBarWidget
-     'selection-action-bar' SelectionActionBarWidget
-     'divider'        NEW DividerWidget
-     'label'          NEW LabelWidget
-     'number-input'   NEW NumberInputWidget
-     'text-input'     NEW TextInputWidget
-     'button-group'   NEW ButtonGroupWidget
+   ── Node conventions ───────────────────────────────────────
+     node.type      — registered type string
+     node.value     — plain-JSON data (id, label, min, max, …)
+     node.subtree   — child nodes
+     node.inst      — non-serialisable (onChange, build, action, …)
 */
-
-
-/* ═══════════════════════════════════════════════════════════════
-   MIGRATION STATUS: omni-widget → scene graph nodes
-   ═══════════════════════════════════════════════════════════════
-
-   COMPLETED:
-     ✓ DSL params parsed by parseDslValue (JSON.parse with pipe fallback)
-     ✓ TextSpec class deleted
-     ✓ All widgets read node.value instead of node.textSpec.asStruct()
-     ✓ Widgets registered on sceneRegistry via registerNodeClass
-     ✓ WidgetFactory deleted — replaced by createWidget, mountWidgets, stripConfigs
-     ✓ meta getters → defaultParams on registration
-     ✓ All DSL content converted to JSON
-
-   REMAINING (next steps):
-     - Flatten SliderGroup/ButtonGroup children into subtrees
-     - Add update phase for morph sync (replaces DOM-query-by-id)
-     - Switch mountWidgets to walkPhase once DOM insertion model settles
-     - Delete buildControl shim + elementFromString
-
-   ═══════════════════════════════════════════════════════════════ */
 
 
 // ════════════════════════════════════════════════════════════════
@@ -70,6 +33,7 @@ import { sceneRegistry, MiniAstNode } from './scene.js';
 // ════════════════════════════════════════════════════════════════
 
 function formatValue(val, format) {
+  if (typeof format === 'function') return format(val);
   if (typeof val !== 'number') return String(val ?? '');
   if (format === 'degRad') return `${Math.round(val * 180 / Math.PI)}°`;
   if (format === 'deg')    return `${val.toFixed(1)}°`;
@@ -110,7 +74,7 @@ function lerpColor(c0, c1, t) {
 }
 
 
-// ── HTML helpers (shared across chat-layout widgets) ───────────
+// ── HTML helpers ──────────────────────────────────────────────
 
 function _esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -124,31 +88,15 @@ function covBar(doc, wiki, variant, extraStyle) {
 
 
 // ════════════════════════════════════════════════════════════════
-//  parseDslValue — parse the params portion after :type:
-// ════════════════════════════════════════════════════════════════
-//
-//  Replaces TextSpec.  Tries JSON.parse first (full fidelity:
-//  nested objects, arrays, proper types, pipes in strings).
-//  Falls back to legacy pipe format so old content keeps working.
-//
-//  :server: {"icon":"⚙","id":"gear"}       → {icon:'⚙', id:'gear'}
-//  :diagrams: ["arch","flow"]               → ['arch','flow']
-//  :server: icon=⚙ | id=gear               → {icon:'⚙', id:'gear'}   (legacy)
-//  :diagrams: arch | flow                   → ['arch','flow']          (legacy)
-//  :group: Theme                            → 'Theme'                  (bare word)
-//  :separator:                              → null
+//  parseDslValue
 // ════════════════════════════════════════════════════════════════
 
 function parseDslValue(raw) {
   const s = (raw || '').trim();
   if (!s) return null;
-
-  // 1. Try JSON — gives us arrays, nested objects, proper types, the lot.
   if (s[0] === '{' || s[0] === '[') {
-    try { return JSON.parse(s); } catch (_) { /* fall through to legacy */ }
+    try { return JSON.parse(s); } catch (_) { /* fall through */ }
   }
-
-  // 2. Legacy pipe format with = signs → struct
   if (s.includes('=')) {
     const o = {};
     for (const part of s.split('|')) {
@@ -157,11 +105,7 @@ function parseDslValue(raw) {
     }
     return o;
   }
-
-  // 3. Bare list (no =, has |) → array
   if (s.includes('|')) return s.split('|').map(t => t.trim()).filter(Boolean);
-
-  // 4. Single bare word / phrase
   return s;
 }
 
@@ -169,29 +113,8 @@ function parseDslValue(raw) {
 // ════════════════════════════════════════════════════════════════
 //  WidgetContext
 // ════════════════════════════════════════════════════════════════
-//
-//  Lightweight adapter that widgets use to read/write params,
-//  trigger renders, and close menus — without coupling to
-//  OmniControlPanel directly.
-//
-//  Build one with WidgetContext.fromPanel(panel) for the normal
-//  panel path, or construct manually for nav-only / standalone use.
-// ════════════════════════════════════════════════════════════════
 
 class WidgetContext {
-  /**
-   * @param {Object} opts
-   * @param {Object}   opts.params            — live params object
-   * @param {Object}   [opts.sectionParams]   — per-section params (takes priority for writes)
-   * @param {Object}   [opts.engine]          — OmniParamEngine
-   * @param {Object}   [opts.panel]           — OmniControlPanel instance
-   * @param {Object}   [opts.presets]         — fallback presets dict
-   * @param {Function} [opts.render]
-   * @param {Function} [opts.onParamChange]
-   * @param {Function} [opts.clearActivePreset]
-   * @param {Function} [opts.morphToTarget]   — (params, target, duration?)
-   * @param {Function} [opts.closeMenu]
-   */
   constructor(opts = {}) {
     this.params            = opts.params || {};
     this.sectionParams     = opts.sectionParams || null;
@@ -204,9 +127,12 @@ class WidgetContext {
     this._clearActive      = opts.clearActivePreset || (() => {});
     this._morphToTarget    = opts.morphToTarget || null;
     this._closeMenu        = opts.closeMenu || (() => {});
+
+    // Walker threading — set before walkPhase
+    this.parentEl    = opts.parentEl || null;
+    this.parentStack = opts.parentStack || [];
   }
 
-  /** Convenience — build a context from an OmniControlPanel. */
   static fromPanel(panel) {
     return new WidgetContext({
       params:            panel.params,
@@ -225,9 +151,6 @@ class WidgetContext {
     });
   }
 
-  // ── Param access ────────────────────────────────────────
-
-  /** Write a param — routes through sectionParams or engine. */
   setParam(id, value) {
     if (this.sectionParams) {
       this.sectionParams[id] = value;
@@ -238,13 +161,10 @@ class WidgetContext {
     }
   }
 
-  /** Read a param, preferring sectionParams when present. */
   getParam(id) {
     const src = this.sectionParams || this.params;
     return src[id];
   }
-
-  // ── Actions ─────────────────────────────────────────────
 
   render()               { this._render(); }
   onParamChange(...args) { this._onParamChange(...args); }
@@ -255,18 +175,12 @@ class WidgetContext {
     if (this._morphToTarget) this._morphToTarget(params, target, duration);
   }
 
-  // ── Derivation ──────────────────────────────────────────
-
-  /**
-   * Return a child context whose reads/writes target the
-   * section's own _params object (if present).
-   */
   forSection(sectionConfig) {
     const sp = sectionConfig._params || null;
     return new WidgetContext({
       params:            sp || this.params,
       sectionParams:     sp,
-      engine:            sp ? null : this.engine,   // bypass engine for direct params
+      engine:            sp ? null : this.engine,
       panel:             this.panel,
       presets:           this.presets,
       compact:           this.compact,
@@ -275,6 +189,8 @@ class WidgetContext {
       clearActivePreset: this._clearActive,
       morphToTarget:     this._morphToTarget,
       closeMenu:         this._closeMenu,
+      parentEl:          this.parentEl,
+      parentStack:       this.parentStack,
     });
   }
 }
@@ -286,76 +202,148 @@ class WidgetContext {
 
 class OmniWidget {
   constructor(config) {
-    /** @type {Object} section config from sliderConfig */
     this.config = config;
   }
 
-  /**
-   * Metadata that the host (panel, transformer, tree walker) reads to
-   * decide how to mount this widget.  Override in subclasses.
-   *
-   *   sticky      — wrap in a position:sticky section (chat layout)
-   *   wrapInGroup — wrap in .control-group + h3 (panel layout)
-   *   showInStrip — create a multiscroller tab (panel layout)
-   */
   get meta() { return { sticky: false, wrapInGroup: true, showInStrip: true }; }
-
-  // Backward-compat getters — existing code reads these directly.
   get showInStrip() { return this.meta.showInStrip ?? true; }
   get wrapInGroup() { return this.meta.wrapInGroup ?? true; }
 
-  /**
-   * Mount the widget into a container.
-   *
-   * This is the primary rendering method.  Subclasses override this.
-   *
-   * @param {WidgetContext} ctxMix — context (setParam, render, panel…)
-   * @param {Object}        node   — the config/node (label, id, sliders…)
-   * @param {Object}        params — resolved live params object
-   * @returns {HTMLElement|DocumentFragment|null}
-   */
-  mount(ctxMix, node, params) { return null; }
+  // Base mount uses _ctx (not ctxMix) so the scene registry scanner
+  // does NOT register it — subclass static/instance methods take over.
+  mount(_ctx, node, params) { return null; }
 
-  /**
-   * Backward-compat wrapper — delegates to mount().
-   * d-plus.html calls widget.buildControl(ctx) directly; this keeps
-   * that path working until it migrates to walkPhase.
-   */
+  /** @deprecated — use walkPhase instead */
   buildControl(ctx) {
     return this.mount(ctx, this.config, ctx.sectionParams || ctx.params);
   }
 
-  // ── Helpers for template-based widgets ───────────────────
-
-  /** Convert an HTML string to a DOM element.  Use when a template
-   *  literal is more convenient than element-by-element construction. */
   static elementFromString(html) {
     const t = document.createElement('template');
     t.innerHTML = html.trim();
     return t.content.firstElementChild || t.content;
   }
 
-  /**
-   * Build a morphable slider — the standard range control everywhere.
-   *
-   * Returns { el, setValue(v) } where el is the root .morph-slider div
-   * and setValue repositions the pip/fill/readout programmatically
-   * (used by preset morph, param sync, etc).
-   *
-   * @param {Object} opts
-   * @param {string}   opts.label
-   * @param {number}   opts.min
-   * @param {number}   opts.max
-   * @param {number}   opts.step
-   * @param {number}   opts.value     — initial value
-   * @param {Function} [opts.format]  — (v) => display string
-   * @param {Function} [opts.onChange] — (v) => void
-   * @param {boolean}  [opts.disabled]
-   */
+  /** @deprecated Use MorphSliderWidget.buildMorphSlider() directly. */
+  static buildMorphSlider(opts) {
+    return MorphSliderWidget.buildMorphSlider(opts);
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  PanelWidget — root node for walkPhase('mount')
+//  ─ Ensures parentStack exists. Children are top-level sections.
+// ════════════════════════════════════════════════════════════════
+
+class PanelWidget extends OmniWidget {
+  static before_mount(ctxMix, node, params) {
+    ctxMix.parentStack = ctxMix.parentStack || [];
+  }
+  static after_mount(ctxMix, node, params) {
+    // nothing — children already appended into ctxMix.parentEl
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  ControlGroupWidget — .control-group wrapper with h3 heading
+//  ─ Used by the coercion to wrap single-widget sections.
+//  ─ SliderGroupWidget extends this for slider sections.
+// ════════════════════════════════════════════════════════════════
+
+class ControlGroupWidget extends OmniWidget {
+  static before_mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const groupEl = document.createElement('div');
+    groupEl.className = 'control-group';
+    groupEl.id = `section-${v.id || ''}`;
+
+    const h3 = document.createElement('h3');
+    h3.textContent = v.group || '';
+    groupEl.appendChild(h3);
+
+    // Handle per-section params (_params on inst)
+    if (node.inst?._params) {
+      ctxMix._savedSectionParams = ctxMix.sectionParams;
+      ctxMix._savedParams = ctxMix.params;
+      ctxMix.sectionParams = node.inst._params;
+      ctxMix.params = node.inst._params;
+    }
+
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl = groupEl;
+  }
+
+  static after_mount(ctxMix, node, params) {
+    const groupEl = ctxMix.parentEl;
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+    ctxMix.parentEl.appendChild(groupEl);
+
+    // Restore params
+    if (node.inst?._params) {
+      ctxMix.sectionParams = ctxMix._savedSectionParams;
+      ctxMix.params = ctxMix._savedParams;
+    }
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  MorphSliderWidget — the morphable range slider (leaf)
+// ════════════════════════════════════════════════════════════════
+
+class MorphSliderWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const pid = v.id;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = v.isData
+      ? (v.dataValue || v.default)
+      : (p[pid] ?? v.default ?? v.min ?? 0);
+
+    // Capture params ref now — ctxMix.sectionParams is restored after the walk
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
+
+    const { el, setValue, getValue, valEl } = MorphSliderWidget.buildMorphSlider({
+      label:    v.label,
+      min:      v.min ?? 0,
+      max:      v.max ?? 100,
+      step:     v.step,
+      value:    initVal,
+      disabled: v.disabled,
+      format:   typeof v.format === 'function'
+        ? v.format
+        : v.format ? (val => formatValue(val, v.format)) : undefined,
+      onChange: val => {
+        if (v.isData) {
+          ctxMix.onParamChange(pid, val, true, ctxMix.panel);
+        } else {
+          writeParam(pid, val);
+          ctxMix.onParamChange(pid, val, false, ctxMix.panel);
+        }
+        if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
+        ctxMix.render();
+        ctxMix.clearActivePreset();
+      },
+    });
+
+    el.id = pid;
+    valEl.id = `${pid}-val`;
+    el.dataset.sliderId = pid;
+
+    ctxMix.parentEl.appendChild(el);
+  }
+
+  // ── Static factory — the core DOM builder (unchanged) ──────────
+
   static buildMorphSlider(opts) {
     const min = +opts.min, max = +opts.max, step = +(opts.step || 1);
     const fmt = opts.format || (v => {
-      // Auto-format: up to 2 decimals if step is fractional
       return step % 1 !== 0 ? (+v).toFixed(2) : String(Math.round(+v));
     });
 
@@ -381,28 +369,22 @@ class OmniWidget {
 
     el.append(track, pip, lbl, val);
 
-    // ── Internal state ───────────────────────────────────
     let currentValue = +(opts.value ?? min);
 
     function pctFromValue(v) {
       return max === min ? 0 : (v - min) / (max - min);
     }
-
     function valueFromPct(pct) {
       let v = min + pct * (max - min);
-      // Snap to step
       v = Math.round(v / step) * step;
       return Math.max(min, Math.min(max, +v.toFixed(10)));
     }
-
     function render(v) {
       const pct = pctFromValue(v) * 100;
       fill.style.width = pct + '%';
       pip.style.left   = pct + '%';
       val.textContent   = fmt(v);
     }
-
-    // Public: set value from outside (preset morph, param sync)
     function setValue(v) {
       currentValue = +v;
       render(currentValue);
@@ -410,7 +392,6 @@ class OmniWidget {
 
     render(currentValue);
 
-    // ── Pointer interaction ──────────────────────────────
     if (!opts.disabled) {
       const update = (clientX) => {
         const rect = track.getBoundingClientRect();
@@ -419,35 +400,22 @@ class OmniWidget {
         render(currentValue);
         if (opts.onChange) opts.onChange(currentValue);
       };
-
       let engaged = false;
-
       el.addEventListener('pointerdown', e => {
         engaged = true;
         el.classList.add('engaged');
         el.setPointerCapture(e.pointerId);
         update(e.clientX);
       });
-      el.addEventListener('pointermove', e => {
-        if (engaged) update(e.clientX);
-      });
-      el.addEventListener('pointerup', () => {
-        engaged = false;
-        el.classList.remove('engaged');
-      });
-      el.addEventListener('pointercancel', () => {
-        engaged = false;
-        el.classList.remove('engaged');
-      });
+      el.addEventListener('pointermove', e => { if (engaged) update(e.clientX); });
+      el.addEventListener('pointerup', () => { engaged = false; el.classList.remove('engaged'); });
+      el.addEventListener('pointercancel', () => { engaged = false; el.classList.remove('engaged'); });
     }
 
-    // Expose the value element for external id assignment
     el._valEl   = val;
     el._setValue = setValue;
     el._getValue = () => currentValue;
 
-    // Backward-compat: the panel reads/writes .value like an <input>.
-    // defineProperty so it's not enumerable (won't confuse iteration).
     Object.defineProperty(el, 'value', {
       get: () => currentValue,
       set: v => { setValue(+v); },
@@ -460,108 +428,45 @@ class OmniWidget {
 
 
 // ════════════════════════════════════════════════════════════════
-//  SliderGroupWidget
-//  ─ The default type when config has a .sliders array.
-//  ─ Each entry can be a range slider, color picker, or button-row.
+//  ColorPickerWidget — extracted from SliderGroupWidget._buildColor
 // ════════════════════════════════════════════════════════════════
 
-class SliderGroupWidget extends OmniWidget {
+class ColorPickerWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const id = node.id;
-      if (!id) return null;
-      const cfg = {
-        type: 'nav-item', label: node.group || id,
-        action: () => {
-          const section = document.getElementById(`section-${id}`);
-          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        },
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[v.id] ?? v.default ?? '#ffffffff';
 
-    const frag = document.createDocumentFragment();
-
-    for (const s of (node.sliders || [])) {
-      if (s.type === 'color') {
-        frag.appendChild(SliderGroupWidget._buildColor(s, params, ctxMix));
-      } else if (s.type === 'button-row') {
-        frag.appendChild(SliderGroupWidget._buildButtonRow(s, params, ctxMix));
-      } else {
-        frag.appendChild(SliderGroupWidget._buildRange(s, params, ctxMix));
-      }
-    }
-    return frag;
-  }
-
-  // ── Range slider ──────────────────────────────────────────
-
-  static _buildRange(s, params, ctx) {
-    const initVal = s.isData
-      ? (s.dataValue || s.default)
-      : (params[s.id] ?? s.default);
-
-    const { el, setValue, valEl } = OmniWidget.buildMorphSlider({
-      label:    s.label,
-      min:      s.min,
-      max:      s.max,
-      step:     s.step,
-      value:    initVal,
-      disabled: s.disabled,
-      format:   v => formatValue(v, s.format),
-      onChange: v => {
-        if (s.isData) {
-          ctx.onParamChange(s.id, v, true, ctx.panel);
-        } else {
-          ctx.setParam(s.id, v);
-          ctx.onParamChange(s.id, v, false, ctx.panel);
-        }
-        ctx.render();
-        ctx.clearActivePreset();
-      },
-    });
-
-    // Keep the same id conventions so preset morph / param sync can find them
-    el.id = s.id;
-    valEl.id = `${s.id}-val`;
-    el.dataset.sliderId = s.id;
-
-    return el;
-  }
-
-  // ── Color picker ──────────────────────────────────────────
-
-  static _buildColor(s, params, ctx) {
-    const initVal = params[s.id] ?? s.default ?? '#ffffffff';
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control sc-color-control';
 
-    // label row
     const label = document.createElement('label');
     const nameSpan = document.createElement('span');
-    nameSpan.textContent = s.label;
+    nameSpan.textContent = v.label;
     const valSpan = document.createElement('span');
-    valSpan.id = `${s.id}-val`;
+    valSpan.id = `${v.id}-val`;
     valSpan.textContent = initVal;
     label.appendChild(nameSpan);
     label.appendChild(valSpan);
 
-    // swatch
     const swatch = document.createElement('button');
     swatch.className = 'sc-color-swatch';
-    swatch.id = `${s.id}-swatch`;
+    swatch.id = `${v.id}-swatch`;
     swatch.style.backgroundColor = initVal;
 
-    // popup
     const popup = document.createElement('div');
     popup.className = 'sc-color-popup';
     popup.style.display = 'none';
 
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
-    colorInput.id = s.id;
+    colorInput.id = v.id;
     colorInput.value = initVal.slice(0, 7);
 
     const alphaRow = document.createElement('div');
@@ -570,10 +475,8 @@ class SliderGroupWidget extends OmniWidget {
     alphaLabel.textContent = 'Alpha';
     const alphaSlider = document.createElement('input');
     alphaSlider.type = 'range';
-    alphaSlider.id = `${s.id}-alpha`;
-    alphaSlider.min = 0;
-    alphaSlider.max = 1;
-    alphaSlider.step = 0.01;
+    alphaSlider.id = `${v.id}-alpha`;
+    alphaSlider.min = 0; alphaSlider.max = 1; alphaSlider.step = 0.01;
     alphaSlider.value = parseHexColor(initVal).a;
 
     alphaRow.appendChild(alphaLabel);
@@ -585,13 +488,12 @@ class SliderGroupWidget extends OmniWidget {
       const rgb = parseHexColor(colorInput.value);
       rgb.a = parseFloat(alphaSlider.value);
       const hex = formatHexColor(rgb);
-      ctx.setParam(s.id, hex);
+      writeParam(v.id, hex);
       swatch.style.backgroundColor = hex;
       valSpan.textContent = hex;
-      ctx.render();
-      ctx.clearActivePreset();
+      ctxMix.render();
+      ctxMix.clearActivePreset();
     };
-
     colorInput.addEventListener('input', writeColor);
     alphaSlider.addEventListener('input', writeColor);
 
@@ -602,7 +504,6 @@ class SliderGroupWidget extends OmniWidget {
               .forEach(p => p.style.display = 'none');
       popup.style.display = wasHidden ? '' : 'none';
     });
-
     document.addEventListener('click', (e) => {
       if (!popup.contains(e.target) && e.target !== swatch) {
         popup.style.display = 'none';
@@ -612,28 +513,41 @@ class SliderGroupWidget extends OmniWidget {
     controlEl.appendChild(label);
     controlEl.appendChild(swatch);
     controlEl.appendChild(popup);
-    return controlEl;
+    ctxMix.parentEl.appendChild(controlEl);
   }
+}
 
-  // ── Mutually-exclusive button row ─────────────────────────
 
-  static _buildButtonRow(s, params, ctx) {
-    const initVal = params[s.id] ?? s.default;
+// ════════════════════════════════════════════════════════════════
+//  ButtonRowWidget — mutually-exclusive button row (leaf)
+// ════════════════════════════════════════════════════════════════
+
+class ButtonRowWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[v.id] ?? v.default;
+
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control';
 
-    if (s.label) {
+    if (v.label) {
       const label = document.createElement('label');
-      label.innerHTML = `<span>${s.label}</span>`;
+      label.innerHTML = `<span>${v.label}</span>`;
       controlEl.appendChild(label);
     }
 
     const row = document.createElement('div');
     row.className = 'sc-btn-row';
-    row.id = s.id;
+    row.id = v.id;
 
-    for (const opt of (s.options || [])) {
+    for (const opt of (v.options || [])) {
       const btn = document.createElement('button');
       btn.textContent = opt.label;
       btn.dataset.v = opt.value;
@@ -642,212 +556,197 @@ class SliderGroupWidget extends OmniWidget {
       btn.addEventListener('click', () => {
         row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
-        ctx.setParam(s.id, opt.value);
-        ctx.onParamChange(s.id, opt.value, false, ctx.panel);
-        ctx.render();
-        ctx.clearActivePreset();
+        writeParam(v.id, opt.value);
+        ctxMix.onParamChange(v.id, opt.value, false, ctxMix.panel);
+        ctxMix.render();
+        ctxMix.clearActivePreset();
       });
-
       row.appendChild(btn);
     }
 
     controlEl.appendChild(row);
-    return controlEl;
+    ctxMix.parentEl.appendChild(controlEl);
   }
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  PresetWidget
+//  SliderGroupWidget — extends ControlGroupWidget
+//  ─ Inherits before_mount/after_mount (creates .control-group).
+//  ─ Children (morph-slider, color-picker, button-row) are subtree
+//    nodes; the walker handles iteration.
+// ════════════════════════════════════════════════════════════════
+
+class SliderGroupWidget extends ControlGroupWidget {
+  // Inherits before_mount/after_mount from ControlGroupWidget.
+  // No mount() — it's purely a container.
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  PresetItemWidget — a single preset button (leaf)
+// ════════════════════════════════════════════════════════════════
+
+class PresetItemWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = v.label || '';
+
+    btn.addEventListener('click', () => {
+      if (node.inst?.action) node.inst.action();
+      // Mark active within the parent .presets container
+      const container = btn.closest('.presets');
+      if (container) {
+        container.querySelectorAll('.preset-btn').forEach(b =>
+          b.classList.toggle('active', b === btn));
+      }
+    });
+
+    ctxMix.parentEl.appendChild(btn);
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  PresetWidget — container for preset-item children
 // ════════════════════════════════════════════════════════════════
 
 class PresetWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    const presets = node.presets || ctxMix.presets || {};
-
-    if (ctxMix.compact) {
-      const cfg = {
-        type: 'nav-submenu', label: node.group || 'Presets',
-        subtree: Object.keys(presets).map(name => ({
-          type: 'nav-item', label: name,
-          action: () => {
-            if (node._params) ctxMix.morphToTarget(node._params, presets[name]);
-            else if (ctxMix.panel) ctxMix.panel.setPreset(name);
-          },
-        })),
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static before_mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.className = 'presets';
-    el.id = node.presetsId || 'presets';
+    el.id = v.presetsId || v.id || 'presets';
 
-    for (const name of Object.keys(presets)) {
-      const btn = document.createElement('button');
-      btn.className = 'preset-btn';
-      btn.textContent = name;
-
-      btn.onclick = () => {
-        if (node._params) {
-          // Direct morph path (setContext / per-layer presets)
-          el.querySelectorAll('.preset-btn').forEach(b =>
-            b.classList.toggle('active', b === btn));
-          ctxMix.morphToTarget(node._params, presets[name]);
-        } else if (ctxMix.panel) {
-          // Engine morph path (constructor / standalone)
-          ctxMix.panel.setPreset(name);
-        }
-      };
-
-      el.appendChild(btn);
-    }
-
-    return el;
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl = el;
   }
 
+  static after_mount(ctxMix, node, params) {
+    const el = ctxMix.parentEl;
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+    ctxMix.parentEl.appendChild(el);
+  }
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  SelectWidget
+//  OptionWidget — a single <option> element (leaf)
+// ════════════════════════════════════════════════════════════════
+
+class OptionWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const option = document.createElement('option');
+    option.value = v.value ?? '';
+    option.textContent = v.label || '';
+    if (v.selected) option.selected = true;
+    ctxMix.parentEl.appendChild(option);
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  OptgroupWidget — <optgroup> wrapper for option children
+// ════════════════════════════════════════════════════════════════
+
+class OptgroupWidget extends OmniWidget {
+
+  static before_mount(ctxMix, node, params) {
+    const og = document.createElement('optgroup');
+    og.label = node.value?.label || '';
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl.appendChild(og);
+    ctxMix.parentEl = og;
+  }
+
+  static after_mount(ctxMix, node, params) {
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  SelectWidget — container for option / optgroup children
 // ════════════════════════════════════════════════════════════════
 
 class SelectWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const options = node.optgroups
-        ? Object.values(node.optgroups).flat()
-        : (node.options || []);
-      const cfg = {
-        type: 'nav-submenu', label: node.group || node.label || 'Select',
-        subtree: options.map(opt => ({
-          type: 'nav-item', label: opt.label,
-          action: () => {
-            const selectEl = document.getElementById(node.selectId || node.id);
-            if (selectEl) selectEl.value = opt.value;
-            if (node.onChange) node.onChange(opt.value, ctxMix.panel);
-            else { ctxMix.onParamChange(node.id, opt.value, false, ctxMix.panel); ctxMix.render(); }
-          },
-        })),
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
+  static before_mount(ctxMix, node, params) {
+    const v = node.value || {};
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control';
 
-    if (node.label) {
+    if (v.label) {
       const label = document.createElement('label');
-      label.innerHTML = `<span>${node.label}</span>`;
+      label.innerHTML = `<span>${v.label}</span>`;
       controlEl.appendChild(label);
     }
 
     const select = document.createElement('select');
-    select.id = node.selectId || node.id;
-
-    if (node.optgroups) {
-      for (const [groupLabel, opts] of Object.entries(node.optgroups)) {
-        const og = document.createElement('optgroup');
-        og.label = groupLabel;
-        for (const opt of opts) {
-          const option = document.createElement('option');
-          option.value = opt.value;
-          option.textContent = opt.label;
-          if (opt.selected) option.selected = true;
-          og.appendChild(option);
-        }
-        select.appendChild(og);
-      }
-    } else {
-      for (const opt of (node.options || [])) {
-        const option = document.createElement('option');
-        option.value = opt.value;
-        option.textContent = opt.label;
-        if (opt.selected) option.selected = true;
-        select.appendChild(option);
-      }
-    }
+    select.id = v.selectId || v.id || '';
 
     select.addEventListener('change', () => {
-      if (node.onChange) {
-        node.onChange(select.value, ctxMix.panel);
+      if (node.inst?.onChange) {
+        node.inst.onChange(select.value, ctxMix.panel);
       } else {
-        ctxMix.onParamChange(node.id, select.value, false, ctxMix.panel);
+        ctxMix.onParamChange(v.id, select.value, false, ctxMix.panel);
         ctxMix.render();
       }
     });
 
     controlEl.appendChild(select);
-    return controlEl;
+
+    // Children (option nodes) append into the <select>
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl.appendChild(controlEl);
+    ctxMix.parentEl = select;
   }
 
+  static after_mount(ctxMix, node, params) {
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+  }
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  ButtonWidget
+//  ButtonWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ButtonWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const cfg = {
-        type: 'nav-item', label: node.group || node.label || 'Action',
-        action: () => { if (node.onClick) node.onClick(ctxMix.panel); },
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const btn = document.createElement('button');
-    btn.className = 'btn' + (node.secondary ? ' secondary' : '');
-    btn.id = node.buttonId || node.id;
-    btn.textContent = node.label || 'Button';
+    btn.className = 'btn' + (v.secondary ? ' secondary' : '');
+    btn.id = v.buttonId || v.id || '';
+    btn.textContent = v.label || 'Button';
     btn.addEventListener('click', () => {
-      if (node.onClick) node.onClick(ctxMix.panel);
+      if (node.inst?.onClick) node.inst.onClick(ctxMix.panel);
     });
-    return btn;
+    ctxMix.parentEl.appendChild(btn);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  ToggleWidget  (NEW)
-//  ─ Panel: styled toggle switch  (uses existing .toggle-item CSS)
-//  ─ Nav:   checkbox menu item
-//
-//  Config:
-//    { type:'toggle', id, label,
-//      paramId?,           // param key (defaults to id)
-//      checked?,           // initial state (or read from params)
-//      onChange?(val, panel) }
+//  ToggleWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ToggleWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    const pid = node.paramId || node.id;
-    const checked = params[pid] ?? node.checked ?? false;
-
-    if (ctxMix.compact) {
-      const cfg = {
-        type: 'nav-checkbox', label: node.label || node.group || 'Toggle',
-        checked: !!checked,
-        onChange: (val) => {
-          ctxMix.setParam(pid, val);
-          if (node.onChange) node.onChange(val, ctxMix.panel);
-          ctxMix.onParamChange(pid, val, false, ctxMix.panel);
-          ctxMix.render();
-          const el = document.getElementById(pid);
-          if (el) el.checked = val;
-        },
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const pid = v.id;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const checked = p[pid] ?? v.checked ?? false;
 
     const label = document.createElement('label');
     label.className = 'toggle-item';
@@ -862,41 +761,44 @@ class ToggleWidget extends OmniWidget {
 
     const text = document.createElement('span');
     text.className = 'toggle-label';
-    text.textContent = node.label || '';
+    text.textContent = v.label || '';
 
     label.appendChild(input);
     label.appendChild(slider);
     label.appendChild(text);
 
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
+
     label.addEventListener('change', () => {
       const val = input.checked;
-      ctxMix.setParam(pid, val);
-      if (node.onChange) node.onChange(val, ctxMix.panel);
+      writeParam(pid, val);
+      if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
     });
 
-    return label;
+    ctxMix.parentEl.appendChild(label);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  FileDropWidget
+//  FileDropWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class FileDropWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const drop = document.createElement('div');
     drop.className = 'file-drop';
-    drop.id = node.id;
+    drop.id = v.id || '';
     drop.innerHTML = `
       <div class="file-drop-icon">📁</div>
-      <div>${node.label || 'Drop files here'}</div>
+      <div>${v.label || 'Drop files here'}</div>
     `;
 
     drop.addEventListener('dragover', (e) => {
@@ -904,345 +806,219 @@ class FileDropWidget extends OmniWidget {
       drop.classList.add('dragover');
     });
     drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
-
     drop.addEventListener('drop', (e) => {
       e.preventDefault();
       drop.classList.remove('dragover');
-      if (node.onDrop) node.onDrop(e.dataTransfer.files, ctxMix.panel);
+      if (node.inst?.onDrop) node.inst.onDrop(e.dataTransfer.files, ctxMix.panel);
     });
-
     drop.addEventListener('click', () => {
       const input = document.createElement('input');
       input.type = 'file';
-      input.multiple = node.multiple || false;
-      input.accept = node.accept || '*';
+      input.multiple = v.multiple || false;
+      input.accept = v.accept || '*';
       input.onchange = () => {
-        if (node.onDrop) node.onDrop(input.files, ctxMix.panel);
+        if (node.inst?.onDrop) node.inst.onDrop(input.files, ctxMix.panel);
       };
       input.click();
     });
 
-    return drop;
+    ctxMix.parentEl.appendChild(drop);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  StatusWidget
+//  StatusWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class StatusWidget extends OmniWidget {
 
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.className = 'status-message';
-    el.id = node.statusId || 'status';
+    el.id = v.statusId || v.id || 'status';
     if (ctxMix.panel) ctxMix.panel.statusEl = el;
-    return el;
+    ctxMix.parentEl.appendChild(el);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  InfoWidget
+//  InfoWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class InfoWidget extends OmniWidget {
 
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.className = 'info-panel';
-    el.id = node.infoId || 'info';
+    el.id = v.infoId || v.id || 'info';
     if (ctxMix.panel) ctxMix.panel.infoEl = el;
-    return el;
+    ctxMix.parentEl.appendChild(el);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  DynamicWidget
+//  DynamicWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class DynamicWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.className = 'dynamic-controls';
-    el.id = node.containerId || node.id;
-    if (ctxMix.panel) ctxMix.panel.dynamicContainers[node.id] = el;
-    return el;
+    el.id = v.containerId || v.id || '';
+    if (ctxMix.panel) ctxMix.panel.dynamicContainers[v.id || v.containerId] = el;
+    ctxMix.parentEl.appendChild(el);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  CustomWidget — delegates to config.build(el, panel)
+//  CustomWidget — delegates to inst.build(el, panel)
 // ════════════════════════════════════════════════════════════════
 
 class CustomWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
-    if (!node.build) return null;
+  static mount(ctxMix, node, params) {
+    if (!node.inst?.build) return;
     const wrapper = document.createElement('div');
-    node.build(wrapper, ctxMix.panel);
-    return wrapper;
+    node.inst.build(wrapper, ctxMix.panel);
+    ctxMix.parentEl.appendChild(wrapper);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  LayersWidget  (no group wrapper, no strip button)
-// ════════════════════════════════════════════════════════════════
-
-class LayersWidget extends OmniWidget {
-
-  get wrapInGroup() { return false; }
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const layers = node.layers || [];
-      if (!layers.length) return null;
-      const cfg = {
-        type: 'nav-submenu', label: node.title || 'Layers',
-        subtree: layers.map(layer => ({
-          type: 'nav-item', label: layer.value?.name || 'Layer',
-          action: () => { if (node.onSelect) node.onSelect(layer); },
-        })),
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
-    const panel = document.createElement('div');
-    panel.className = 'sc-layers-panel';
-
-    const title = document.createElement('div');
-    title.className = 'sc-layers-title';
-    title.textContent = node.title || 'Layers';
-    panel.appendChild(title);
-
-    for (const layer of (node.layers || [])) {
-      const item = document.createElement('div');
-      item.className = 'sc-layer-item';
-      if (layer === node.selectedLayer) item.classList.add('selected');
-
-      const dot = document.createElement('div');
-      dot.className = 'sc-layer-dot';
-      dot.style.backgroundColor = layer.value?.dotColor || '#888';
-
-      const name = document.createElement('span');
-      name.className = 'sc-layer-name';
-      name.textContent = layer.value?.name || 'Layer';
-
-      const vis = document.createElement('button');
-      vis.className = 'sc-layer-vis';
-      vis.textContent = layer.value?.visible !== false ? '👁' : '·';
-      vis.onclick = (e) => {
-        e.stopPropagation();
-        layer.value.visible = !layer.value.visible;
-        vis.textContent = layer.value.visible ? '👁' : '·';
-        if (node.onToggleVisibility) node.onToggleVisibility(layer);
-      };
-
-      item.appendChild(dot);
-      item.appendChild(name);
-      item.appendChild(vis);
-      item.onclick = () => { if (node.onSelect) node.onSelect(layer); };
-
-      panel.appendChild(item);
-    }
-
-    return panel;
-  }
-
-}
-
-
-// ════════════════════════════════════════════════════════════════
-//  AddBarWidget  (no group wrapper, no strip button)
+//  AddBarWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class AddBarWidget extends OmniWidget {
 
-  get wrapInGroup() { return false; }
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const items = node.items || [];
-      if (!items.length) return null;
-      const cfg = {
-        type: 'nav-submenu', label: 'Add',
-        subtree: items.map(item => ({
-          type: 'nav-item', label: item.label,
-          action: () => { if (node.onAdd) node.onAdd(item.id); },
-        })),
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const bar = document.createElement('div');
     bar.className = 'sc-add-bar';
 
-    for (const item of (node.items || [])) {
+    for (const item of (v.items || [])) {
       const btn = document.createElement('button');
       btn.className = 'sc-add-btn';
       btn.textContent = '+ ' + item.label;
-      btn.onclick = () => { if (node.onAdd) node.onAdd(item.id); };
+      btn.onclick = () => { if (node.inst?.onAdd) node.inst.onAdd(item.id); };
       bar.appendChild(btn);
     }
 
-    return bar;
+    ctxMix.parentEl.appendChild(bar);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  SelectionActionBarWidget  (no group wrapper, no strip button)
+//  SelectionActionBarWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class SelectionActionBarWidget extends OmniWidget {
 
-  get wrapInGroup() { return false; }
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const d = v._depth ?? '';
     const bar = document.createElement('div');
     bar.className = 'sc-selection-bar';
 
     const count = document.createElement('span');
     count.className = 'sc-sel-count';
-    count.id = 'sel-count';
-    count.textContent = node.count ?? 0;
+    count.id = `sel-count-${d}`;
+    count.textContent = v.count ?? 0;
 
     const display = document.createElement('span');
     display.className = 'sc-sel-display';
-    display.id = 'sel-display';
-    display.textContent = node.display || '—';
+    display.id = `sel-display-${d}`;
+    display.textContent = v.display || '—';
 
     const addBtn = document.createElement('button');
     addBtn.className = 'sc-sel-btn';
-    addBtn.id = 'sel-add';
+    addBtn.id = `sel-add-${d}`;
     addBtn.textContent = '+';
     addBtn.title = 'Add';
-    addBtn.disabled = !node.canAdd;
-    addBtn.onclick = () => { if (node.onAdd) node.onAdd(); };
+    addBtn.disabled = !v.canAdd;
+    addBtn.onclick = () => { if (node.inst?.onAdd) node.inst.onAdd(); };
 
     const removeBtn = document.createElement('button');
     removeBtn.className = 'sc-sel-btn sc-sel-btn-remove';
-    removeBtn.id = 'sel-remove';
+    removeBtn.id = `sel-remove-${d}`;
     removeBtn.textContent = '−';
     removeBtn.title = 'Remove';
-    removeBtn.disabled = !node.canRemove;
-    removeBtn.onclick = () => { if (node.onRemove) node.onRemove(); };
+    removeBtn.disabled = !v.canRemove;
+    removeBtn.onclick = () => { if (node.inst?.onRemove) node.inst.onRemove(); };
 
     bar.appendChild(count);
     bar.appendChild(display);
     bar.appendChild(addBtn);
     bar.appendChild(removeBtn);
-    return bar;
+    ctxMix.parentEl.appendChild(bar);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  DividerWidget  (NEW — visual separator)
-//  Panel: thin horizontal rule matching the OmniBase theme
-//  Nav:   { type: 'nav-divider' }
+//  DividerWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class DividerWidget extends OmniWidget {
 
-  get wrapInGroup() { return false; }
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const cfg = { type: 'nav-divider' };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static mount(ctxMix, node, params) {
     const el = document.createElement('div');
     el.className = 'ow-divider';
     el.style.cssText = 'height:1px;background:rgba(79,195,247,0.12);margin:8px 0;';
-    return el;
+    ctxMix.parentEl.appendChild(el);
   }
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  LabelWidget  (NEW — read-only display text)
-//
-//  Config:
-//    { type:'label', id?, group?, text?, html? }
+//  LabelWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class LabelWidget extends OmniWidget {
 
-  get showInStrip() { return false; }
-
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.className = 'ow-label';
-    if (node.labelId || node.id) el.id = node.labelId || node.id;
+    if (v.labelId || v.id) el.id = v.labelId || v.id;
     el.style.cssText = 'font-size:11px;color:#888;line-height:1.5;';
-    if (node.html) {
-      el.innerHTML = node.html;
+    if (v.html) {
+      el.innerHTML = v.html;
     } else {
-      el.textContent = node.text || '';
+      el.textContent = v.text || '';
     }
-    return el;
+    ctxMix.parentEl.appendChild(el);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  NumberInputWidget  (NEW)
-//
-//  Config:
-//    { type:'number-input', id, label?,
-//      paramId?, default?, min?, max?, step?,
-//      onChange?(val, panel) }
+//  NumberInputWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class NumberInputWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
-    const pid = node.paramId || node.id;
-    const initVal = params[pid] ?? node.default ?? 0;
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const pid = v.id;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[pid] ?? v.default ?? 0;
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control';
 
-    if (node.label) {
+    if (v.label) {
       const label = document.createElement('label');
-      label.innerHTML = `<span>${node.label}</span>`;
+      label.innerHTML = `<span>${v.label}</span>`;
       controlEl.appendChild(label);
     }
 
@@ -1250,53 +1026,52 @@ class NumberInputWidget extends OmniWidget {
     input.type = 'number';
     input.id = pid;
     input.value = initVal;
-    if (node.min != null) input.min = node.min;
-    if (node.max != null) input.max = node.max;
-    if (node.step != null) input.step = node.step;
+    if (v.min != null) input.min = v.min;
+    if (v.max != null) input.max = v.max;
+    if (v.step != null) input.step = v.step;
     input.style.cssText =
       'width:100%;padding:4px 6px;border:1px solid #333;border-radius:4px;' +
       'background:#0f0f23;color:#ccc;font-size:11px;font-family:monospace;';
 
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
+
     input.addEventListener('change', () => {
       const val = parseFloat(input.value);
       if (isNaN(val)) return;
-      ctxMix.setParam(pid, val);
-      if (node.onChange) node.onChange(val, ctxMix.panel);
+      writeParam(pid, val);
+      if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
       ctxMix.clearActivePreset();
     });
 
     controlEl.appendChild(input);
-    return controlEl;
+    ctxMix.parentEl.appendChild(controlEl);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  TextInputWidget  (NEW)
-//
-//  Config:
-//    { type:'text-input', id, label?, placeholder?,
-//      paramId?, default?, liveUpdate?: bool,
-//      onChange?(val, panel) }
+//  TextInputWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class TextInputWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) return null;
-
-    const pid = node.paramId || node.id;
-    const initVal = params[pid] ?? node.default ?? '';
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const pid = v.id;
+    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const initVal = p[pid] ?? v.default ?? '';
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control';
 
-    if (node.label) {
+    if (v.label) {
       const label = document.createElement('label');
-      label.innerHTML = `<span>${node.label}</span>`;
+      label.innerHTML = `<span>${v.label}</span>`;
       controlEl.appendChild(label);
     }
 
@@ -1304,59 +1079,45 @@ class TextInputWidget extends OmniWidget {
     input.type = 'text';
     input.id = pid;
     input.value = initVal;
-    if (node.placeholder) input.placeholder = node.placeholder;
+    if (v.placeholder) input.placeholder = v.placeholder;
     input.style.cssText =
       'width:100%;padding:4px 6px;border:1px solid #333;border-radius:4px;' +
       'background:#0f0f23;color:#ccc;font-size:11px;';
 
+    const sectionP = ctxMix.sectionParams;
+    const writeParam = sectionP
+      ? (id, val) => { sectionP[id] = val; }
+      : (id, val) => { ctxMix.setParam(id, val); };
+
     const emit = () => {
-      ctxMix.setParam(pid, input.value);
-      if (node.onChange) node.onChange(input.value, ctxMix.panel);
+      writeParam(pid, input.value);
+      if (node.inst?.onChange) node.inst.onChange(input.value, ctxMix.panel);
       ctxMix.onParamChange(pid, input.value, false, ctxMix.panel);
       ctxMix.render();
     };
-
     input.addEventListener('change', emit);
-    if (node.liveUpdate) input.addEventListener('input', emit);
+    if (v.liveUpdate) input.addEventListener('input', emit);
 
     controlEl.appendChild(input);
-    return controlEl;
+    ctxMix.parentEl.appendChild(controlEl);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  ButtonGroupWidget  (NEW)
-//
-//  Config:
-//    { type:'button-group', id?, group?,
-//      direction?: 'row'|'column',  gap?: '8px',
-//      buttons: [{ text, id?, className?, style?, onClick }] }
+//  ButtonGroupWidget (leaf — loops over buttons internally)
 // ════════════════════════════════════════════════════════════════
 
 class ButtonGroupWidget extends OmniWidget {
 
-  mount(ctxMix, node, params) {
-    if (ctxMix.compact) {
-      const buttons = node.buttons || [];
-      if (!buttons.length) return null;
-      const cfg = {
-        type: 'nav-submenu', label: node.group || 'Actions',
-        subtree: buttons.map(b => ({
-          type: 'nav-item', label: b.text || b.label || 'Action',
-          action: () => { if (b.onClick) b.onClick(ctxMix.panel); },
-        })),
-      };
-      return createWidget(cfg).mount(ctxMix, cfg, params);
-    }
-
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
     const el = document.createElement('div');
     el.style.display = 'flex';
-    el.style.flexDirection = node.direction || 'column';
-    el.style.gap = node.gap || '8px';
+    el.style.flexDirection = v.direction || 'column';
+    el.style.gap = v.gap || '8px';
 
-    for (const b of (node.buttons || [])) {
+    for (const b of (v.buttons || [])) {
       const btn = document.createElement('button');
       btn.className = b.className || 'btn';
       btn.textContent = b.text || b.label || '';
@@ -1368,217 +1129,126 @@ class ButtonGroupWidget extends OmniWidget {
       el.appendChild(btn);
     }
 
-    return el;
+    ctxMix.parentEl.appendChild(el);
   }
-
 }
 
 
 // ════════════════════════════════════════════════════════════════
-//  Chat-layout widgets
-//
-//  These are the :thing: fragment types from the DeepExplorer DSL.
-//  Each replaces one branch of the old _renderFragment switch and
-//  one or more h.* helper functions.
-//
-//  Convention:
-//    meta.sticky       — host wraps in a position:sticky section
-//    meta.wrapInGroup  — false (these are not panel controls)
-//    meta.showInStrip  — false (these don't appear in multiscroller)
-//
-//  Config comes from the DSL parser's _parseProps (key=val|key=val)
-//  plus _content for any body text after the first line.
+//  Nav widgets — menu items as scene graph nodes
 // ════════════════════════════════════════════════════════════════
 
-/** Shared meta for non-sticky chat widgets. */
+class NavItemWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const el = document.createElement('div');
+    el.className = 'nav-menu-item';
+    el.textContent = v.label || '';
+    el.onclick = () => {
+      if (node.inst?.action) node.inst.action();
+      ctxMix.closeMenu();
+    };
+    ctxMix.parentEl.appendChild(el);
+  }
+}
+
+
+class NavLinkWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const el = document.createElement('a');
+    el.className = 'nav-menu-item';
+    el.href = v.href || '#';
+    el.textContent = v.label || '';
+    ctxMix.parentEl.appendChild(el);
+  }
+}
+
+
+class NavCheckboxWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const el = document.createElement('div');
+    el.className = 'nav-menu-item';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'nav-menu-checkbox';
+    cb.checked = !!v.checked;
+    cb.onclick = (e) => e.stopPropagation();
+    cb.onchange = () => { if (node.inst?.onChange) node.inst.onChange(cb.checked); };
+
+    el.appendChild(cb);
+    el.appendChild(document.createTextNode(v.label || ''));
+    el.onclick = (e) => {
+      if (e.target !== cb) {
+        cb.checked = !cb.checked;
+        if (node.inst?.onChange) node.inst.onChange(cb.checked);
+      }
+      e.stopPropagation();
+    };
+
+    ctxMix.parentEl.appendChild(el);
+  }
+}
+
+
+class NavDividerWidget extends OmniWidget {
+
+  static mount(ctxMix, node, params) {
+    const el = document.createElement('div');
+    el.className = 'nav-menu-divider';
+    ctxMix.parentEl.appendChild(el);
+  }
+}
+
+
+class NavSubmenuWidget extends OmniWidget {
+
+  static before_mount(ctxMix, node, params) {
+    const v = node.value || {};
+    const el = document.createElement('div');
+    el.className = 'nav-menu-item nav-menu-item-sub';
+
+    const header = document.createElement('div');
+    header.className = 'nav-menu-item-sub-header';
+    header.textContent = v.label || '';
+    el.appendChild(header);
+
+    el.onclick = (e) => {
+      e.stopPropagation();
+      el.classList.toggle('open');
+    };
+
+    const sub = document.createElement('div');
+    sub.className = 'nav-submenu';
+    el.appendChild(sub);
+
+    // Children append into the .nav-submenu container
+    ctxMix.parentStack.push(ctxMix.parentEl);
+    ctxMix.parentEl.appendChild(el);
+    ctxMix.parentEl = sub;
+  }
+
+  static after_mount(ctxMix, node, params) {
+    ctxMix.parentEl = ctxMix.parentStack.pop();
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  Chat-layout widgets (unchanged — instance mount)
+//
+//  These are used by the DeepExplorer chat rendering path which
+//  calls mount() directly. They'll be converted to static mount
+//  + parentEl when that path migrates to walkPhase.
+// ════════════════════════════════════════════════════════════════
+
 const _chatMeta   = { sticky: false, wrapInGroup: false, showInStrip: false };
 const _stickyMeta = { sticky: true,  wrapInGroup: false, showInStrip: false };
-
-
-// ── Server icon (col1) ──────────────────────────────────────────
-
-class ServerIconWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const active = c.active === 'true' || c.active === true ? ' active' : '';
-    const style = c.bg ? ` style="--srv-bg:${c.bg}"` : '';
-    return OmniWidget.elementFromString(
-      `<div class="srv${active}" data-server-id="${_esc(c.id || '')}" data-url="${_esc(c.url || '')}"${style}>${_esc(c.icon || '')}<div class="tip">${_esc(c.name || '')}</div></div>`
-    );
-  }
-}
-
-
-// ── Server separator (col1) ─────────────────────────────────────
-
-class SrvSeparatorWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    return OmniWidget.elementFromString('<div class="srv-sep"></div>');
-  }
-}
-
-
-// ── Column header (col2) ────────────────────────────────────────
-
-class ColHeaderWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const inner = node._content?.trim() || (typeof node.value === 'string' ? node.value : '') || '';
-    return OmniWidget.elementFromString(
-      `<div class="ch-hdr">${inner}</div>`
-    );
-  }
-}
-
-
-// ── Chat header (col3 — opens the message scroller) ─────────────
-
-class ChatHeaderWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const desc = c.desc ? `<span class="desc">${_esc(c.desc)}</span>` : '';
-    return OmniWidget.elementFromString(
-      `<div class="chat-hdr"><span class="hash">#</span> ${_esc(c.name || '')}${desc}</div>`
-    );
-  }
-}
-
-
-// ── Section group label ─────────────────────────────────────────
-
-class SectionGroupWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const text = (typeof node.value === 'string' ? node.value : '') || node._content?.trim() || '';
-    return OmniWidget.elementFromString(
-      `<div class="ch-group">${_esc(text)}</div>`
-    );
-  }
-}
-
-
-// ── Coverage legend ─────────────────────────────────────────────
-
-class CovLegendWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    return OmniWidget.elementFromString(
-      `<div class="legend">
-        <span><span class="legend-sw" style="background:var(--docstring)"></span>${_esc(c.doc || '')}</span>
-        <span><span class="legend-sw" style="background:var(--wiki)"></span>${_esc(c.wiki || '')}</span>
-        <span><span class="legend-sw" style="background:var(--surface-2)"></span>${_esc(c.gap || '')}</span></div>`
-    );
-  }
-}
-
-
-// ── Single topic item (col2 sidebar) ────────────────────────────
-
-class TopicItemWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const active = c.active === 'true' || c.active === true ? ' active' : '';
-    const style = c.bg && c.fg ? `background:${c.bg};color:${c.fg}` : '';
-    const scene = c.scene ? ` data-scene="${_esc(c.scene)}"` : '';
-    const lblStyle = c.labelStyle ? ` style="${c.labelStyle}"` : '';
-
-    let right = '';
-    if (c.doc != null) {
-      right = covBar(+c.doc, +(c.wiki || 0), 'sm');
-    } else if (c.meta) {
-      right = `<div class="ch-meta">${_esc(c.meta)}</div>`;
-    }
-
-    return OmniWidget.elementFromString(
-      `<div class="ch${active}" data-ch="${_esc(c.id || '')}"${scene}>
-        <div class="ch-ico" style="${style}">${_esc(c.icon || '')}</div>
-        <div class="ch-lbl"${lblStyle}>${_esc(c.label || '')}</div>${right}</div>`
-    );
-  }
-}
-
-
-// ── Chat message ────────────────────────────────────────────────
-
-class ChatMessageWidget extends OmniWidget {
-  get meta() { return _chatMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const body = node._content?.trim() || c._content?.trim() || '';
-    const role = c.role || 'u1';
-    const avatar = _esc(c.avatar || '?');
-    const name = _esc(c.name || '?');
-    const time = _esc(c.time || '');
-
-    return OmniWidget.elementFromString(
-      `<div class="msg"><div class="msg-in role-${_esc(role)}">
-        <div class="msg-av">${avatar}</div>
-        <div class="msg-bd">
-          <div class="msg-hd"><span class="msg-nm">${name}</span><span class="msg-tm">${time}</span></div>
-          <div class="msg-tx">${body}</div>
-        </div></div></div>`
-    );
-  }
-}
-
-
-// ── Embed card (sticky) ─────────────────────────────────────────
-
-class EmbedCardWidget extends OmniWidget {
-  get meta() { return _stickyMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const doc = +(c.doc || 0), wiki = +(c.wiki || 0);
-    const body = node._content?.trim() || c._content?.trim() || '';
-    const ts = c.titleStyle ? ` style="${c.titleStyle}"` : '';
-    const xs = c.textStyle ? ` style="${c.textStyle}"` : '';
-    const warn = c.warn ? `<div class="embed-warn">${_esc(c.warn)}</div>` : '';
-
-    return OmniWidget.elementFromString(
-      `<div class="embed">
-        <div class="embed-title"${ts}>${_esc(c.title || '')} ${covBar(doc, wiki, 'lg', c.barStyle || '')}</div>
-        <div class="embed-text"${xs}>${body}</div>${warn}</div>`
-    );
-  }
-}
-
-
-// ── Embed row (sticky) ──────────────────────────────────────────
-
-class EmbedRowWidget extends OmniWidget {
-  get meta() { return _stickyMeta; }
-
-  mount(ctxMix, node, params) {
-    const c = node.value || node;
-    const doc = +(c.doc || 0), wiki = +(c.wiki || 0);
-    const ls = c.labelStyle ? ` style="${c.labelStyle}"` : '';
-    const bs = c.badgeStyle ? ` style="${c.badgeStyle}"` : '';
-
-    return OmniWidget.elementFromString(
-      `<div class="embed-row">
-        <div class="embed-row-lbl"${ls}>${_esc(c.label || '')}</div>
-        ${covBar(doc, wiki, 'sm', c.barStyle || '')}
-        <div class="embed-row-badge"${bs}>${_esc(c.badge || '')}</div></div>`
-    );
-  }
-}
-
-
-// ── Tags pill strip (sticky) ────────────────────────────────────
 
 const TAG_STYLES = {
   ds:    'background:#4a6fa522;color:#8ab0e0;border-color:#4a6fa544',
@@ -1592,12 +1262,164 @@ const TAG_STYLES = {
   rep:   'background:#88775522;color:#c8b888;border-color:#88775544',
 };
 
+class ServerIconWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const active = c.active === 'true' || c.active === true ? ' active' : '';
+    const style = c.bg ? ` style="--srv-bg:${c.bg}"` : '';
+    if( c.pic )
+      return OmniWidget.elementFromString(
+      `<div class="srv${active}" data-server-id="${_esc(c.id || '')}" data-url="${_esc(c.url || '')}"${style}><img src="./content/${c.pic}" style="width:100%"></img><div class="tip">${_esc(c.name || '')}</div></div>`
+    );
+    return OmniWidget.elementFromString(
+      `<div class="srv${active}" data-server-id="${_esc(c.id || '')}" data-url="${_esc(c.url || '')}"${style}>${_esc(c.icon || '')}<div class="tip">${_esc(c.name || '')}</div></div>`
+    );
+  }
+}
+
+class SrvSeparatorWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    return OmniWidget.elementFromString('<div class="srv-sep"></div>');
+  }
+}
+
+class BannerWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const active = c.active === 'true' || c.active === true ? ' active' : '';
+    const style = c.bg ? ` style="--srv-bg:${c.bg}"` : '';
+    if( c.pic )
+      return OmniWidget.elementFromString(
+      `<img src="./content/${c.pic}" style="width:100%"></img>`
+    );
+    return OmniWidget.elementFromString(
+      `<div>No Banner was specified</div>`
+    );
+  }
+}
+
+class ColHeaderWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const inner = node._content?.trim() || (typeof node.value === 'string' ? node.value : '') || '';
+    return OmniWidget.elementFromString(`<div class="ch-hdr">${inner}</div>`);
+  }
+}
+
+class ChatHeaderWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const desc = c.desc ? `<span class="desc">${_esc(c.desc)}</span>` : '';
+    return OmniWidget.elementFromString(
+      `<div class="chat-hdr"><span class="hash">#</span> ${_esc(c.name || '')}${desc}</div>`
+    );
+  }
+}
+
+class SectionGroupWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const text = (typeof node.value === 'string' ? node.value : '') || node._content?.trim() || '';
+    return OmniWidget.elementFromString(`<div class="ch-group">${_esc(text)}</div>`);
+  }
+}
+
+class CovLegendWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    return OmniWidget.elementFromString(
+      `<div class="legend">
+        <span><span class="legend-sw" style="background:var(--docstring)"></span>${_esc(c.doc || '')}</span>
+        <span><span class="legend-sw" style="background:var(--wiki)"></span>${_esc(c.wiki || '')}</span>
+        <span><span class="legend-sw" style="background:var(--surface-2)"></span>${_esc(c.gap || '')}</span></div>`
+    );
+  }
+}
+
+class TopicItemWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const active = c.active === 'true' || c.active === true ? ' active' : '';
+    const style = c.bg && c.fg ? `background:${c.bg};color:${c.fg}` : '';
+    const scene = c.scene ? ` data-scene="${_esc(c.scene)}"` : '';
+    const lblStyle = c.labelStyle ? ` style="${c.labelStyle}"` : '';
+    let right = '';
+    if (c.doc != null) {
+      right = covBar(+c.doc, +(c.wiki || 0), 'sm');
+    } else if (c.meta) {
+      right = `<div class="ch-meta">${_esc(c.meta)}</div>`;
+    }
+    return OmniWidget.elementFromString(
+      `<div class="ch${active}" data-ch="${_esc(c.id || '')}"${scene}>
+        <div class="ch-ico" style="${style}">${_esc(c.icon || '')}</div>
+        <div class="ch-lbl"${lblStyle}>${_esc(c.label || '')}</div>${right}</div>`
+    );
+  }
+}
+
+class ChatMessageWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const body = node._content?.trim() || c._content?.trim() || '';
+    const role = c.role || 'u1';
+    const avatar = _esc(c.avatar || '?');
+    const name = _esc(c.name || '?');
+    const time = _esc(c.time || '');
+    return OmniWidget.elementFromString(
+      `<div class="msg"><div class="msg-in role-${_esc(role)}">
+        <div class="msg-av">${avatar}</div>
+        <div class="msg-bd">
+          <div class="msg-hd"><span class="msg-nm">${name}</span><span class="msg-tm">${time}</span></div>
+          <div class="msg-tx">${body}</div>
+        </div></div></div>`
+    );
+  }
+}
+
+class EmbedCardWidget extends OmniWidget {
+  get meta() { return _stickyMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const doc = +(c.doc || 0), wiki = +(c.wiki || 0);
+    const body = node._content?.trim() || c._content?.trim() || '';
+    const ts = c.titleStyle ? ` style="${c.titleStyle}"` : '';
+    const xs = c.textStyle ? ` style="${c.textStyle}"` : '';
+    const warn = c.warn ? `<div class="embed-warn">${_esc(c.warn)}</div>` : '';
+    return OmniWidget.elementFromString(
+      `<div class="embed">
+        <div class="embed-title"${ts}>${_esc(c.title || '')} ${covBar(doc, wiki, 'lg', c.barStyle || '')}</div>
+        <div class="embed-text"${xs}>${body}</div>${warn}</div>`
+    );
+  }
+}
+
+class EmbedRowWidget extends OmniWidget {
+  get meta() { return _stickyMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const doc = +(c.doc || 0), wiki = +(c.wiki || 0);
+    const ls = c.labelStyle ? ` style="${c.labelStyle}"` : '';
+    const bs = c.badgeStyle ? ` style="${c.badgeStyle}"` : '';
+    return OmniWidget.elementFromString(
+      `<div class="embed-row">
+        <div class="embed-row-lbl"${ls}>${_esc(c.label || '')}</div>
+        ${covBar(doc, wiki, 'sm', c.barStyle || '')}
+        <div class="embed-row-badge"${bs}>${_esc(c.badge || '')}</div></div>`
+    );
+  }
+}
+
 class EmbedTagsWidget extends OmniWidget {
   get meta() { return _stickyMeta; }
-
   mount(ctxMix, node, params) {
     const v = node.value || node;
-    // Accept { label: styleKey, … } or [[label,key],…] or legacy fallback
     const defs = Array.isArray(v)
       ? v.map(e => Array.isArray(e) ? e : [e, e])
       : (typeof v === 'object' ? Object.entries(v) : []);
@@ -1608,105 +1430,69 @@ class EmbedTagsWidget extends OmniWidget {
   }
 }
 
-
-// ── Embed link (sticky) ─────────────────────────────────────────
-
 class EmbedLinkWidget extends OmniWidget {
   get meta() { return _stickyMeta; }
-
   mount(ctxMix, node, params) {
     const inner = (typeof node.value === 'string' ? node.value : '')
       || node._content?.trim() || '';
-    return OmniWidget.elementFromString(
-      `<div class="embed-link">${inner}</div>`
-    );
+    return OmniWidget.elementFromString(`<div class="embed-link">${inner}</div>`);
   }
 }
 
-
-// ── Diagram thumbnails (sticky) ─────────────────────────────────
-
 class EmbedDiagramsWidget extends OmniWidget {
   get meta() { return _stickyMeta; }
-
   mount(ctxMix, node, params) {
     const v = node.value;
     const keys = Array.isArray(v) ? v : (typeof v === 'string' ? [v] : []);
     const registry = ctxMix.panel?.diagrams || node._diagrams || {};
     const items = keys.map(k => registry[k]).filter(Boolean);
-
     const cards = items.map(d =>
       `<div class="dia-card"><div class="dia-thumb">${d.svg}</div><div class="dia-info"><div class="dia-name">${_esc(d.name)}</div><div class="dia-desc">${_esc(d.desc)}</div></div></div>`
     ).join('');
-    return OmniWidget.elementFromString(
-      `<div class="embed-diagrams">${cards}</div>`
-    );
+    return OmniWidget.elementFromString(`<div class="embed-diagrams">${cards}</div>`);
   }
 }
 
-
-// ── CSS-variable slider (settings page) ─────────────────────────
-
 class CssVarSliderWidget extends OmniWidget {
   get meta() { return _chatMeta; }
-
   mount(ctxMix, node, params) {
     const c = node.value || node;
     const unit = c.unit || '';
     const val = c.value || c.default || '0';
     const suffix = c.suffix || unit;
     const cssVar = c.var || '';
-
-    const { el } = OmniWidget.buildMorphSlider({
-      label:  c.label || '',
-      min:    c.min,
-      max:    c.max,
-      step:   c.step || (String(c.min).includes('.') || String(c.max).includes('.') ? 0.01 : 1),
-      value:  val,
+    const { el } = MorphSliderWidget.buildMorphSlider({
+      label: c.label || '', min: c.min, max: c.max,
+      step: c.step || (String(c.min).includes('.') || String(c.max).includes('.') ? 0.01 : 1),
+      value: val,
       format: v => {
         const isFloat = String(c.step || '').includes('.') || String(c.min || '').includes('.');
         return (isFloat ? (+v).toFixed(2) : String(Math.round(+v))) + suffix;
       },
-      onChange: v => {
-        if (cssVar) {
-          document.documentElement.style.setProperty(cssVar, v + unit);
-        }
-      },
+      onChange: v => { if (cssVar) document.documentElement.style.setProperty(cssVar, v + unit); },
     });
-
     return el;
   }
 }
 
-
-// ── Chat input bar (widgets zone) ───────────────────────────────
-
 class ChatInputWidget extends OmniWidget {
   get meta() { return _chatMeta; }
-
   mount(ctxMix, node, params) {
     const c = node.value || node;
     const ph = _esc(c.placeholder || (typeof node.value === 'string' ? node.value : '') || 'Type here...');
-
-    const el = OmniWidget.elementFromString(
+    return OmniWidget.elementFromString(
       `<div class="chat-input-bar"><div class="chat-input-wrap">
         <input class="chat-input" placeholder="${ph}" />
         <button class="chat-send">→</button></div></div>`
     );
-    return el;
   }
 }
 
-
-// ── Stage card (sticky) — mount point for OmniSceneApp ──────────
-
 class StageCardWidget extends OmniWidget {
   get meta() { return _stickyMeta; }
-
   mount(ctxMix, node, params) {
     const c = node.value || node;
     const height = c.height || 520;
-
     return OmniWidget.elementFromString(
       `<div class="scene-stage" data-stage-id="${_esc(c.id || '')}" data-stage-scene="${_esc(c.scene || '')}" style="height:${height}px">
         <div class="stage-mount" data-stage-mount></div>
@@ -1721,26 +1507,19 @@ class StageCardWidget extends OmniWidget {
   }
 }
 
-
-// ── GeSHi code island ───────────────────────────────────────────
-
 class CodeIslandWidget extends OmniWidget {
   get meta() { return _chatMeta; }
-
   mount(ctxMix, node, params) {
     const c = node.value || node;
     const lang = c.lang || '';
     const title = c.title || '';
     const body = (node._content || c._content || '').replace(/^\n/, '').replace(/\s+$/, '');
     const isJson = lang.toLowerCase() === 'json';
-
     let metaHtml = '';
     if (isJson) {
       try {
         const spec = JSON.parse(body);
-        // Use the real panel validator if available
-        const validator = c.validator
-          || ctxMix.panel?.constructor?.validateSpec;
+        const validator = c.validator || ctxMix.panel?.constructor?.validateSpec;
         if (validator) {
           const errs = validator(spec);
           metaHtml = errs.length
@@ -1753,9 +1532,7 @@ class CodeIslandWidget extends OmniWidget {
         metaHtml = `<span class="ci-meta ci-bad">✗ ${_esc(err.message)}</span>`;
       }
     }
-
     const highlighted = isJson ? CodeIslandWidget._hlJson(body) : _esc(body);
-
     return OmniWidget.elementFromString(
       `<div class="code-island">
         <div class="code-island-hdr">
@@ -1765,8 +1542,6 @@ class CodeIslandWidget extends OmniWidget {
         <pre class="ci-body"><code>${highlighted}</code></pre></div>`
     );
   }
-
-  /** Minimal JSON tokeniser — GeSHi-style colouring, no libraries. */
   static _hlJson(src) {
     return _esc(src).replace(
       /("(?:\\.|[^"\\])*")(\s*:)|("(?:\\.|[^"\\])*")|(-?\b\d+\.?\d*(?:[eE][+-]?\d+)?\b)|\b(true|false|null)\b/g,
@@ -1780,12 +1555,8 @@ class CodeIslandWidget extends OmniWidget {
   }
 }
 
-
-// ── Raw HTML passthrough ────────────────────────────────────────
-
 class RawHtmlWidget extends OmniWidget {
   get meta() { return _chatMeta; }
-
   mount(ctxMix, node, params) {
     const html = node._content
       || (typeof node.value === 'string' ? node.value : '')
@@ -1799,143 +1570,17 @@ class RawHtmlWidget extends OmniWidget {
 
 
 // ════════════════════════════════════════════════════════════════
-//  Nav widgets — menu items as first-class widgets
-//
-//  These replace the ad-hoc config protocol that NavMenu._renderItems
-//  used to interpret.  NavMenu now calls mountWidgets to render its
-//  dropdown, so every menu item goes through the same widget system
-//  as panel controls.
-//
-//  Types:
-//    nav-item      — clickable action
-//    nav-link      — anchor (<a>) with href
-//    nav-checkbox  — toggle checkbox
-//    nav-divider   — horizontal rule
-//    nav-submenu   — expandable accordion (container widget)
-//
-//  CSS class names (nav-menu-item, nav-menu-divider, etc.) are
-//  defined in nav.js's stylesheet.  The widgets create the DOM;
-//  the consumer provides the styles.
+//  Widget helpers — type resolution, backward compat
 // ════════════════════════════════════════════════════════════════
 
-/** Shared meta for all nav widgets: no group wrapper, no strip button. */
-const _navMeta = { sticky: false, wrapInGroup: false, showInStrip: false };
-
-
-class NavItemWidget extends OmniWidget {
-  get meta() { return _navMeta; }
-
-  mount(ctxMix, node, params) {
-    const el = document.createElement('div');
-    el.className = 'nav-menu-item';
-    el.textContent = node.label || '';
-    el.onclick = () => {
-      if (typeof node.action === 'function') node.action();
-      else if (typeof node.action === 'string' && typeof window[node.action] === 'function') window[node.action]();
-      ctxMix.closeMenu();
-    };
-    return el;
-  }
-}
-
-
-class NavLinkWidget extends OmniWidget {
-  get meta() { return _navMeta; }
-
-  mount(ctxMix, node, params) {
-    const el = document.createElement('a');
-    el.className = 'nav-menu-item';
-    el.href = node.href || '#';
-    el.textContent = node.label || '';
-    return el;
-  }
-}
-
-
-class NavCheckboxWidget extends OmniWidget {
-  get meta() { return _navMeta; }
-
-  mount(ctxMix, node, params) {
-    const el = document.createElement('div');
-    el.className = 'nav-menu-item';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.className = 'nav-menu-checkbox';
-    cb.checked = !!node.checked;
-    cb.onclick = (e) => e.stopPropagation();
-    cb.onchange = () => { if (node.onChange) node.onChange(cb.checked); };
-
-    el.appendChild(cb);
-    el.appendChild(document.createTextNode(node.label || ''));
-    el.onclick = (e) => {
-      if (e.target !== cb) {
-        cb.checked = !cb.checked;
-        if (node.onChange) node.onChange(cb.checked);
-      }
-      e.stopPropagation();
-    };
-
-    // Store ref so apps can read/update state
-    node._checkbox = cb;
-
-    return el;
-  }
-}
-
-
-class NavDividerWidget extends OmniWidget {
-  get meta() { return _navMeta; }
-
-  mount(ctxMix, node, params) {
-    const el = document.createElement('div');
-    el.className = 'nav-menu-divider';
-    return el;
-  }
-}
-
-
-class NavSubmenuWidget extends OmniWidget {
-  get meta() { return _navMeta; }
-
-  mount(ctxMix, node, params) {
-    const el = document.createElement('div');
-    el.className = 'nav-menu-item nav-menu-item-sub';
-
-    const header = document.createElement('div');
-    header.className = 'nav-menu-item-sub-header';
-    header.textContent = node.label || '';
-    el.appendChild(header);
-
-    el.onclick = (e) => {
-      e.stopPropagation();
-      el.classList.toggle('open');
-    };
-
-    const sub = document.createElement('div');
-    sub.className = 'nav-submenu';
-
-    // Container pattern: build subtree via mountWidgets
-    mountWidgets(node.subtree || [], ctxMix, sub);
-
-    el.appendChild(sub);
-    return el;
-  }
-}
-
-
-// ════════════════════════════════════════════════════════════════
-//  Widget helpers — create, mount, strip  (sceneRegistry is the backing store)
-// ════════════════════════════════════════════════════════════════
-
-/** Resolve the effective type for a section config. */
 function resolveWidgetType(config) {
   if (config.type) return config.type;
   if (config.sliders) return 'slider-group';
   return 'custom';
 }
 
-/** Create a widget instance from a section config. */
+/** Create a widget instance from a section config.
+ *  @deprecated — use coerceToAST + walkPhase instead */
 function createWidget(config) {
   const type = resolveWidgetType(config);
   const meta = sceneRegistry.meta[type];
@@ -1946,17 +1591,9 @@ function createWidget(config) {
   return new meta.nodeClass(config);
 }
 
-/**
- * Build all controls from a sliderConfig into a container element.
- *
- * @param {Array}         configs   — sliderConfig array
- * @param {WidgetContext}  ctx       — base context
- * @param {HTMLElement}    container — parent DOM element
- * @returns {OmniWidget[]}          — the widget instances (for later sync)
- */
+/** @deprecated — use coerceToAST + walkPhase instead */
 function mountWidgets(configs, ctx, container) {
   const widgets = [];
-
   for (const config of configs) {
     const sCtx = config._params ? ctx.forSection(config) : ctx;
     const p = config._params || ctx.params;
@@ -1973,27 +1610,18 @@ function mountWidgets(configs, ctx, container) {
       const groupEl = document.createElement('div');
       groupEl.className = 'control-group';
       groupEl.id = `section-${config.id}`;
-
       const h3 = document.createElement('h3');
       h3.textContent = config.group || '';
       groupEl.appendChild(h3);
       groupEl.appendChild(el);
-
       container.appendChild(groupEl);
     } else {
       container.appendChild(el);
     }
   }
-
   return widgets;
 }
 
-/**
- * Return configs that should appear in the multiscroller strip.
- *
- * @param {Array} configs — sliderConfig array
- * @returns {Object[]}
- */
 function stripConfigs(configs) {
   return configs.filter(c => {
     const type = resolveWidgetType(c);
@@ -2003,57 +1631,66 @@ function stripConfigs(configs) {
 }
 
 
-// ── Register built-in types on sceneRegistry ────────────────
-//
-//  Third arg = defaultParams.  wrapInGroup / showInStrip
-//  replace the per-widget meta getter.
+// ════════════════════════════════════════════════════════════════
+//  Registration — with navVersion on meta
+// ════════════════════════════════════════════════════════════════
+
+// Structural / root
+sceneRegistry.registerNodeClass('panel',         PanelWidget,         { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('control-group',  ControlGroupWidget,  { wrapInGroup: false, showInStrip: false });
 
 // Nav widgets
-sceneRegistry.registerNodeClass('nav-item',     NavItemWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-link',     NavLinkWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-checkbox', NavCheckboxWidget, { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-divider',  NavDividerWidget,  { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-submenu',  NavSubmenuWidget,  { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('nav-item',       NavItemWidget,       { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('nav-link',       NavLinkWidget,       { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('nav-checkbox',   NavCheckboxWidget,   { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('nav-divider',    NavDividerWidget,    { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('nav-submenu',    NavSubmenuWidget,    { wrapInGroup: false, showInStrip: false });
 
-// Panel widgets
-sceneRegistry.registerNodeClass('slider-group', SliderGroupWidget);
-sceneRegistry.registerNodeClass('presets',      PresetWidget);
-sceneRegistry.registerNodeClass('select',       SelectWidget);
-sceneRegistry.registerNodeClass('button',       ButtonWidget);
-sceneRegistry.registerNodeClass('toggle',       ToggleWidget);
-sceneRegistry.registerNodeClass('filedrop',     FileDropWidget);
-sceneRegistry.registerNodeClass('status',       StatusWidget,      { showInStrip: false });
-sceneRegistry.registerNodeClass('info',         InfoWidget,        { showInStrip: false });
-sceneRegistry.registerNodeClass('dynamic',      DynamicWidget);
-sceneRegistry.registerNodeClass('custom',       CustomWidget);
-//sceneRegistry.registerNodeClass('layers',     LayersWidget,      { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('addbar',       AddBarWidget,      { wrapInGroup: false, showInStrip: false });
-//sceneRegistry.registerNodeClass('selection-action-bar', SelectionActionBarWidget, { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('divider',      DividerWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('label',        LabelWidget,       { showInStrip: false });
-sceneRegistry.registerNodeClass('number-input', NumberInputWidget);
-sceneRegistry.registerNodeClass('text-input',   TextInputWidget);
-sceneRegistry.registerNodeClass('button-group', ButtonGroupWidget);
+// Panel widgets — navVersion controls nav AST mapping
+sceneRegistry.registerNodeClass('morph-slider',   MorphSliderWidget);
+sceneRegistry.registerNodeClass('color-picker',   ColorPickerWidget);
+sceneRegistry.registerNodeClass('button-row',     ButtonRowWidget);
+sceneRegistry.registerNodeClass('slider-group',   SliderGroupWidget,   { navVersion: 'nav-item' });
+sceneRegistry.registerNodeClass('preset-item',    PresetItemWidget,    { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('option',         OptionWidget,        { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('optgroup',       OptgroupWidget,      { navVersion: 'nav-submenu', wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('presets',        PresetWidget,        { navVersion: 'nav-submenu' });
+sceneRegistry.registerNodeClass('select',         SelectWidget,        { navVersion: 'nav-submenu' });
+sceneRegistry.registerNodeClass('button',         ButtonWidget);
+sceneRegistry.registerNodeClass('toggle',         ToggleWidget);
+sceneRegistry.registerNodeClass('filedrop',       FileDropWidget);
+sceneRegistry.registerNodeClass('status',         StatusWidget,        { showInStrip: false });
+sceneRegistry.registerNodeClass('info',           InfoWidget,          { showInStrip: false });
+sceneRegistry.registerNodeClass('dynamic',        DynamicWidget);
+sceneRegistry.registerNodeClass('custom',         CustomWidget);
+sceneRegistry.registerNodeClass('addbar',         AddBarWidget,        { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('selection-action-bar', SelectionActionBarWidget, { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('divider',        DividerWidget,       { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('label',          LabelWidget,         { showInStrip: false });
+sceneRegistry.registerNodeClass('number-input',   NumberInputWidget);
+sceneRegistry.registerNodeClass('text-input',     TextInputWidget);
+sceneRegistry.registerNodeClass('button-group',   ButtonGroupWidget);
 
-// Chat-layout types (match the :thing: names from the DSL)
-sceneRegistry.registerNodeClass('server',       ServerIconWidget,    { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('separator',    SrvSeparatorWidget,  { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('header',       ColHeaderWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('chatheader',   ChatHeaderWidget,    { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('group',        SectionGroupWidget,  { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('legend',       CovLegendWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('topic',        TopicItemWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('message',      ChatMessageWidget,   { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('card',         EmbedCardWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('row',          EmbedRowWidget,      { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('tags',         EmbedTagsWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('link',         EmbedLinkWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('diagrams',     EmbedDiagramsWidget, { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('control',      CssVarSliderWidget,  { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('input',        ChatInputWidget,     { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('stage',        StageCardWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('code',         CodeIslandWidget,    { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('html',         RawHtmlWidget,       { wrapInGroup: false, showInStrip: false });
+// Chat-layout types (instance mount — not yet migrated to walkPhase)
+sceneRegistry.registerNodeClass('server',         ServerIconWidget,    { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('separator',      SrvSeparatorWidget,  { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('banner',         BannerWidget,        { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('header',         ColHeaderWidget,     { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('chatheader',     ChatHeaderWidget,    { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('group',          SectionGroupWidget,  { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('legend',         CovLegendWidget,     { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('topic',          TopicItemWidget,     { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('message',        ChatMessageWidget,   { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('card',           EmbedCardWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('row',            EmbedRowWidget,      { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('tags',           EmbedTagsWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('link',           EmbedLinkWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('diagrams',       EmbedDiagramsWidget, { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('control',        CssVarSliderWidget,  { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('input',          ChatInputWidget,     { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('stage',          StageCardWidget,     { sticky: true,  wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('code',           CodeIslandWidget,    { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('html',           RawHtmlWidget,       { wrapInGroup: false, showInStrip: false });
 
 
 // ════════════════════════════════════════════════════════════════
@@ -2064,12 +1701,17 @@ export {
   // Core framework
   OmniWidget,
   WidgetContext,
+  resolveWidgetType,
   createWidget,
   mountWidgets,
   stripConfigs,
   parseDslValue,
 
-  // Utilities (shared with OmniControlPanel for morph / sync)
+  // Structural
+  PanelWidget,
+  ControlGroupWidget,
+
+  // Utilities
   formatValue,
   isHexColor,
   parseHexColor,
@@ -2078,7 +1720,7 @@ export {
   _esc,
   covBar,
 
-  // Nav widget classes (menu items as widgets)
+  // Nav widget classes
   NavItemWidget,
   NavLinkWidget,
   NavCheckboxWidget,
@@ -2086,8 +1728,14 @@ export {
   NavSubmenuWidget,
 
   // Panel widget classes
+  MorphSliderWidget,
+  ColorPickerWidget,
+  ButtonRowWidget,
   SliderGroupWidget,
+  PresetItemWidget,
   PresetWidget,
+  OptionWidget,
+  OptgroupWidget,
   SelectWidget,
   ButtonWidget,
   ToggleWidget,
@@ -2096,9 +1744,8 @@ export {
   InfoWidget,
   DynamicWidget,
   CustomWidget,
-  //LayersWidget,
   AddBarWidget,
-  //SelectionActionBarWidget,
+  SelectionActionBarWidget,
   DividerWidget,
   LabelWidget,
   NumberInputWidget,
@@ -2125,13 +1772,13 @@ export {
   CodeIslandWidget,
   RawHtmlWidget,
 
-  // Tag style registry (chat widgets)
   TAG_STYLES,
 };
 
 if (typeof window !== 'undefined') {
   window.OmniWidget = {
     OmniWidget, WidgetContext, createWidget, mountWidgets, stripConfigs, parseDslValue,
+    resolveWidgetType,
     formatValue, isHexColor, parseHexColor, formatHexColor, lerpColor,
     _esc, covBar, TAG_STYLES,
     NavItemWidget, NavLinkWidget, NavCheckboxWidget, NavDividerWidget, NavSubmenuWidget,

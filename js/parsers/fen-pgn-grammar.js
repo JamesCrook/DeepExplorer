@@ -2,7 +2,7 @@ import {Parser} from './parser.js'
 //import { createHandlerRegistry, AstNode } from '../utilities2/ast-manager.js'
 
 // ── FEN (Forsyth-Edwards Notation) ──────────────────────
-// #chesse/fen/spec/grammar
+// #chesse/fen
 Parser
   .addSeq('FEN', [
     'fen_placement', /^ /,
@@ -22,7 +22,7 @@ Parser
 
 
 // ── PGN (Portable Game Notation) ────────────────────────
-// #chesse/pgn/spec/grammar
+// #chesse/pgn
 Parser
   .addRep('PGN', ['pgn_game', /^\s*/])
 

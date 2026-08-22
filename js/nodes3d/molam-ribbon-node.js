@@ -1,5 +1,5 @@
 import { sceneRegistry } from '../omni-support/scene.js';
-import { RibbonNode } from './ribbon-node.js';
+import { RibbonNode3D } from './ribbon-node3d.js';
 import { RibbonUI } from '../3d-support/ribbon3d.js';
 import { getResidueColor } from '../3d-support/molam-objects.js';
 import * as THREE from 'three';
@@ -8,7 +8,7 @@ import * as THREE from 'three';
 /**
  * MolamRibbonNode — protein ribbon with per-residue coloring.
  *
- * Extends RibbonNode. Adds:
+ * Extends RibbonNode3D. Adds:
  *   - Per-vertex colors from amino acid properties (via getResidueColor)
  *   - Axis-based fade (referenceAxis + ribbonFade + colorSmoothing)
  *   - Arrow heads on beta-sheet segments
@@ -62,7 +62,7 @@ const ALL_MOLAM_RIBBON_PARAMS = [
   ...COLOR_PARAM_IDS
 ];
 
-class MolamRibbonNode extends RibbonNode {
+class MolamRibbonNode extends RibbonNode3D {
 
   static rebuildParams = [];
   static updateParams = ALL_MOLAM_RIBBON_PARAMS;

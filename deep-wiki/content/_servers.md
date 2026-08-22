@@ -5,7 +5,7 @@
 ---
 
 - 🦊 [[blender|Blender]] %%bg=#d4700a%%
-- 🧬 [[swissprot|SwissProt]] %%bg=#8b2240%%
+- 🧬 [[!swissprot|SwissProte]] %%bg=#8b2240%%
 - 🎨 [[omniscene|OmniScene]] %%bg=#5865f2%%
 
 ---

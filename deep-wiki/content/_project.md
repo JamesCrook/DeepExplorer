@@ -32,16 +32,13 @@ page.
 - ⚙ [[gear|Settings]] %%bg=#3a3d4d%%
 
 ---
-
-- 🦊 [[blender|Blender]] %%bg=#d4700a%%
-- 🧬 [[swissprot|SwissProt]] %%bg=#8b2240%%
-- 🎨 [[omniscene|OmniScene]] %%bg=#5865f2%%
-
+-    [![TheImage](images/s-server-streams.png)](streams) %%bg=#d4700a%%
+-    [![TheImage](images/s-server-garden.png)](garden) %%bg=#8b2240%%
+-    [![TheImage](images/s-server-library.png)](library) %%bg=#5865f2%%
 ---
-
-- 🌋 Volcano Lab %%bg=#b85c1a%%
-- 🚀 Launchpad %%bg=#1a7a6a%%
-- 🐙 Deep Sea %%bg=#2c3e6b%%
+-    [![Blender](images/blender-logo.png)](blender) %%bg=#f0f0d0%%
+- 🧬 [[swissprot|SwissProt]] %%bg=#8b2240%%
+- 🌋 [[omniscene|OmniScene]] %%bg=#5865f2%%
 
 ```html
 <div class="srv-sep"></div>
