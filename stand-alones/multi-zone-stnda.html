@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zoned Elements — Refactored with Extensible Models</title>
+  <title>Zones — A panopticon of examples</title>
+  <link rel="icon" type="image/x-icon" href="../../wheel.ico">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -157,7 +158,7 @@
 <body>
 
   <header>
-    <h1>Zoned Elements</h1>
+    <h1>Panopticon View</h1>
     <span class="tag" id="pane-count"></span>
   </header>
 
@@ -3708,19 +3709,6 @@ class PippedEdgeRefNode {
 class MorphSliderWidget {
 
   static mount(ctxMix, node, params) {
-//    if (ctxMix.compact) {
-//      const id = node.id;
-//      if (!id) return null;
-//      const cfg = {
-//        type: 'nav-item', label: node.label || node.group || id,
-//        action: () => {
-//          const section = document.getElementById(`section-${id}`);
-//          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-//        },
-//      };
-//      return createWidget(cfg).mount(ctxMix, cfg, params);
-//    }
-
     // Compatability hack... we permit values directly on node.
     // in future they will need to be in node.value. 
     if( node.value)
@@ -5308,7 +5296,7 @@ function make3DPane(container) {
 //>> export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-HudPanelLite — standalone floating panel using sceneRegistry.walkPhase
+HudPanel — standalone floating panel using sceneRegistry.walkPhase
 
 Compatible with OmniWidget conventions so hud-* node types work in either
 system. The ctxMix shape matches what OmniWidgets expect:
@@ -5334,7 +5322,7 @@ sceneRegistry definition. No imports needed.
 
 
 // ═══════════════════════════════════════════════════════════════
-//  NODE CLASSES — compatible with both HudPanelLite and OmniWidget
+//  NODE CLASSES — compatible with both HudPane and OmniWidget
 // ═══════════════════════════════════════════════════════════════
 
 class HudPanelNode {
@@ -5390,7 +5378,7 @@ class HudSliderNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label, min = 0, max = 1, step = 0.01 } = v;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = params;
     const initVal = p[id] ?? v.value ?? min;
 
     // Capture params ref for closure safety (see OmniWidget writeParam pattern)
@@ -5443,7 +5431,7 @@ class HudCheckboxNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label } = v;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = params;
     const initVal = p[id] ?? v.value ?? false;
 
     const sectionP = ctxMix.sectionParams;
@@ -5485,7 +5473,7 @@ class HudSelectNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label, options = [] } = v;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = params;
     const initVal = p[id] ?? v.value;
 
     const sectionP = ctxMix.sectionParams;
@@ -5523,7 +5511,7 @@ class HudColorNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label } = v;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = params;
     const initVal = p[id] ?? v.value ?? '#ffffff';
 
     const sectionP = ctxMix.sectionParams;
@@ -5590,7 +5578,7 @@ const _HUD_TYPE_MAP = {
 
 
 // ═══════════════════════════════════════════════════════════════
-//  HudPanelLite
+//  HudPanel
 // ═══════════════════════════════════════════════════════════════
 
 class HudPanel {
@@ -5654,9 +5642,6 @@ class HudPanel {
     const ctxMix = {
       parentEl:       container,
       parentStack:    [],
-      params:         this.params,
-      sectionParams:  null,
-      panel:          null,
       iterators:      [],
       flyweight:      {},
 

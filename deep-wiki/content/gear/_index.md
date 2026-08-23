@@ -20,26 +20,26 @@
 - label: Button size
   var: --srv-btn-size
   min: 28
-  max: 64
-  value: 44
+  max: 128
+  value: 83
   suffix: px
 - label: Icon scale
   var: --srv-icon-pct
   min: 10
   max: 100
-  value: 75
+  value: 85
   suffix: %
 - label: Dormant saturation
   var: --srv-dormant-sat
   min: 0
   max: 1
-  value: 0.33
+  value: 0.65
   step: 0.01
 - label: Dormant brightness
   var: --srv-dormant-bri
   min: 0.2
   max: 1
-  value: 0.66
+  value: 0.80
   step: 0.01
 ```
 
@@ -50,44 +50,44 @@
   var: --ms-track-h
   min: 1
   max: 32
-  value: 24
+  value: 12
 - label: Track radius
   var: --ms-track-r
   min: 0
   max: 16
-  value: 4
+  value: 6
 - label: Pip height
   var: --ms-pip-h
   min: 4
   max: 32
-  value: 28
+  value: 15
 - label: Pip width
   var: --ms-pip-w
   min: 2
   max: 24
-  value: 3
+  value: 4
 - label: Fill opacity
   var: --ms-fill-op
   min: 0
   max: 0.5
-  value: 0.18
+  value: 0.26
   step: 0.01
 - label: Text offset Y
   var: --ms-text-y
   min: -16
   max: 16
-  value: 0
+  value: -13
 - label: Pip brightness
   var: --ms-pip-bri
   min: 0.2
   max: 2
-  value: 1.4
+  value: 1.25
   step: 0.05
 - label: Label inset
   var: --ms-label-inset
   min: 0
   max: 16
-  value: 8
+  value: 1
 ```
 
 ## Spacing
@@ -97,7 +97,7 @@
   var: --col2-width
   min: 180
   max: 420
-  value: 260
+  value: 250
   unit: px
 ```
 

@@ -292,14 +292,14 @@
   --wiki: #dba06a; --docstring: #6b7a8d;
   --channel-active: #2e3050;
   --msg-font-size: 13.5px;
-  --srv-btn-size: 44;
-  --srv-icon-pct: 65;
+  --srv-btn-size: 83;
+  --srv-icon-pct: 85;
   /* morphable slider geometry */
-  --ms-track-h: 24; --ms-pip-h: 28; --ms-pip-w: 3;
-  --ms-fill-op: 0.18; --ms-track-r: 4; --ms-text-y: 0;
-  --ms-pip-bri: 1.4; --ms-label-inset: 8;
+  --ms-track-h: 12; --ms-pip-h: 15; --ms-pip-w: 4;
+  --ms-fill-op: 0.26; --ms-track-r: 6; --ms-text-y: -13;
+  --ms-pip-bri: 1.25; --ms-label-inset: 1;
   /* server icon dormant state */
-  --srv-dormant-sat: 0.33; --srv-dormant-bri: 0.66;
+  --srv-dormant-sat: 0.65; --srv-dormant-bri: 0.80;
 }
 body {
   background: var(--bg); color: var(--text-1);

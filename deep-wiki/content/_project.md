@@ -58,7 +58,7 @@ storage, so keys CSS cannot hold live here too.
 - key: default-corpus
   value: omniscene
 - key: theme
-  value: dark
+  value: midnight
 - key: col2-width
   var: --col2-width
   value: 260
@@ -133,33 +133,6 @@ anything listed *inert* is a theme entry driving nothing.
 - key: channel-active
   var: --channel-active
   value: #2e3050
-- key: ms-track-h
-  var: --ms-track-h
-  value: 24
-- key: ms-track-r
-  var: --ms-track-r
-  value: 4
-- key: ms-pip-h
-  var: --ms-pip-h
-  value: 28
-- key: ms-pip-w
-  var: --ms-pip-w
-  value: 3
-- key: ms-fill-op
-  var: --ms-fill-op
-  value: 0.18
-- key: ms-pip-bri
-  var: --ms-pip-bri
-  value: 1.4
-- key: ms-label-inset
-  var: --ms-label-inset
-  value: 8
-- key: srv-btn-size
-  var: --srv-btn-size
-  value: 44
-- key: srv-icon-pct
-  var: --srv-icon-pct
-  value: 65
 # omni-scene.css hardcodes the server strip; no variable reaches it.
 - sel: .servers
   prop: background
@@ -209,33 +182,6 @@ anything listed *inert* is a theme entry driving nothing.
 - key: channel-active
   var: --channel-active
   value: #232a4a
-- key: ms-track-h
-  var: --ms-track-h
-  value: 20
-- key: ms-track-r
-  var: --ms-track-r
-  value: 10
-- key: ms-pip-h
-  var: --ms-pip-h
-  value: 20
-- key: ms-pip-w
-  var: --ms-pip-w
-  value: 2
-- key: ms-fill-op
-  var: --ms-fill-op
-  value: 0.12
-- key: ms-pip-bri
-  var: --ms-pip-bri
-  value: 1.6
-- key: ms-label-inset
-  var: --ms-label-inset
-  value: 10
-- key: srv-btn-size
-  var: --srv-btn-size
-  value: 44
-- key: srv-icon-pct
-  var: --srv-icon-pct
-  value: 60
 # omni-scene.css hardcodes the server strip; no variable reaches it.
 - sel: .servers
   prop: background
@@ -285,33 +231,6 @@ anything listed *inert* is a theme entry driving nothing.
 - key: channel-active
   var: --channel-active
   value: #314340
-- key: ms-track-h
-  var: --ms-track-h
-  value: 8
-- key: ms-track-r
-  var: --ms-track-r
-  value: 2
-- key: ms-pip-h
-  var: --ms-pip-h
-  value: 14
-- key: ms-pip-w
-  var: --ms-pip-w
-  value: 6
-- key: ms-fill-op
-  var: --ms-fill-op
-  value: 0.3
-- key: ms-pip-bri
-  var: --ms-pip-bri
-  value: 1.1
-- key: ms-label-inset
-  var: --ms-label-inset
-  value: 6
-- key: srv-btn-size
-  var: --srv-btn-size
-  value: 40
-- key: srv-icon-pct
-  var: --srv-icon-pct
-  value: 70
 # omni-scene.css hardcodes the server strip; no variable reaches it.
 - sel: .servers
   prop: background

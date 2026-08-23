@@ -116,8 +116,7 @@ function parseDslValue(raw) {
 
 class WidgetContext {
   constructor(opts = {}) {
-    this.params            = opts.params || {};
-    this.sectionParams     = opts.sectionParams || null;
+    this.paramsStack       = opts.paramsStack || [opts.params || {}];
     this.engine            = opts.engine || null;
     this.panel             = opts.panel || null;
     this.presets           = opts.presets || {};
@@ -151,19 +150,23 @@ class WidgetContext {
     });
   }
 
+  /** The currently active params object (top of the stack). */
+  get currentParams() { return this.paramsStack[this.paramsStack.length - 1]; }
+
+  /** Push a scoped params object (e.g. per-section _params). */
+  pushParams(p) { this.paramsStack.push(p); }
+
+  /** Pop back to the previous params scope. */
+  popParams() {
+    if (this.paramsStack.length > 1) this.paramsStack.pop();
+  }
+
   setParam(id, value) {
-    if (this.sectionParams) {
-      this.sectionParams[id] = value;
-    } else if (this.engine) {
-      this.engine.setParam(id, value, false);
-    } else {
-      this.params[id] = value;
-    }
+    this.currentParams[id] = value;
   }
 
   getParam(id) {
-    const src = this.sectionParams || this.params;
-    return src[id];
+    return this.currentParams[id];
   }
 
   render()               { this._render(); }
@@ -173,25 +176,6 @@ class WidgetContext {
 
   morphToTarget(params, target, duration) {
     if (this._morphToTarget) this._morphToTarget(params, target, duration);
-  }
-
-  forSection(sectionConfig) {
-    const sp = sectionConfig._params || null;
-    return new WidgetContext({
-      params:            sp || this.params,
-      sectionParams:     sp,
-      engine:            sp ? null : this.engine,
-      panel:             this.panel,
-      presets:           this.presets,
-      compact:           this.compact,
-      render:            this._render,
-      onParamChange:     this._onParamChange,
-      clearActivePreset: this._clearActive,
-      morphToTarget:     this._morphToTarget,
-      closeMenu:         this._closeMenu,
-      parentEl:          this.parentEl,
-      parentStack:       this.parentStack,
-    });
   }
 }
 
@@ -213,20 +197,10 @@ class OmniWidget {
   // does NOT register it — subclass static/instance methods take over.
   mount(_ctx, node, params) { return null; }
 
-  /** @deprecated — use walkPhase instead */
-  buildControl(ctx) {
-    return this.mount(ctx, this.config, ctx.sectionParams || ctx.params);
-  }
-
   static elementFromString(html) {
     const t = document.createElement('template');
     t.innerHTML = html.trim();
     return t.content.firstElementChild || t.content;
-  }
-
-  /** @deprecated Use MorphSliderWidget.buildMorphSlider() directly. */
-  static buildMorphSlider(opts) {
-    return MorphSliderWidget.buildMorphSlider(opts);
   }
 }
 
@@ -263,13 +237,7 @@ class ControlGroupWidget extends OmniWidget {
     h3.textContent = v.group || '';
     groupEl.appendChild(h3);
 
-    // Handle per-section params (_params on inst)
-    if (node.inst?._params) {
-      ctxMix._savedSectionParams = ctxMix.sectionParams;
-      ctxMix._savedParams = ctxMix.params;
-      ctxMix.sectionParams = node.inst._params;
-      ctxMix.params = node.inst._params;
-    }
+    if (node.inst?._params) ctxMix.pushParams(node.inst._params);
 
     ctxMix.parentStack.push(ctxMix.parentEl);
     ctxMix.parentEl = groupEl;
@@ -280,11 +248,7 @@ class ControlGroupWidget extends OmniWidget {
     ctxMix.parentEl = ctxMix.parentStack.pop();
     ctxMix.parentEl.appendChild(groupEl);
 
-    // Restore params
-    if (node.inst?._params) {
-      ctxMix.sectionParams = ctxMix._savedSectionParams;
-      ctxMix.params = ctxMix._savedParams;
-    }
+    if (node.inst?._params) ctxMix.popParams();
   }
 }
 
@@ -298,16 +262,10 @@ class MorphSliderWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const initVal = v.isData
       ? (v.dataValue || v.default)
       : (p[pid] ?? v.default ?? v.min ?? 0);
-
-    // Capture params ref now — ctxMix.sectionParams is restored after the walk
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
 
     const { el, setValue, getValue, valEl } = MorphSliderWidget.buildMorphSlider({
       label:    v.label,
@@ -323,7 +281,7 @@ class MorphSliderWidget extends OmniWidget {
         if (v.isData) {
           ctxMix.onParamChange(pid, val, true, ctxMix.panel);
         } else {
-          writeParam(pid, val);
+          p[pid] = val;
           ctxMix.onParamChange(pid, val, false, ctxMix.panel);
         }
         if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
@@ -435,13 +393,8 @@ class ColorPickerWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const initVal = p[v.id] ?? v.default ?? '#ffffffff';
-
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control sc-color-control';
@@ -488,7 +441,7 @@ class ColorPickerWidget extends OmniWidget {
       const rgb = parseHexColor(colorInput.value);
       rgb.a = parseFloat(alphaSlider.value);
       const hex = formatHexColor(rgb);
-      writeParam(v.id, hex);
+      p[v.id] = hex;
       swatch.style.backgroundColor = hex;
       valSpan.textContent = hex;
       ctxMix.render();
@@ -526,13 +479,8 @@ class ButtonRowWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const initVal = p[v.id] ?? v.default;
-
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control';
@@ -556,7 +504,7 @@ class ButtonRowWidget extends OmniWidget {
       btn.addEventListener('click', () => {
         row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
-        writeParam(v.id, opt.value);
+        p[v.id] = opt.value;
         ctxMix.onParamChange(v.id, opt.value, false, ctxMix.panel);
         ctxMix.render();
         ctxMix.clearActivePreset();
@@ -745,7 +693,7 @@ class ToggleWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const checked = p[pid] ?? v.checked ?? false;
 
     const label = document.createElement('label');
@@ -767,14 +715,9 @@ class ToggleWidget extends OmniWidget {
     label.appendChild(slider);
     label.appendChild(text);
 
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
-
     label.addEventListener('change', () => {
       const val = input.checked;
-      writeParam(pid, val);
+      p[pid] = val;
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -1010,7 +953,7 @@ class NumberInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const initVal = p[pid] ?? v.default ?? 0;
 
     const controlEl = document.createElement('div');
@@ -1033,15 +976,10 @@ class NumberInputWidget extends OmniWidget {
       'width:100%;padding:4px 6px;border:1px solid #333;border-radius:4px;' +
       'background:#0f0f23;color:#ccc;font-size:11px;font-family:monospace;';
 
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
-
     input.addEventListener('change', () => {
       const val = parseFloat(input.value);
       if (isNaN(val)) return;
-      writeParam(pid, val);
+      p[pid] = val;
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -1063,7 +1001,7 @@ class TextInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.sectionParams || ctxMix.params || params;
+    const p = ctxMix.currentParams;
     const initVal = p[pid] ?? v.default ?? '';
 
     const controlEl = document.createElement('div');
@@ -1084,13 +1022,8 @@ class TextInputWidget extends OmniWidget {
       'width:100%;padding:4px 6px;border:1px solid #333;border-radius:4px;' +
       'background:#0f0f23;color:#ccc;font-size:11px;';
 
-    const sectionP = ctxMix.sectionParams;
-    const writeParam = sectionP
-      ? (id, val) => { sectionP[id] = val; }
-      : (id, val) => { ctxMix.setParam(id, val); };
-
     const emit = () => {
-      writeParam(pid, input.value);
+      p[pid] = input.value;
       if (node.inst?.onChange) node.inst.onChange(input.value, ctxMix.panel);
       ctxMix.onParamChange(pid, input.value, false, ctxMix.panel);
       ctxMix.render();
@@ -1591,37 +1524,6 @@ function createWidget(config) {
   return new meta.nodeClass(config);
 }
 
-/** @deprecated — use coerceToAST + walkPhase instead */
-function mountWidgets(configs, ctx, container) {
-  const widgets = [];
-  for (const config of configs) {
-    const sCtx = config._params ? ctx.forSection(config) : ctx;
-    const p = config._params || ctx.params;
-    const widget = createWidget(config);
-    widgets.push(widget);
-
-    const el = widget.mount(sCtx, config, p);
-    if (!el) continue;
-
-    const meta = sceneRegistry.meta[resolveWidgetType(config)];
-    const wrapInGroup = meta?.defaultParams?.wrapInGroup ?? true;
-
-    if (wrapInGroup) {
-      const groupEl = document.createElement('div');
-      groupEl.className = 'control-group';
-      groupEl.id = `section-${config.id}`;
-      const h3 = document.createElement('h3');
-      h3.textContent = config.group || '';
-      groupEl.appendChild(h3);
-      groupEl.appendChild(el);
-      container.appendChild(groupEl);
-    } else {
-      container.appendChild(el);
-    }
-  }
-  return widgets;
-}
-
 function stripConfigs(configs) {
   return configs.filter(c => {
     const type = resolveWidgetType(c);
@@ -1703,7 +1605,6 @@ export {
   WidgetContext,
   resolveWidgetType,
   createWidget,
-  mountWidgets,
   stripConfigs,
   parseDslValue,
 
@@ -1777,7 +1678,7 @@ export {
 
 if (typeof window !== 'undefined') {
   window.OmniWidget = {
-    OmniWidget, WidgetContext, createWidget, mountWidgets, stripConfigs, parseDslValue,
+    OmniWidget, WidgetContext, createWidget, stripConfigs, parseDslValue,
     resolveWidgetType,
     formatValue, isHexColor, parseHexColor, formatHexColor, lerpColor,
     _esc, covBar, TAG_STYLES,
