@@ -41,7 +41,7 @@ class MyLangNodes {
     // handle this node type
   }
 }
-sceneRegistry.registerNodeClass('my_assignment', MyLangNodes);
+SYS.NODE_CLASSES.push({ name: 'my_assignment', cls: MyLangNodes });
 ```
 
 The walker dispatches: `registry.dispatch(ctxMix, 'step', node, params)`.

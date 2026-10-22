@@ -1,5 +1,6 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * ThreeSceneNode — root of the 3D AST.
@@ -211,6 +212,6 @@ class ThreeSceneNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('three-scene', ThreeSceneNode);
+SYS.NODE_CLASSES.push({ name: 'three-scene', cls: ThreeSceneNode });
 
 export { ThreeSceneNode };

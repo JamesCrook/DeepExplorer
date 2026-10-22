@@ -5,9 +5,10 @@
  * scene AST, updates them when params change, and tears down on
  * scene switch.
  *
- * Phases (registered on node classes via sceneRegistry):
+ * Phases (registered on node classes via sceneRegistry) are the HTML
+ * phases DemoHarnessHtml walks, so an HTML node type mounts in either:
  *
- *   build     — Create DOM elements, append to ctxMix.parentEl,
+ *   mount     — Create DOM elements, append to ctxMix.parentEl,
  *               attach event listeners.  Run once on activate().
  *
  *   update    — Apply current params to existing DOM elements
@@ -28,7 +29,8 @@
  * ctxMix shape:
  *   {
  *     parentEl,    // current DOM parent — container nodes set this
- *                  //   in before_build so children append correctly
+ *                  //   in before_mount so children append correctly
+ *     parentStack, // where before_mount saves parentEl; after_mount restores
  *     rootEl,      // the viewport div (stable reference)
  *     container,   // outer chart-container (for resize measurements)
  *     app,         // OmniSceneApp instance
@@ -39,7 +41,7 @@
  * Node handlers follow the same conventions as 2D/3D:
  *
  *   // Static method on a node class:
- *   static build(ctxMix, node, params) {
+ *   static mount(ctxMix, node, params) {
  *     const el = document.createElement('div');
  *     // … configure el …
  *     node.inst = { el };
@@ -47,16 +49,16 @@
  *   }
  *
  *   // Container node — set parentEl for children:
- *   static before_build(ctxMix, node, params) {
+ *   static before_mount(ctxMix, node, params) {
  *     const el = document.createElement('div');
  *     el.style.display = 'flex';
  *     node.inst = { el };
  *     ctxMix.parentEl.appendChild(el);
- *     ctxMix._parentStack.push(ctxMix.parentEl);
+ *     ctxMix.parentStack.push(ctxMix.parentEl);
  *     ctxMix.parentEl = el;
  *   }
- *   static after_build(ctxMix, node, params) {
- *     ctxMix.parentEl = ctxMix._parentStack.pop();
+ *   static after_mount(ctxMix, node, params) {
+ *     ctxMix.parentEl = ctxMix.parentStack.pop();
  *   }
  *
  * Place in: omni-support/omni-html.js
@@ -99,7 +101,7 @@ class OmniHtml {
     this._ctxMix = this._makeCtxMix();
 
     const sceneLayer = this.app.sceneLayer;
-    sceneRegistry.runPhases(this._ctxMix, sceneLayer, {}, ['buildDom']);
+    sceneRegistry.runPhases(this._ctxMix, sceneLayer, {}, ['mount']);
     this._built = true;
 
     // ── Observe resize ───────────────────────────────────
@@ -131,7 +133,7 @@ class OmniHtml {
     // Reset parentEl to root for the walk (update may need it
     // if nodes access ctxMix.parentEl for measurements)
     this._ctxMix.parentEl    = this.viewport;
-    this._ctxMix._parentStack = [];
+    this._ctxMix.parentStack = [];
 
     sceneRegistry.runPhases(
       this._ctxMix, sceneLayer, params || {}, ['update'],
@@ -145,7 +147,7 @@ class OmniHtml {
     if (!sceneLayer) return;
 
     this._ctxMix.parentEl    = this.viewport;
-    this._ctxMix._parentStack = [];
+    this._ctxMix.parentStack = [];
 
     sceneRegistry.runPhases(
       this._ctxMix, sceneLayer,
@@ -176,7 +178,7 @@ class OmniHtml {
       app:          this.app,
       iterators:    [],
       flyweight:    {},
-      _parentStack: [],   // for container nodes to push/pop parentEl
+      parentStack: [],   // for container nodes to push/pop parentEl
     };
   }
 
@@ -201,7 +203,7 @@ class OmniHtml {
       // Run teardown phase so nodes can detach listeners / release refs
       const ctx = this._ctxMix || this._makeCtxMix();
       ctx.parentEl     = this.viewport;
-      ctx._parentStack = [];
+      ctx.parentStack = [];
       sceneRegistry.runPhases(ctx, this.app.sceneLayer, {}, ['teardown']);
     }
 

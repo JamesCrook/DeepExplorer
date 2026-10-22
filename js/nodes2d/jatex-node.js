@@ -22,10 +22,10 @@ import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, SectorPath, GridPath, BlendedPath } from '../2d-support/path.js';
 import { SizeCache } from './multiscroller-nodes.js';
-import { sceneRegistry } from '../omni-support/scene.js';
 import { Twisty } from './jatex-twisty-node.js'
 import { JatexTileNode } from './jatex-tile-node.js'
 import { JatexDrawnNode } from './jatex-electronic-node.js'
+import { SYS } from '../omni-support/sys.js';
 
 const JatexProcessor = window.JatexProcessor;
 
@@ -185,12 +185,12 @@ class JatexFrac {
   }
 }
 
-sceneRegistry.registerNodeClass('frac', JatexFrac);
-sceneRegistry.registerNodeClass('jexp', JatexExpNode);
-sceneRegistry.registerNodeClass('jatex.tile', JatexTileNode);
-sceneRegistry.registerNodeClass('jatex.twisty', Twisty);
-sceneRegistry.registerNodeClass('jatex.sym', JatexSymbolNode);
-sceneRegistry.registerNodeClass('jatex.drawn', JatexDrawnNode);
+SYS.NODE_CLASSES.push({ name: 'frac', cls: JatexFrac });
+SYS.NODE_CLASSES.push({ name: 'jexp', cls: JatexExpNode });
+SYS.NODE_CLASSES.push({ name: 'jatex.tile', cls: JatexTileNode });
+SYS.NODE_CLASSES.push({ name: 'jatex.twisty', cls: Twisty });
+SYS.NODE_CLASSES.push({ name: 'jatex.sym', cls: JatexSymbolNode });
+SYS.NODE_CLASSES.push({ name: 'jatex.drawn', cls: JatexDrawnNode });
 
 /**
  * This class does a one time switch of type for the more precisely defined type.
@@ -219,7 +219,7 @@ class JatexSymbolResolver {
   }
 }
 
-sceneRegistry.registerNodeClass('jsymbol', JatexSymbolResolver);
+SYS.NODE_CLASSES.push({ name: 'jsymbol', cls: JatexSymbolResolver });
 
 
 class JatexNode {
@@ -313,7 +313,7 @@ class JatexNode {
   }
 }
 
-sceneRegistry.registerNodeClass('jatex', JatexNode);
+SYS.NODE_CLASSES.push({ name: 'jatex', cls: JatexNode });
 
 
 

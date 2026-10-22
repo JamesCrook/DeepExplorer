@@ -80,6 +80,7 @@ handful we already know.
   on: directive
   directive: index
   emit: meta
+  provides: icon
 
 - id: config
   on: directive
@@ -186,6 +187,7 @@ sidebar without touching col3.
   where: index
   level: 1
   emit: header
+  inherits: icon
   zoneOut: col2.head
   content: $<title>
   match: ^(?<title>.+)$
@@ -241,7 +243,9 @@ sidebar without touching col3.
 ## Notes and chat — col3
 
 The note's `# H1` is the channel header; an em-dash line beneath it is the
-subtitle.
+subtitle, which `fold=desc` hands to the header rather than drawing. The
+index's `# H1` shows the corpus icon, which `%%index icon=…%%` provides and
+the header rule inherits.
 
 Two speaker rules. In a `chat` document any name works, because that is what
 the file is. Elsewhere the name must be one the cast knows, so `Note:` and
@@ -261,7 +265,7 @@ the file is. Elsewhere the name must be one the cast knows, so `Note:` and
   where: note,chat
   match: ^(?<desc>—\s.+)$
   emit: subtitle
-  with: desc=$<desc>
+  with: desc=$<desc>; fold=desc
 
 - id: message-open
   on: para
@@ -318,7 +322,7 @@ the file is. Elsewhere the name must be one the cast knows, so `Note:` and
   on: para
   where: note,chat
   match: ^(?<text>→\s[\s\S]+)$
-  emit: link
+  emit: arrow-link
   scalar: $<text>
 
 - id: tags

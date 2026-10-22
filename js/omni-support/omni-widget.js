@@ -1,4 +1,8 @@
 import { sceneRegistry, MiniAstNode } from './scene.js';
+// The morph slider is one node type for the panel, the HUD and HTML panes:
+// the widget-stnda nugget, copied here by stand-alones/library_nuggets.py.
+import { MorphSliderWidget } from './morph-slider-widget.js';
+import { SYS } from './sys.js';
 
 /* ============================================
    omni-widget.js — Widget Classes for Controls & Nav
@@ -116,7 +120,7 @@ function parseDslValue(raw) {
 
 class WidgetContext {
   constructor(opts = {}) {
-    this.paramsStack       = opts.paramsStack || [opts.params || {}];
+    this.params            = opts.params || {};
     this.engine            = opts.engine || null;
     this.panel             = opts.panel || null;
     this.presets           = opts.presets || {};
@@ -132,9 +136,12 @@ class WidgetContext {
     this.parentStack = opts.parentStack || [];
   }
 
-  static fromPanel(panel) {
+  /** A context for one walk of the panel.  params is what its widgets read
+   *  and write: the panel's own, or a section's (sec._params, a layer's
+   *  params, say), so the panel walks each section with its own context. */
+  static fromPanel(panel, params = panel.params) {
     return new WidgetContext({
-      params:            panel.params,
+      params,
       engine:            panel.engine,
       panel,
       presets:           panel.presets,
@@ -150,25 +157,11 @@ class WidgetContext {
     });
   }
 
-  /** The currently active params object (top of the stack). */
-  get _currentParams() { return this.paramsStack[this.paramsStack.length - 1]; }
-  getParams(ctxMix, node, params) { return ctxMix.paramsStack?.[this.paramsStack.length - 1] ?? params; }
-
-  /** Push a scoped params object (e.g. per-section _params). */
-  pushParams(p) { this.paramsStack.push(p); }
-
-  /** Pop back to the previous params scope. */
-  popParams() {
-    if (this.paramsStack.length > 1) this.paramsStack.pop();
-  }
-
-  setParam(id, value) {
-    this._currentParams[id] = value;
-  }
-
-  getParam(id) {
-    return this._currentParams[id];
-  }
+  /** One channel: a widget reads the params its walk passes it, and writes
+   *  with ctxMix.setParam, then says so with ctxMix.onParamChange. */
+  getParams() { return this.params; }
+  setParam(id, value) { this.params[id] = value; }
+  getParam(id) { return this.params[id]; }
 
   render()               { this._render(); }
   onParamChange(...args) { this._onParamChange(...args); }
@@ -238,8 +231,6 @@ class ControlGroupWidget extends OmniWidget {
     h3.textContent = v.group || '';
     groupEl.appendChild(h3);
 
-    if (node.inst?._params) ctxMix.pushParams(node.inst._params);
-
     ctxMix.parentStack.push(ctxMix.parentEl);
     ctxMix.parentEl = groupEl;
   }
@@ -248,140 +239,6 @@ class ControlGroupWidget extends OmniWidget {
     const groupEl = ctxMix.parentEl;
     ctxMix.parentEl = ctxMix.parentStack.pop();
     ctxMix.parentEl.appendChild(groupEl);
-
-    if (node.inst?._params) ctxMix.popParams();
-  }
-}
-
-
-// ════════════════════════════════════════════════════════════════
-//  MorphSliderWidget — the morphable range slider (leaf)
-// ════════════════════════════════════════════════════════════════
-
-class MorphSliderWidget extends OmniWidget {
-
-  static mount(ctxMix, node, params) {
-    const v = node.value || {};
-    const pid = v.id;
-    const p = ctxMix.getParams(ctxMix, node, params);
-    const initVal = v.isData
-      ? (v.dataValue || v.default)
-      : (p[pid] ?? v.default ?? v.min ?? 0);
-
-    const { el, setValue, getValue, valEl } = MorphSliderWidget.buildMorphSlider({
-      label:    v.label,
-      min:      v.min ?? 0,
-      max:      v.max ?? 100,
-      step:     v.step,
-      value:    initVal,
-      disabled: v.disabled,
-      format:   typeof v.format === 'function'
-        ? v.format
-        : v.format ? (val => formatValue(val, v.format)) : undefined,
-      onChange: val => {
-        if (v.isData) {
-          ctxMix.onParamChange(pid, val, true, ctxMix.panel);
-        } else {
-          p[pid] = val;
-          ctxMix.onParamChange(pid, val, false, ctxMix.panel);
-        }
-        if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
-        ctxMix.render();
-        ctxMix.clearActivePreset();
-      },
-    });
-
-    el.id = pid;
-    valEl.id = `${pid}-val`;
-    el.dataset.sliderId = pid;
-
-    ctxMix.parentEl.appendChild(el);
-  }
-
-  // ── Static factory — the core DOM builder (unchanged) ──────────
-
-  static buildMorphSlider(opts) {
-    const min = +opts.min, max = +opts.max, step = +(opts.step || 1);
-    const fmt = opts.format || (v => {
-      return step % 1 !== 0 ? (+v).toFixed(2) : String(Math.round(+v));
-    });
-
-    const el = document.createElement('div');
-    el.className = 'morph-slider';
-    if (opts.disabled) el.style.opacity = '0.4';
-
-    const track = document.createElement('div');
-    track.className = 'ms-track';
-    const fill = document.createElement('div');
-    fill.className = 'ms-fill';
-    track.appendChild(fill);
-
-    const pip = document.createElement('div');
-    pip.className = 'ms-pip';
-
-    const lbl = document.createElement('span');
-    lbl.className = 'ms-label';
-    lbl.textContent = opts.label || '';
-
-    const val = document.createElement('span');
-    val.className = 'ms-val';
-
-    el.append(track, pip, lbl, val);
-
-    let currentValue = +(opts.value ?? min);
-
-    function pctFromValue(v) {
-      return max === min ? 0 : (v - min) / (max - min);
-    }
-    function valueFromPct(pct) {
-      let v = min + pct * (max - min);
-      v = Math.round(v / step) * step;
-      return Math.max(min, Math.min(max, +v.toFixed(10)));
-    }
-    function render(v) {
-      const pct = pctFromValue(v) * 100;
-      fill.style.width = pct + '%';
-      pip.style.left   = pct + '%';
-      val.textContent   = fmt(v);
-    }
-    function setValue(v) {
-      currentValue = +v;
-      render(currentValue);
-    }
-
-    render(currentValue);
-
-    if (!opts.disabled) {
-      const update = (clientX) => {
-        const rect = track.getBoundingClientRect();
-        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        currentValue = valueFromPct(pct);
-        render(currentValue);
-        if (opts.onChange) opts.onChange(currentValue);
-      };
-      let engaged = false;
-      el.addEventListener('pointerdown', e => {
-        engaged = true;
-        el.classList.add('engaged');
-        el.setPointerCapture(e.pointerId);
-        update(e.clientX);
-      });
-      el.addEventListener('pointermove', e => { if (engaged) update(e.clientX); });
-      el.addEventListener('pointerup', () => { engaged = false; el.classList.remove('engaged'); });
-      el.addEventListener('pointercancel', () => { engaged = false; el.classList.remove('engaged'); });
-    }
-
-    el._valEl   = val;
-    el._setValue = setValue;
-    el._getValue = () => currentValue;
-
-    Object.defineProperty(el, 'value', {
-      get: () => currentValue,
-      set: v => { setValue(+v); },
-      configurable: true,
-    });
-
-    return { el, setValue, getValue: () => currentValue, valEl: val };
   }
 }
 
@@ -394,7 +251,7 @@ class ColorPickerWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.getParams(ctxMix, node, params);
+    const p = params;
     const initVal = p[v.id] ?? v.default ?? '#ffffffff';
 
     const controlEl = document.createElement('div');
@@ -442,7 +299,7 @@ class ColorPickerWidget extends OmniWidget {
       const rgb = parseHexColor(colorInput.value);
       rgb.a = parseFloat(alphaSlider.value);
       const hex = formatHexColor(rgb);
-      p[v.id] = hex;
+      ctxMix.setParam(v.id, hex);
       swatch.style.backgroundColor = hex;
       valSpan.textContent = hex;
       ctxMix.render();
@@ -480,7 +337,7 @@ class ButtonRowWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.getParams(ctxMix, node, params);
+    const p = params;
     const initVal = p[v.id] ?? v.default;
 
     const controlEl = document.createElement('div');
@@ -505,7 +362,7 @@ class ButtonRowWidget extends OmniWidget {
       btn.addEventListener('click', () => {
         row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
-        p[v.id] = opt.value;
+        ctxMix.setParam(v.id, opt.value);
         ctxMix.onParamChange(v.id, opt.value, false, ctxMix.panel);
         ctxMix.render();
         ctxMix.clearActivePreset();
@@ -694,7 +551,7 @@ class ToggleWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.getParams(ctxMix, node, params);
+    const p = params;
     const checked = p[pid] ?? v.checked ?? false;
 
     const label = document.createElement('label');
@@ -718,7 +575,7 @@ class ToggleWidget extends OmniWidget {
 
     label.addEventListener('change', () => {
       const val = input.checked;
-      p[pid] = val;
+      ctxMix.setParam(pid, val);
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -862,53 +719,6 @@ class AddBarWidget extends OmniWidget {
 
 
 // ════════════════════════════════════════════════════════════════
-//  SelectionActionBarWidget (leaf)
-// ════════════════════════════════════════════════════════════════
-
-class SelectionActionBarWidget extends OmniWidget {
-
-  static mount(ctxMix, node, params) {
-    const v = node.value || {};
-    const d = v._depth ?? '';
-    const bar = document.createElement('div');
-    bar.className = 'sc-selection-bar';
-
-    const count = document.createElement('span');
-    count.className = 'sc-sel-count';
-    count.id = `sel-count-${d}`;
-    count.textContent = v.count ?? 0;
-
-    const display = document.createElement('span');
-    display.className = 'sc-sel-display';
-    display.id = `sel-display-${d}`;
-    display.textContent = v.display || '—';
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'sc-sel-btn';
-    addBtn.id = `sel-add-${d}`;
-    addBtn.textContent = '+';
-    addBtn.title = 'Add';
-    addBtn.disabled = !v.canAdd;
-    addBtn.onclick = () => { if (node.inst?.onAdd) node.inst.onAdd(); };
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'sc-sel-btn sc-sel-btn-remove';
-    removeBtn.id = `sel-remove-${d}`;
-    removeBtn.textContent = '−';
-    removeBtn.title = 'Remove';
-    removeBtn.disabled = !v.canRemove;
-    removeBtn.onclick = () => { if (node.inst?.onRemove) node.inst.onRemove(); };
-
-    bar.appendChild(count);
-    bar.appendChild(display);
-    bar.appendChild(addBtn);
-    bar.appendChild(removeBtn);
-    ctxMix.parentEl.appendChild(bar);
-  }
-}
-
-
-// ════════════════════════════════════════════════════════════════
 //  DividerWidget (leaf)
 // ════════════════════════════════════════════════════════════════
 
@@ -954,7 +764,7 @@ class NumberInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.getParams(ctxMix, node, params);
+    const p = params;
     const initVal = p[pid] ?? v.default ?? 0;
 
     const controlEl = document.createElement('div');
@@ -980,7 +790,7 @@ class NumberInputWidget extends OmniWidget {
     input.addEventListener('change', () => {
       const val = parseFloat(input.value);
       if (isNaN(val)) return;
-      p[pid] = val;
+      ctxMix.setParam(pid, val);
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -1002,7 +812,7 @@ class TextInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.getParams(ctxMix, node, params);
+    const p = params;
     const initVal = p[pid] ?? v.default ?? '';
 
     const controlEl = document.createElement('div');
@@ -1024,7 +834,7 @@ class TextInputWidget extends OmniWidget {
       'background:#0f0f23;color:#ccc;font-size:11px;';
 
     const emit = () => {
-      p[pid] = input.value;
+      ctxMix.setParam(pid, input.value);
       if (node.inst?.onChange) node.inst.onChange(input.value, ctxMix.panel);
       ctxMix.onParamChange(pid, input.value, false, ctxMix.panel);
       ctxMix.render();
@@ -1179,7 +989,7 @@ class NavSubmenuWidget extends OmniWidget {
 //  The chat-layout widgets that were here (server icon, topic, message,
 //  embed card, stage card, code island, …) are scene nodes now: markup in
 //  deep-wiki/content/_templates.md, code in js/nodes-html/chat-nodes.js and
-//  stage-node.js.  These tag colours are shared with them.
+//  host-omni-scene.js.  These tag colours are shared with them.
 // ════════════════════════════════════════════════════════════════
 
 const TAG_STYLES = {
@@ -1231,40 +1041,38 @@ function stripConfigs(configs) {
 // ════════════════════════════════════════════════════════════════
 
 // Structural / root
-sceneRegistry.registerNodeClass('panel',         PanelWidget,         { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('control-group',  ControlGroupWidget,  { wrapInGroup: false, showInStrip: false });
+SYS.NODE_CLASSES.push({ name: 'panel', cls: PanelWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'control-group', cls: ControlGroupWidget, defaults: { wrapInGroup: false, showInStrip: false } });
 
 // Nav widgets
-sceneRegistry.registerNodeClass('nav-item',       NavItemWidget,       { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-link',       NavLinkWidget,       { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-checkbox',   NavCheckboxWidget,   { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-divider',    NavDividerWidget,    { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('nav-submenu',    NavSubmenuWidget,    { wrapInGroup: false, showInStrip: false });
+SYS.NODE_CLASSES.push({ name: 'nav-item', cls: NavItemWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'nav-link', cls: NavLinkWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'nav-checkbox', cls: NavCheckboxWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'nav-divider', cls: NavDividerWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'nav-submenu', cls: NavSubmenuWidget, defaults: { wrapInGroup: false, showInStrip: false } });
 
 // Panel widgets — navVersion controls nav AST mapping
-sceneRegistry.registerNodeClass('morph-slider',   MorphSliderWidget);
-sceneRegistry.registerNodeClass('color-picker',   ColorPickerWidget);
-sceneRegistry.registerNodeClass('button-row',     ButtonRowWidget);
-sceneRegistry.registerNodeClass('slider-group',   SliderGroupWidget,   { navVersion: 'nav-item' });
-sceneRegistry.registerNodeClass('preset-item',    PresetItemWidget,    { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('option',         OptionWidget,        { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('optgroup',       OptgroupWidget,      { navVersion: 'nav-submenu', wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('presets',        PresetWidget,        { navVersion: 'nav-submenu' });
-sceneRegistry.registerNodeClass('select',         SelectWidget,        { navVersion: 'nav-submenu' });
-sceneRegistry.registerNodeClass('button',         ButtonWidget);
-sceneRegistry.registerNodeClass('toggle',         ToggleWidget);
-sceneRegistry.registerNodeClass('filedrop',       FileDropWidget);
-sceneRegistry.registerNodeClass('status',         StatusWidget,        { showInStrip: false });
-sceneRegistry.registerNodeClass('info',           InfoWidget,          { showInStrip: false });
-sceneRegistry.registerNodeClass('dynamic',        DynamicWidget);
-sceneRegistry.registerNodeClass('custom',         CustomWidget);
-sceneRegistry.registerNodeClass('addbar',         AddBarWidget,        { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('selection-action-bar', SelectionActionBarWidget, { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('divider',        DividerWidget,       { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('label',          LabelWidget,         { showInStrip: false });
-sceneRegistry.registerNodeClass('number-input',   NumberInputWidget);
-sceneRegistry.registerNodeClass('text-input',     TextInputWidget);
-sceneRegistry.registerNodeClass('button-group',   ButtonGroupWidget);
+SYS.NODE_CLASSES.push({ name: 'color-picker', cls: ColorPickerWidget });
+SYS.NODE_CLASSES.push({ name: 'button-row', cls: ButtonRowWidget });
+SYS.NODE_CLASSES.push({ name: 'slider-group', cls: SliderGroupWidget, defaults: { navVersion: 'nav-item' } });
+SYS.NODE_CLASSES.push({ name: 'preset-item', cls: PresetItemWidget, defaults: { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'option', cls: OptionWidget, defaults: { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'optgroup', cls: OptgroupWidget, defaults: { navVersion: 'nav-submenu', wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'presets', cls: PresetWidget, defaults: { navVersion: 'nav-submenu' } });
+SYS.NODE_CLASSES.push({ name: 'select', cls: SelectWidget, defaults: { navVersion: 'nav-submenu' } });
+SYS.NODE_CLASSES.push({ name: 'button', cls: ButtonWidget });
+SYS.NODE_CLASSES.push({ name: 'toggle', cls: ToggleWidget });
+SYS.NODE_CLASSES.push({ name: 'filedrop', cls: FileDropWidget });
+SYS.NODE_CLASSES.push({ name: 'status', cls: StatusWidget, defaults: { showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'info', cls: InfoWidget, defaults: { showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'dynamic', cls: DynamicWidget });
+SYS.NODE_CLASSES.push({ name: 'custom', cls: CustomWidget });
+SYS.NODE_CLASSES.push({ name: 'addbar', cls: AddBarWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'divider', cls: DividerWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'label', cls: LabelWidget, defaults: { showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'number-input', cls: NumberInputWidget });
+SYS.NODE_CLASSES.push({ name: 'text-input', cls: TextInputWidget });
+SYS.NODE_CLASSES.push({ name: 'button-group', cls: ButtonGroupWidget });
 
 // ════════════════════════════════════════════════════════════════
 //  Exports
@@ -1317,7 +1125,6 @@ export {
   DynamicWidget,
   CustomWidget,
   AddBarWidget,
-  SelectionActionBarWidget,
   DividerWidget,
   LabelWidget,
   NumberInputWidget,

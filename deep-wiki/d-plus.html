@@ -75,7 +75,7 @@ import '../js/nodes-html/html-repeat-node.js';    // html-repeat
 import '../js/nodes-html/actions.js';             // nav, emit, select, …
 import '../js/nodes-html/prepasses.js';           // scroller, sections, zones
 import '../js/nodes-html/chat-nodes.js';          // tags, diagrams, control, code, html
-import '../js/nodes-html/stage-node.js';          // stage
+import '../js/nodes-html/host-omni-scene.js';     // stage: html-host + OmniSceneApp
 
 import { RuleSet, transform, readFlatYaml,
          FetchSource, OverlaySource, LocalStore, DataSource }
@@ -102,17 +102,17 @@ import { ConfigStack }       from './mdconfig.js';
 //  (harness.replace), and everything the page used to do by hand after a
 //  render is done by the nodes or by data on them:
 //
+//      a subtitle joins the chat header     prepass.fold, the rule's fold=desc
 //      a sticky widget pins its section     prepass.sections, type meta
 //      the chat header opens a scroller     prepass.scroller, type meta
 //      the input goes below the chat        zoneOut, harness.replace
 //      a click loads a note or a server     on: { click: 'nav …' }
 //      the open note, server, live stage    selection groups (params)
-//      a stage hosts an OmniSceneApp        StageNode, nodes-html/stage-node.js
+//      a stage hosts an OmniSceneApp        html-host + host.omni-scene
 //      a live stream's messages             html-repeat + source.dstream
 //
 //  This file keeps what only D+ knows: config, which document goes where,
-//  the adapter from the rules' node shape to the scene's (_toScene), and
-//  what nav, send and the config buttons do.
+//  and what nav, send and the config buttons do.
 
 
 class DeepExplorer {
@@ -320,7 +320,7 @@ class DeepExplorer {
   _createScene() {
     const box = (value, kids = []) => ({ type: 'html-box', value, subtree: kids });
     const zone = (name, id, cls) =>
-      box({ zone: name, attrs: { id }, prepare: ['scroller', 'sections'], ...(cls ? { class: cls } : {}) });
+      box({ zone: name, attrs: { id }, prepare: ['fold', 'scroller', 'sections'], ...(cls ? { class: cls } : {}) });
 
     const root = box({ class: 'app' }, [
       zone('col1', 'zone-col1', 'servers'),
@@ -384,74 +384,28 @@ class DeepExplorer {
     if (detail.topic?.scene) this._scrollToScene(detail.topic.scene);
   }
 
-  // ── From rules to scene ───────────────────────────────────
+  // ── Config in documents ───────────────────────────────
   //
-  //  mdplus.js hands over { type, value, _content, _nav, _zone } per block.
-  //  _toScene turns one into a scene node, by its fields only:
+  //  mdplus.js hands over scene nodes, ready to mount. Two kinds of node are
+  //  not content but configuration, and stop here:
   //
-  //    a value that is not a map      → { text } or { list }
-  //    _content (rendered markup)     → value.body
-  //    _zone                          → value.zoneOut
-  //    _nav: what a click does        → value.on, and the selection group
-  //                                     the target belongs to
-  //    a scene field                  → group 'scene', so a stage and the
-  //                                     topics naming its scene share a
-  //                                     live member
+  //    meta       `%%index default=…; icon=…%%` and the like: which note opens
+  //               first, which role notes have
+  //    controls   one island of CSS-variable sliders; each slider is a
+  //               `control` node, seeded from resolved config so it opens
+  //               where the user left it rather than at the island default
 
-  _toScene(node) {
-    const raw = node.value;
-    const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw }
-            : Array.isArray(raw) ? { list: raw }
-            : raw == null || raw === '' ? {} : { text: raw };
-    if (node._content != null) v.body = node._content;
-    if (node._zone) v.zoneOut = node._zone;
-    if (v.scene) { v.group = 'scene'; v.groupKey = v.scene; }
-    const nav = node._nav;
-    if (nav && v.scene) {
-      v.on = { click: `nav scene ${v.scene}` };
-    } else if (nav === 'config') {
-      v.on = { click: 'nav config' };
-      v.group = 'config:' + v.key;
-      v.groupKey = String(v.value);
-    } else if (nav) {
-      const target = v.note ?? v.url ?? v.id;
-      v.on = { click: `nav ${nav} ${target}` };
-      v.group = nav === 'server' ? 'server' : 'topic';
-      v.groupKey = String(target);
-    }
-    return { type: node.type, value: v, subtree: [] };
-  }
-
-  //  What is left of type-by-name knowledge: three rule outputs that are not
-  //  widgets of their own, and one that takes a field from the document.
   _prepare(nodes, meta) {
     const out = [];
     for (const node of nodes) {
-
-      // `%%index default=…; icon=…%%` — configuration, not content.
       if (node.type === 'meta') { Object.assign(meta, node.value); continue; }
-
-      // A `— …` line under the note's H1 is the channel subtitle.
-      if (node.type === 'subtitle') {
-        const prev = out[out.length - 1];
-        if (prev?.type === 'chatheader') prev.value.desc = node.value.desc;
-        continue;
-      }
-
-      // One island holds many sliders; the widget is per-slider.
       if (node.type === 'controls') {
-        // Seeded from resolved config, so a slider opens where the user left
-        // it instead of snapping to the island default and saving that back.
-        for (const c of this.config.seedControls(readFlatYaml(node._content))) {
+        for (const c of this.config.seedControls(readFlatYaml(node.value.body))) {
           out.push({ type: 'control', value: c, subtree: [] });
         }
         continue;
       }
-
-      const n = this._toScene(node);
-      // The index header shows the corpus's icon, from its %%index%% line.
-      if (n.type === 'header') n.value.domain = meta.icon || '深';
-      out.push(n);
+      out.push(node);
     }
     return out;
   }
@@ -564,7 +518,7 @@ class DeepExplorer {
   //  The live stage is the last one whose sticky head has reached the top of
   //  the chat. It is the active member of group 'scene', so setting that
   //  param marks the stage and the scene topics, and the stage itself
-  //  re-points the shared panel (StageNode.update).
+  //  re-points the shared panel (the host's live(), host-omni-scene.js).
 
   _scroller() { return this.harness.find(n => n.value?.class === 'chat-msgs'); }
   _stages()   { const out = []; this.harness.find(n => { if (n.type === 'stage') out.push(n); return false; }); return out; }
@@ -617,6 +571,9 @@ class DeepExplorer {
   }
 
   _onParamChange(id, val) {
+    // A CSS-variable control's param is the variable: apply it to :root,
+    // where config's observer sees it.
+    if (id.startsWith('--')) document.documentElement.style.setProperty(id, val);
     if (id === 'scene') this._paintTrack();
     // A stream arriving fills the chat; show its end, as a sent message does.
     if (id === 'stream') requestAnimationFrame(() => requestAnimationFrame(() => this._scrollChatToEnd()));

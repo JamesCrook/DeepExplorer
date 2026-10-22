@@ -1,5 +1,6 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * LightsNode — owns a set of THREE lights.
@@ -93,6 +94,6 @@ class LightsNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('lights', LightsNode);
+SYS.NODE_CLASSES.push({ name: 'lights', cls: LightsNode });
 
 export { LightsNode };

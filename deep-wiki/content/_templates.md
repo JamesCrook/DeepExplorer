@@ -46,7 +46,7 @@ markup, `data-on="…"` says it for one element.
 
 ## Index — col2
 
-```html template=header
+```html template=header with=header
 <div class="ch-hdr"><span class="domain">{domain}</span> {!body} <span class="stage-track" style="color:var(--text-3);font-weight:400;font-size:11px"></span></div>
 ```
 
@@ -84,8 +84,17 @@ markup, `data-on="…"` says it for one element.
 <div class="embed-row"><div class="embed-row-lbl" style="{labelStyle}">{label}</div>{!bar}<div class="embed-row-badge" style="{badgeStyle}">{badge}</div></div>
 ```
 
-```html template=link sticky
+```html template=arrow-link sticky
 <div class="embed-link">{!text}</div>
+```
+
+## Stage — an OmniScene in the chat
+
+The frame round a `stage`: a host (`js/nodes-html/html-host-node.js`) running
+an OmniSceneApp (`host-omni-scene.js`). The scene goes where the slot is.
+
+```html template=stage-frame
+<div class="scene-stage" data-stage-id="{id}" data-stage-scene="{scene}" style="height:{height}px"><div class="stage-mount"><slot></slot></div><div class="stage-bar"><div class="stage-badge">{badge}</div><div class="stage-name">{label}</div><div class="stage-live">live</div></div><div class="stage-hint">click to engage · scroll passes through until you do</div></div>
 ```
 
 ## Input — below col3

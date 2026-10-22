@@ -1,5 +1,5 @@
-import { sceneRegistry } from '../omni-support/scene.js';
 import { Transform }     from '../omni-support/transform.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ═══════════════════════════════════════════════════════
 //  DRAG POINT — migrated to T + directCtx
@@ -70,4 +70,4 @@ class DragPointNode {
   }
 }
 
-sceneRegistry.registerNodeClass('drag-point', DragPointNode);
+SYS.NODE_CLASSES.push({ name: 'drag-point', cls: DragPointNode });

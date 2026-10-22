@@ -7,9 +7,6 @@
 [ ] tools/work-cascade-tool.html
 Classes: CascadeParse, CascadeTree, CascadeReport, CascadeBundle
 
-[ ] js/nodes-html/card-set-node.js
-Classes: CardSetNode
-
 [ ] js/parsers/fen-pgn-grammar.js #chesse/fen/spec/grammar #chesse/pgn/spec/grammar
 
 [ ] js/parsers/mmcif-parser.js
@@ -37,7 +34,7 @@ Classes: BmCifParser
 Classes: JatexTileX, JatexTileNode
 
 [ ] js/nodes2d/omni-scene-nodes.js
-Classes: LayerNode, SceneRootNode, CornerRectNode, SimplePathNode, DragPointNode
+Classes: LayerNode, SceneRootNode, CornerRectNode, SimplePathNode
 
 [ ] js/nodes2d/lloyd-mask-node.js
 Classes: LloydMaskNode, LloydDirectionsNode
@@ -118,7 +115,7 @@ Classes: FrameNode
 Classes: Twisty
 
 [ ] js/nodes2d/mask-scene-nodes.js
-Classes: RectNode, GridBgNode, LayerNode, ClipOutlineNode
+Classes: RectNode, GridBgNode, ClipOutlineNode
 
 [ ] js/utilities2/pathing.js
 Classes: Pathings
@@ -128,9 +125,6 @@ Classes: SeededRandom
 
 [ ] js/utilities2/glyph.js
 Classes: Glyph
-
-[ ] js/utilities2/ribbon2d.js
-Classes: RibbonStyle, RibbonStyle, PathData, PathData, SplinePathData, SplinePathData, RibbonPathData, RibbonPathData, Ribbon, Ribbon
 
 [ ] js/utilities2/ast-manager.js
 Classes: AstNode
@@ -183,7 +177,7 @@ Classes: LayersWidget, SelectionActionBarWidget
 Classes: OmniHtml
 
 [ ] js/omni-support/topics-widget.js
-Classes: TopicsWidget
+Classes: TopicsWidget, TopicLinkWidget
 
 [ ] js/omni-support/scene.js #node/spec/code
 Classes: MiniAstNode, SceneNode, SubtreeIterator, SceneRegistry
@@ -195,7 +189,7 @@ Classes: TreeBrowser
 Classes: OmniApp
 
 [ ] js/omni-support/omni-widget.js
-Classes: WidgetContext, OmniWidget, SliderGroupWidget, PresetWidget, SelectWidget, ButtonWidget, ToggleWidget, FileDropWidget, StatusWidget, InfoWidget, DynamicWidget, CustomWidget, LayersWidget, AddBarWidget, SelectionActionBarWidget, DividerWidget, LabelWidget, NumberInputWidget, TextInputWidget, ButtonGroupWidget, ServerIconWidget, SrvSeparatorWidget, ColHeaderWidget, ChatHeaderWidget, SectionGroupWidget, CovLegendWidget, TopicItemWidget, ChatMessageWidget, EmbedCardWidget, EmbedRowWidget, EmbedTagsWidget, EmbedLinkWidget, EmbedDiagramsWidget, CssVarSliderWidget, ChatInputWidget, StageCardWidget, CodeIslandWidget, RawHtmlWidget, NavItemWidget, NavLinkWidget, NavCheckboxWidget, NavDividerWidget, NavSubmenuWidget
+Classes: WidgetContext, OmniWidget, PanelWidget, ControlGroupWidget, ColorPickerWidget, ButtonRowWidget, SliderGroupWidget, PresetItemWidget, PresetWidget, OptionWidget, OptgroupWidget, SelectWidget, ButtonWidget, ToggleWidget, FileDropWidget, StatusWidget, InfoWidget, DynamicWidget, CustomWidget, AddBarWidget, DividerWidget, LabelWidget, NumberInputWidget, TextInputWidget, ButtonGroupWidget, NavItemWidget, NavLinkWidget, NavCheckboxWidget, NavDividerWidget, NavSubmenuWidget
 
 [ ] js/omni-support/omni-3d.js
 Classes: Omni3d
@@ -232,9 +226,6 @@ Classes: CameraNode
 
 [ ] js/nodes3d/scene-node-3d.js
 Classes: SceneNode3D
-
-[ ] js/nodes3d/ribbon-node.js
-Classes: RibbonNode
 
 [ ] js/nodes3d/three-scene-node.js
 Classes: ThreeSceneNode
@@ -296,12 +287,6 @@ Classes: OmniAnimateModel
 [ ] stand-alones/content-bar-stnda.html
 Classes: ContentBar
 
-[ ] stand-alones/zoned-stnda.html
-Classes: ZonedNode, ChromosomeZone, PianoKeyZone, BGAZone, TreeRingZone, DemoHarness
-
-[ ] stand-alones/button-stnda.html
-Classes: ButtonNode, MiniT
-
 [ ] stand-alones/draglist-stnda.html
 Classes: EventBus, SimilarityEngine, DSMRenderer, Session, InputParser, DraggableCard, CardContainer, SimilarityMatrix, SessionManager, AppController
 
@@ -311,6 +296,41 @@ Classes: Graph
 [ ] stand-alones/set-shape-stnda.html
 Classes: DiscreteSet, Shape, Circle, Rect, Polygon
 
-[ ] html/d-plus.html
+[ ] deep-wiki/d-plus.html
 Classes: DeepExplorer
 
+[ ] deep-wiki/mdplus.js
+Classes: RuleSet, MemoryStore, LocalStore, OverlaySource, FetchSource, DataSource, MemorySource
+
+[ ] js/nodes-html/chat-nodes.js
+Classes: TagsNode, DiagramsNode, CssVarSliderNode, CodeIslandNode, RawHtmlNode
+
+[ ] js/nodes-html/html-host-node.js
+Classes: HtmlHostNode
+
+[ ] js/nodes-html/html-nodes.js
+Classes: HtmlFill, HtmlBoxNode, HtmlTextNode, HtmlAdoptNode
+
+[ ] js/nodes-html/html-repeat-node.js
+Classes: Clones, HtmlRepeatNode, HtmlVariantsNode
+
+[ ] js/nodes-html/html-template-node.js
+Classes: HtmlTemplateNode
+
+[ ] js/nodes2d/chip-layer-node.js #wsi/rectnode/code
+Classes: TileIterator, ChipLayerNode
+
+[ ] js/nodes2d/drag-point-node.js
+Classes: DragPointNode
+
+[ ] js/nodes3d/ribbon-node3d.js
+Classes: RibbonNode3D
+
+[ ] js/omni-support/demo-harness-html.js
+Classes: DemoHarnessHtml
+
+[ ] js/omni-support/morph-slider-widget.js
+Classes: MorphSliderWidget
+
+[ ] stand-alones/widget-stnda.html
+Classes: SubtreeIterator, SceneRegistry, Utils, PaneCameraNode, WordNode, WordCloudModel, HudPanelNode, HudSliderNode, HudButtonNode, HudCheckboxNode, HudSelectNode, HudColorNode, HudSeparatorNode, HudPanel, PlanetNode, PlanetModel, HtmlFill, HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, FileDropWidget, MorphSliderWidget, ColorPickerWidget, NavLinkWidget, FileDropModel, MorphSliderModel, ColorPickerModel, NavLinkModel, OkColour, ColourType, Gradient, History, ColourLUT, SpectrumStyle, SpectrumLayout, SpectrumRenderer, SpectrumWidget, ColourEditor, SpectrumNode, SpectrumModel, HtmlTemplateNode, TemplateModel, HtmlHostNode, Clones, HtmlRepeatNode, HtmlVariantsNode, DPlusMiniModel, VariantsModel, MarkdownPlus, MdBlockNode, MarkdownModel, OrganiserModel, DemoHarness2D, DemoHarness3D, DemoHarnessHtml, ExpandingText, FieldNode, App

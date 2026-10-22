@@ -7,7 +7,7 @@ import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, SectorPath, GridPath, BlendedPath } from '../2d-support/path.js';
 import { SizeCache } from './multiscroller-nodes.js';
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ============================================================
 // BlobNode
@@ -50,7 +50,7 @@ class BlobNode {
   }
 }
 
-sceneRegistry.registerNodeClass('blob', BlobNode);
+SYS.NODE_CLASSES.push({ name: 'blob', cls: BlobNode });
 
 
 // Auto-generated exports

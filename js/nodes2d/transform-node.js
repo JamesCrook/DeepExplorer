@@ -1,5 +1,5 @@
 
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 class TransformNode {
 
@@ -34,5 +34,5 @@ class TransformNode {
 
 }
 
-sceneRegistry.registerNodeClass('transform', TransformNode);
+SYS.NODE_CLASSES.push({ name: 'transform', cls: TransformNode });
 

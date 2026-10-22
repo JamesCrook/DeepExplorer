@@ -1,6 +1,7 @@
-import { MiniAstNode, sceneRegistry  } from '../omni-support/scene.js';
+import { MiniAstNode } from '../omni-support/scene.js';
 import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 class WarpedRectanglesNode {
@@ -72,7 +73,7 @@ class OverlayNode {
   //static draw2d() {}
 }
 
-sceneRegistry.registerNodeClass('overlay', OverlayNode);
+SYS.NODE_CLASSES.push({ name: 'overlay', cls: OverlayNode });
 class VStackNode {
   static before_draw2d(ctxMix, node, params, child){
     node.nodeCount = 0;
@@ -107,11 +108,11 @@ class HStackNode {
   }  
 }
 
-sceneRegistry.registerNodeClass('rect', WarpedRectanglesNode)
-sceneRegistry.registerNodeClass('label', LabelNode);
-sceneRegistry.registerNodeClass('overlay', OverlayNode)
-sceneRegistry.registerNodeClass('vstack', VStackNode)
-sceneRegistry.registerNodeClass('hstack', HStackNode)
+SYS.NODE_CLASSES.push({ name: 'rect', cls: WarpedRectanglesNode });
+SYS.NODE_CLASSES.push({ name: 'label', cls: LabelNode });
+SYS.NODE_CLASSES.push({ name: 'overlay', cls: OverlayNode });
+SYS.NODE_CLASSES.push({ name: 'vstack', cls: VStackNode });
+SYS.NODE_CLASSES.push({ name: 'hstack', cls: HStackNode });
 
 export { WarpedRectanglesNode, OverlayNode, VStackNode, HStackNode }
 // Auto-generated exports

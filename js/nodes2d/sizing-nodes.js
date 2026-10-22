@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 
@@ -102,7 +102,7 @@ class FrameNode {
   }
 }
 
-sceneRegistry.registerNodeClass('frame', FrameNode);
+SYS.NODE_CLASSES.push({ name: 'frame', cls: FrameNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -215,7 +215,7 @@ class BoxNode {
   }
 }
 
-sceneRegistry.registerNodeClass('box', BoxNode);
+SYS.NODE_CLASSES.push({ name: 'box', cls: BoxNode });
 
 
 class ZoomPanNode {
@@ -261,7 +261,7 @@ class ZoomPanNode {
   }
 }
 
-sceneRegistry.registerNodeClass('zoom-pan', ZoomPanNode);
+SYS.NODE_CLASSES.push({ name: 'zoom-pan', cls: ZoomPanNode });
 
 // ═══════════════════════════════════════════════════════
 //  UNCENTER NODE — undoes a parent layer's center:true
@@ -317,7 +317,7 @@ class UncenterNode {
   }
 }
 
-sceneRegistry.registerNodeClass('uncenter', UncenterNode);
+SYS.NODE_CLASSES.push({ name: 'uncenter', cls: UncenterNode });
 
 
 
@@ -500,7 +500,7 @@ class NmFrameNode {
   }
 }
 
-sceneRegistry.registerNodeClass('nm-frame', NmFrameNode);
+SYS.NODE_CLASSES.push({ name: 'nm-frame', cls: NmFrameNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -680,7 +680,7 @@ class NmBoxNode {
   }
 }
 
-sceneRegistry.registerNodeClass('nm-box', NmBoxNode);
+SYS.NODE_CLASSES.push({ name: 'nm-box', cls: NmBoxNode });
 
 
 export { NmFrameNode, NmBoxNode, NM_NAT_W, NM_NAT_H };

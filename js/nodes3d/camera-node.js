@@ -1,7 +1,8 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ProjectionMorpher } from '../3d-support/projection-morpher.js';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * CameraNode — owns a PerspectiveCamera, OrbitControls, and ProjectionMorpher.
@@ -139,6 +140,6 @@ class CameraNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('camera', CameraNode);
+SYS.NODE_CLASSES.push({ name: 'camera', cls: CameraNode });
 
 export { CameraNode, ProjectionMorpher };

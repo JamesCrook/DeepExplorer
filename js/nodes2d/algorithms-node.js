@@ -7,10 +7,11 @@
    - Algorithm classes: FFT, SmithWaterman, MultiGrid
 */
 
-import { sceneRegistry, MiniAstNode } from '../omni-support/scene.js';
+import { MiniAstNode } from '../omni-support/scene.js';
 import { WarpedRectanglesNode, OverlayNode } from './structural-nodes.js';
 import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D } from '../2d-support/vector2d.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ============================================================
@@ -190,9 +191,9 @@ class CellRectNode {
 // RunScene Core Engine
 // ============================================================
 
-sceneRegistry.registerNodeClass('alggrid', AlgorithmGridNode);
-sceneRegistry.registerNodeClass('link', LinkNode);
-sceneRegistry.registerNodeClass('cellrect', CellRectNode);
+SYS.NODE_CLASSES.push({ name: 'alggrid', cls: AlgorithmGridNode });
+SYS.NODE_CLASSES.push({ name: 'link', cls: LinkNode });
+SYS.NODE_CLASSES.push({ name: 'cellrect', cls: CellRectNode });
 
 
 

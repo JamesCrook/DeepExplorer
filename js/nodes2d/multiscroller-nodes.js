@@ -41,6 +41,7 @@ The different presentations work from the same underlying data, e.g. a CSV file.
 import { Vector2D } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, BlendedPath } from '../2d-support/path.js';
 import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ============================================================
@@ -539,9 +540,9 @@ const HStackNode = StackNode
 const VStackNode = StackNode
 // ── Registration ─────────────────────────────────────────────
 
-sceneRegistry.registerNodeClass('stack',  StackNode);
-sceneRegistry.registerNodeClass('hstack', StackNode);
-sceneRegistry.registerNodeClass('vstack', StackNode);
+SYS.NODE_CLASSES.push({ name: 'stack', cls: StackNode });
+SYS.NODE_CLASSES.push({ name: 'hstack', cls: StackNode });
+SYS.NODE_CLASSES.push({ name: 'vstack', cls: StackNode });
 
 
 
@@ -1112,7 +1113,7 @@ class MultiscrollerNode {
   //static hit_test() {}
 }
 
-sceneRegistry.registerNodeClass('multiscroller', MultiscrollerNode);
+SYS.NODE_CLASSES.push({ name: 'multiscroller', cls: MultiscrollerNode });
 
 
 // ============================================================

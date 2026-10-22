@@ -27,8 +27,8 @@
  *   T:         Pushed for the center offset in both phases.
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { Box } from '../2d-support/box.js';
+import { SYS } from '../omni-support/sys.js';
 // ── helpers ─────────────────────────────────────────────────
 
 function hexToRgb(hex) {
@@ -343,6 +343,6 @@ class PostitNode {
   }
 }
 
-sceneRegistry.registerNodeClass('postit-node', PostitNode);
+SYS.NODE_CLASSES.push({ name: 'postit-node', cls: PostitNode });
 
 export { PostitNode };

@@ -21,6 +21,7 @@ import { ColorEngine, TextUtils } from '../utilities/color-engine.js';
 import { WarpedPolygon } from './warped-polygon.js';
 import { RoundedWarpedPolygon } from './rounded-warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
+import { SYS } from '../omni-support/sys.js';
 
 function roundRect(ctx, x, y, w, h, r) {
   if (w <= 0 || h <= 0) return;
@@ -470,7 +471,7 @@ class SheetCellNode extends ScrollCellNode {
   }
 }
 
-sceneRegistry.registerNodeClass('sheet-cell', SheetCellNode );
+SYS.NODE_CLASSES.push({ name: 'sheet-cell', cls: SheetCellNode });
 
 
 // ============================================================
@@ -754,7 +755,7 @@ class WarpableCellNode extends ScrollCellNode {
   }
 }
 
-sceneRegistry.registerNodeClass('warpable-cell', WarpableCellNode);
+SYS.NODE_CLASSES.push({ name: 'warpable-cell', cls: WarpableCellNode });
 
 // ── Factory ────────────────────────────────────────────────────
 
@@ -768,8 +769,7 @@ function createCellClass(config) {
 
 // ── Registration ───────────────────────────────────────────────
 
-sceneRegistry.registerNodeClass('ms-cell',
-  createCellClass(new CellConfig()));
+SYS.NODE_CLASSES.push({ name: 'ms-cell', cls: createCellClass(new CellConfig()) });
 
 export { CellConfig, ScrollCellNode, createCellClass };
 // Auto-generated exports

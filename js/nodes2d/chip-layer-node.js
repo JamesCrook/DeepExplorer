@@ -25,8 +25,9 @@
 
 // #wsi/rectnode/code
 
-import { sceneRegistry, SubtreeIterator } from '../omni-support/scene.js';
+import { SubtreeIterator } from '../omni-support/scene.js';
 import { nm2screen, viewBounds, hexToRgb } from './mask-scene-nodes.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ── Tiling iterator ──────────────────────────────────────
@@ -279,6 +280,6 @@ class ChipLayerNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chip-layer', ChipLayerNode);
+SYS.NODE_CLASSES.push({ name: 'chip-layer', cls: ChipLayerNode });
 
 export { ChipLayerNode };

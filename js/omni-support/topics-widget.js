@@ -13,6 +13,7 @@
 
 import { OmniWidget } from './omni-widget.js';
 import { sceneRegistry } from './scene.js';
+import { SYS } from './sys.js';
 
 // ════════════════════════════════════════════════════════════════
 //  Styles (injected once)
@@ -128,7 +129,7 @@ class TopicLinkWidget extends OmniWidget {
 
 
 // ── Registration ─────────────────────────────────────────────
-sceneRegistry.registerNodeClass('topics',     TopicsWidget,     { navVersion: 'nav-submenu', wrapInGroup: true, showInStrip: true });
-sceneRegistry.registerNodeClass('topic-link', TopicLinkWidget,  { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false });
+SYS.NODE_CLASSES.push({ name: 'topics', cls: TopicsWidget, defaults: { navVersion: 'nav-submenu', wrapInGroup: true, showInStrip: true } });
+SYS.NODE_CLASSES.push({ name: 'topic-link', cls: TopicLinkWidget, defaults: { navVersion: 'nav-item', wrapInGroup: false, showInStrip: false } });
 
 export { TopicsWidget, TopicLinkWidget };

@@ -239,7 +239,7 @@ For now: set `innerHTML` on a container element. Security hardening is deferred 
 
 ### md_widget #markdown/mount
 
-New grammar production (see below). Mount handler calls `parseDslValue` on the value, calls `createWidget` from omni-widget, mounts the returned element into parentEl.
+New grammar production (see below). The node's type is the widget's name and its value the parsed value, so it mounts by the ordinary walk: a template or a node class registered under that name (see work-prefixes.md #nodehtml). No bridge to omni-widget.
 
 
 ## Grammar Addition: md_widget #markdown/grammar
@@ -289,7 +289,7 @@ Source text reconstruction at leaves uses `input.slice(leaf.jref, leaf.jend)` �
 2. **Link reference collector** — standalone function, no dependencies.
 3. **Template table + MdMountNode** — the bulk of the work. Register all template-driven tokens. Test with simple markdown (paragraphs, headings, lists, blockquotes).
 4. **Custom handlers** — links, images, headings, tables, text, escape, html passthrough. Each is a small function registered on the scene registry.
-5. **`md_widget` grammar production** — add to markdown-grammar.js. Mount handler bridges to `createWidget`.
+5. **`md_widget` grammar production** — add to markdown-grammar.js. The node mounts as the type it names; no bridge.
 6. **AST → coloured spans walker** — separate nugget (`#node/walkers/colorize`). Then wire into the fence mount handler.
 7. **`mountMarkdown` entry point** — ties everything together.
 

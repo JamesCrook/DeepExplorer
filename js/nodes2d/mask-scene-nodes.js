@@ -10,7 +10,7 @@
  * Also exports coordinate-transform utilities shared by all mask nodes.
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ── Coordinate transforms (nm ↔ screen) ──────────────────
 
@@ -106,7 +106,7 @@ class RectNode {
   }
 }
 
-sceneRegistry.registerNodeClass('rect', RectNode);
+SYS.NODE_CLASSES.push({ name: 'rect', cls: RectNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -195,37 +195,12 @@ class GridBgNode {
   }
 }
 
-sceneRegistry.registerNodeClass('grid-bg', GridBgNode);
+SYS.NODE_CLASSES.push({ name: 'grid-bg', cls: GridBgNode });
 
 
-// ═══════════════════════════════════════════════════════
-//  LAYER NODE — grouping with alpha/visibility
-// ═══════════════════════════════════════════════════════
-//
-// node.value = { id, color, vis, alpha }
-//
-// Sets globalAlpha for all children.  The walker skips
-// children when alpha <= 0.
-
-class LayerNode {
-  static before_draw2d(ctxMix, node, params) {
-    const layer = node.value;
-    if (!layer) return;
-    const alpha = layer.alpha ?? 1;
-    node._savedAlpha = ctxMix.ctx?.globalAlpha ?? 1;
-    if (ctxMix.ctx) ctxMix.ctx.globalAlpha = alpha;
-
-    // Make layer data available to children
-    ctxMix.currentLayer = layer;
-  }
-
-  static after_draw2d(ctxMix, node, params) {
-    if (ctxMix.ctx) ctxMix.ctx.globalAlpha = node._savedAlpha ?? 1;
-    ctxMix.currentLayer = null;
-  }
-}
-
-sceneRegistry.registerNodeClass('layer', LayerNode);
+// The mask scenes use OmniScene's 'layer' node (omni-scene-nodes.js).  A
+// mask-only LayerNode was registered here under the same name, and
+// scenes-mask.js re-registered OmniScene's straight after, so it never ran.
 
 
 // ═══════════════════════════════════════════════════════
@@ -259,7 +234,7 @@ class ClipOutlineNode {
   }
 }
 
-sceneRegistry.registerNodeClass('clip-outline', ClipOutlineNode);
+SYS.NODE_CLASSES.push({ name: 'clip-outline', cls: ClipOutlineNode });
 
 
 export { nm2screen, screen2nm, viewBounds, hexToRgb };

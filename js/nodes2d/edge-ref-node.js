@@ -7,9 +7,9 @@
  * Place in: nodes2d/edge-ref-node.js
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { Vector2D } from '../2d-support/vector2d.js';
 import { WarpedPolygon } from '../nodes2d/warped-polygon.js';
+import { SYS } from '../omni-support/sys.js';
 
 class EdgeRefNode {
 
@@ -88,6 +88,6 @@ class EdgeRefNode {
   }
 }
 
-sceneRegistry.registerNodeClass('edge-ref', EdgeRefNode);
+SYS.NODE_CLASSES.push({ name: 'edge-ref', cls: EdgeRefNode });
 
 export { EdgeRefNode };

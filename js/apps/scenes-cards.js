@@ -2,27 +2,29 @@
  * scenes-cards.js — Card scene definition for OmniScene
  *
  * Renders a grid of styled HTML cards via the omni-html.js backend.
- * Node classes use the build / update / teardown phase vocabulary.
+ * Node classes use the mount / update / teardown phase vocabulary, the
+ * same as DemoHarnessHtml's, so these types mount in either.
  *
  * AST shape:
  *
  *   scene-root
  *     layer  (params: card-styling params)
  *       card-grid
- *         card  (value: ['Heading text', 'Body text 1', …])
- *         card  (value: ['Heading text', 'Body text 1', …])
+ *         flash-card  (value: ['Heading text', 'Body text 1', …])
+ *         flash-card  (value: ['Heading text', 'Body text 1', …])
  *         …
  *
  * walkPhase dispatches:
- *   card-grid (has subtree) → before_build / after_build,
+ *   card-grid (has subtree) → before_mount / after_mount,
  *                              before_update / after_update,
  *                              before_teardown / after_teardown
- *   card      (leaf)        → build, teardown
+ *   flash-card (leaf)       → mount, teardown
  *
  * Place in: apps/scenes-cards.js
  */
 
-import { MiniAstNode, SCENES, sceneRegistry } from '../omni-support/scene.js';
+import { MiniAstNode, SCENES } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ═══════════════════════════════════════════════════════
@@ -49,7 +51,7 @@ function textAlign(v) {
 
 
 // ═══════════════════════════════════════════════════════
-//  STATIC CSS  (injected once in build, removed in teardown)
+//  STATIC CSS  (injected once in mount, removed in teardown)
 // ═══════════════════════════════════════════════════════
 
 const STATIC_CSS = `
@@ -168,15 +170,15 @@ function generateDynamicCSS(p) {
 //  NODE: card-grid  (container — has subtree)
 // ═══════════════════════════════════════════════════════
 //
-// Walk dispatches: before_build / after_build
+// Walk dispatches: before_mount / after_mount
 //                  before_update
 //                  after_teardown
 
 class CardGridNode {
 
-  // ── Build ────────────────────────────────────────────
+  // ── Mount ────────────────────────────────────────────
 
-  static before_build(ctxMix, node, params) {
+  static before_mount(ctxMix, node, params) {
     const el = document.createElement('div');
     el.className = 'ocard-grid';
 
@@ -194,12 +196,12 @@ class CardGridNode {
     node.inst = { el, staticStyle, dynamicStyle };
 
     // Push parent so card children append into the grid
-    ctxMix._parentStack.push(ctxMix.parentEl);
+    ctxMix.parentStack.push(ctxMix.parentEl);
     ctxMix.parentEl = el;
   }
 
-  static after_build(ctxMix, node, params) {
-    ctxMix.parentEl = ctxMix._parentStack.pop();
+  static after_mount(ctxMix, node, params) {
+    ctxMix.parentEl = ctxMix.parentStack.pop();
   }
 
   // ── Update ───────────────────────────────────────────
@@ -226,12 +228,12 @@ class CardGridNode {
 //  NODE: card  (leaf — no subtree)
 // ═══════════════════════════════════════════════════════
 //
-// Walk dispatches: build, teardown
+// Walk dispatches: mount, teardown
 // value: ['Heading', 'Body item 1', 'Body item 2', …]
 
 class CardNode {
 
-  static build(ctxMix, node, params) {
+  static mount(ctxMix, node, params) {
     const data  = node.value || [];
     const index = ctxMix.flyweight._cardIndex ?? 0;
     ctxMix.flyweight._cardIndex = index + 1;
@@ -282,8 +284,8 @@ class CardNode {
 
 // ── Register node classes ────────────────────────────────
 
-sceneRegistry.registerNodeClass('card-grid', CardGridNode);
-sceneRegistry.registerNodeClass('cards',      CardNode);
+SYS.NODE_CLASSES.push({ name: 'card-grid', cls: CardGridNode });
+SYS.NODE_CLASSES.push({ name: 'flash-card', cls: CardNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -574,7 +576,7 @@ function cardsBuildUI(layer) {
 
 function createCardScene() {
   const cards = SAMPLE_CARDS.map(data =>
-    new MiniAstNode('card', [], data));
+    new MiniAstNode('flash-card', [], data));
 
   const grid  = new MiniAstNode('card-grid', cards);
 

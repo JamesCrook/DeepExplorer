@@ -1,5 +1,6 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * PlanetNode — owns crust, core, grid, cutaway planes, and clipping.
@@ -285,7 +286,7 @@ class PlanetNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('planet', PlanetNode);
+SYS.NODE_CLASSES.push({ name: 'planet', cls: PlanetNode });
 
 export { PlanetNode };
 

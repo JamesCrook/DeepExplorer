@@ -1,9 +1,10 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 
 // AtomRenderer must be exported from molam-objects.js.
 // Add to the export line: export { ..., AtomRenderer, BondRenderer };
 import { AtomRenderer } from '../3d-support/molam-objects.js';
+import { SYS } from '../omni-support/sys.js';
 
 // #mol/node/atom
 
@@ -132,7 +133,7 @@ class MolamAtomNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('molam-atoms', MolamAtomNode);
+SYS.NODE_CLASSES.push({ name: 'molam-atoms', cls: MolamAtomNode });
 
 export { MolamAtomNode };
 

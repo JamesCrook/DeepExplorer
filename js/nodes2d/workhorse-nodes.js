@@ -49,6 +49,7 @@
 
 import { sceneRegistry }     from '../omni-support/scene.js';
 import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ── External helpers (update paths once migrated) ────────────
 //
@@ -1279,12 +1280,12 @@ class Tree2Node {
 //  REGISTRATION
 // ═══════════════════════════════════════════════════════════════
 
-sceneRegistry.registerNodeClass('mind-map',  MindMapNode);
-sceneRegistry.registerNodeClass('atom',      AtomNode);
-sceneRegistry.registerNodeClass('bond',      BondNode);
-sceneRegistry.registerNodeClass('ruler',     RulerNode);
-sceneRegistry.registerNodeClass('chem',      ChemNode);
-sceneRegistry.registerNodeClass('tree2',     Tree2Node);
+SYS.NODE_CLASSES.push({ name: 'mind-map', cls: MindMapNode });
+SYS.NODE_CLASSES.push({ name: 'atom', cls: AtomNode });
+SYS.NODE_CLASSES.push({ name: 'bond', cls: BondNode });
+SYS.NODE_CLASSES.push({ name: 'ruler', cls: RulerNode });
+SYS.NODE_CLASSES.push({ name: 'chem', cls: ChemNode });
+SYS.NODE_CLASSES.push({ name: 'tree2', cls: Tree2Node });
 
 
 // ═══════════════════════════════════════════════════════════════

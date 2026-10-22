@@ -1,7 +1,8 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import { RibbonUI } from '../3d-support/ribbon3d.js';
 import { Spherical } from '../../js/utilities2/spherical.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * RibbonNode3D — owns a RibbonUI and optional route computation.
@@ -289,7 +290,7 @@ class RibbonNode3D extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ribbon3d', RibbonNode3D);
+SYS.NODE_CLASSES.push({ name: 'ribbon3d', cls: RibbonNode3D });
 
 export { RibbonNode3D };
 

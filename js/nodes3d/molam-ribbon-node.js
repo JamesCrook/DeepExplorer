@@ -1,8 +1,8 @@
-import { sceneRegistry } from '../omni-support/scene.js';
 import { RibbonNode3D } from './ribbon-node3d.js';
 import { RibbonUI } from '../3d-support/ribbon3d.js';
 import { getResidueColor } from '../3d-support/molam-objects.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 // #mol/node/ribbon
 
 /**
@@ -209,7 +209,7 @@ class MolamRibbonNode extends RibbonNode3D {
   }
 }
 
-sceneRegistry.registerNodeClass('molam-ribbon', MolamRibbonNode);
+SYS.NODE_CLASSES.push({ name: 'molam-ribbon', cls: MolamRibbonNode });
 
 export { MolamRibbonNode };
 

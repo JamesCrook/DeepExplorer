@@ -28,7 +28,7 @@ import { Vector2D, lerp } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, SectorPath, GridPath, BlendedPath,
          buildBentChild } from '../2d-support/path.js';
 import { SizeCache, GridDataSource, SyncOrchestrator, GridNavigator } from './multiscroller-nodes.js';
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ============================================================
 // TreeChartNavigator — cursor translation for tree-in-chart
@@ -661,7 +661,7 @@ class WarpableGridNode {
   }
 }
 
-sceneRegistry.registerNodeClass('warpable-grid', WarpableGridNode);
+SYS.NODE_CLASSES.push({ name: 'warpable-grid', cls: WarpableGridNode });
 
 
 // ============================================================
@@ -705,7 +705,7 @@ class RectGridCellNode {
   }
 }
 
-sceneRegistry.registerNodeClass('rect-grid-cell', RectGridCellNode);
+SYS.NODE_CLASSES.push({ name: 'rect-grid-cell', cls: RectGridCellNode });
 
 
 export { WarpableGridNode, RectGridCellNode, Polar,

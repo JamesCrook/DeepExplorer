@@ -40,7 +40,6 @@
  *   obj.content children →  node.subtree
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 
 import {
   getBox, getXy, applyObjectSettingsToContext, mayUpdateObjectStyle,
@@ -52,6 +51,7 @@ import {
   kStageFillAndText, kStageHots, kStageOutline,
   kStageArrowShaft, kStageArrowHead, kStageDragging,
 } from '../utilities/scorpio-drawing-utils.js';
+import { SYS } from '../omni-support/sys.js';
 
 // EXTERNAL — fix paths once migrated:
 // import { Vector2d }                from '../2d-support/vector2d.js';
@@ -908,29 +908,29 @@ class ProgNode {
 //  REGISTRATION
 // ═══════════════════════════════════════════════════════════════
 
-sceneRegistry.registerNodeClass('default',    DefaultNode);
-sceneRegistry.registerNodeClass('h-stack',    HStackNode);
-sceneRegistry.registerNodeClass('v-stack',    VStackNode);
-sceneRegistry.registerNodeClass('overlay',    OverlayNode);
-sceneRegistry.registerNodeClass('transform',  TransformNode);
-sceneRegistry.registerNodeClass('image',      ImageNode);
-sceneRegistry.registerNodeClass('tile',       TileNode);
-sceneRegistry.registerNodeClass('text',       TextNode);
-sceneRegistry.registerNodeClass('circle',     CircleNode);
-sceneRegistry.registerNodeClass('rectangle',  RectangleNode);
-sceneRegistry.registerNodeClass('spacer',     SpacerNode);
-sceneRegistry.registerNodeClass('chart',      ChartNode);
-sceneRegistry.registerNodeClass('graph',      GraphNode);
-sceneRegistry.registerNodeClass('bugle',      BugleNode);
-sceneRegistry.registerNodeClass('sankey',     SankeyNode);
-sceneRegistry.registerNodeClass('parliament', ParliamentNode);
-sceneRegistry.registerNodeClass('path',       PathNode);
-sceneRegistry.registerNodeClass('tree',       TreeNode);
-sceneRegistry.registerNodeClass('arrows',     ArrowsNode);
-sceneRegistry.registerNodeClass('spline',     SplineNode);
-sceneRegistry.registerNodeClass('draggable',  DraggableNode);
-sceneRegistry.registerNodeClass('drag2',      Drag2Node);
-sceneRegistry.registerNodeClass('prog',       ProgNode);
+SYS.NODE_CLASSES.push({ name: 'default', cls: DefaultNode });
+SYS.NODE_CLASSES.push({ name: 'h-stack', cls: HStackNode });
+SYS.NODE_CLASSES.push({ name: 'v-stack', cls: VStackNode });
+SYS.NODE_CLASSES.push({ name: 'overlay', cls: OverlayNode });
+SYS.NODE_CLASSES.push({ name: 'transform', cls: TransformNode });
+SYS.NODE_CLASSES.push({ name: 'image', cls: ImageNode });
+SYS.NODE_CLASSES.push({ name: 'tile', cls: TileNode });
+SYS.NODE_CLASSES.push({ name: 'text', cls: TextNode });
+SYS.NODE_CLASSES.push({ name: 'circle', cls: CircleNode });
+SYS.NODE_CLASSES.push({ name: 'rectangle', cls: RectangleNode });
+SYS.NODE_CLASSES.push({ name: 'spacer', cls: SpacerNode });
+SYS.NODE_CLASSES.push({ name: 'chart', cls: ChartNode });
+SYS.NODE_CLASSES.push({ name: 'graph', cls: GraphNode });
+SYS.NODE_CLASSES.push({ name: 'bugle', cls: BugleNode });
+SYS.NODE_CLASSES.push({ name: 'sankey', cls: SankeyNode });
+SYS.NODE_CLASSES.push({ name: 'parliament', cls: ParliamentNode });
+SYS.NODE_CLASSES.push({ name: 'path', cls: PathNode });
+SYS.NODE_CLASSES.push({ name: 'tree', cls: TreeNode });
+SYS.NODE_CLASSES.push({ name: 'arrows', cls: ArrowsNode });
+SYS.NODE_CLASSES.push({ name: 'spline', cls: SplineNode });
+SYS.NODE_CLASSES.push({ name: 'draggable', cls: DraggableNode });
+SYS.NODE_CLASSES.push({ name: 'drag2', cls: Drag2Node });
+SYS.NODE_CLASSES.push({ name: 'prog', cls: ProgNode });
 
 
 // ═══════════════════════════════════════════════════════════════

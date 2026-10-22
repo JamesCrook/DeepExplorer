@@ -11,10 +11,10 @@
  * Place in: nodes2d/omni-scene-nodes.js
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { Transform }     from '../omni-support/transform.js';
 import './drag-point-node.js';
 import './handle-frame-node.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ═══════════════════════════════════════════════════════
@@ -180,7 +180,7 @@ class LayerNode {
   }
 }
 
-sceneRegistry.registerNodeClass('layer', LayerNode);
+SYS.NODE_CLASSES.push({ name: 'layer', cls: LayerNode });
 
 
 /** Lightweight box factory for ctxMix.box propagation. */
@@ -271,7 +271,7 @@ class SceneRootNode {
   }
 }
 
-sceneRegistry.registerNodeClass('scene-root', SceneRootNode);
+SYS.NODE_CLASSES.push({ name: 'scene-root', cls: SceneRootNode });
 
 /*
 // ═══════════════════════════════════════════════════════
@@ -303,7 +303,7 @@ class CornerRectNode {
   }
 }
 
-sceneRegistry.registerNodeClass('corner-rect', CornerRectNode);
+SYS.NODE_CLASSES.push({ name: 'corner-rect', cls: CornerRectNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -333,7 +333,7 @@ class SimplePathNode {
   }
 }
 
-sceneRegistry.registerNodeClass('simple-path', SimplePathNode);
+SYS.NODE_CLASSES.push({ name: 'simple-path', cls: SimplePathNode });
 
 
 

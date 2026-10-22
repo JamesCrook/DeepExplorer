@@ -22,9 +22,9 @@
  *   rotation-arrow    — curved arrow indicator
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { drawLabel, drawArrow, drawCircle, drawRoundRect, drawDashedLine }
   from '../2d-support/mol-primitives.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ═══════════════════════════════════════════════════════
@@ -79,7 +79,7 @@ class AnimateSceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('animate-scene', AnimateSceneNode);
+SYS.NODE_CLASSES.push({ name: 'animate-scene', cls: AnimateSceneNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -114,7 +114,7 @@ class PorphyrinPlaneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('porphyrin-plane', PorphyrinPlaneNode);
+SYS.NODE_CLASSES.push({ name: 'porphyrin-plane', cls: PorphyrinPlaneNode });
 
 
 // ── Fe atom ──────────────────────────────────────────
@@ -134,7 +134,7 @@ class FeAtomNode {
   }
 }
 
-sceneRegistry.registerNodeClass('fe-atom', FeAtomNode);
+SYS.NODE_CLASSES.push({ name: 'fe-atom', cls: FeAtomNode });
 
 
 // ── O₂ molecule ──────────────────────────────────────
@@ -155,7 +155,7 @@ class O2MoleculeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('o2-molecule', O2MoleculeNode);
+SYS.NODE_CLASSES.push({ name: 'o2-molecule', cls: O2MoleculeNode });
 
 
 // ── His F8 lever ─────────────────────────────────────
@@ -185,7 +185,7 @@ class HisLeverNode {
   }
 }
 
-sceneRegistry.registerNodeClass('his-lever', HisLeverNode);
+SYS.NODE_CLASSES.push({ name: 'his-lever', cls: HisLeverNode });
 
 
 // ── Salt bridge ──────────────────────────────────────
@@ -219,7 +219,7 @@ class SaltBridgeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('salt-bridge', SaltBridgeNode);
+SYS.NODE_CLASSES.push({ name: 'salt-bridge', cls: SaltBridgeNode });
 
 
 // ── Chain block ──────────────────────────────────────
@@ -244,7 +244,7 @@ class ChainBlockNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chain-block', ChainBlockNode);
+SYS.NODE_CLASSES.push({ name: 'chain-block', cls: ChainBlockNode });
 
 
 // ── Binding arrow (Fe displacement indicator) ────────
@@ -260,7 +260,7 @@ class BindingArrowNode {
   }
 }
 
-sceneRegistry.registerNodeClass('binding-arrow', BindingArrowNode);
+SYS.NODE_CLASSES.push({ name: 'binding-arrow', cls: BindingArrowNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -298,7 +298,7 @@ class ProtonChannelNode {
   }
 }
 
-sceneRegistry.registerNodeClass('proton-channel', ProtonChannelNode);
+SYS.NODE_CLASSES.push({ name: 'proton-channel', cls: ProtonChannelNode });
 
 
 // ── Gamma shaft ──────────────────────────────────────
@@ -329,7 +329,7 @@ class GammaShaftNode {
   }
 }
 
-sceneRegistry.registerNodeClass('gamma-shaft', GammaShaftNode);
+SYS.NODE_CLASSES.push({ name: 'gamma-shaft', cls: GammaShaftNode });
 
 
 // ── F₁ barrel ────────────────────────────────────────
@@ -400,7 +400,7 @@ class F1BarrelNode {
   }
 }
 
-sceneRegistry.registerNodeClass('f1-barrel', F1BarrelNode);
+SYS.NODE_CLASSES.push({ name: 'f1-barrel', cls: F1BarrelNode });
 
 
 // ── Rotation arrow ───────────────────────────────────
@@ -426,4 +426,4 @@ class RotationArrowNode {
   }
 }
 
-sceneRegistry.registerNodeClass('rotation-arrow', RotationArrowNode);
+SYS.NODE_CLASSES.push({ name: 'rotation-arrow', cls: RotationArrowNode });

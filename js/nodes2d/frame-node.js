@@ -7,7 +7,7 @@
  *   - Unchanged: bump polygon, perimeter walker, edge generation.
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ── Seeded PRNG ─────────────────────────────────────────────
 
@@ -433,7 +433,7 @@ class FrameNode {
   }
 }
 
-sceneRegistry.registerNodeClass('stamp-frame', FrameNode);
+SYS.NODE_CLASSES.push({ name: 'stamp-frame', cls: FrameNode });
 
 export { FrameNode, generateEdgePoints, traceEdgePath,
          buildBumpPoly, evalBumpPoly, bumpProfile };

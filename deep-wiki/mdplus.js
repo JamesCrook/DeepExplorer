@@ -10,11 +10,23 @@
 //       rule stops naming a block kind and starts naming an ast.token.
 //
 //    2. RuleSet.apply() — an ordered list of rules, first match wins, each
-//       emitting a { type, value, _content } node. This is final: every rule
-//       written today survives the parser swap unchanged.
+//       emitting a scene node, { type, value, subtree: [] }. This is final:
+//       every rule written today survives the parser swap unchanged.
 //
-//  Nothing here knows what a widget is. transform() returns nodes; the host
-//  decides what to build from them.
+//  Nothing here knows what a widget is. transform() returns scene nodes; the
+//  host's node types decide what to build from them. A rule's fields land in
+//  the node's value like this:
+//
+//    with / scalar          → value (a scalar becomes { text }, a list
+//                             { list }, so value is always a map)
+//    content                → value.body, markup already rendered
+//    zoneOut                → value.zoneOut, the zone the node mounts in
+//    nav                    → value.on.click, what a click does, and the
+//                             selection group whose active member the
+//                             node's target is (see navEvents)
+//
+//  A node with a scene field joins group 'scene', keyed by it, so a stage
+//  and the topics that name its scene share one live member.
 
 // ── Coercion ──────────────────────────────────────────────
 
@@ -475,11 +487,15 @@ export class RuleSet {
       }
 
       const type = String(this._interp(r.emit, caps, block, ctx));
-      const node = { type, value: finalValue, _content: content, _rule: r.id || r.emit, _block: block };
-      if (r.zoneOut) node._zone = r.zoneOut;
+      const v = finalValue && typeof finalValue === 'object' && !Array.isArray(finalValue) ? finalValue
+              : Array.isArray(finalValue) ? { list: finalValue }
+              : finalValue == null || finalValue === '' ? {} : { text: finalValue };
+      if (content != null) v.body = content;
+      if (r.zoneOut) v.zoneOut = r.zoneOut;
       // What a click does. `nav` is a kind, not a column — a server loads two
       // files, so a column would be the wrong thing to name.
-      if (r.nav) node._nav = block.attrs.nav || r.nav;
+      navEvents(v, block.attrs.nav || r.nav);
+      const node = { type, value: v, subtree: [], _rule: r.id || r.emit, _block: block };
 
       // Group headings hand style down to the topics beneath them.
       if (r.provides) {
@@ -493,6 +509,36 @@ export class RuleSet {
     }
     return null;
   }
+}
+
+// ── Clicks and groups ─────────────────────────────────────
+//
+//  A rule's nav kind becomes the node's click, as an action the scene
+//  harness runs ('nav <kind> <target>'), and the node joins the selection
+//  group of things that kind opens, keyed by its target, so the one that is
+//  open shows as active with no click handler marking it:
+//
+//    server         group 'server'        the open corpus
+//    note, index    group 'topic'         the open note
+//    config         group 'config:<key>'  the chosen value of that key
+//    (scene field)  group 'scene'         the live stage; a click scrolls to it
+
+export function navEvents(v, nav) {
+  if (v.scene) { v.group = 'scene'; v.groupKey = v.scene; }
+  if (!nav) return v;
+  if (v.scene) {
+    v.on = { click: `nav scene ${v.scene}` };
+  } else if (nav === 'config') {
+    v.on = { click: 'nav config' };
+    v.group = 'config:' + v.key;
+    v.groupKey = String(v.value);
+  } else {
+    const target = v.note ?? v.url ?? v.id;
+    v.on = { click: `nav ${nav} ${target}` };
+    v.group = nav === 'server' ? 'server' : 'topic';
+    v.groupKey = String(target);
+  }
+  return v;
 }
 
 // ── Transform ─────────────────────────────────────────────
@@ -516,7 +562,7 @@ export function transform(src, ruleset, role) {
       // Controls islands pass through to rendering AND contribute their
       // declarations to config, so collect the body here rather than
       // re-parsing the whole document in absorbDoc.
-      if (node.type === 'controls' && node._content) controlIslands.push(node._content);
+      if (node.type === 'controls' && node.value.body) controlIslands.push(node.value.body);
     }
     else if (block.text || block.body) unmatched.push(block);
   }

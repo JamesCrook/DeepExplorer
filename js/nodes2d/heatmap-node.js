@@ -15,7 +15,7 @@
  * Place in: nodes2d/heatmap-node.js
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 // #heat/node/code
 
 // ═══════════════════════════════════════════════════════
@@ -592,6 +592,6 @@ class HeatmapNode {
   }
 }
 
-sceneRegistry.registerNodeClass('heatmap', HeatmapNode);
+SYS.NODE_CLASSES.push({ name: 'heatmap', cls: HeatmapNode });
 
 export { HeatmapNode, BODY_REGIONS, COLORMAPS, REGION_COUNT };

@@ -39,7 +39,7 @@
  * Place in: nodes2d/handle-frame-node.js
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 class HandleFrameNode {
@@ -413,6 +413,6 @@ class HandleFrameNode {
 }
 
 
-sceneRegistry.registerNodeClass('handle-frame', HandleFrameNode);
+SYS.NODE_CLASSES.push({ name: 'handle-frame', cls: HandleFrameNode });
 
 export { HandleFrameNode };

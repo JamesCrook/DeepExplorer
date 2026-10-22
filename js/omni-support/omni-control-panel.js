@@ -5,7 +5,7 @@
    Now uses the scene graph walker for DOM construction.
 
    _buildControls():
-     coerceToAST(sliderConfig) → walkPhase('mount')
+     coerceToAST(sliderConfig) → walkPhase('mount'), one walk per section
 
    _rebuildSubmenus():
      coerceToAST(sliderConfig, { menu: true }) → walkPhase('mount')
@@ -297,7 +297,7 @@ class OmniControlPanel {
         const type = resolveWidgetType(sec);
         const navType = sceneRegistry.meta[type]?.defaultParams?.navVersion;
         if (!navType) continue;
-        children.push(this._coerceNavNode(navType, sec, panelNode));
+        children.push(this._scoped(this._coerceNavNode(navType, sec, panelNode), sec));
       } else {
         // Wrap in control-group if needed (slider-group handles its own wrapper)
         const type = resolveWidgetType(sec);
@@ -305,14 +305,13 @@ class OmniControlPanel {
         const needsWrap = meta?.defaultParams?.wrapInGroup !== false;
 
         if (needsWrap && type !== 'slider-group') {
-          children.push({
+          children.push(this._scoped({
             type: 'control-group',
             value: { group: sec.group, id: sec.id, abbrev: sec.abbrev },
-            inst: sec._params ? { _params: sec._params } : {},
             subtree: [panelNode],
-          });
+          }, sec));
         } else {
-          children.push(panelNode);
+          children.push(this._scoped(panelNode, sec));
         }
       }
     }
@@ -320,6 +319,27 @@ class OmniControlPanel {
     return { type: 'panel', value: {}, subtree: children };
   }
 
+
+  /** A section with params of its own (a layer's, say) carries them on its
+   *  top node, and the panel walks that section with them: see _walkSections. */
+  _scoped(node, sec) {
+    if (sec._params) node.inst = { ...(node.inst || {}), _params: sec._params };
+    return node;
+  }
+
+  /** Mount each top-level section with a context of its own, whose params
+   *  are the section's or the panel's.  Widgets read the params the walk
+   *  passes them and write with ctxMix.setParam, so a slider in a layer's
+   *  section writes that layer's params with no scope stack to consult. */
+  _walkSections(ast, parentEl) {
+    for (const node of ast.subtree) {
+      const params = node.inst?._params ?? this.params;
+      const ctx = WidgetContext.fromPanel(this, params);
+      ctx.parentEl = parentEl;
+      ctx.parentStack = [];
+      sceneRegistry.runPhases(ctx, node, params, ['mount']);
+    }
+  }
 
   /**
    * Convert a single sliderConfig entry to a panel AST node.
@@ -928,12 +948,8 @@ class OmniControlPanel {
     const controlsEl = this.elements.controls;
     if (!controlsEl) return;
 
-    const ctx = WidgetContext.fromPanel(this);
-    ctx.parentEl = controlsEl;
-    ctx.parentStack = [];
-
     this._panelAST = this.coerceToAST(this.sliderConfig);
-    sceneRegistry.runPhases(ctx, this._panelAST, this.params, ['mount']);
+    this._walkSections(this._panelAST, controlsEl);
 
     if (this.hintHtml) {
       const hint = document.createElement('p');
@@ -955,12 +971,8 @@ class OmniControlPanel {
     // Build nav AST and walk it into a temporary container
     const navContainer = document.createElement('div');
 
-    const ctx = WidgetContext.fromPanel(this);
-    ctx.parentEl = navContainer;
-    ctx.parentStack = [];
-
     const navAST = this.coerceToAST(this.sliderConfig, { menu: true });
-    sceneRegistry.runPhases(ctx, navAST, this.params, ['mount']);
+    this._walkSections(navAST, navContainer);
 
     // Collect the top-level nav elements for the menu
     const elements = [...navContainer.children];

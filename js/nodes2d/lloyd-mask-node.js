@@ -20,8 +20,8 @@
  * (set by chip-layer-node's after_draw2d).
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { nm2screen, hexToRgb } from './mask-scene-nodes.js';
+import { SYS } from '../omni-support/sys.js';
 
 
 // ── Etch rules ───────────────────────────────────────────
@@ -151,7 +151,7 @@ class LloydMaskNode {
   }
 }
 
-sceneRegistry.registerNodeClass('lloyd', LloydMaskNode);
+SYS.NODE_CLASSES.push({ name: 'lloyd', cls: LloydMaskNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -341,6 +341,6 @@ class LloydDirectionsNode {
   }
 }
 
-sceneRegistry.registerNodeClass('lloyd-directions', LloydDirectionsNode);
+SYS.NODE_CLASSES.push({ name: 'lloyd-directions', cls: LloydDirectionsNode });
 
 export { LloydMaskNode, LloydDirectionsNode, ETCH_RULES, getEtchRule };

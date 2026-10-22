@@ -21,13 +21,10 @@ import { createItemFields } from '../omni-support/item-fields.js';
 
 // ── Node registrations (side effects) ────────────────────
 
-// mask-scene-nodes.js registers grid-bg, rect, clip-outline,
-// AND a mask 'layer' node that conflicts with omni-scene-nodes.
-// Re-register OmniScene's LayerNode immediately after.
+// mask-scene-nodes.js registers grid-bg, rect and clip-outline; 'layer' is
+// OmniScene's own (omni-scene-nodes.js).
 import '../nodes2d/mask-scene-nodes.js';
 import { screen2nm, nm2screen } from '../nodes2d/mask-scene-nodes.js';
-import { LayerNode as SceneLayerNode } from '../nodes2d/omni-scene-nodes.js';
-sceneRegistry.registerNodeClass('layer', SceneLayerNode);
 
 import '../nodes2d/lloyd-mask-node.js';
 import '../nodes2d/chip-layer-node.js';

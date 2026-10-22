@@ -19,6 +19,7 @@
 import { sceneRegistry } from '../omni-support/scene.js';
 import { ColorEngine, TextUtils } from '../utilities/color-engine.js';
 import { GeometryUtils } from '../../js/utilities2/line-geometry.js'
+import { SYS } from '../omni-support/sys.js';
 
 // ── NetworkNode ─────────────────────────────────────────────
 
@@ -100,5 +101,5 @@ class NetworkNode {
   }
 }
 
-sceneRegistry.registerNodeClass('net-node', NetworkNode );
+SYS.NODE_CLASSES.push({ name: 'net-node', cls: NetworkNode });
 

@@ -1,5 +1,6 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * GroundPlaneNode — owns a GridHelper and optional AxesHelper.
@@ -79,6 +80,6 @@ class GroundPlaneNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ground-plane', GroundPlaneNode);
+SYS.NODE_CLASSES.push({ name: 'ground-plane', cls: GroundPlaneNode });
 
 export { GroundPlaneNode };

@@ -3,7 +3,7 @@
 
 SceneRegistry is a double-dispatch table with a recursive tree walker.
 
-It maps (phase, nodeType) pairs to handler functions. You register a class; it scans the class for methods whose first parameter is named ctxMix and files each one under (methodName, nodeType). When you call dispatch(ctxMix, 'draw2d', node, params), it looks up handlers['draw2d'][node.type], falls back to handlers['draw2d']['default'], and calls whatever it finds.
+It maps (phase, nodeType) pairs to handler functions. You register a class, normally by pushing { name, cls } onto SYS.NODE_CLASSES (sys.js); it scans the class for methods whose first parameter is named ctxMix and files each one under (methodName, nodeType). When you call dispatch(ctxMix, 'draw2d', node, params), it looks up handlers['draw2d'][node.type], falls back to handlers['draw2d']['default'], and calls whatever it finds.
 
 walkPhase adds recursion, typically recursing into node.subtree, an array of nodes.
 runPhases calls walkPhase for each of a sequence of passes.
@@ -11,7 +11,7 @@ runPhases calls walkPhase for each of a sequence of passes.
 Common patterns are:
 * For canvas (2d) run phases of [ 'measure', 'layout', 'draw2d'] or ['hit_test']
 * For canvas (3d) mediated by THREE.js, phases of ['build','update','teardown']
-* For html dom phases of ['buildDom']
+* For html dom phases of ['mount', 'update', 'resize', 'teardown'] (omni-html.js and DemoHarnessHtml)
 
 You will often see the signature of a node function, such as draw2d(ctxMix, node, params)
 

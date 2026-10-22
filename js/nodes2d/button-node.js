@@ -9,7 +9,7 @@
  * params     — style/anim:    all visual knobs (layer-level); zoom, panX, panY
  */
 
-import { sceneRegistry }  from '../omni-support/scene.js';
+import { SYS } from '../omni-support/sys.js';
 
 // ── helpers ─────────────────────────────────────────────────
 
@@ -318,6 +318,6 @@ class ButtonNode {
   }
 }
 
-sceneRegistry.registerNodeClass('button-node', ButtonNode);
+SYS.NODE_CLASSES.push({ name: 'button-node', cls: ButtonNode });
 
 export { ButtonNode };

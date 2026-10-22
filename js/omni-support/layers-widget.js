@@ -12,7 +12,7 @@
  */
 
 import { OmniWidget } from './omni-widget.js';
-import { sceneRegistry } from './scene.js';
+import { SYS } from './sys.js';
 
 
 // ═══════════════════════════════════════════════════════
@@ -396,7 +396,7 @@ class SelectionActionBarWidget extends OmniWidget {
 // ═══════════════════════════════════════════════════════
 //  REGISTRATION
 // ═══════════════════════════════════════════════════════
-sceneRegistry.registerNodeClass('layers',               LayersWidget,              { wrapInGroup: false, showInStrip: false });
-sceneRegistry.registerNodeClass('selection-action-bar',  SelectionActionBarWidget,  { wrapInGroup: false, showInStrip: false });
+SYS.NODE_CLASSES.push({ name: 'layers', cls: LayersWidget, defaults: { wrapInGroup: false, showInStrip: false } });
+SYS.NODE_CLASSES.push({ name: 'selection-action-bar', cls: SelectionActionBarWidget, defaults: { wrapInGroup: false, showInStrip: false } });
 
 export { LayersWidget, SelectionActionBarWidget };

@@ -23,6 +23,9 @@ asks for another.
              the next head closes it.  (D+: sticky cards and stages.)
   zones      a node with zoneOut: 'name', anywhere below, moves under the box
              with zone: 'name'.  (D+: the chat input goes to its own zone.)
+  fold       a node with fold: 'key' is not drawn: its value[key] goes to the
+             node before it.  (D+: the '— …' line under a note's title is
+             the chat header's subtitle.)
 
 The passes are ordinary data in, data out, so a test can run one on a list
 without a page.
@@ -77,7 +80,19 @@ function prepassZones(list, root) {
   return holder.subtree;
 }
 
+function prepassFold(list) {
+  const out = [];
+  for (const n of list) {
+    const key = n.value?.fold;
+    if (!key) { out.push(n); continue; }
+    const prev = out[out.length - 1];
+    if (prev) (prev.value ||= {})[key] = n.value[key];
+  }
+  return out;
+}
+
 SYS.FUNCTIONS.push(
+  { name: 'prepass.fold',     fn: prepassFold },
   { name: 'prepass.scroller', fn: prepassScroller },
   { name: 'prepass.sections', fn: prepassSections },
   { name: 'prepass.zones',    fn: prepassZones },

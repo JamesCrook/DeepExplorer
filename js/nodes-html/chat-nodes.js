@@ -16,7 +16,8 @@ template cannot say lives here, as one of two things:
   a node class      when the node does more than fill markup:
                       tags       pills from a map of label → style key
                       diagrams   cards from the diagrams registry
-                      control    a slider that writes a CSS variable
+                      control    a slider for a CSS variable: its param is the
+                                 variable's name, and the app applies it
                       code       a code island, JSON highlighted and checked
                       html       raw HTML from a note, as written
 
@@ -27,7 +28,7 @@ class needs from the application comes from the harness's paneConfig
 
 These replace the chat-layout widgets that were in omni-widget.js, which
 d-plus.html mounted one by one with createWidget().  The stage, which hosts
-an OmniSceneApp, is in stage-node.js.
+an OmniSceneApp, is an html-host: host-omni-scene.js.
 */
 
 import { SYS } from '../omni-support/sys.js';
@@ -70,6 +71,7 @@ SYS.FUNCTIONS.push(
   { name: 'template.row', fn: (v) => ({
       bar: covBar(+(v.doc || 0), +(v.wiki || 0), 'sm', v.barStyle || ''),
     }) },
+  { name: 'template.header', fn: (v) => ({ domain: v.icon || '深' }) },
   { name: 'template.chatheader', fn: (v) => ({
       descHtml: v.desc ? `<span class="desc">${esc(v.desc)}</span>` : '',
     }) },
@@ -103,8 +105,9 @@ class DiagramsNode {
   }
 }
 
-/** A slider that writes a CSS custom property on :root.  The value is the
-    declaration from a controls island, seeded from resolved config. */
+/** A slider for a CSS custom property.  The value is the declaration from a
+    controls island, seeded from resolved config; a change sets the param
+    named by the variable (--msg-font-size) and announces it. */
 class CssVarSliderNode {
   static mount(ctxMix, node, params) {
     const c = node.value || {};
@@ -116,7 +119,13 @@ class CssVarSliderNode {
       step: c.step || (String(c.min).includes('.') || String(c.max).includes('.') ? 0.01 : 1),
       value: c.value ?? c.default ?? '0',
       format: v => (isFloat ? (+v).toFixed(2) : String(Math.round(+v))) + suffix,
-      onChange: v => { if (c.var) document.documentElement.style.setProperty(c.var, v + unit); },
+      // One channel: the value goes to params and is announced; what a CSS
+      // variable param does to the page is the application's to say.
+      onChange: v => {
+        if (!c.var) return;
+        ctxMix.setParam?.(c.var, v + unit);
+        ctxMix.onParamChange?.(c.var, v + unit);
+      },
     });
     node.inst = { ...(node.inst || {}), el };
     ctxMix.parentEl.appendChild(el);

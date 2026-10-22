@@ -57,7 +57,9 @@ node2d: js/omni-support/scene.js — SceneNode, sceneRegistry, MiniAstNode, Subt
 node2d: stand-alones/zoned-stnda.html — Working 2D node stnda example (ZonedNode, DemoHarness)
 node3d: js/omni-support/scene.js — SceneNode base class, sceneRegistry
 node3d: js/nodes3d/molam-atom-node.js — Working 3D node example (build/update/teardown)
-nodehtml: js/omni-support/omni-widget.js — OmniWidget base class, WidgetContext, createWidget, parseDslValue
+nodehtml: js/nodes-html/html-nodes.js — html-box, html-text, html-adopt: the static mount/update pattern
+nodehtml: js/omni-support/demo-harness-html.js — DemoHarnessHtml: mount once, update on change, events as data, groups, replace/append
+nodehtml: deep-wiki/content/_templates.md — templates as node types (markup with fields, sticky/with/activeClass attributes)
 lib: stand-alones/graph-library-stnda.html — Working infrastructure library stnda example
 grammar: js/parsers/parser.js — PEG parser (seq/or/rep combinators, AstNode)
 normalise: js/omni-support/scene.js — Target interface for normalised nodes
@@ -82,7 +84,7 @@ class Foo { ... }
 ```
 
 - `//-- file: PATH --` and `//-- endfile --` delimit a nugget region.
-- `//>> CODE` — dormant in the spike, active in the extracted file. Use for: `import` statements that reference other project files, `export` statements, `sceneRegistry.registerNodeClass(...)` calls.
+- `//>> CODE` — dormant in the spike, active in the extracted file. Use for: `import` statements that reference other project files, and `export` statements. Registrations are live in both: `SYS.NODE_CLASSES.push(...)`, since the spike has its own SYS.
 - `//<< CODE` — active in the spike (so it runs standalone), replaced by the real import when extracted. Place `<<` lines immediately before the `file:` marker.
 
 **Tag comments.** Place a `# tag` comment (e.g. `// #util/graph/lib/code`) at the top of each nugget class, matching the BOM tag. This links code to its BOM item.
@@ -179,10 +181,11 @@ class MyZone {
 
 ### Registration
 
-In the extracted nugget (dormant in the spike via `>>` marker):
+Live in the spike and in the extracted nugget; the import of SYS is the dormant part:
 
 ```js
-//>> sceneRegistry.registerNodeClass('my-type', MyClass);
+//>> import { SYS } from './sys.js';
+SYS.NODE_CLASSES.push({ name: 'my-type', cls: MyClass });
 ```
 
 ### The DemoHarness
@@ -251,7 +254,7 @@ setData(atoms, scale, colorMap) {
 ### Registration
 
 ```js
-sceneRegistry.registerNodeClass('my-3d-type', My3DNode);
+SYS.NODE_CLASSES.push({ name: 'my-3d-type', cls: My3DNode });
 ```
 
 ### Stnda for 3D nodes
@@ -275,53 +278,57 @@ The harness creates a scene shim: `{ add: obj => scene.add(obj), remove: obj => 
 
 ## HTML Widget Node #nodehtml
 
-**Use when:** creating a DOM-based widget that appears in the control panel, chat layout, or navigation menu.
+**Use when:** creating a DOM-based node for an HTML pane: a D+ chat widget, a panopticon widget, a control.
 
-### Base class
+### Template first
 
-Extend `OmniWidget` from `omni-widget.js`:
+If the node is markup with fields, it is a template, not a class. Add a fence to a template book (`deep-wiki/content/_templates.md`, or any Markdown+ pushed with `HtmlTemplateNode.pushBook`):
+
+````
+```html template=my-widget sticky with=my-widget
+<div class="my-widget">{title} {!body}<slot></slot></div>
+```
+````
+
+Every template is a node type of its own name. `{key}` is an escaped field, `{!key}` markup, `<slot>` where children go. Words after the name are type meta: `sticky`, `opens=scroller`, `activeClass=…`, and `with=name` for fields computed by `template.name` in `SYS.FUNCTIONS`.
+
+### Class when it needs code
+
+Static phase methods, first parameter `ctxMix`. Mount makes the element, appends it to `ctxMix.parentEl`, keeps it as `node.inst.el`:
 
 ```js
-class MyWidget extends OmniWidget {
-  constructor(config) { super(config); }
-
-  mount(ctx, config, params) {
-    // ctx is a WidgetContext (has .params, .panel, .render(), .setParam())
-    // config is the node — has .type, .value, ._content
-    // return a DOM element
+class MyWidget {
+  static meta = { sticky: false };             // read via registry meta
+  static mount(ctxMix, node, params) {
     const el = document.createElement('div');
-    // ... build DOM ...
-    return el;
+    // read: node.value and the walk's params
+    // write: ctxMix.setParam(id, v); ctxMix.onParamChange(id, v)
+    node.inst = { ...(node.inst || {}), el };
+    ctxMix.parentEl.appendChild(el);
   }
+  static update(ctxMix, node, params) { /* re-apply what params change */ }
+  static teardown(ctxMix, node, params) { /* release listeners */ }
 }
 ```
+
+A container uses `before_mount`/`after_mount` and pushes/pops `ctxMix.parentEl` on `ctxMix.parentStack`. The phases are the same in DemoHarnessHtml and OmniScene's HTML backend (omni-html.js), so a type mounts in either.
 
 ### Registration
 
 ```js
-sceneRegistry.registerNodeClass('my-widget', MyWidget, {
-  wrapInGroup: false,   // true = wrapped in a .control-group with <h3>
-  showInStrip: false,   // true = appears in multiscroller strip
-  sticky: false,        // true = wraps in sticky-section in chat layout
-});
+import { SYS } from '../omni-support/sys.js';
+SYS.NODE_CLASSES.push({ name: 'my-widget', cls: MyWidget });
 ```
 
-The third argument to `registerNodeClass` is `defaultParams` — these are merged into `params` on every dispatch.
+The registry absorbs pushes before its next walk. A name pushed twice: the later wins, with a console warning.
 
-### Config via DSL
+### Events as data
 
-In the `# {Split}` / `## {Split}` markdown content, widgets are declared as:
-
-```
-## {Split}
-:my-widget: {"key":"value","other":42}
-```
-
-The text after `:type:` is parsed by `parseDslValue()`, which tries JSON first, then falls back to legacy pipe format (`key=val | key2=val2`), then bare words. The result becomes `node.value`. Multi-line content after the first line becomes `node._content`.
+Clicks are not wired in mount. A node says what an event does with `value.on` (`{ click: 'nav note {label}' }`), markup inside it with `data-on="…"`; the actions are `action.*` in `SYS.FUNCTIONS`. A widget raises its own events with `ctxMix.fire(node, name, data)`.
 
 ### Stnda for widgets
 
-The harness mounts widgets directly into a DOM container, optionally using a WidgetContext shim for parameter access. No canvas needed.
+Put the node in a widget-stnda panel (a model pushed to `SYS.MODELS` with `displayType: 'html'`); the HTML harness mounts it, and clicking it fills the Selected panel from `meta.editableFields`. Nuggets that are library code are copied by `stand-alones/library_nuggets.py`.
 
 ---
 
@@ -464,7 +471,7 @@ The name of the function states the convention. The consumer does not need to kn
 
 3. **Separate data from rendering.** Domain data goes on `node.data`. Instance state (hovered index, selected set, cached layout) goes on `node.value`. Parameters that the user adjusts go in `params`.
 
-4. **Place spike_kit markers.** Wrap the nugget in `//-- file: PATH --` / `//-- endfile --`. Add `//>> export` and `//>> import` lines. Add `//<< import` lines before the `file:` marker. Add `//>> sceneRegistry.registerNodeClass(...)` if it's a scene graph node.
+4. **Place spike_kit markers.** Wrap the nugget in `//-- file: PATH --` / `//-- endfile --`. Add `//>> export` and `//>> import` lines. Add `//<< import` lines before the `file:` marker. Add `SYS.NODE_CLASSES.push({ name, cls })` if it's a scene graph node (live, with `//>> import { SYS } from './sys.js';`).
 
 5. **Build or preserve the DemoHarness.** The harness must call the nugget with the exact same signatures the real system uses. Document the mapping in comments.
 

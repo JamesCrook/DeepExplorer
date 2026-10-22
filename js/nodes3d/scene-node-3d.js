@@ -1,5 +1,6 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * SceneNode3D — container that owns a THREE.Group (sphereGroup).
@@ -65,6 +66,6 @@ class SceneNode3D extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('scene', SceneNode3D);
+SYS.NODE_CLASSES.push({ name: 'scene', cls: SceneNode3D });
 
 export { SceneNode3D };

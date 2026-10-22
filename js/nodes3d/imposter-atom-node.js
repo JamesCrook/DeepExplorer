@@ -1,6 +1,7 @@
-import { SceneNode, sceneRegistry } from '../omni-support/scene.js';
+import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
+import { SYS } from '../omni-support/sys.js';
 
 /**
  * ImposterAtomNode — high-performance atom rendering using billboard impostors.
@@ -516,7 +517,7 @@ class ImposterAtomNode extends SceneNode {
   }
 }
 
-sceneRegistry.registerNodeClass('imposter-atoms', ImposterAtomNode);
+SYS.NODE_CLASSES.push({ name: 'imposter-atoms', cls: ImposterAtomNode });
 
 export { ImposterAtomNode };
 // Auto-generated exports
