@@ -72,7 +72,7 @@ import { createWidget, _esc }
 import { sceneRegistry }     from '../js/omni-support/scene.js';
 
 import { RuleSet, transform, readFlatYaml, esc,
-         FetchSource, OverlaySource, LocalStore }
+         FetchSource, OverlaySource, LocalStore, DataSource }
                              from './mdplus.js';
 import { ConfigStack }       from './mdconfig.js';
 
@@ -132,9 +132,10 @@ class DeepExplorer {
     // Lightweight context for chat-layout widgets.  Panel widgets use
     // WidgetContext.fromPanel(panel) separately; this just lets code islands
     // find the validator and diagrams find their registry.
-    this._widgetCtx = { panel: this.panel };
+    this._widgetCtx = { panel: this.panel  };
     this._bindEvents();
   }
+
 
   // ── Boot ──────────────────────────────────────────────────
 
@@ -352,10 +353,17 @@ class DeepExplorer {
       presets:       {},
       enablePanZoom: false,   // Omni2d owns pan/zoom on its own canvas
       manageLayout:  false,   // never touch <body> — the chat grid owns layout
+      onSetDiv:      (el, kind) => this._onSetDiv(el,kind),
       onRender:      () => {},
       onResize:      () => {},
       onTopicSelect: (detail) => this._onPanelTopic(detail),
     });
+  }
+
+  _onSetDiv( el, kind ){
+    this.targetForChat = el;
+    this.targetKind = kind;
+    el.innerHTML = "New chat messages will appear here..."
   }
 
   _onPanelTopic(detail) {
@@ -430,6 +438,12 @@ class DeepExplorer {
       }
       if (!el) continue;
 
+      /**
+       * These if-then tests all will need to be replaced by code that lives in 
+       * the mount for the different node types.
+       * Then we will be able to walk() with 'mount'
+       **/
+
       // Navigation lives on the element, not in the click handler: the rule
       // said what a click does, so the handler needs no knowledge of types.
       if (node._nav) {
@@ -482,6 +496,16 @@ class DeepExplorer {
       }
     }
 
+    /**
+     * Temporary special case code, detects an insertion point for 
+     * from-server messages
+     **/
+    const el = this?.targetForChat
+    if( el )
+    {
+      el.innerHTML = `Source: ${this.targetKind}`
+      this._loadFromData( el );
+    }
     if (currentSection) (chatMsgs || container).appendChild(currentSection);
     if (chatMsgs) container.appendChild(chatMsgs);
     return { main: container, extra };
@@ -495,6 +519,40 @@ class DeepExplorer {
   }
 
   // ── Loading ───────────────────────────────────────────────
+
+  async _loadFromData( target){
+    const d = new DataSource();
+    try {
+      const data = await d.getHistory();
+      if (Array.isArray(data)) {
+        target.innerHTML = "";
+        const formatter = new Intl.DateTimeFormat('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'UTC' // Remove this line if you want it to automatically convert to the user's local time
+        });
+        for (const item of data) {
+          const date = new Date(item.ts);
+          const speaker = item.speaker ? { 
+            name: item.speaker, 
+            role: item.speaker=='Triquetra' ? 'u1':'u3', 
+            time: formatter.format( date ),
+            avatar: item.speaker.slice(0, 2) 
+          } : 'unknown';
+          this._appendMsg(target, speaker , _esc(item.text) ?? 'No message');
+        }
+      } else {
+        // Fallback just in case the API returned a single object instead of an array
+        target.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+      }
+    } catch (error) {
+      target.innerHTML = `<p>Stream was not available: ${error.message}</p>`;
+    }
+  }
 
   async _load(path, role, targetId, meta = {}) {
     const text = await this.source.read(path);
@@ -889,7 +947,7 @@ class DeepExplorer {
   _appendMsg(msgs, author, html) {
     const w = createWidget({
       type: 'message',
-      value: { name: author.name, role: author.role, avatar: author.avatar, time: 'just now' },
+      value: { name: author.name, role: author.role, avatar: author.avatar, time: author.time ??'just now' },
       _content: html,
     });
     msgs.appendChild(w.mount(this._widgetCtx, w.config, {}));

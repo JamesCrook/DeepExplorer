@@ -51,6 +51,7 @@ class OmniControlPanel {
     this.enablePanZoom = config.enablePanZoom !== false;
     this.onTopicSelect = config.onTopicSelect || (() => {});
     this.manageLayout = config.manageLayout !== false;
+    this.onSetDiv = config.onSetDiv || (() =>{}); 
 
     // Layout constants
     this.ASPECT_RATIO = config.aspectRatio || (800 / 650);

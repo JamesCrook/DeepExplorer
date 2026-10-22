@@ -151,7 +151,8 @@ class WidgetContext {
   }
 
   /** The currently active params object (top of the stack). */
-  get currentParams() { return this.paramsStack[this.paramsStack.length - 1]; }
+  get _currentParams() { return this.paramsStack[this.paramsStack.length - 1]; }
+  getParams(ctxMix, node, params) { return ctxMix.paramsStack?.[this.paramsStack.length - 1] ?? params; }
 
   /** Push a scoped params object (e.g. per-section _params). */
   pushParams(p) { this.paramsStack.push(p); }
@@ -162,11 +163,11 @@ class WidgetContext {
   }
 
   setParam(id, value) {
-    this.currentParams[id] = value;
+    this._currentParams[id] = value;
   }
 
   getParam(id) {
-    return this.currentParams[id];
+    return this._currentParams[id];
   }
 
   render()               { this._render(); }
@@ -262,7 +263,7 @@ class MorphSliderWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = v.isData
       ? (v.dataValue || v.default)
       : (p[pid] ?? v.default ?? v.min ?? 0);
@@ -393,7 +394,7 @@ class ColorPickerWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[v.id] ?? v.default ?? '#ffffffff';
 
     const controlEl = document.createElement('div');
@@ -479,7 +480,7 @@ class ButtonRowWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[v.id] ?? v.default;
 
     const controlEl = document.createElement('div');
@@ -693,7 +694,7 @@ class ToggleWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const checked = p[pid] ?? v.checked ?? false;
 
     const label = document.createElement('label');
@@ -953,7 +954,7 @@ class NumberInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[pid] ?? v.default ?? 0;
 
     const controlEl = document.createElement('div');
@@ -1001,7 +1002,7 @@ class TextInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = ctxMix.currentParams;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[pid] ?? v.default ?? '';
 
     const controlEl = document.createElement('div');
@@ -1231,6 +1232,19 @@ class BannerWidget extends OmniWidget {
     return OmniWidget.elementFromString(
       `<div>No Banner was specified</div>`
     );
+  }
+}
+
+class InclusionWidget extends OmniWidget {
+  get meta() { return _chatMeta; }
+  mount(ctxMix, node, params) {
+    const c = node.value || node;
+    const el = OmniWidget.elementFromString(
+      `<div>No Inclusion was specified</div>`
+    );
+    el.innerHTML = "Replaced this"
+    ctxMix.panel?.onSetDiv?.( el, 'inclusions')
+    return el;
   }
 }
 
@@ -1577,6 +1591,7 @@ sceneRegistry.registerNodeClass('button-group',   ButtonGroupWidget);
 sceneRegistry.registerNodeClass('server',         ServerIconWidget,    { wrapInGroup: false, showInStrip: false });
 sceneRegistry.registerNodeClass('separator',      SrvSeparatorWidget,  { wrapInGroup: false, showInStrip: false });
 sceneRegistry.registerNodeClass('banner',         BannerWidget,        { wrapInGroup: false, showInStrip: false });
+sceneRegistry.registerNodeClass('inclusion',      InclusionWidget,     { wrapInGroup: false, showInStrip: false });
 sceneRegistry.registerNodeClass('header',         ColHeaderWidget,     { wrapInGroup: false, showInStrip: false });
 sceneRegistry.registerNodeClass('chatheader',     ChatHeaderWidget,    { wrapInGroup: false, showInStrip: false });
 sceneRegistry.registerNodeClass('group',          SectionGroupWidget,  { wrapInGroup: false, showInStrip: false });

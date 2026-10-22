@@ -7,3 +7,4 @@
 ## Topics %%bg=#3a5050; fg=#80b8b0%%
 
 - S [[Streams]] 20k %%active%%
+- D [[DStream]] 10k %%active%%

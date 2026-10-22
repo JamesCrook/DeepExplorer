@@ -13,18 +13,16 @@ Common patterns are:
 * For canvas (3d) mediated by THREE.js, phases of ['build','update','teardown']
 * For html dom phases of ['buildDom']
 
-2d nodes differ in conventions as to what parameters for transformation they expect, and
-where they expect the paramaters to come from. ctxMix.T carries the transform object, and methods
-on T can deliver data in the convention the node requires, acting as an adapter of whatever
-the current context actually supplied.
-
 You will often see the signature of a node function, such as draw2d(ctxMix, node, params)
 
-- ctxMix has the ctx, the transform T and data that is built up during walking the scene
+- ctxMix has the ctx, and data that is built up during walking the scene
 - node holds the node itself. it may have a .value, serialisable as JSON, and a .inst instantiated during scene building for state and functions, but not persisted to storage. 
 - params is a a dictionary of values that are usually global for the model, so for example params.cornerRadius to change the rounding of all nodes that can round their corners.
 
-Because the conventions different parents of a node use are so flexible, we often access information through mediators, e.g. ctxMix.T.toScreen() to convert a coordinate and ctxMix.directCtx() to get a ctx we can draw to.
+Because the conventions different parents of a node use are so flexible, we often access information through mediators, e.g. ctxMix.getXY() to get the x and y of an element. This is specially helpful when using 
+flyweights, as where getXY() gets x and y from the node, the node can be fully instantiated, and where getXY()
+is fetching computed values, the protoype node can be reused multiple times for that same parent. The code
+for the node does not have to know whether it is being used for all its parameters.
 
 */
 // #node/spec/code
@@ -170,15 +168,6 @@ class SceneRegistry {
   }
 
   // ── Double dispatch: (phase, nodeType) → handler ──
-
-  dispatchXXX(ctxMix, phase, node, params, child) {
-    const phaseHandlers = this.handlers[phase];
-    if (!phaseHandlers) return;
-
-    const handler = phaseHandlers[node.type] || phaseHandlers['default'];
-    if (handler) handler(ctxMix, node, params, child);
-  }
-
   dispatch(ctxMix, phase, node, params, child) {
     const phaseHandlers = this.handlers[phase];
     if (!phaseHandlers) return;

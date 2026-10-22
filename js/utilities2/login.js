@@ -1,4 +1,6 @@
 
+const SCRIPT_URL = document.currentScript.src;
+
 document.addEventListener('DOMContentLoaded', function() {
   const loginLink = document.getElementById('login-link');
   
@@ -51,8 +53,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   loginLink.addEventListener('click', (e) => {
     e.preventDefault();
-    isLoggedIn = true;
-    updateLoginStateInternal();
+    isLoggedIn = false; // disabled
+    //updateLoginStateInternal();
+    const targetUrl = new URL('../../eportal/plans.html', SCRIPT_URL).href;
+    window.location.href = targetUrl;
   });
   
   logoutLink.addEventListener('click', (e) => {

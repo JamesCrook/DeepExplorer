@@ -417,7 +417,8 @@ export class RuleSet {
         if (!Object.entries(r.need).every(([k, v]) =>
               v === true ? block.attrs[k] !== undefined
                          : String(block.attrs[k]) === String(v))) continue;
-      } else if (r.roles && !r.roles.includes(ctx.role)) continue;
+      } else 
+        if (r.roles && !r.roles.includes(ctx.role)) continue;
 
       if (r.callout && r.callout !== block.callout) continue;
       if (r.variant !== undefined && String(r.variant) !== String(block.variant || '')) continue;
@@ -499,7 +500,7 @@ export class RuleSet {
 /** Run a document through a ruleset. `role` says what kind of document this
  *  is — servers, index, note, chat — not which column it lands in. */
 export function transform(src, ruleset, role) {
-  const ctx = { role, inherit: {} };
+  const ctx = { role, inherit: {}};
   const nodes = [];
   const unmatched = [];
   const controlIslands = [];        // `type=controls` islands, for config
@@ -621,6 +622,77 @@ export class FetchSource {
       `or supply a writable source.`);
   }
 }
+
+export class DataSource {
+
+  constructor(root = 'http://127.0.0.1:8765') { this.root = root.replace(/\/$/, ''); }
+  
+  async getHistory(scope = 'founders-dm', limit = 200, around = null) {
+    const params = new URLSearchParams({ scope, limit: String(limit) });
+    if (around) params.set('around', around);
+    
+    const res = await fetch(`${this.root}/api/history?${params}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data.messages || [];
+  }
+
+  // 1. Node Identity & Health
+  async getHealth() {
+    const res = await fetch(`${this.root}/api/health`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  // 2. Channels / Scopes
+  async getScopes() {
+    const res = await fetch(`${this.root}/api/scopes`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data.scopes || [];
+  }
+
+  // 4. Search
+  async search({ query, scope = '', order = 'relevance', limit = 25, offset = 0 }) {
+    const params = new URLSearchParams({
+      q: query,
+      order,
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (scope) params.set('scope', scope);
+
+    const res = await fetch(`${this.root}/api/search?${params}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json(); // returns { total, offset, matches: [...] }
+  }
+
+  // 5. Message Context (Surrounding messages)
+  async getContext(atomId, before = 6, after = 6) {
+    const params = new URLSearchParams({
+      id: atomId,
+      before: String(before),
+      after: String(after),
+    });
+
+    const res = await fetch(`${this.root}/api/context?${params}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  // 6. Send Message
+  async sendMessage(text, scope = 'founders-dm') {
+    const res = await fetch(`${this.root}/api/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope, text }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+};
+
+
 
 // ── Memory source ─────────────────────────────────────────
 //

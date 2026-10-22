@@ -273,7 +273,7 @@ class SceneRootNode {
 
 sceneRegistry.registerNodeClass('scene-root', SceneRootNode);
 
-
+/*
 // ═══════════════════════════════════════════════════════
 //  CORNER RECT — migrated to T + directCtx
 // ═══════════════════════════════════════════════════════
@@ -341,3 +341,6 @@ sceneRegistry.registerNodeClass('simple-path', SimplePathNode);
 export {
   LayerNode, SceneRootNode, CornerRectNode, SimplePathNode, makeBox,
 };
+*/
+
+export { LayerNode, makeBox }
