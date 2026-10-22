@@ -64,38 +64,55 @@
 
 <script type="module">
 
-import { OmniSceneApp }     from '../js/apps/omni-scene-app.js';
 import { OmniControlPanel } from '../js/omni-support/omni-control-panel.js';
 import { SCENES }           from '../js/omni-support/scene.js';
-import { createWidget, _esc }
-                             from '../js/omni-support/omni-widget.js';
-import { sceneRegistry }     from '../js/omni-support/scene.js';
+import { _esc }             from '../js/omni-support/omni-widget.js';
+import { SYS }              from '../js/omni-support/sys.js';
+import { DemoHarnessHtml }  from '../js/omni-support/demo-harness-html.js';
+import { HtmlTemplateNode } from '../js/nodes-html/html-template-node.js';
+import '../js/nodes-html/html-nodes.js';          // html-box, html-adopt
+import '../js/nodes-html/html-repeat-node.js';    // html-repeat
+import '../js/nodes-html/actions.js';             // nav, emit, select, …
+import '../js/nodes-html/prepasses.js';           // scroller, sections, zones
+import '../js/nodes-html/chat-nodes.js';          // tags, diagrams, control, code, html
+import '../js/nodes-html/stage-node.js';          // stage
 
-import { RuleSet, transform, readFlatYaml, esc,
+import { RuleSet, transform, readFlatYaml,
          FetchSource, OverlaySource, LocalStore, DataSource }
                              from './mdplus.js';
 import { ConfigStack }       from './mdconfig.js';
 
 
 // ═══════════════════════════════════════════════════════════════
-//  DeepExplorer — markdown-driven explorer UI, scene-graph aware
+//  DeepExplorer — markdown-driven explorer UI, one scene
 // ═══════════════════════════════════════════════════════════════
 //
-//  Content now lives in ./content as ordinary markdown. A file's ROLE — not
+//  Content lives in ./content as ordinary markdown. A file's ROLE — not
 //  the column it lands in — decides which rules may match it:
 //
 //      content/_rules.md          rules + cast, vault-wide
-//      content/_servers.md        role: servers
+//      content/_templates.md      what each widget looks like
+//      content/_project.md        config layers + the servers
 //      content/<server>/_index.md role: index
 //      content/<server>/<Note>.md role: note   (or chat, via %%doc role=chat%%)
 //
-//  Nothing is pinned to a column: a line marked %%server%% builds a server
-//  icon wherever it appears, and a click is routed by node._nav, not by the
-//  zone the widget happens to sit in.
+//  The page is one scene graph, walked by DemoHarnessHtml: a box per column,
+//  and in each a zone that a document is loaded into. A document becomes
+//  nodes (mdplus.js applies the rules), the nodes become the zone's children
+//  (harness.replace), and everything the page used to do by hand after a
+//  render is done by the nodes or by data on them:
 //
-//  A folder may add its own _rules.md; later rules win by id. Nothing below
-//  parses markdown — mdplus.js hands over { type, value, _content } nodes,
-//  which is exactly what createWidget already consumed.
+//      a sticky widget pins its section     prepass.sections, type meta
+//      the chat header opens a scroller     prepass.scroller, type meta
+//      the input goes below the chat        zoneOut, harness.replace
+//      a click loads a note or a server     on: { click: 'nav …' }
+//      the open note, server, live stage    selection groups (params)
+//      a stage hosts an OmniSceneApp        StageNode, nodes-html/stage-node.js
+//      a live stream's messages             html-repeat + source.dstream
+//
+//  This file keeps what only D+ knows: config, which document goes where,
+//  the adapter from the rules' node shape to the scene's (_toScene), and
+//  what nav, send and the config buttons do.
 
 
 class DeepExplorer {
@@ -119,21 +136,8 @@ class DeepExplorer {
     this.serverMeta = new Map(); // server id -> { default, icon }
     this._noLocalRules = new Set();  // servers known to have no _rules.md
 
-    this.liveStage    = null;    // the card whose scene the panel drives
-    this.engagedStage = null;    // the card that currently receives wheel
-    this.stageApps    = new Map();   // card -> OmniSceneApp
-    this._stageRO = null;
-    this._stageIO = null;
-    this._scrollHandler = null;
-    this._prevScroller = null;
-
-    this._createShell();
     this._createPanel();
-    // Lightweight context for chat-layout widgets.  Panel widgets use
-    // WidgetContext.fromPanel(panel) separately; this just lets code islands
-    // find the validator and diagrams find their registry.
-    this._widgetCtx = { panel: this.panel  };
-    this._bindEvents();
+    this._createScene();
   }
 
 
@@ -163,10 +167,11 @@ class DeepExplorer {
         document.removeEventListener('change', sweep, true);
       };
     }
+    await this._loadTemplates();
     this.vaultRules = RuleSet.fromMarkdown(await this.source.read('_rules.md'));
     this.ruleset = this.vaultRules;
-    await this._load(this.projectPath || '_servers.md', 'servers', 'zone-col1');
-    const first = this.el.querySelector('.srv[data-target]')?.dataset.target;
+    await this._load(this.projectPath || '_servers.md', 'servers', 'col1');
+    const first = this.harness.find(n => n.value?.group === 'server')?.value.groupKey;
     await this.loadTarget(
       initialServer || this.config.get('default-corpus') || first, 'server');
   }
@@ -176,6 +181,17 @@ class DeepExplorer {
       try { await this.source.read(p); return p; } catch { /* try the next */ }
     }
     throw new Error('no _project.md or _servers.md in this vault');
+  }
+
+  /** The vault's template book: what each widget looks like. Every fence is
+   *  a template, and every template a node type of its name. */
+  async _loadTemplates() {
+    try {
+      HtmlTemplateNode.pushBook(await this.source.read('_templates.md'), '_templates.md');
+    } catch (err) {
+      console.warn('d-plus: no _templates.md in this vault — widgets will show as missing', err);
+    }
+    SYS.audit();
   }
 
   /** Session changes are live but provisional. The affordance is deliberate:
@@ -262,86 +278,91 @@ class DeepExplorer {
     this._syncConfigUi();
   }
 
-  /** Reflect state onto whatever config buttons the content happens to have
-   *  rendered. The buttons are markdown+ (an `html` fence in Settings.md), so
-   *  this must tolerate their absence entirely. */
-  /** Pre-parse and cache config payloads on `[data-nav="config"]` elements.
-   *  Called once per document render; _syncConfigUi and _markConfigChoice
-   *  then read the cache instead of JSON.parsing every element every time. */
-  _cacheConfigPayloads() {
-    this._cfgPayloadCache = new WeakMap();
-    for (const el of this.el.querySelectorAll('[data-nav="config"]')) {
-      try {
-        const p = JSON.parse(el.dataset.payload || 'null');
-        if (p) this._cfgPayloadCache.set(el, p);
-      } catch { /* ignore */ }
-    }
-  }
-
-  _getCfgPayload(el) {
-    if (this._cfgPayloadCache?.has(el)) return this._cfgPayloadCache.get(el);
-    try { return JSON.parse(el.dataset.payload || 'null'); } catch { return null; }
-  }
-
+  /** Reflect config state onto the scene: the chosen option of each setting
+   *  is its group's active member, and the config buttons say what a click
+   *  would do. The buttons are markdown+ (an `html` fence in the settings
+   *  index), so this must tolerate their absence entirely. */
   _syncConfigUi() {
     const dirty = this.config.session.size;
     const held  = Object.keys(this.config.source?.overlays?.() || {}).length;
 
-    // Collect which config keys have elements — from cache, no JSON.parse.
-    const cfgKeys = new Set();
-    for (const el of this.el.querySelectorAll('[data-nav="config"]')) {
-      const p = this._getCfgPayload(el);
-      if (p?.key) cfgKeys.add(p.key);
-    }
-    for (const key of cfgKeys) this._markConfigChoice(key);
+    const keys = new Set();
+    this.harness.find(n => { if (n.value?.group?.startsWith('config:')) keys.add(n.value.group.slice(7)); return false; });
+    for (const key of keys) this._markConfigChoice(key);
 
-    for (const el of this.el.querySelectorAll('[data-cfg-count]')) {
+    const root = this.harness.root;
+    for (const el of root.querySelectorAll('[data-cfg-count]')) {
       el.textContent = dirty
         ? `${dirty} unsaved change${dirty === 1 ? '' : 's'}`
         : (held ? 'saved in this browser' : 'no local settings');
     }
-    for (const el of this.el.querySelectorAll('[data-cfg-act="save"], [data-cfg-act="revert"]')) {
+    for (const el of root.querySelectorAll('[data-on="emit config-save"], [data-on="emit config-revert"]')) {
       el.toggleAttribute('disabled', dirty === 0);
     }
-    for (const el of this.el.querySelectorAll('[data-cfg-act="clear"]')) {
+    for (const el of root.querySelectorAll('[data-on="emit config-clear"]')) {
       el.toggleAttribute('disabled', held === 0);
     }
     // Downloading the resolved settings is always possible, even with an
     // empty browser layer — that is how you seed a vault _local.md.
-    for (const el of this.el.querySelectorAll('[data-cfg-act="download"]')) {
+    for (const el of root.querySelectorAll('[data-on="emit config-download"]')) {
       el.removeAttribute('disabled');
     }
   }
 
-  // ── Shell ─────────────────────────────────────────────────
+  // ── Scene ─────────────────────────────────────────────────
   //
-  //  col2 is split so the panel and the markdown never fight over the same
-  //  element. #panel-controls is STABLE for the panel's lifetime — the panel
-  //  holds a direct reference to it, so if markdown ever replaced it the
-  //  panel would be left writing into a detached node. Markdown owns only
-  //  #zone-col2-head and #zone-col2-topics.
+  //  The three columns, as boxes, and in them the zones documents load into.
+  //  The ids and classes are the ones the stylesheet already uses. The
+  //  control panel is made outside the scene and adopted into col2: it holds
+  //  its container for its lifetime, so the scene places that element but
+  //  never remakes it. Documents load into #zone-col2-topics, beside it.
 
-  _createShell() {
-    this.el.innerHTML = `<div class="app">
-      <div id="zone-col1" class="servers"></div>
-      <div class="channels">
-        <div id="zone-col2-head"></div>
-        <div class="ch-body">
-          <div id="zone-col2-topics"></div>
-          <div class="col2-sep"></div>
-          <div id="panel-controls" class="controls"></div>
-        </div>
-      </div>
-      <div class="chat-col">
-        <div id="zone-col3"></div>
-        <div id="zone-widgets"></div>
-      </div></div>`;
+  _createScene() {
+    const box = (value, kids = []) => ({ type: 'html-box', value, subtree: kids });
+    const zone = (name, id, cls) =>
+      box({ zone: name, attrs: { id }, prepare: ['scroller', 'sections'], ...(cls ? { class: cls } : {}) });
+
+    const root = box({ class: 'app' }, [
+      zone('col1', 'zone-col1', 'servers'),
+      box({ class: 'channels' }, [
+        zone('col2.head', 'zone-col2-head'),
+        box({ class: 'ch-body' }, [
+          zone('col2.topics', 'zone-col2-topics'),
+          box({ class: 'col2-sep' }),
+          { type: 'html-adopt', value: { from: 'panel' }, subtree: [] },
+        ]),
+      ]),
+      box({ class: 'chat-col' }, [
+        zone('col3', 'zone-col3'),
+        zone('widgets', 'zone-widgets'),
+      ]),
+    ]);
+
+    this.paneConfig = {
+      sceneRoot: root,
+      params: {},
+      elements: { panel: this.panelControlsEl },
+      panel: this.panel,                          // shared by every stage
+      diagrams: this.diagrams,                    // for the diagrams node
+      validator: OmniControlPanel.validateSpec,   // for JSON code islands
+      onNav:  (kind, target, ctx) => {
+        ctx.event?.preventDefault();
+        this.loadTarget(target, kind, ctx.item?.value);
+      },
+      onEmit: (name, ctx) => this._onEmit(name, ctx),
+      onParamChange: (id, val) => { this._onParamChange(id, val); },
+    };
+    this.harness = DemoHarnessHtml.attach(this.el, this.paneConfig, null);
   }
 
-  /** One panel, shared by every stage card. Whichever card is live calls
+  _zone(name) { return this.harness.find(n => n.value?.zone === name); }
+
+  /** One panel, shared by every stage card. Whichever stage is live calls
    *  _rebuildContext() and re-points the panel at its own scene. */
   _createPanel() {
-    this.panelControlsEl = this.el.querySelector('#panel-controls');
+    this.panelControlsEl = document.createElement('div');
+    this.panelControlsEl.id = 'panel-controls';
+    this.panelControlsEl.className = 'controls';
     this.panel = new OmniControlPanel({
       elements: {
         container: this.panelControlsEl,
@@ -353,29 +374,56 @@ class DeepExplorer {
       presets:       {},
       enablePanZoom: false,   // Omni2d owns pan/zoom on its own canvas
       manageLayout:  false,   // never touch <body> — the chat grid owns layout
-      onSetDiv:      (el, kind) => this._onSetDiv(el,kind),
       onRender:      () => {},
       onResize:      () => {},
       onTopicSelect: (detail) => this._onPanelTopic(detail),
     });
   }
 
-  _onSetDiv( el, kind ){
-    this.targetForChat = el;
-    this.targetKind = kind;
-    el.innerHTML = "New chat messages will appear here..."
-  }
-
   _onPanelTopic(detail) {
     if (detail.topic?.scene) this._scrollToScene(detail.topic.scene);
   }
 
-  // ── Node preparation ──────────────────────────────────────
+  // ── From rules to scene ───────────────────────────────────
   //
-  //  Rules emit a widget type and a value; three types need a little more
-  //  before createWidget can take them, and one is not a widget at all.
-  //  This is the only place in the app that knows a widget type by name.
+  //  mdplus.js hands over { type, value, _content, _nav, _zone } per block.
+  //  _toScene turns one into a scene node, by its fields only:
+  //
+  //    a value that is not a map      → { text } or { list }
+  //    _content (rendered markup)     → value.body
+  //    _zone                          → value.zoneOut
+  //    _nav: what a click does        → value.on, and the selection group
+  //                                     the target belongs to
+  //    a scene field                  → group 'scene', so a stage and the
+  //                                     topics naming its scene share a
+  //                                     live member
 
+  _toScene(node) {
+    const raw = node.value;
+    const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw }
+            : Array.isArray(raw) ? { list: raw }
+            : raw == null || raw === '' ? {} : { text: raw };
+    if (node._content != null) v.body = node._content;
+    if (node._zone) v.zoneOut = node._zone;
+    if (v.scene) { v.group = 'scene'; v.groupKey = v.scene; }
+    const nav = node._nav;
+    if (nav && v.scene) {
+      v.on = { click: `nav scene ${v.scene}` };
+    } else if (nav === 'config') {
+      v.on = { click: 'nav config' };
+      v.group = 'config:' + v.key;
+      v.groupKey = String(v.value);
+    } else if (nav) {
+      const target = v.note ?? v.url ?? v.id;
+      v.on = { click: `nav ${nav} ${target}` };
+      v.group = nav === 'server' ? 'server' : 'topic';
+      v.groupKey = String(target);
+    }
+    return { type: node.type, value: v, subtree: [] };
+  }
+
+  //  What is left of type-by-name knowledge: three rule outputs that are not
+  //  widgets of their own, and one that takes a field from the document.
   _prepare(nodes, meta) {
     const out = [];
     for (const node of nodes) {
@@ -395,166 +443,22 @@ class DeepExplorer {
         // Seeded from resolved config, so a slider opens where the user left
         // it instead of snapping to the island default and saving that back.
         for (const c of this.config.seedControls(readFlatYaml(node._content))) {
-          out.push({ type: 'control', value: c, _content: null });
+          out.push({ type: 'control', value: c, subtree: [] });
         }
         continue;
       }
 
-      // The rule's `split` already made this a list; it needs the registry.
-      if (node.type === 'diagrams') node._diagrams = this.diagrams;
-
-      if (node.type === 'header') {
-        node._content = `<span class="domain">${esc(meta.icon || '深')}</span> ` +
-          node._content +
-          ` <span class="stage-track" style="color:var(--text-3);font-weight:400;font-size:11px"></span>`;
-      }
-
-      if (node.type === 'code') node.validator = OmniControlPanel.validateSpec;
-
-      out.push(node);
+      const n = this._toScene(node);
+      // The index header shows the corpus's icon, from its %%index%% line.
+      if (n.type === 'header') n.value.domain = meta.icon || '深';
+      out.push(n);
     }
     return out;
   }
 
-  // ── Rendering ─────────────────────────────────────────────
-  //
-  //  Unchanged from the {Split} era except for its input: it takes nodes
-  //  rather than text. meta.sticky wraps a fragment in a position:sticky
-  //  section; chatheader opens the chat-msgs scroller.
-
-  _render(nodes) {
-    const container = document.createDocumentFragment();
-    const extra = {};              // zoneOut nodes, e.g. the chat input
-    let currentSection = null;
-    let chatMsgs = null;
-
-    for (const node of nodes) {
-      let el;
-      try {
-        el = createWidget(node).mount(this._widgetCtx, node, {});
-      } catch (err) {
-        console.error('d-plus: widget "' + node.type + '" failed', err, node);
-        continue;
-      }
-      if (!el) continue;
-
-      /**
-       * These if-then tests all will need to be replaced by code that lives in 
-       * the mount for the different node types.
-       * Then we will be able to walk() with 'mount'
-       **/
-
-      // Navigation lives on the element, not in the click handler: the rule
-      // said what a click does, so the handler needs no knowledge of types.
-      if (node._nav) {
-        const t = el.querySelector?.('.ch, .srv') || el;
-        const target = node.value?.note ?? node.value?.url ?? node.value?.id;
-        if (t.dataset) {
-          t.dataset.nav = node._nav;
-          if (target !== undefined) t.dataset.target = target;
-          // A single opaque string was enough while every click loaded a
-          // document. It is not enough for a click that SETS something, so
-          // the whole value rides along. `nav` still says what the click
-          // does; the payload says what to do it with.
-          if (node.value && typeof node.value === 'object') {
-            try { t.dataset.payload = JSON.stringify(node.value); }
-            catch { /* nothing serialisable — target alone still works */ }
-          }
-        }
-      }
-
-      if (node._zone) {
-        (extra[node._zone] ||= document.createDocumentFragment()).appendChild(el);
-        continue;
-      }
-
-      const target = chatMsgs || container;
-      const sticky = sceneRegistry.meta[node.type]?.defaultParams?.sticky;
-
-      if (sticky) {
-        // Close previous sticky section
-        if (currentSection) target.appendChild(currentSection);
-        // Open new one: sticky-head pins, children scroll beneath
-        currentSection = document.createElement('div');
-        currentSection.className = 'sticky-section';
-        const head = document.createElement('div');
-        head.className = 'sticky-head';
-        head.appendChild(el);
-        currentSection.appendChild(head);
-
-      } else if (node.type === 'chatheader') {
-        // ChatHeader produces just the bar; we open the scroller.
-        container.appendChild(el);
-        chatMsgs = document.createElement('div');
-        chatMsgs.className = 'chat-msgs';
-
-      } else {
-        // Non-sticky fragments: go inside the open section (as
-        // siblings of sticky-head), or directly into the target.
-        if (currentSection) currentSection.appendChild(el);
-        else target.appendChild(el);
-      }
-    }
-
-    /**
-     * Temporary special case code, detects an insertion point for 
-     * from-server messages
-     **/
-    const el = this?.targetForChat
-    if( el )
-    {
-      el.innerHTML = `Source: ${this.targetKind}`
-      this._loadFromData( el );
-    }
-    if (currentSection) (chatMsgs || container).appendChild(currentSection);
-    if (chatMsgs) container.appendChild(chatMsgs);
-    return { main: container, extra };
-  }
-
-  _mountInto(id, frag) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = '';
-    if (frag) el.appendChild(frag);
-  }
-
   // ── Loading ───────────────────────────────────────────────
 
-  async _loadFromData( target){
-    const d = new DataSource();
-    try {
-      const data = await d.getHistory();
-      if (Array.isArray(data)) {
-        target.innerHTML = "";
-        const formatter = new Intl.DateTimeFormat('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: 'UTC' // Remove this line if you want it to automatically convert to the user's local time
-        });
-        for (const item of data) {
-          const date = new Date(item.ts);
-          const speaker = item.speaker ? { 
-            name: item.speaker, 
-            role: item.speaker=='Triquetra' ? 'u1':'u3', 
-            time: formatter.format( date ),
-            avatar: item.speaker.slice(0, 2) 
-          } : 'unknown';
-          this._appendMsg(target, speaker , _esc(item.text) ?? 'No message');
-        }
-      } else {
-        // Fallback just in case the API returned a single object instead of an array
-        target.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-      }
-    } catch (error) {
-      target.innerHTML = `<p>Stream was not available: ${error.message}</p>`;
-    }
-  }
-
-  async _load(path, role, targetId, meta = {}) {
+  async _load(path, role, zoneName, meta = {}) {
     const text = await this.source.read(path);
     // A document may declare its own role; re-run if it does.
     let { nodes, unmatched, controlIslands } = transform(text, this.ruleset, role);
@@ -573,31 +477,10 @@ class DeepExplorer {
       this.config.absorbDoc(controlIslands);
     }
 
-    const { main, extra } = this._render(this._prepare(nodes, meta));
-    this._mountInto(targetId, main);
-    for (const [z, frag] of Object.entries(extra)) {
-      this._mountInto('zone-' + z.replace(/\./g, '-'), frag);
-    }
-
-    // ── Generic post-processing ──────────────────────────────
-    //
-    // These used to live in _loadNote exclusively. They work on any
-    // scrolling container in any zone — a stage in col2 or a sticky
-    // section in a fourth column would be handled identically.
-
-    const zone = document.getElementById(targetId);
-    if (zone) {
-      const scroller = zone.querySelector('.chat-msgs') || zone;
-      const heads = scroller.querySelectorAll('.sticky-head');
-      if (heads.length) this._initStickyObservers(scroller);
-
-      const stages = scroller.querySelectorAll('.scene-stage');
-      if (stages.length) this._initStages(scroller);
-    }
-
-    this._cacheConfigPayloads();
+    this.harness.replace(this._zone(zoneName), this._prepare(nodes, meta));
+    this._paintTrack();
+    this._watchChat();
     this._syncConfigUi();
-
     return meta;
   }
 
@@ -609,6 +492,7 @@ class DeepExplorer {
 
   async loadTarget(target, kind = 'note', payload = null) {
     if (kind === 'config') return this._applyConfig(payload);
+    if (kind === 'scene')  return this._scrollToScene(target);
     if (!target) return;
     if (kind === 'server') return this._loadServer(target);
     if (kind === 'index')  return this._loadIndex(target);
@@ -627,23 +511,16 @@ class DeepExplorer {
     this._onConfigChanged([payload.key]);
   }
 
-  /** Mark the chosen option in any list of settings for the same key. */
+  /** The chosen option in any list of settings for the same key is the
+   *  active member of that key's group. */
   _markConfigChoice(key) {
-    const current = String(this.config.get(key));
-    this.el.querySelectorAll('[data-nav="config"]').forEach(el => {
-      const p = this._getCfgPayload(el);
-      if (!p || p.key !== key) return;
-      el.classList.toggle('active', String(p.value) === current);
-    });
+    const g = 'config:' + key, current = String(this.config.get(key));
+    if (this.harness.params[g] !== current) this.harness.setParam(g, current);
   }
 
   async _loadServer(id) {
     this.activeServerId = id;
-    this.el.querySelectorAll('.srv[data-server-id]').forEach(el => {
-      const isActive = el.dataset.serverId === id;
-      el.classList.toggle('active', isActive);
-      el.classList.toggle('dormant', !isActive);
-    });
+    this.harness.setParam('server', id);
 
     // A folder may refine the vault ruleset; later rules win by id. The miss
     // is cached — the browser logs a failed fetch whatever we catch here.
@@ -655,16 +532,15 @@ class DeepExplorer {
       } catch { this._noLocalRules.add(id); }
     }
 
-    this._teardownStages();
-    this._mountInto('zone-col3', null);
-    this._mountInto('zone-widgets', null);
+    this.harness.replace(this._zone('col3'), []);
+    this.harness.replace(this._zone('widgets'), []);
 
     const meta = await this._loadIndex(id);
     if (meta?.default) await this._loadNote(meta.default);
   }
 
   async _loadIndex(id) {
-    const meta = await this._load(`${id}/_index.md`, 'index', 'zone-col2-topics');
+    const meta = await this._load(`${id}/_index.md`, 'index', 'col2.topics');
     this.serverMeta.set(id, meta);
     this._noteRole = meta.notes || 'note';
     return meta;
@@ -673,297 +549,116 @@ class DeepExplorer {
   async _loadNote(name) {
     const id = this.activeServerId;
     if (!id) return;
-    this._teardownStages();
     try {
-      await this._load(`${id}/${name}.md`, this._noteRole || 'note', 'zone-col3');
+      await this._load(`${id}/${name}.md`, this._noteRole || 'note', 'col3');
     } catch (err) {
       console.warn('d-plus: no note "' + name + '" in ' + id, err);
       return;
     }
-    if (!this.stageApps.size) this.panel.setContext({ sliderConfig: [] });
+    this.harness.setParam('topic', name);
+    if (!this._stages().length) this.panel.setContext({ sliderConfig: [] });
   }
 
-  // ── Sticky observers ──────────────────────────────────────
+  // ── The chat, and its live stage ──────────────────────────
+  //
+  //  The live stage is the last one whose sticky head has reached the top of
+  //  the chat. It is the active member of group 'scene', so setting that
+  //  param marks the stage and the scene topics, and the stage itself
+  //  re-points the shared panel (StageNode.update).
 
-  _initStickyObservers(scrollContainer) {
-    scrollContainer.querySelectorAll('.sticky-head').forEach(head => {
-      const sentinel = document.createElement('div');
-      sentinel.style.cssText = 'height:1px;margin-bottom:-1px;';
-      head.parentElement.insertBefore(sentinel, head);
-      new IntersectionObserver(([entry]) => {
-        const above = entry.boundingClientRect.top < scrollContainer.getBoundingClientRect().top;
-        head.classList.toggle('is-stuck', !entry.isIntersecting && above);
-      }, { root: scrollContainer, threshold: 0 }).observe(sentinel);
-    });
-  }
+  _scroller() { return this.harness.find(n => n.value?.class === 'chat-msgs'); }
+  _stages()   { const out = []; this.harness.find(n => { if (n.type === 'stage') out.push(n); return false; }); return out; }
 
-  // ── Stages ────────────────────────────────────────────────
-
-  _teardownStages() {
-    for (const app of this.stageApps.values()) {
-      try { app._stopAnimLoop(); app.activeBackend?.deactivate(); } catch (e) { /* nothing to undo */ }
-    }
-    this.stageApps.clear();
-    this.liveStage = null;
-    this.engagedStage = null;
-    this._stageRO?.disconnect();  this._stageRO = null;
-    this._stageIO?.disconnect();  this._stageIO = null;
-    if (this._scrollHandler && this._prevScroller) {
-      this._prevScroller.removeEventListener('scroll', this._scrollHandler);
-    }
-    this._scrollHandler = null;
-  }
-
-  _initStages(scroller) {
-    const stages = [...scroller.querySelectorAll('.scene-stage')];
-    if (!stages.length) return;
-
-    for (const stage of stages) this._mountStage(stage);
-
-    // Resize: Omni2d.resize() measures the canvas's parentElement, which is
-    // zero-sized until the card is laid out. Re-measure whenever it changes.
-    if (typeof ResizeObserver !== 'undefined') {
-      this._stageRO = new ResizeObserver(entries => {
-        for (const e of entries) {
-          const app = this.stageApps.get(e.target);
-          if (!app?.activeBackend) continue;
-          app.activeBackend.resize();
-          app.render();
-        }
-      });
-      stages.forEach(s => this._stageRO.observe(s));
-    }
-
-    // Dormancy: a card scrolled out of view costs nothing. Its last frame
-    // stays on its canvas; nothing redraws until it returns.
-    if (typeof IntersectionObserver !== 'undefined') {
-      this._stageIO = new IntersectionObserver(entries => {
-        for (const e of entries) {
-          const app = this.stageApps.get(e.target);
-          if (!app) continue;
-          e.target.dataset.visible = e.isIntersecting ? '1' : '0';
-          if (e.isIntersecting) {
-            app.activeBackend?.resize();
-            app.render();
-            if (app.currentScene?.animated) app._startAnimLoop();
-          } else {
-            app._stopAnimLoop();
-            if (this.engagedStage === e.target) this._engageStage(null);
-          }
-        }
-      }, { root: scroller, threshold: 0 });
-      stages.forEach(s => this._stageIO.observe(s));
-    }
-
+  _watchChat() {
+    const el = this._scroller()?.inst?.el;
+    if (el === this._watched) return;
+    this._watched?.removeEventListener('scroll', this._onChatScroll);
+    this._watched = el;
+    if (!el) return;
     let queued = false;
-    this._scrollHandler = () => {
+    this._onChatScroll = () => {
       if (queued) return;
       queued = true;
-      requestAnimationFrame(() => { queued = false; this._updateLiveStage(scroller); });
+      requestAnimationFrame(() => { queued = false; this._updateLiveStage(); });
     };
-    this._prevScroller = scroller;
-    scroller.addEventListener('scroll', this._scrollHandler, { passive: true });
-    this._updateLiveStage(scroller);
+    el.addEventListener('scroll', this._onChatScroll, { passive: true });
+    this._updateLiveStage();
   }
 
-  /** Build a shell for one card and hand it to a real OmniSceneApp.
-   *  Reusing OmniSceneApp means Omni2d still receives the `this` it expects —
-   *  no backend code is touched or duplicated here. */
-  _mountStage(card) {
-    if (this.stageApps.has(card)) return;
-    const sceneId = card.dataset.stageScene;
-    const mount = card.querySelector('[data-stage-mount]');
-    if (!mount) return;
-
-    if (!SCENES.find(s => s.id === sceneId)) {
-      mount.insertAdjacentHTML('beforeend',
-        `<div class="stage-err">No scene registered with id "${_esc(sceneId || '')}"</div>`);
-      return;
-    }
-
-    // Mirrors OmniApp's multi-layer stack: a sized wrapper (Omni2d.resize
-    // measures it), the canvas flowing normally, the other backends overlaid.
-    const stack = document.createElement('div');
-    stack.className = 'layer-stack';
-    const uid = card.dataset.stageId || sceneId;
-    const canvas = document.createElement('canvas');
-    canvas.id = 'scene-canvas-' + uid;
-    const v3d = document.createElement('div');
-    v3d.id = 'scene-viewport-3d-' + uid;
-    const vhtml = document.createElement('div');
-    vhtml.id = 'scene-viewport-html-' + uid;
-    for (const el of [v3d, vhtml]) {
-      el.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;';
-    }
-    stack.append(canvas, v3d, vhtml);
-    mount.appendChild(stack);
-
-    const shell = {
-      container: card,
-      layers: {
-        'scene-canvas':        canvas,
-        'scene-viewport-3d':   v3d,
-        'scene-viewport-html': vhtml,
-      },
-      controls:      this.panelControlsEl,
-      multiscroller: null,
-    };
-
-    let app;
-    try {
-      app = new OmniSceneApp({ shell, controls: this.panel, defaultScene: sceneId });
-    } catch (err) {
-      console.error('d-plus: scene "' + sceneId + '" failed to load', err);
-      mount.insertAdjacentHTML('beforeend',
-        `<div class="stage-err">${_esc(sceneId)} failed to load — see console</div>`);
-      return;
-    }
-    this.stageApps.set(card, app);
-
-    // ── Wheel gating ───────────────────────────────────────
-    // Omni2d's wheel handler calls preventDefault() unconditionally, which is
-    // correct when the canvas IS the page. Here it sits inside the chat
-    // scroller, and the live card is pinned exactly where the cursor rests —
-    // so unguarded, scrolling the chat would silently zoom the scene.
-    // A capture-phase listener on the mount runs before the canvas's own
-    // handler and stops the event reaching it unless the card is engaged.
-    mount.addEventListener('wheel', (e) => {
-      if (card !== this.engagedStage) e.stopPropagation();
-    }, { capture: true });
-
-    // Pointer down engages the card and makes it live. Click and drag stay
-    // available on any visible card — engagement only gates the wheel.
-    card.addEventListener('pointerdown', () => {
-      this._engageStage(card);
-      this._setLive(card);
-    });
-  }
-
-  _engageStage(card) {
-    if (this.engagedStage === card) return;
-    this.engagedStage?.classList.remove('is-engaged');
-    this.engagedStage = card;
-    card?.classList.add('is-engaged');
-  }
-
-  /** Live stage = the last one whose sticky head has reached the top.
-   *  Measure the head, not the stage: .sticky-head carries top padding, so a
+  /** Measure the head, not the stage: .sticky-head carries top padding, so a
    *  pinned stage sits below the scroller top and would never qualify. */
-  _updateLiveStage(scroller) {
-    const stages = [...scroller.querySelectorAll('.scene-stage')];
-    if (!stages.length) return;
+  _updateLiveStage() {
+    const stages = this._stages().filter(s => s.inst?.el);
+    const scroller = this._watched;
+    if (!stages.length || !scroller) return;
     const top = scroller.getBoundingClientRect().top;
     let live = stages[0];
     for (const s of stages) {
-      const head = s.closest('.sticky-head') || s;
+      const head = s.inst.el.closest('.sticky-head') || s.inst.el;
       if (head.getBoundingClientRect().top <= top + 1) live = s;
     }
-    this._setLive(live);
-  }
-
-  /** Point the shared panel at this card's scene. */
-  _setLive(stage) {
-    if (!stage || stage === this.liveStage) return;
-    this.el.querySelectorAll('.scene-stage').forEach(s =>
-      s.classList.toggle('is-live', s === stage));
-    this.liveStage = stage;
-
-    const scene = stage.dataset.stageScene || '';
-    const track = this.el.querySelector('#zone-col2-head .stage-track');
-    if (track) track.textContent = scene ? '· ' + scene : '';
-    this.el.querySelectorAll('#zone-col2-topics .ch[data-scene]').forEach(ch =>
-      ch.classList.toggle('active', ch.dataset.scene === scene));
-
-    // This is the whole point of the shared panel: the live app rebuilds the
-    // sidebar from its own layer tree, and re-points onRender at itself.
-    const app = this.stageApps.get(stage);
-    if (app) { app._rebuildContext(); app.render(); }
+    if (this.harness.params.scene !== live.value.scene) this.harness.setParam('scene', live.value.scene);
   }
 
   _scrollToScene(scene) {
-    const scroller = this.el.querySelector('.chat-msgs');
-    if (!scroller) return;
-    const stage = scroller.querySelector(`.scene-stage[data-stage-scene="${scene}"]`);
-    if (!stage) return;
+    const stage = this._stages().find(s => s.value.scene === scene)?.inst?.el;
+    const scroller = this._watched;
+    if (!stage || !scroller) return;
     const section = stage.closest('.sticky-section') || stage;
     const delta = section.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
     scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' });
   }
 
+  /** The index header names the live scene. */
+  _paintTrack() {
+    const track = this.harness.root.querySelector('#zone-col2-head .stage-track');
+    const scene = this._stages().length ? this.harness.params.scene : '';
+    if (track) track.textContent = scene ? '· ' + scene : '';
+  }
+
+  _onParamChange(id, val) {
+    if (id === 'scene') this._paintTrack();
+    // A stream arriving fills the chat; show its end, as a sent message does.
+    if (id === 'stream') requestAnimationFrame(() => requestAnimationFrame(() => this._scrollChatToEnd()));
+  }
+
+  _scrollChatToEnd() {
+    const el = this._watched;
+    if (el) el.scrollTop = el.scrollHeight;
+  }
+
   // ── Events ────────────────────────────────────────────────
+  //
+  //  Clicks that navigate are data (value.on, data-on) and arrive as onNav.
+  //  What only the application can do arrives here, by name.
 
-  _bindEvents() {
-    this.el.addEventListener('click', e => {
-      // Config actions are content: an `html` fence in Settings.md renders
-      // them, and the existing raw-html rule puts them wherever it is written.
-      const act = e.target.closest('[data-cfg-act]');
-      if (act) {
-        e.preventDefault();
-        const which = act.dataset.cfgAct;
-        if (which === 'save')     this.saveConfig().then(() => this._syncConfigUi());
-        if (which === 'revert') { this.revertConfig(); this._syncConfigUi(); }
-        if (which === 'download') this.downloadConfig();
-        if (which === 'clear')    this.clearLocalConfig();
-        return;
-      }
-
-      // Clicking away from a card releases the wheel back to the chat.
-      if (!e.target.closest('.scene-stage')) this._engageStage(null);
-
-      // A scene topic scrolls rather than loads. Don't set active here —
-      // scrolling makes that stage live, and _setLive marks it.
-      const scene = e.target.closest('[data-scene]');
-      if (scene) { this._scrollToScene(scene.dataset.scene); return; }
-
-      // Everything else the rules made navigable routes through one call.
-      // A wikilink in prose is a note link unless it says otherwise.
-      const nav = e.target.closest('[data-nav], a.wikilink');
-      if (nav) {
-        e.preventDefault();
-        const ch = nav.closest('.ch');
-        if (ch) {
-          const body = ch.closest('.ch-body');
-          if (body) body.querySelectorAll('.ch:not([data-scene])')
-            .forEach(c => c.classList.remove('active'));
-          ch.classList.add('active');
-        }
-        let payload = null;
-        if (nav.dataset.payload) {
-          try { payload = JSON.parse(nav.dataset.payload); } catch { /* ignore */ }
-        }
-        this.loadTarget(nav.dataset.target ?? nav.dataset.note,
-                        nav.dataset.nav || 'note', payload);
-        return;
-      }
-
-      if (e.target.classList.contains('chat-send')) { this._handleSend(); return; }
-    });
-
-    this.el.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && e.target.classList.contains('chat-input')) this._handleSend();
-    });
+  _onEmit(name, ctx) {
+    if (name === 'send')            return this._handleSend(ctx);
+    if (name === 'config-save')     return this.saveConfig().then(() => this._syncConfigUi());
+    if (name === 'config-revert')   { this.revertConfig(); return this._syncConfigUi(); }
+    if (name === 'config-download') return this.downloadConfig();
+    if (name === 'config-clear')    return this.clearLocalConfig();
   }
 
-  _appendMsg(msgs, author, html) {
-    const w = createWidget({
-      type: 'message',
-      value: { name: author.name, role: author.role, avatar: author.avatar, time: author.time ??'just now' },
-      _content: html,
-    });
-    msgs.appendChild(w.mount(this._widgetCtx, w.config, {}));
-    msgs.scrollTop = msgs.scrollHeight;
+  _appendMsg(author, html) {
+    const scroller = this._scroller();
+    if (!scroller) return;
+    this.harness.append(scroller, { type: 'message', subtree: [], value: {
+      name: author.name, role: author.role, avatar: author.avatar,
+      time: author.time ?? 'just now', body: html } });
+    this._scrollChatToEnd();
   }
 
-  _handleSend() {
-    const input = this.el.querySelector('.chat-input');
-    const msgs = this.el.querySelector('.chat-msgs');
-    if (!input || !msgs) return;
+  _handleSend(ctx) {
+    const input = ctx?.event?.target?.closest('.chat-input-bar')?.querySelector('.chat-input')
+               ?? this.harness.root.querySelector('.chat-input');
+    if (!input || !this._scroller()) return;
     const text = input.value.trim();
     if (!text) return;
-    this._appendMsg(msgs, { name: 'you', role: 'u1', avatar: 'me' }, _esc(text));
+    this._appendMsg({ name: 'you', role: 'u1', avatar: 'me' }, _esc(text));
     input.value = '';
 
-    const addReply = (html) => this._appendMsg(msgs, this.bot, html);
+    const addReply = (html) => this._appendMsg(this.bot, html);
     setTimeout(() => {
       if (this.onMessage) this.onMessage(text, addReply);
       else this._defaultReply(text, addReply);
@@ -1030,6 +725,32 @@ class DeepExplorer {
     }
   }
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  Sources
+// ═══════════════════════════════════════════════════════════════
+//
+//  A repeat whose rule says itemsSource=dstream asks this for its items, each
+//  time it mounts. The items are message values, so the repeat's pattern is
+//  just the message template.
+
+const STREAM_TIME = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit', month: '2-digit', year: 'numeric',
+  hour: '2-digit', minute: '2-digit', hour12: false,
+  timeZone: 'UTC',   // remove to show the reader's local time
+});
+
+SYS.FUNCTIONS.push({
+  name: 'source.dstream',
+  fn: async () => (await new DataSource().getHistory()).map(item => ({
+    name:   item.speaker || 'unknown',
+    role:   item.speaker === 'Triquetra' ? 'u1' : 'u3',
+    avatar: (item.speaker || '?').slice(0, 2),
+    time:   STREAM_TIME.format(new Date(item.ts)),
+    body:   _esc(item.text ?? 'No message'),
+  })),
+});
 
 
 // ═══════════════════════════════════════════════════════════════

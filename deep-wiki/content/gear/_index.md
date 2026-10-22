@@ -121,10 +121,10 @@
 
 ```html
 <div class="cfg-actions">
-  <button data-cfg-act="save">Keep</button>
-  <button data-cfg-act="revert">Revert</button>
-  <button data-cfg-act="download">Download</button>
-  <button data-cfg-act="clear">Discard</button>
+  <button data-on="emit config-save">Keep</button>
+  <button data-on="emit config-revert">Revert</button>
+  <button data-on="emit config-download">Download</button>
+  <button data-on="emit config-clear">Discard</button>
   <span class="cfg-status" data-cfg-count></span>
 </div>
 ```

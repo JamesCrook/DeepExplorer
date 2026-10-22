@@ -113,9 +113,9 @@ export function renderInline(src) {
 
   s = esc(s)
     .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g,
-      (_, t, l) => `<a href="#" class="wikilink" data-note="${esc(t.trim())}">${l.trim()}</a>`)
+      (_, t, l) => `<a href="#" class="wikilink" data-note="${esc(t.trim())}" data-on="nav note ${esc(t.trim())}">${l.trim()}</a>`)
     .replace(/\[\[([^\]]+)\]\]/g,
-      (_, t) => `<a href="#" class="wikilink" data-note="${esc(t.trim())}">${t.trim()}</a>`)
+      (_, t) => `<a href="#" class="wikilink" data-note="${esc(t.trim())}" data-on="nav note ${esc(t.trim())}">${t.trim()}</a>`)
     .replace(/\[([^\]]+)\]\(([^)]*)\)/g,
       (_, l, h) => `<a href="${esc(h || '#')}">${l}</a>`)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')

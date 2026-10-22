@@ -63,10 +63,41 @@ class SubtreeIterator {
   }
 }
 
+/*
+Node types reach the registry two ways.  registerNodeClass(name, cls) files a
+class at once.  addSource(list, adapt) names a list that other modules push
+records into, { name, cls, defaults? }; records not seen before are absorbed
+before the next dispatch and whenever meta is read, so a push takes effect at
+the next walk, from any module, at load or later.  SYS.NODE_CLASSES is such
+a list (sys.js), and so is SYS.TEMPLATES through an adapter that makes each
+template a node type of its own name (nodes-html/html-template-node.js).
+
+A name registered twice: the later class wins, with a console warning, and
+the earlier class's handlers are removed rather than left to mix with the
+new one's.  Names are one namespace for every backend, so a warning here is
+usually two modules meaning different things by one word.
+*/
 class SceneRegistry {
-  constructor() {
+  constructor(source = null) {
     this.handlers = {};   // { phase: { nodeType: handler } }
-    this.meta = {};       // { nodeType: { rebuildParams, updateParams } }
+    this._meta = {};      // { nodeType: { nodeClass, defaultParams, rebuildParams, updateParams, ...cls.meta } }
+    this.sources = [];    // { list, adapt, seen }
+    if (source) this.addSource(source);
+  }
+
+  addSource(list, adapt = (r) => r) {
+    this.sources.push({ list, adapt, seen: 0 });
+  }
+
+  get meta() { this.absorb(); return this._meta; }
+
+  absorb() {
+    for (const src of this.sources) {
+      while (src.seen < src.list.length) {
+        const r = src.adapt(src.list[src.seen++]);
+        if (r) this.registerNodeClass(r.name, r.cls, r.defaults ?? null);
+      }
+    }
   }
 
   hasCtxMix(fn,name){
@@ -95,8 +126,11 @@ class SceneRegistry {
     return bOk;
   };
   
+  /* Indexed phase first, as handlers is.  (It was indexed the other way round,
+     so it never found anything; harmless only because every handler calls
+     nodeClass[name], which resolves to the most-derived method anyway.) */
   _hasHandler(nodeType, name) {
-    return !!this.handlers[nodeType]?.[name];
+    return !!this.handlers[name]?.[nodeType];
   }
 
 // ── Register a node class by scanning its methods ─────
@@ -108,6 +142,13 @@ class SceneRegistry {
   // walkPhase constructs before_/after_/before_child_/after_child_
   // variants dynamically, so all naming conventions just work.
   registerNodeClass(nodeType, nodeClass, defaultParams=null) {
+    const prev = this._meta[nodeType];
+    if (prev) {
+      if (prev.nodeClass !== nodeClass) {
+        console.warn(`node type '${nodeType}': ${prev.nodeClass.name} replaced by ${nodeClass.name}; the later registration wins`);
+      }
+      for (const phase in this.handlers) delete this.handlers[phase][nodeType];
+    }
     const proto = nodeClass.prototype;
 
     // Scan class chain for static methods (own + inherited).
@@ -153,11 +194,14 @@ class SceneRegistry {
       }
     }
 
-    this.meta[nodeType] = {
+    // A class may declare static meta (sticky, editableFields, …); it is read
+    // from here, so callers ask the registry rather than the class.
+    this._meta[nodeType] = {
       nodeClass,
       defaultParams,
       rebuildParams: nodeClass.rebuildParams || [],
-      updateParams:  nodeClass.updateParams  || []
+      updateParams:  nodeClass.updateParams  || [],
+      ...(nodeClass.meta && typeof nodeClass.meta === 'object' ? nodeClass.meta : {}),
     };
 
   }
@@ -169,10 +213,11 @@ class SceneRegistry {
 
   // ── Double dispatch: (phase, nodeType) → handler ──
   dispatch(ctxMix, phase, node, params, child) {
+    this.absorb();
     const phaseHandlers = this.handlers[phase];
     if (!phaseHandlers) return;
 
-    const meta = this.meta[node.type];
+    const meta = this._meta[node.type];
     const mergedParams = meta?.defaultParams
       ? { ...meta.defaultParams, ...params }
       : params;
@@ -202,10 +247,12 @@ class SceneRegistry {
   // ── Query ──
 
   getHandler(nodeType, phase) {
+    this.absorb();
     return this.handlers[phase]?.[nodeType] || this.handlers[phase]?.['default'];
   }
 
   hasPhase(nodeType, phase) {
+    this.absorb();
     return !!this.handlers[phase]?.[nodeType];
   }
 
@@ -229,6 +276,7 @@ class SceneRegistry {
     }
 
     // Push default iterator; before_ hook may replace it
+    if (!ctxMix.iterators) ctxMix.iterators = [];
     ctxMix.iterators.push(new SubtreeIterator());
 
     this.dispatch(ctxMix, 'before_' + phase, node, params);

@@ -1918,11 +1918,12 @@ SYS.MODELS.push(new PlanetModel());
 //<< import { HtmlBoxNode, HtmlTextNode, HtmlFill } from './html-nodes.js';
 //-- file: ./html-nodes.js --
 //>> import { SYS } from './sys.js';
-//>> export { HtmlBoxNode, HtmlTextNode, HtmlFill };
+//>> export { HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, HtmlFill, skipChildren };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-html-nodes — the two structural HTML node types: a box that holds nodes, and a
-text leaf.  The widget panels are laid out with nothing else.
+html-nodes — the structural HTML node types: a box that holds nodes, a text
+leaf, and an adopted element.  The widget panels are laid out with nothing
+else.
 
 Both are retained: mount creates the element once, update re-applies what can
 change.  What can change is written as a template, '{level}' in a text or a
@@ -1933,6 +1934,14 @@ Named html-box and html-text because 'box' and 'text' are already 2D types in
 the library's registry.  A type may carry handlers for several backends, but a
 name that means two different things is a rosetta problem waiting.
 ──────────────────────────────────────────────────────────────────────────── */
+
+/** Stop the walk descending into this node's children: they belong to
+    another backend, or the node mounts copies of them itself.  The walker
+    pushed an iterator before calling before_*; replacing it ends the loop at
+    once.  Only for before_* handlers: a leaf has no iterator of its own. */
+function skipChildren(ctxMix) {
+  ctxMix.iterators[ctxMix.iterators.length - 1] = { next: () => null };
+}
 
 class HtmlFill {
   static has(s) { return typeof s === 'string' && s.includes('{'); }
@@ -1952,7 +1961,11 @@ class HtmlBoxNode {
     ],
   };
 
-  /* Layout fields, as classes so a style template never clobbers them:
+  /* attrs: { id, role, 'data-x', … } are set as attributes, for markup that
+     CSS or other code finds by attribute.  (Not value.id, which is the
+     node's own id.)
+
+     Layout fields, as classes so a style template never clobbers them:
        scroll: 'y' | 'x' | 'both'   the box scrolls (D+'s chat scroller)
        sticky: true                 the box pins to the top of the nearest
                                     scrolling box, and gets is-stuck while
@@ -1964,6 +1977,7 @@ class HtmlBoxNode {
     const el = document.createElement(v.tag || 'div');
     if (v.class) el.className = v.class;
     if (v.style) el.style.cssText = HtmlFill.fill(v.style, params);
+    for (const [k, x] of Object.entries(v.attrs || {})) el.setAttribute(k, x);
     if (v.scroll) el.classList.add('is-scroll-' + v.scroll);
     node.inst = { ...(node.inst || {}), el };
     mix.parentEl.appendChild(el);
@@ -1978,6 +1992,7 @@ class HtmlBoxNode {
     el.classList.add('is-sticky');
     const sentinel = document.createElement('div');
     sentinel.className = 'sticky-sentinel';
+    sentinel.style.cssText = 'height:1px;margin-bottom:-1px';   // a line to observe, taking no space
     el.before(sentinel);
     let io = null, frame = 0;
     const setup = () => {
@@ -2039,8 +2054,22 @@ class HtmlTextNode {
   }
 }
 
+/* An element made outside the scene, placed in it: a control panel that holds
+   its container for life, say.  from names it in the harness's paneConfig
+   elements.  The scene owns where it goes, not what is inside it, so
+   teardown leaves it alone; a remount just moves it. */
+class HtmlAdoptNode {
+  static mount(ctxMix, node, params) {
+    const el = ctxMix.harness?.paneConfig?.elements?.[node.value?.from];
+    if (!el) { console.warn(`html-adopt: no element '${node.value?.from}'`); return; }
+    node.inst = { ...(node.inst || {}), el };
+    ctxMix.parentEl.appendChild(el);
+  }
+}
+
 SYS.NODE_CLASSES.push({ name: 'html-box',         cls: HtmlBoxNode });
 SYS.NODE_CLASSES.push({ name: 'html-text',        cls: HtmlTextNode });
+SYS.NODE_CLASSES.push({ name: 'html-adopt',       cls: HtmlAdoptNode });
 //-- endfile --
 
 
@@ -3954,6 +3983,11 @@ Placeholders
   {key}    node.value[key], HTML-escaped
   {!key}   node.value[key] as markup, for text the Markdown+ pipeline has
            already rendered.  Trusted, like the raw-html island.
+  with     a fence attribute, with=name: template.<name> in SYS.FUNCTIONS
+           computes more fields from the value before the fill, fn(value) →
+           { key: … }.  What a template cannot say (a coverage bar from two
+           numbers, an icon or a picture) is a named function, and the
+           markup stays in the book.
   <slot>   where the node's children mount.  It becomes a display:contents
            div, so children lay out as if they were the template's own.
 
@@ -4013,6 +4047,15 @@ class HtmlTemplateNode {
       ?? `<div class="tpl-missing">No template called “${HtmlTemplateNode.esc(name ?? '')}”</div>`;
   }
 
+  /** The fields a fill sees: the node's value, plus what its template's
+      with= function computes from it. */
+  static fieldsOf(node) {
+    const v = node.value || {};
+    const w = SYS.named(SYS.TEMPLATES, HtmlTemplateNode.nameOf(node))?.attrs?.with;
+    const rec = w && SYS.named(SYS.FUNCTIONS, 'template.' + w);
+    return rec ? { ...v, ...rec.fn(v) } : v;
+  }
+
   static keys(markup) {
     return [...new Set([...markup.matchAll(/\{!?(\w+)\}/g)].map(m => m[1]))];
   }
@@ -4049,7 +4092,7 @@ class HtmlTemplateNode {
   /* First parameter not named ctxMix, so the registry does not take it for a phase. */
   static _build(mix, node) {
     const t = document.createElement('template');
-    t.innerHTML = HtmlTemplateNode.fill(HtmlTemplateNode.markupOf(node), node.value || {}).trim();
+    t.innerHTML = HtmlTemplateNode.fill(HtmlTemplateNode.markupOf(node), HtmlTemplateNode.fieldsOf(node)).trim();
     let el = t.content.firstElementChild;
     if (!el || t.content.children.length > 1) {        // not one root: wrap what there is
       el = document.createElement('div');
@@ -4290,7 +4333,10 @@ the first mount, then visits the result, so a pass may make a node that
 asks for another.
 
   scroller   a node with opens: 'scroller' is followed by a scrolling box
-             holding everything after it; that box asks for sections.
+             holding everything after it; that box asks for sections.  Its
+             class is the node's scrollerClass, else 'scroller'.  Both may be
+             said by the node or by its type's meta, so a template book can
+             say it once: ```html template=chatheader opens=scroller```.
              (D+: the chat header opens the message scroller.)
   sections   a node with section: 'head', or whose class meta says sticky,
              opens a section whose head pins while the rest scrolls under it;
@@ -4302,10 +4348,14 @@ The passes are ordinary data in, data out, so a test can run one on a list
 without a page.
 ──────────────────────────────────────────────────────────────────────────── */
 
+/** A field from the node, else from its type's meta. */
+const said = (n, key) => n.value?.[key] ?? SYS.registry.meta[n.type]?.[key];
+
 function prepassScroller(list) {
-  const i = list.findIndex(n => n.value?.opens === 'scroller');
+  const i = list.findIndex(n => said(n, 'opens') === 'scroller');
   if (i < 0) return list;
-  const box = SYS.makeNode('html-box', { class: 'scroller', scroll: 'y', prepare: ['sections'] }, list.slice(i + 1));
+  const cls = said(list[i], 'scrollerClass') ?? 'scroller';
+  const box = SYS.makeNode('html-box', { class: cls, scroll: 'y', prepare: ['sections'] }, list.slice(i + 1));
   return [...list.slice(0, i + 1), box];
 }
 
@@ -4358,7 +4408,8 @@ SYS.FUNCTIONS.push(
 //-- file: ./html-host-node.js --
 //>> import { SYS } from './sys.js';
 //>> import { DemoHarness2D } from './demo-harness2-d.js';
-//>> export { HtmlHostNode, skipChildren };
+//>> import { skipChildren } from './html-nodes.js';
+//>> export { HtmlHostNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
 HtmlHostNode — a 2D canvas inside the HTML tree.  The boundary between
@@ -4382,13 +4433,6 @@ autoFitCamera needs one; a host mounted into a detached fragment (an edit)
 waits until it is placed.  Teardown releases the observers and listeners.
 3D hosts come next, by the same route with DemoHarness3D.
 ──────────────────────────────────────────────────────────────────────────── */
-
-/** Stop the walk descending into this node's children (they belong to
-    another backend).  The walker pushed an iterator before calling before_*;
-    replacing it ends the loop at once. */
-function skipChildren(ctxMix) {
-  ctxMix.iterators[ctxMix.iterators.length - 1] = { next: () => null };
-}
 
 class HtmlHostNode {
   static meta = {
@@ -4457,7 +4501,7 @@ SYS.NODE_CLASSES.push({ name: 'html-host',        cls: HtmlHostNode });
 //<< import { HtmlRepeatNode, HtmlVariantsNode, Clones } from './html-repeat-node.js';
 //-- file: ./html-repeat-node.js --
 //>> import { SYS, sceneRegistry } from './sys.js';
-//>> import { skipChildren } from './html-host-node.js';
+//>> import { skipChildren } from './html-nodes.js';
 //>> export { HtmlRepeatNode, HtmlVariantsNode, Clones };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -4473,6 +4517,14 @@ html-repeat     a list from data.  D+'s chat log, topic list and server column.
   items         an array of objects (a string becomes { text })
   itemsFrom     or the name of a param holding one; when the param is given a
                 new array, the copies are rebuilt on the next update
+  itemsSource   with itemsFrom: the name of a source.<name> in SYS.FUNCTIONS,
+                fn(node, params) → items or a promise of them.  It is asked
+                at each mount and its answer goes into the param, so a note
+                that shows a live stream shows it fresh each time it opens.
+                On failure the element says so (failText, then the error).
+  pattern       a node type, for a repeat with no child: the copies are that
+                type with each item as its value.  So a Markdown+ rule can
+                emit a repeat of messages without a pattern node.
   class         for the element holding the copies
 
 html-variants   one subject at several settings, side by side, each captioned
@@ -4523,38 +4575,70 @@ class HtmlRepeatNode {
     return (Array.isArray(list) ? list : []).map(x => (x && typeof x === 'object') ? x : { text: x });
   }
 
+  static _pattern(node) {
+    return node.subtree?.[0] ?? (node.value?.pattern ? { type: node.value.pattern, value: {}, subtree: [] } : null);
+  }
+
   static _build(mix, node, params) {
-    const pattern = node.subtree?.[0];
+    const pattern = HtmlRepeatNode._pattern(node);
     const items = HtmlRepeatNode._items(node, params);
     node.inst.itemsRef = node.value.itemsFrom ? params[node.value.itemsFrom] : node.value.items;
     node.inst.clones = pattern ? items.map(item => Clones.copy(pattern, item)) : [];
     Clones.mount(mix, node.inst.clones, node.inst.el, params);
   }
 
-  static before_mount(ctxMix, node, params) {
-    const el = document.createElement('div');
-    el.className = 'html-repeat ' + (node.value.class || '');
-    ctxMix.parentEl.appendChild(el);
-    node.inst = { ...(node.inst || {}), el };
-    HtmlRepeatNode._build(ctxMix, node, params);
-    skipChildren(ctxMix);
+  /* Ask the source, if there is one, and put its answer in the param; the
+     update that follows rebuilds the copies. */
+  static _fetch(mix, node, params) {
+    const v = node.value || {};
+    if (!v.itemsSource || !v.itemsFrom) return;
+    const rec = SYS.named(SYS.FUNCTIONS, 'source.' + v.itemsSource);
+    if (!rec) { console.warn(`html-repeat: no source.${v.itemsSource} in SYS.FUNCTIONS`); return; }
+    const el = node.inst.el, harness = mix.harness;
+    Promise.resolve().then(() => rec.fn(node, params)).then(
+      (items) => harness?.setParam(v.itemsFrom, Array.isArray(items) ? items : []),
+      (err) => {
+        if (!el.isConnected) return;
+        const p = document.createElement('p');
+        p.className = 'html-repeat-fail';
+        p.textContent = `${v.failText ?? 'Not available'}: ${err?.message ?? err}`;
+        el.replaceChildren(p);
+      });
   }
 
-  static before_update(ctxMix, node, params) {
-    skipChildren(ctxMix);
+  static _open(mix, node, params) {
+    const el = document.createElement('div');
+    el.className = 'html-repeat ' + (node.value.class || '');
+    mix.parentEl.appendChild(el);
+    node.inst = { ...(node.inst || {}), el };
+    HtmlRepeatNode._build(mix, node, params);
+    HtmlRepeatNode._fetch(mix, node, params);
+  }
+
+  static _update(mix, node, params) {
     const v = node.value, i = node.inst;
+    if (!i?.el) return;
     if (v.itemsFrom && params[v.itemsFrom] !== i.itemsRef) {
-      Clones.walk(ctxMix, i.clones, 'teardown', params);
+      Clones.walk(mix, i.clones, 'teardown', params);
       i.el.replaceChildren();
-      HtmlRepeatNode._build(ctxMix, node, params);
-      ctxMix.harness?._index(node);
+      HtmlRepeatNode._build(mix, node, params);
+      mix.harness?._index(node);
     } else {
-      Clones.walk(ctxMix, i.clones, 'update', params);
+      Clones.walk(mix, i.clones, 'update', params);
     }
   }
 
+  // With a pattern child the walk calls before_*, and must not descend into
+  // the pattern; with none (pattern by name) it calls the bare phase.
+  static before_mount(ctxMix, node, params)    { HtmlRepeatNode._open(ctxMix, node, params); skipChildren(ctxMix); }
+  static mount(ctxMix, node, params)           { HtmlRepeatNode._open(ctxMix, node, params); }
+  static before_update(ctxMix, node, params)   { skipChildren(ctxMix); HtmlRepeatNode._update(ctxMix, node, params); }
+  static update(ctxMix, node, params)          { HtmlRepeatNode._update(ctxMix, node, params); }
   static before_teardown(ctxMix, node, params) {
     skipChildren(ctxMix);
+    Clones.walk(ctxMix, node.inst?.clones || [], 'teardown', params);
+  }
+  static teardown(ctxMix, node, params) {
     Clones.walk(ctxMix, node.inst?.clones || [], 'teardown', params);
   }
 }
@@ -5486,7 +5570,6 @@ class DemoHarness3D {
 //<< import { DemoHarnessHtml } from './demo-harness-html.js';
 //-- file: ./demo-harness-html.js --
 //>> import { SYS, sceneRegistry } from './sys.js';
-//>> import { Utils } from './utils.js';
 //>> import { HtmlFill } from './html-nodes.js';
 //>> export { DemoHarnessHtml };
 
@@ -5529,6 +5612,11 @@ Events as data
   items.  Widgets raise their own events (a file drop raises 'files') with
   ctxMix.fire(node, name, data), which looks up the same way.
 
+  Markup that is not a node (a template's inner button, raw HTML from a
+  note) says the same with attributes: data-on="…" for a click,
+  data-on-<event>="…" for another event, data-on-<event>-<key> for a key
+  (data-on-keydown-enter).  The item is the nearest node above it.
+
   An entry is an action, or a list of them.  An action is a record
   action.<name> in SYS.FUNCTIONS, { args: [names], fn(ctx, args) }:
       'nav note {label}'                            short form, positional
@@ -5538,12 +5626,15 @@ Events as data
 
 Selection groups
   A node with value.group belongs to a group; the param of the same name
-  holds the key of the group's active member (value.key, else value.id).
-  After each mount, update and edit, members get is-active.  action.select
-  sets the param, so "active topic" is data, not toggled classes.
+  holds the key of the group's active member (value.groupKey, else
+  value.key, else value.id).  After each mount, update and edit, members get
+  is-active, and the rest lose it.  A node or its type's meta may name the
+  classes instead, activeClass and inactiveClass, for CSS that already has
+  its own words (D+: .active, .dormant).  action.select sets the param, so
+  "active topic" is data, not toggled classes.
 
 Selection for editing, without a mode
-  A pointerdown anywhere in the pane is watched in the capture phase, before
+  Only when the app can show a selection (app.selectNode).  A pointerdown anywhere in the pane is watched in the capture phase, before
   the widget sees it, and never stopped.  The nearest node whose class
   declares meta.editableFields becomes the selection and goes to
   App.selectNode, which fills the Selected panel.  The widget then handles
@@ -5556,6 +5647,14 @@ Selection for editing, without a mode
   An edit arrives as edited(node): the node is torn down and mounted again in
   place.  wrap(node, type) and unwrap(node) change the tree around a node and
   remount its parent.
+
+Loading
+  replace(node, kids) swaps a node's children for new ones: the old are torn
+  down, the new are prepared (their prepare lists run), and any with zoneOut
+  go to the box with that zone anywhere in the scene, replacing what it held.
+  The node itself stays mounted, so a zone keeps its element while each
+  document loaded into it comes and goes.  append(node, kid) adds one child
+  at the end, mounted.
 
 Layout rebuilds detach the pane's div, not the harness.  App calls attach()
 each time, which re-parents the same root, so widget state survives solo and
@@ -5600,6 +5699,8 @@ class DemoHarnessHtml {
 
 /* ── tree ──────────────────────────────────────────────────────── */
 
+  static classOf(node) { return node ? sceneRegistry.meta[node.type]?.nodeClass ?? null : null; }
+
   /** A node's children for traversal: its subtree, and any clones it made. */
   static kids(node) {
     return [...(node.subtree || []), ...(node.inst?.clones || [])];
@@ -5636,16 +5737,26 @@ class DemoHarnessHtml {
 
 /* ── events as data ────────────────────────────────────────────── */
 
+  /** The spec an element's data-on attributes give for this event, if any. */
+  static attrSpec(el, e) {
+    if (!el.hasAttribute) return null;
+    const key = e.key && el.getAttribute(`data-on-${e.type}-${e.key.toLowerCase()}`);
+    return key ?? el.getAttribute(`data-on-${e.type}`) ?? (e.type === 'click' ? el.getAttribute('data-on') : null);
+  }
+
   _onEvent(e) {
-    let item = null;
+    let item = null, marked = null;
     for (let el = e.target; el && el !== this.root; el = el.parentElement) {
       const node = this._byEl.get(el);
-      if (!node) continue;
+      if (!node) {
+        if (marked === null) marked = DemoHarnessHtml.attrSpec(el, e);
+        continue;
+      }
       item ??= node;
+      if (marked !== null) { this.run(marked, { node, item, event: e }); return; }
       const on = node.value?.on;
-      if (!on) continue;
-      const spec = (e.key && on[`${e.type}:${e.key}`]) ?? on[e.type];
-      if (spec === undefined) continue;
+      const spec = on && ((e.key && on[`${e.type}:${e.key}`]) ?? on[e.type]);
+      if (spec === undefined || spec === null) continue;
       this.run(spec, { node, item, event: e });
       return;
     }
@@ -5687,12 +5798,17 @@ class DemoHarnessHtml {
 
 /* ── selection groups ──────────────────────────────────────────── */
 
-  static keyOf(node) { return node?.value?.key ?? node?.value?.id; }
+  static keyOf(node) { return node?.value?.groupKey ?? node?.value?.key ?? node?.value?.id; }
 
   _applyGroups(node = this.node) {
     const g = node.value?.group;
     if (g && node.inst?.el) {
-      node.inst.el.classList.toggle('is-active', String(DemoHarnessHtml.keyOf(node)) === String(this.params[g]));
+      const meta = sceneRegistry.meta[node.type];
+      const on = node.value.activeClass ?? meta?.activeClass ?? 'is-active';
+      const off = node.value.inactiveClass ?? meta?.inactiveClass;
+      const active = String(DemoHarnessHtml.keyOf(node)) === String(this.params[g]);
+      node.inst.el.classList.toggle(on, active);
+      if (off) node.inst.el.classList.toggle(off, !active);
     }
     for (const k of DemoHarnessHtml.kids(node)) this._applyGroups(k);
   }
@@ -5703,7 +5819,7 @@ class DemoHarnessHtml {
   _nodeAt(target) {
     for (let el = target; el && el !== this.root; el = el.parentElement) {
       const node = this._byEl.get(el);
-      if (node && Utils.classOfNode(node)?.meta?.editableFields) return node;
+      if (node && DemoHarnessHtml.classOf(node)?.meta?.editableFields) return node;
     }
     return null;
   }
@@ -5711,11 +5827,12 @@ class DemoHarnessHtml {
   _listen() {
     this.root.addEventListener('pointerdown', (e) => {
       this._swallowClick = false;
+      if (!this.app?.selectNode) return;
       const node = this._nodeAt(e.target);
       // Pressing the selected node again refreshes the panel, so a value the
       // HUD or the widget itself changed since selection shows up.
       if (node === this.selectedNode) { if (node) this.app?.updateSelectedPanel?.(); return; }
-      this._swallowClick = !!(node && Utils.classOfNode(node)?.meta?.selectFirst);
+      this._swallowClick = !!(node && DemoHarnessHtml.classOf(node)?.meta?.selectFirst);
       this._select(node);
       this.app?.selectNode?.(this.selectedHit, this);
     }, true);
@@ -5780,6 +5897,60 @@ class DemoHarnessHtml {
     sceneRegistry.runPhases(this._ctxMix(this.root), node, this.params, ['teardown']);
     this.edited(parent);
     return parent;
+  }
+
+/* ── loading ───────────────────────────────────────────────────── */
+
+  /** Lift every zoneOut node out of a tree, depth first; return them. */
+  static liftZoneOut(node) {
+    const out = [];
+    const lift = (n) => {
+      if (!n.subtree) return;
+      n.subtree = n.subtree.filter(k => (k.value?.zoneOut ? (out.push(k), false) : true));
+      n.subtree.forEach(lift);
+    };
+    lift(node);
+    return out;
+  }
+
+  /** Replace node's children with kids, prepared; zoneOut kids go to their
+      zones, replacing what those held.  Returns the zones touched. */
+  replace(node, kids) {
+    const tmp = { type: node.type, value: node.value, subtree: kids };
+    this._prepare(tmp);
+    const moving = DemoHarnessHtml.liftZoneOut(tmp);    // reassigns tmp.subtree
+    const plan = new Map([[node, tmp.subtree]]);
+    for (const k of moving) {
+      const z = this.find(x => x.value?.zone === k.value.zoneOut);
+      if (!z) { console.warn(`zoneOut '${k.value.zoneOut}': no box with that zone`); continue; }
+      if (!plan.has(z)) plan.set(z, []);
+      plan.get(z).push(k);
+    }
+    for (const [z, list] of plan) this._swapKids(z, list);
+    return [...plan.keys()];
+  }
+
+  _swapKids(node, kids) {
+    const el = node.inst?.el;
+    for (const k of node.subtree || []) sceneRegistry.runPhases(this._ctxMix(el), k, this.params, ['teardown']);
+    el?.replaceChildren();
+    node.subtree = kids;
+    if (!el) return;
+    for (const k of kids) sceneRegistry.runPhases(this._ctxMix(el), k, this.params, ['mount']);
+    this._index(node);
+    this._applyGroups(node);
+  }
+
+  /** Add one child at the end of node's subtree, and mount it. */
+  append(node, kid) {
+    (node.subtree ||= []).push(kid);
+    this._prepare(kid);
+    const el = node.inst?.slotEl ?? node.inst?.el;
+    if (!el) return kid;
+    sceneRegistry.runPhases(this._ctxMix(el), kid, this.params, ['mount']);
+    this._index(kid);
+    this._applyGroups(kid);
+    return kid;
   }
 
 /* ── ctxMix factory ────────────────────────────────────────────── */
