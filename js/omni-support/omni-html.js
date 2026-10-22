@@ -65,6 +65,7 @@
  */
 
 import { sceneRegistry } from './scene.js';
+import { Values } from './values.js';
 
 
 class OmniHtml {
@@ -172,6 +173,7 @@ class OmniHtml {
   /** Create a fresh ctxMix for phase walks. */
   _makeCtxMix() {
     return {
+      ...Values,                       // getValue, getParams: the resolver
       parentEl:     this.viewport,
       rootEl:       this.viewport,
       container:    this.container,

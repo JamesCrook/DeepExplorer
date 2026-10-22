@@ -46,9 +46,10 @@ class MorphSliderWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.bind ?? v.id;
+    const p = ctxMix.getParams(ctxMix, node, params);    // bound here, written below
     const initVal = v.isData
       ? (v.dataValue || v.default)
-      : (params[pid] ?? v.default ?? v.min ?? 0);
+      : (p[pid] ?? v.default ?? v.min ?? 0);
 
     const { el, valEl } = MorphSliderWidget.buildMorphSlider({
       label:    v.label,
@@ -62,7 +63,7 @@ class MorphSliderWidget {
         if (v.isData) {
           ctxMix.onParamChange(pid, x, true, ctxMix.panel);
         } else {
-          ctxMix.setParam(pid, x);
+          ctxMix.setParam(pid, x, p);
           ctxMix.onParamChange(pid, x, false, ctxMix.panel);
         }
         if (node.inst?.onChange) node.inst.onChange(x, ctxMix.panel);
@@ -83,7 +84,7 @@ class MorphSliderWidget {
 
   static update(ctxMix, node, params) {
     const v = node.value || {}, el = node.inst?.el;
-    const x = params[v.bind ?? v.id];
+    const x = ctxMix.getParams(ctxMix, node, params)[v.bind ?? v.id];
     if (el && x !== undefined && el._getValue() !== +x) el._setValue(x);
   }
 

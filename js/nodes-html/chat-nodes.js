@@ -114,6 +114,7 @@ class CssVarSliderNode {
     const unit = c.unit || '';
     const suffix = c.suffix || unit;
     const isFloat = String(c.step || '').includes('.') || String(c.min || '').includes('.');
+    const p = ctxMix.getParams?.(ctxMix, node, params) ?? params;
     const { el } = MorphSliderWidget.buildMorphSlider({
       label: c.label || '', min: c.min, max: c.max,
       step: c.step || (String(c.min).includes('.') || String(c.max).includes('.') ? 0.01 : 1),
@@ -123,7 +124,7 @@ class CssVarSliderNode {
       // variable param does to the page is the application's to say.
       onChange: v => {
         if (!c.var) return;
-        ctxMix.setParam?.(c.var, v + unit);
+        ctxMix.setParam?.(c.var, v + unit, p);
         ctxMix.onParamChange?.(c.var, v + unit);
       },
     });

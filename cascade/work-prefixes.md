@@ -301,8 +301,10 @@ class MyWidget {
   static meta = { sticky: false };             // read via registry meta
   static mount(ctxMix, node, params) {
     const el = document.createElement('div');
-    // read: node.value and the walk's params
-    // write: ctxMix.setParam(id, v); ctxMix.onParamChange(id, v)
+    // params: ask, at mount, and keep what you get —
+    const p = ctxMix.getParams(ctxMix, node, params);   // the walk's, or a flyweight's
+    // write back to that object, then announce:
+    //   ctxMix.setParam(id, v, p); ctxMix.onParamChange(id, v)
     node.inst = { ...(node.inst || {}), el };
     ctxMix.parentEl.appendChild(el);
   }
@@ -310,6 +312,8 @@ class MyWidget {
   static teardown(ctxMix, node, params) { /* release listeners */ }
 }
 ```
+
+Params are asked for, like values (`Values.getParams`, values.js): a flyweight binds a shared prototype to each item's params by setting `proto.paramsFn`, as it sets `flyFn` for values. Resolve once at mount and write to that object: by the time a widget is used the walk, and the flyweight's position in it, is gone.
 
 A container uses `before_mount`/`after_mount` and pushes/pops `ctxMix.parentEl` on `ctxMix.parentStack`. The phases are the same in DemoHarnessHtml and OmniScene's HTML backend (omni-html.js), so a type mounts in either.
 

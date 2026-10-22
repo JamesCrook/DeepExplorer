@@ -2,6 +2,7 @@ import { sceneRegistry, MiniAstNode } from './scene.js';
 // The morph slider is one node type for the panel, the HUD and HTML panes:
 // the widget-stnda nugget, copied here by stand-alones/library_nuggets.py.
 import { MorphSliderWidget } from './morph-slider-widget.js';
+import { Values } from './values.js';
 import { SYS } from './sys.js';
 
 /* ============================================
@@ -157,10 +158,13 @@ class WidgetContext {
     });
   }
 
-  /** One channel: a widget reads the params its walk passes it, and writes
-   *  with ctxMix.setParam, then says so with ctxMix.onParamChange. */
-  getParams() { return this.params; }
-  setParam(id, value) { this.params[id] = value; }
+  /** One channel.  A widget asks for its params object at mount,
+   *  ctxMix.getParams(ctxMix, node, params): the walk's, unless a flyweight
+   *  ancestor has bound the node to other params (node.paramsFn; see
+   *  values.js).  It writes back to that same object with
+   *  ctxMix.setParam(id, value, p), then says so with ctxMix.onParamChange. */
+  getParams(ctxMix, node, params) { return Values.getParams(ctxMix, node, params); }
+  setParam(id, value, target = this.params) { target[id] = value; }
   getParam(id) { return this.params[id]; }
 
   render()               { this._render(); }
@@ -251,7 +255,7 @@ class ColorPickerWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = params;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[v.id] ?? v.default ?? '#ffffffff';
 
     const controlEl = document.createElement('div');
@@ -299,7 +303,7 @@ class ColorPickerWidget extends OmniWidget {
       const rgb = parseHexColor(colorInput.value);
       rgb.a = parseFloat(alphaSlider.value);
       const hex = formatHexColor(rgb);
-      ctxMix.setParam(v.id, hex);
+      ctxMix.setParam(v.id, hex, p);
       swatch.style.backgroundColor = hex;
       valSpan.textContent = hex;
       ctxMix.render();
@@ -337,7 +341,7 @@ class ButtonRowWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {
     const v = node.value || {};
-    const p = params;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[v.id] ?? v.default;
 
     const controlEl = document.createElement('div');
@@ -362,7 +366,7 @@ class ButtonRowWidget extends OmniWidget {
       btn.addEventListener('click', () => {
         row.querySelectorAll('button').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
-        ctxMix.setParam(v.id, opt.value);
+        ctxMix.setParam(v.id, opt.value, p);
         ctxMix.onParamChange(v.id, opt.value, false, ctxMix.panel);
         ctxMix.render();
         ctxMix.clearActivePreset();
@@ -551,7 +555,7 @@ class ToggleWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = params;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const checked = p[pid] ?? v.checked ?? false;
 
     const label = document.createElement('label');
@@ -575,7 +579,7 @@ class ToggleWidget extends OmniWidget {
 
     label.addEventListener('change', () => {
       const val = input.checked;
-      ctxMix.setParam(pid, val);
+      ctxMix.setParam(pid, val, p);
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -764,7 +768,7 @@ class NumberInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = params;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[pid] ?? v.default ?? 0;
 
     const controlEl = document.createElement('div');
@@ -790,7 +794,7 @@ class NumberInputWidget extends OmniWidget {
     input.addEventListener('change', () => {
       const val = parseFloat(input.value);
       if (isNaN(val)) return;
-      ctxMix.setParam(pid, val);
+      ctxMix.setParam(pid, val, p);
       if (node.inst?.onChange) node.inst.onChange(val, ctxMix.panel);
       ctxMix.onParamChange(pid, val, false, ctxMix.panel);
       ctxMix.render();
@@ -812,7 +816,7 @@ class TextInputWidget extends OmniWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.id;
-    const p = params;
+    const p = ctxMix.getParams(ctxMix, node, params);
     const initVal = p[pid] ?? v.default ?? '';
 
     const controlEl = document.createElement('div');
@@ -834,7 +838,7 @@ class TextInputWidget extends OmniWidget {
       'background:#0f0f23;color:#ccc;font-size:11px;';
 
     const emit = () => {
-      ctxMix.setParam(pid, input.value);
+      ctxMix.setParam(pid, input.value, p);
       if (node.inst?.onChange) node.inst.onChange(input.value, ctxMix.panel);
       ctxMix.onParamChange(pid, input.value, false, ctxMix.panel);
       ctxMix.render();

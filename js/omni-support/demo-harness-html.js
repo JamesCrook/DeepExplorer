@@ -1,4 +1,5 @@
 import { SYS, sceneRegistry } from './sys.js';
+import { Values } from './values.js';
 import { HtmlFill } from '../nodes-html/html-nodes.js';
 export { DemoHarnessHtml };
 
@@ -13,10 +14,12 @@ this one walks 'mount' once, keeps the elements, and afterwards walks only
 'update', which re-applies whatever params can change.  No new phases: mount,
 update, resize and teardown are the four OmniHtml already uses.
 
-The ctxMix is the HudPanel shape (parentEl, parentStack, setParam,
+The ctxMix is the HudPanel shape (parentEl, parentStack, getParams, setParam,
 onParamChange, render, clearActivePreset), so a node type written for the HUD
-mounts here unchanged.  Params follow the HUD's one-channel rule: a node reads
-the params the walk passes it, and writes only through ctxMix.setParam.
+mounts here unchanged.  Params follow the HUD's one-channel rule: a node gets
+its params object from ctxMix.getParams (the walk's, unless a flyweight says
+otherwise; see Values), and writes only through ctxMix.setParam, to that
+object.
 
 Param flow
   widget  → setParam + onParamChange → _paramChanged → model, controls, app
@@ -393,7 +396,8 @@ class DemoHarnessHtml {
       flyweight: {},
       harness: this,
       panel: null,
-      setParam: (id, val) => { h.params[id] = val; },
+      getParams: Values.getParams,
+      setParam: (id, val, target = h.params) => { target[id] = val; },
       onParamChange: (id, val) => h._paramChanged(id, val),
       render: () => h.update(),
       fire: (node, name, data) => h.fire(node, name, data),

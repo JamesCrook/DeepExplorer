@@ -443,6 +443,9 @@ the identity resolver: the answer when there is no context to ask.
   getValue(res, node, params)         -> the node's value
   setValue(res, node, params, patch)  -> true if anything changed
   getNode (res, node, params)         -> the node itself, or its stand-in
+  getParams(res, node, params)        -> the params object the node reads and
+                                         writes: the walk's, unless an ancestor
+                                         has set node.paramsFn
 
 A *resolver* is anything answering those three.  A ctxMix is one, because the
 pane spreads Values into it and may override a member; Values itself is the
@@ -457,6 +460,15 @@ nor whether an ancestor is rewriting what it reads.
 
 Ephemeral keys are routed to node.state, so a universal write channel does not
 become the way ephemera creeps back into value.  That rule lives here alone.
+
+Params, like values, are asked for rather than assumed.  A widget bound to a
+param (a slider, a colour) gets its params object from getParams, never
+straight from the walk's argument, so a flyweight can bind one shared proto to
+each item's own params by setting proto.paramsFn, as it sets flyFn for values.
+The widget resolves the object once, at mount, and writes back to that same
+object, ctxMix.setParam(id, value, p): by the time a widget is used the walk
+is over, and with it any flyweight's position, so asking again then would
+find the wrong item.
 
 A note on the read discipline.  getValue may return a *copy* — it does so as
 soon as a node carries ephemera.  So a value is for reading; to write, call
@@ -503,6 +515,10 @@ const Values = Object.freeze({
 
   getNode(res, node, params) {
     return node?.nodeFn ? node.nodeFn(res, node, params) : node;
+  },
+
+  getParams(res, node, params) {
+    return node?.paramsFn ? node.paramsFn(res, node, params) : params;
   },
 
   plain: plainValue,
@@ -1348,6 +1364,7 @@ function make3DPane(container) {
 //<< import { HudPanel } from './hud-panel.js';
 //-- file: ./hud-panel.js --
 //>> import { SYS, sceneRegistry } from './sys.js';
+//>> import { Values } from './values.js';
 //>> export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1433,7 +1450,8 @@ class HudSliderNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label, min = 0, max = 1, step = 0.01 } = v;
-    const initVal = params[id] ?? v.value ?? min;
+    const p = ctxMix.getParams(ctxMix, node, params);
+    const initVal = p[id] ?? v.value ?? min;
 
     const row = document.createElement('label');
     const span = document.createElement('span');
@@ -1452,7 +1470,7 @@ class HudSliderNode {
     input.addEventListener('input', () => {
       const num = parseFloat(input.value);
       val.textContent = num.toFixed(step % 1 === 0 ? 0 : 2);
-      ctxMix.setParam(id, num);
+      ctxMix.setParam(id, num, p);
       ctxMix.onParamChange(id, num);
       ctxMix.render();
     });
@@ -1479,7 +1497,8 @@ class HudCheckboxNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label } = v;
-    const initVal = params[id] ?? v.value ?? false;
+    const p = ctxMix.getParams(ctxMix, node, params);
+    const initVal = p[id] ?? v.value ?? false;
 
     const row = document.createElement('label');
     const span = document.createElement('span');
@@ -1493,7 +1512,7 @@ class HudCheckboxNode {
     input.type = 'checkbox';
     input.checked = !!initVal;
     input.addEventListener('change', () => {
-      ctxMix.setParam(id, input.checked);
+      ctxMix.setParam(id, input.checked, p);
       ctxMix.onParamChange(id, input.checked);
       ctxMix.render();
     });
@@ -1515,7 +1534,8 @@ class HudSelectNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label, options = [] } = v;
-    const initVal = params[id] ?? v.value;
+    const p = ctxMix.getParams(ctxMix, node, params);
+    const initVal = p[id] ?? v.value;
 
     const row = document.createElement('label');
     const span = document.createElement('span');
@@ -1531,7 +1551,7 @@ class HudSelectNode {
       select.appendChild(option);
     }
     select.addEventListener('change', () => {
-      ctxMix.setParam(id, select.value);
+      ctxMix.setParam(id, select.value, p);
       ctxMix.onParamChange(id, select.value);
       ctxMix.render();
     });
@@ -1547,7 +1567,8 @@ class HudColorNode {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const { id, label } = v;
-    const initVal = params[id] ?? v.value ?? '#ffffff';
+    const p = ctxMix.getParams(ctxMix, node, params);
+    const initVal = p[id] ?? v.value ?? '#ffffff';
 
     const row = document.createElement('label');
     const span = document.createElement('span');
@@ -1557,7 +1578,7 @@ class HudColorNode {
     const input = document.createElement('input');
     Object.assign(input, { type: 'color', value: initVal });
     input.addEventListener('input', () => {
-      ctxMix.setParam(id, input.value);
+      ctxMix.setParam(id, input.value, p);
       ctxMix.onParamChange(id, input.value);
       ctxMix.render();
     });
@@ -1679,8 +1700,9 @@ class HudPanel {
       iterators:      [],
       flyweight:      {},
 
-      setParam(id, val) {
-        self.params[id] = val;
+      getParams: Values.getParams,
+      setParam(id, val, target = self.params) {
+        target[id] = val;
       },
       render() {
         self._onRender();
@@ -2228,9 +2250,10 @@ class MorphSliderWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.bind ?? v.id;
+    const p = ctxMix.getParams(ctxMix, node, params);    // bound here, written below
     const initVal = v.isData
       ? (v.dataValue || v.default)
-      : (params[pid] ?? v.default ?? v.min ?? 0);
+      : (p[pid] ?? v.default ?? v.min ?? 0);
 
     const { el, valEl } = MorphSliderWidget.buildMorphSlider({
       label:    v.label,
@@ -2244,7 +2267,7 @@ class MorphSliderWidget {
         if (v.isData) {
           ctxMix.onParamChange(pid, x, true, ctxMix.panel);
         } else {
-          ctxMix.setParam(pid, x);
+          ctxMix.setParam(pid, x, p);
           ctxMix.onParamChange(pid, x, false, ctxMix.panel);
         }
         if (node.inst?.onChange) node.inst.onChange(x, ctxMix.panel);
@@ -2265,7 +2288,7 @@ class MorphSliderWidget {
 
   static update(ctxMix, node, params) {
     const v = node.value || {}, el = node.inst?.el;
-    const x = params[v.bind ?? v.id];
+    const x = ctxMix.getParams(ctxMix, node, params)[v.bind ?? v.id];
     if (el && x !== undefined && el._getValue() !== +x) el._setValue(x);
   }
 
@@ -2427,7 +2450,8 @@ class ColorPickerWidget {
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const pid = v.bind ?? v.id;
-    const initVal = params[pid] ?? v.default ?? '#ffffffff';
+    const p = ctxMix.getParams(ctxMix, node, params);    // bound here, written below
+    const initVal = p[pid] ?? v.default ?? '#ffffffff';
 
     const controlEl = document.createElement('div');
     controlEl.className = 'control sc-color-control';
@@ -2468,7 +2492,7 @@ class ColorPickerWidget {
       const hex = ColorPickerWidget.formatHex(rgb);
       swatch.style.backgroundColor = hex;
       valSpan.textContent = hex;
-      ctxMix.setParam(pid, hex);
+      ctxMix.setParam(pid, hex, p);
       ctxMix.onParamChange(pid, hex, false, ctxMix.panel);
       ctxMix.render();
       ctxMix.clearActivePreset();
@@ -2499,7 +2523,7 @@ class ColorPickerWidget {
 
   static update(ctxMix, node, params) {
     const v = node.value || {}, i = node.inst;
-    const hex = params[v.bind ?? v.id];
+    const hex = ctxMix.getParams(ctxMix, node, params)[v.bind ?? v.id];
     if (!i?.el || typeof hex !== 'string' || hex === i.valSpan.textContent) return;
     i.swatch.style.backgroundColor = hex;
     i.valSpan.textContent = hex;
@@ -3755,6 +3779,7 @@ class SpectrumNode {
 
   static mount(ctxMix, node, params) {
     const v = { ...SpectrumNode.DEFAULTS, ...(node.value || {}) };
+    const p = ctxMix.getParams(ctxMix, node, params);    // where publish writes
 
     const g = new Gradient(new ColourType());
     g.type.options.space = v.space;
@@ -3800,8 +3825,8 @@ class SpectrumNode {
       if (!v.bind) return;
       const css = SpectrumNode.cssOf(lut, g.cyclic);
       const info = `${g.stops.length} stop${g.stops.length === 1 ? '' : 's'} · ${v.space}${g.cyclic ? ' · cyclic' : ''}`;
-      ctxMix.setParam(v.bind, css);
-      ctxMix.setParam(v.bind + 'Info', info);
+      ctxMix.setParam(v.bind, css, p);
+      ctxMix.setParam(v.bind + 'Info', info, p);
       if (!notify) return;
       ctxMix.onParamChange(v.bind, css, false, ctxMix.panel);
       ctxMix.onParamChange(v.bind + 'Info', info, false, ctxMix.panel);
@@ -5689,6 +5714,7 @@ class DemoHarness3D {
 //<< import { DemoHarnessHtml } from './demo-harness-html.js';
 //-- file: ./demo-harness-html.js --
 //>> import { SYS, sceneRegistry } from './sys.js';
+//>> import { Values } from './values.js';
 //>> import { HtmlFill } from './html-nodes.js';
 //>> export { DemoHarnessHtml };
 
@@ -5703,10 +5729,12 @@ this one walks 'mount' once, keeps the elements, and afterwards walks only
 'update', which re-applies whatever params can change.  No new phases: mount,
 update, resize and teardown are the four OmniHtml already uses.
 
-The ctxMix is the HudPanel shape (parentEl, parentStack, setParam,
+The ctxMix is the HudPanel shape (parentEl, parentStack, getParams, setParam,
 onParamChange, render, clearActivePreset), so a node type written for the HUD
-mounts here unchanged.  Params follow the HUD's one-channel rule: a node reads
-the params the walk passes it, and writes only through ctxMix.setParam.
+mounts here unchanged.  Params follow the HUD's one-channel rule: a node gets
+its params object from ctxMix.getParams (the walk's, unless a flyweight says
+otherwise; see Values), and writes only through ctxMix.setParam, to that
+object.
 
 Param flow
   widget  → setParam + onParamChange → _paramChanged → model, controls, app
@@ -6083,7 +6111,8 @@ class DemoHarnessHtml {
       flyweight: {},
       harness: this,
       panel: null,
-      setParam: (id, val) => { h.params[id] = val; },
+      getParams: Values.getParams,
+      setParam: (id, val, target = h.params) => { target[id] = val; },
       onParamChange: (id, val) => h._paramChanged(id, val),
       render: () => h.update(),
       fire: (node, name, data) => h.fire(node, name, data),
