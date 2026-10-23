@@ -24,7 +24,7 @@
 
 ## Explore %%bg=#3a3a50; fg=#9098d0%%
 
-- § [[Idiolect]] 87 terms %%bg=#504a3a; fg=#c8b888; labelStyle=color:var(--wiki)%%
+- § [[swissprot-wiki-idiolect|Idiolect]] 87 terms %%bg=#504a3a; fg=#c8b888; labelStyle=color:var(--wiki)%%
 - ⇢ [[Pathways]]
 - ◎ [[Cell Structure]]
 - ⇄ [[Complexes]] 40/8

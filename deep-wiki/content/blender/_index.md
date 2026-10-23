@@ -18,7 +18,7 @@
 
 ## Explore %%bg=#504a3a; fg=#c8b888%%
 
-- § [[Idiolect]] 134 terms %%labelStyle=color:var(--wiki)%%
+- § [[blender-wiki-idiolect|Idiolect]] 134 terms %%labelStyle=color:var(--wiki)%%
 - ◈ [[Architecture]]
 - ⇢ [[Data Flow]]
 - ⌕ [[Files & Classes|Files & Classes →]] %%labelStyle=color:var(--accent)%%
