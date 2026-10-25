@@ -54,9 +54,6 @@ Classes: HandleFrameNode
 [ ] js/nodes2d/scorpio-nodes.js
 Classes: HStackNode, VStackNode, OverlayNode, TransformNode, DefaultNode, RectangleNode, CircleNode, TextNode, ImageNode, TileNode, SpacerNode, ChartNode, GraphNode, BugleNode, SankeyNode, ParliamentNode, PathNode, TreeNode, ArrowsNode, SplineNode, DraggableNode, Drag2Node, ProgNode
 
-[ ] js/nodes2d/structural-nodesxxx.js
-Classes: WarpedRectanglesNode, LabelNode, OverlayNode, VStackNode, HStackNode
-
 [ ] js/nodes2d/algorithms-node.js
 Classes: AlgorithmGridIterator, LinkNode, AlgorithmGridNode, CellRectNode
 
