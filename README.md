@@ -10,6 +10,8 @@ Rich diagrams work. The chat interface is just a place holder.
 
 ## Project Structure
 
+This ASCII tree needs redoing
+
 ```
 DeepExplorer/                            #
 ├─ cascade/                              # Markdown documents with design blueprints
@@ -59,6 +61,8 @@ DeepExplorer/                            #
 ## Getting started
 
 email james.k.crook@gmail.com if you are interested in this repo. 
+
+**molam.html** for my molecular structure viewer
 
 **d-plus.html** for my 'everything app' that uses Markdown+ and treats the UI as a chat interface. Three columns - Servers, Topics, Chat. The topic column can host controls such as sliders, the chat area can host interactive diagrams. Search is done by the chat prompt line.
 
