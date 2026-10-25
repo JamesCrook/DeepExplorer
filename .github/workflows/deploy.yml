@@ -3,7 +3,7 @@ name: Deploy website subfolder to GitHub Pages
 on:
   push:
     branches:
-      - main # change to master if that is your default branch
+      - master
     paths:
       - 'website/**'
   workflow_dispatch:
@@ -33,7 +33,6 @@ jobs:
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Point this directly to your /website folder
           path: 'website'
 
       - name: Deploy to GitHub Pages
