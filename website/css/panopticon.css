@@ -1,0 +1,140 @@
+/* Panopticon demo pages (demos/*.html): the panel grid, HUD, tooltip and
+   morphable slider.  From the multi-zone stand-alone's style block. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #111210; color: #c8c0b0;
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+:root {
+  --bg: #14151e; --surface: #1c1d2b; --surface-2: #242536;
+  --surface-hover: #2a2c3e; --border: #2e3048;
+  --text-1: #d8dae5; --text-2: #8789a3; --text-3: #5c5e78;
+  --accent: #6e9ef7; --accent-dim: #6e9ef733;
+  --wiki: #dba06a; --docstring: #6b7a8d;
+  --channel-active: #2e3050;
+  --msg-font-size: 13.5px;
+  --srv-btn-size: 44;
+  --srv-icon-pct: 65;
+  /* morphable slider geometry */
+  --ms-track-h: 24; --ms-pip-h: 28; --ms-pip-w: 3;
+  --ms-fill-op: 0.18; --ms-track-r: 4; --ms-text-y: 0;
+  --ms-pip-bri: 1.4; --ms-label-inset: 8;
+  /* server icon dormant state */
+  --srv-dormant-sat: 0.33; --srv-dormant-bri: 0.66;
+}
+
+    header {
+      display: flex; align-items: center; gap: 14px;
+      padding: 10px 20px; border-bottom: 1px solid #2a2824;
+      background: #17160f; flex-shrink: 0;
+    }
+    header h1 { font-size: 17px; font-weight: 700; color: #e4dac6; letter-spacing: -0.03em; }
+    header .tag {
+      font-size: 10px; font-family: monospace; color: #6a6256;
+      background: #222018; padding: 2px 7px; border-radius: 4px; border: 1px solid #2a2824;
+    }
+    #container {
+      flex: 1; display: flex; flex-wrap: wrap;
+      gap: 1px; background: #2a2824; overflow: hidden;
+    }
+    .pane {
+      background: #111210; display: flex;
+      flex-direction: column; overflow: hidden;
+      position: relative;
+      transition: opacity 0.15s;
+      flex-grow: 1;    
+    }
+    .pane.pane-hidden { display: none !important; }
+    .pane .label {
+      padding: 8px 14px; font-size: 11px; font-weight: 600;
+      color: #6a6256; text-transform: uppercase;
+      letter-spacing: 0.08em; flex-shrink: 0;
+    }
+    .pane canvas { flex: 1; width: 100%; height: 100%; display: block; }
+    .pane.pane-3d canvas { width: 100% !important; height: 100% !important; }
+    .pane.pane-3d .pane-title-3d {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; font-weight: 700; letter-spacing: 3px;
+      color: rgba(255,255,255,0.35); z-index: 5;
+      text-transform: uppercase; white-space: nowrap;
+    }
+    /* A title is a handle for soloing its pane; the rest of the overlay is
+       not, so the canvas beneath keeps its drags. */
+    .pane .label, .pane .pane-3d-spacer { pointer-events: none; }
+    .pane .label, .pane .pane-title-3d { cursor: pointer; user-select: none; }
+    .pane .label { pointer-events: auto; }
+    .pane .label:hover, .pane .pane-title-3d:hover { color: #e4dac6; }
+    #tooltip {
+      position: fixed; pointer-events: none;
+      background: #222018; border: 1px solid #3d3a32;
+      border-radius: 6px; padding: 6px 10px; z-index: 100;
+      box-shadow: 0 6px 18px rgba(0,0,0,.45);
+      display: none; white-space: nowrap; font-size: 12px;
+    }
+    #tooltip .tt-name   { font-weight: 600; color: #e4dac6; font-family: monospace; }
+    #tooltip .tt-detail { color: #7a7060; font-size: 10px; margin-top: 2px; }
+    #tooltip .tt-extra  { color: #5a5448; font-size: 10px; margin-top: 1px; }
+
+    .sel-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .sel-row span { min-width: 60px; color: #999; font-size: 11px; }
+    .sel-row input[type=text], .sel-row input[type=number] {
+      flex: 1; background: rgba(0,0,0,0.5); color: #fff;
+      border: 1px solid rgba(255,255,255,0.2); padding: 4px 6px;
+      border-radius: 4px; font-size: 11px; outline: none;
+      font-family: monospace;
+    }
+    .sel-row input:focus { border-color: #6cf; }
+    .sel-row input[type=color] {
+      width: 32px; height: 22px; padding: 1px; cursor: pointer; border-radius: 4px;
+      background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); outline: none;
+    }
+
+/* ── Morphable slider (ms-*) — track/fill/pip whose geometry is CSS-var-driven ── */
+.morph-slider {
+  position: relative; height: 32px; margin: 2px 6px; padding: 0 8px;
+  cursor: ew-resize; user-select: none; touch-action: none;
+  display: flex; align-items: center;
+}
+.ms-track {
+  position: absolute; left: 8px; right: 8px; top: 50%;
+  transform: translateY(-50%);
+  height: calc(var(--ms-track-h) * 1px);
+  border-radius: calc(var(--ms-track-r) * 1px);
+  background: var(--surface-2); overflow: hidden;
+}
+.ms-fill {
+  height: 100%; width: 50%;
+  background: rgba(110,158,247, var(--ms-fill-op));
+  pointer-events: none;
+}
+.ms-pip {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--ms-pip-w) * 1px);
+  height: calc(var(--ms-pip-h) * 1px);
+  border-radius: 12px;
+  background: var(--surface-hover);
+  pointer-events: none; transition: background 0.15s;
+  filter: brightness(var(--ms-pip-bri));
+}
+.morph-slider:hover .ms-pip { background: var(--accent-dim); transition-duration: 0.06s; }
+.morph-slider.engaged .ms-pip { background: var(--accent); }
+.ms-label, .ms-val {
+  position: absolute;
+  top: calc(50% + var(--ms-text-y) * 1px);
+  transform: translateY(-50%); pointer-events: none;
+}
+.ms-label {
+  left: calc(var(--ms-label-inset) * 1px + 8px);
+  font-size: 11px; color: var(--text-2);
+}
+.ms-val {
+  right: calc(var(--ms-label-inset) * 1px + 8px);
+  font-family: 'SF Mono','Consolas',monospace;
+  font-size: 10px; color: var(--text-3);
+}
+.morph-slider.engaged .ms-val { color: var(--accent); }

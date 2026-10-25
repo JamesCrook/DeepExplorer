@@ -27,6 +27,8 @@ for the node does not have to know whether it is being used for all its paramete
 */
 // #node/spec/code
 
+import { SubtreeIterator } from './subtree-iterator.js';
+
 class MiniAstNode {
   constructor(token, subtree=[], value=null) {
     this.token = token;
@@ -52,16 +54,6 @@ class SceneNode {
   clear() {}
 }
 
-class SubtreeIterator {
-  constructor() {
-    this.index = 0;
-  }
-
-  next(subtree) {
-    if (this.index >= subtree.length) return null;
-    return subtree[this.index++];
-  }
-}
 
 /*
 Node types reach the registry two ways.  registerNodeClass(name, cls) files a
@@ -223,7 +215,7 @@ class SceneRegistry {
       : params;
 
     const handler = phaseHandlers[node.type] || phaseHandlers['default'];
-    if (handler) handler(ctxMix, node, mergedParams, child);
+    if (handler) return handler(ctxMix, node, mergedParams, child);
   }
 
   // ── Convenience: dispatch by phase name ──
@@ -281,12 +273,19 @@ class SceneRegistry {
 
     this.dispatch(ctxMix, 'before_' + phase, node, params);
 
+    // A handler may set ctxMix.abortPhase to stop visiting this node's
+    // children (a hit found, say); it is cleared before the after_ hook.
     let child;
     while ((child = ctxMix.iterators.at(-1).next(node.subtree)) !== null) {
+      if (ctxMix.abortPhase) break;
       this.dispatch(ctxMix, 'before_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break;
       this.walkPhase(ctxMix, phase, child, params);
+      if (ctxMix.abortPhase) break;
       this.dispatch(ctxMix, 'after_child_' + phase, node, params, child);
+      if (ctxMix.abortPhase) break;
     }
+    ctxMix.abortPhase = false;
 
     this.dispatch(ctxMix, 'after_' + phase, node, params);
 

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Widgets — DeepExplorer demos</title>
+  <link rel="stylesheet" href="../css/panopticon.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <!-- A mouse, a piano keyboard, a ball-grid array and a button set. -->
+  <header>
+    <h1>Widgets</h1>
+    <span class="tag" id="pane-count"></span>
+  </header>
+
+  <div id="container"></div>
+
+  <div id="tooltip">
+    <div class="tt-name"></div>
+    <div class="tt-detail"></div>
+    <div class="tt-extra"></div>
+  </div>
+
+<script type="module">
+// Each model registers itself in SYS.MODELS as it loads, importing the nodes
+// it draws with; App lays out one pane per model.
+import '../js/models/mouse-model.js';
+import '../js/models/piano-model.js';
+import '../js/models/bga-model.js';
+import '../js/models/button-set-model.js';
+import { App } from '../js/omni-support/app.js';
+
+new App();
+</script>
+</body>
+</html>

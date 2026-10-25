@@ -58,6 +58,16 @@ DeepExplorer/                            #
 └─ .gitignore                            #
 ```
 
+## Scene graph nodes and demos
+
+`website/js/` is the canonical home of the scene graph nodes: other projects copy the files they use to the same paths under their own `website/js/`, so a copy is byte-identical to its original and imports resolve the same way in both. Library files import each other only by relative paths within `website/js/`.
+
+- `omni-support/`: the registry (`scene.js`), `SYS` (`sys.js`), `values.js`, iterators, `app.js` (the panopticon shell) and the demo harnesses.
+- `models/`: models, each a scene ready to show. A model imports the nodes it draws with and registers itself in `SYS.MODELS`.
+- `website/demos/`: small demo pages, each a few model imports and `new App()`: graphs, stock strip, charts, astronomy, 3D, widgets, and `panopticon.html` with everything.
+
+The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Eight of them share a name with a different design already here, and keep a `-zones` suffix until the two are merged: `button-node`, `camera-node`, `drag-point-node`, `frame-node` (nodes2d) and `ground-plane-node`, `imposter-atom-node`, `molam-bond-node`, `planet-node` (nodes3d). `button-node`, `drag-point` and `ground-plane` are also the same node type name in both, so a page loading both versions gets a registry warning and the later one wins.
+
 ## Getting started
 
 email james.k.crook@gmail.com if you are interested in this repo. 

@@ -22,11 +22,15 @@ When a name occurs twice, the last record pushed wins: named() searches from
 the end.  audit() reports such names once, so an accident shows and an
 override is still possible.
 
-This is the library's SYS.  The stand-alones (widget-stnda, multi-zone-stnda)
-carry their own sys.js nugget with the same sinks plus their drawing
-parameters; the two are kept in step like a text in two languages.  The
-difference that matters: here the registry is the library's one sceneRegistry
-(scene.js), shared by every backend, so node-type names are one namespace.
+Two shared drawing parameters come with it, from the Zones nodes (once the
+multi-zone stand-alone's own sys.js):
+
+  R              a base radius, 30.
+  P              a parameter bag many 2D nodes read: opacity, edge width,
+                 outline and bend, chart bounds, screen mode, colours.
+
+The registry is the library's one sceneRegistry (scene.js), shared by every
+backend, so node-type names are one namespace.
 */
 
 import { sceneRegistry } from './scene.js';
@@ -35,6 +39,13 @@ const NODE_CLASSES = [];
 const TEMPLATES = [];
 const FUNCTIONS = [];
 sceneRegistry.addSource(NODE_CLASSES);
+
+const R = 30;
+const P = {
+  opacity: 80, edgeWidth: 5, edgeOutline: 1.5, edgeBend: 0,
+  showChartBounds: false, screenMode: false,
+  colors: { 4: { fill: '#c08428', stroke: '#9a6a1e' } },
+};
 
 const MODELS = [];
 const STOCK = [];
@@ -71,6 +82,7 @@ function audit() {
 }
 
 const SYS = {
+  R, P,
   MODELS, STOCK, CONTROLS, NODE_CLASSES, TEMPLATES, FUNCTIONS,
   named, namesIn, audit,
   makeNode, cloneProto,

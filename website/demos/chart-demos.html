@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Charts — DeepExplorer demos</title>
+  <link rel="stylesheet" href="../css/panopticon.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    } }
+  </script>
+</head>
+<body>
+  <!-- Bar and line charts, Ramachandran plot, organ heatmap, tree rings, hex view, word cloud, chromosome bands. -->
+  <header>
+    <h1>Charts</h1>
+    <span class="tag" id="pane-count"></span>
+  </header>
+
+  <div id="container"></div>
+
+  <div id="tooltip">
+    <div class="tt-name"></div>
+    <div class="tt-detail"></div>
+    <div class="tt-extra"></div>
+  </div>
+
+<script type="module">
+// Each model registers itself in SYS.MODELS as it loads, importing the nodes
+// it draws with; App lays out one pane per model.
+import '../js/models/climate-model.js';
+import '../js/models/ramachandran-model.js';
+import '../js/models/heatmap-model.js';
+import '../js/models/tree-ring-model.js';
+import '../js/models/hex-view-model.js';
+import '../js/models/word-cloud-model.js';
+import '../js/models/chromosome-model.js';
+import { App } from '../js/omni-support/app.js';
+
+new App();
+</script>
+</body>
+</html>
