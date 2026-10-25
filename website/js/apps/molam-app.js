@@ -77,7 +77,7 @@ class MolamApp {
           this.controls.updateSlider('numPoints', info.totalResidues, false);
           this.controls.render();
         }
-        this._updateRollControls();
+        //this._updateRollControls();
       });
 
     // ── OmniControlPanel ──────────────────────────────────────────
@@ -101,7 +101,7 @@ class MolamApp {
       onParamChange: (id, value) => {
         if (id === 'numPoints' && !this.widget.chains) {
           this.widget.setControlPointCount(value);
-          this._updateRollControls();
+          //this._updateRollControls();
         }
       },
 
@@ -121,7 +121,7 @@ class MolamApp {
     this.controls.addHelp();
 
     // ── Roll controls ─────────────────────────────────────────
-    this._updateRollControls();
+    //this._updateRollControls();
 
     // ── Patchbay ──────────────────────────────────────────────
     this.controls.setupPatchbay('molam', (bay) => {
@@ -227,7 +227,7 @@ class MolamApp {
           base.updateSlider('numPoints', 5, false);
           base.clearInfo();
           base.clearStatus();
-          this._updateRollControls();
+          //this._updateRollControls();
         }
         base.render();
       },
