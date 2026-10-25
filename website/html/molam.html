@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Molam — Molecules And Metabolism</title>
+  <meta name="description" content="Molam is an interactive 3D molecular viewer for exploring protein structures, metabolic pathways, and molecular interactions — running entirely in your browser via WebGL.">
+
+  <link rel="canonical" href="https://FILL_URL/">
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website">
+  <meta property="og:url"         content="https://FILL_URL/">
+  <meta property="og:title"       content="Molam — Molecules And Metabolism">
+  <meta property="og:description" content="Interactive 3D molecular viewer for protein structures and metabolic pathways. Runs in your browser, no install required.">
+  <meta property="og:image"       content="https://FILL_URL/FILL_IMAGE">
+  <meta property="og:image:alt"   content="Molam molecular viewer showing a 3D protein structure">
+  <meta property="og:image:width"  content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter / X card -->
+  <meta name="twitter:card"        content="summary_large_image">
+  <meta name="twitter:title"       content="Molam — Molecules And Metabolism">
+  <meta name="twitter:description" content="Interactive 3D molecular viewer for protein structures and metabolic pathways. Runs in your browser, no install required.">
+  <meta name="twitter:image"       content="https://FILL_URL/FILL_IMAGE">
+  <meta name="twitter:image:alt"   content="Molam molecular viewer showing a 3D protein structure">
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Molam",
+    "alternateName": "Molam — Molecules And Metabolism",
+    "url": "https://FILL_URL/",
+    "description": "Interactive 3D molecular viewer for exploring protein structures, metabolic pathways, and molecular interactions, running entirely in the browser via WebGL.",
+    "applicationCategory": "ScienceApplication",
+    "operatingSystem": "Web browser with WebGL support",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+
+  <noscript>
+    <style>#app-noscript { display: block !important; }</style>
+  </noscript>
+
+  <script type="module" src="../js/utilities2/nav.js"></script>
+  <script type="module" src="../js/utilities2/help.js"></script>
+  <link rel="stylesheet" href="../css/omni-controls.css">
+  <link rel="stylesheet" href="../css/omni-scene.css">
+</head>
+<body>
+
+  <div id="app-noscript" style="display:none">
+
+    <div id="app-help">
+      <h1>Molam — Molecules &amp; Metabolism</h1>
+      <p>
+        Molam is an interactive molecular viewer that runs entirely in your browser
+        using WebGL. It lets you load, navigate, and inspect protein structures and
+        metabolic networks with a real-time 3D interface.
+      </p>
+      <h2>What Molam can do</h2>
+      <ul>
+        <li>
+          <strong>Browse large structure libraries</strong> — scroll through lists of
+          200,000+ proteins; only visible entries are rendered so performance stays
+          smooth regardless of library size.
+        </li>
+        <li>
+          <strong>3D molecular visualisation</strong> — rotate, zoom, and examine
+          structures in real time using hardware-accelerated WebGL rendering.
+        </li>
+        <li>
+          <strong>Flexible layouts</strong> — switch between linear list, radial, and
+          other spatial arrangements to reveal relationships between molecules.
+        </li>
+        <li>
+          <strong>Metabolic pathways</strong> — trace compounds through metabolic
+          networks and explore how molecules connect across pathways.
+        </li>
+      </ul>
+    </div>
+
+    <div id="molam-requirements">
+      <h2>Requirements</h2>
+      <p>
+        Molam requires JavaScript and a browser with WebGL support. JavaScript
+        is currently disabled in your browser. Enable it in your browser settings
+        and reload this page to launch Molam.
+      </p>
+    </div>
+
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module">
+    window.helpConfig = [
+      {
+        panelPosition: {
+          targetId : 'RightPanel', 
+          x: 0.5,
+          y: 0.5,
+        },
+        items: [
+          {
+            text: '<strong>Molam:</strong><br>Protein molecule viewer',
+            targetId: 'page-title',
+            type: 'results'
+          },                    
+          {
+            text: '<strong>Menu:</strong><br>Click to get a menu of choices - such as other web pages to visit.',
+            targetId: 'nav-utility-btn',
+            type: 'default'
+          },
+          {
+            text: '<strong>Load:</strong><br>Choose the protein',
+            targetId: 'section-load',
+            type: 'default'
+          },
+          {
+            text: '<strong>Presets:</strong><br>Press these to try different display modes',
+            targetId: 'section-presets',
+            type: 'default'
+          },
+          {
+            text: '<strong>Sliders:</strong><br>Adjust sliders to for example change width and thickness of the backbone ribbon.',
+            targetId: 'section-main',
+            type: 'default'
+          },
+        ]
+      },
+    ];
+  </script>
+  <script type="module" src="../js/apps/molam-app.js"></script>
+
+</body>
+</html>
