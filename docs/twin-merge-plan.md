@@ -191,18 +191,30 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
 
 ### Steps (each its own commit; stop after any)
 
-- **FR0 — Nested-drag test scenes first.** Before any frame code changes, build a small scene for each world (or reuse `apps/scenes-frame.js`). Check each case and record the result in this doc as the baseline.
+- **FR0 — Nested-drag baseline: done (27 Oct).** The test is `docs/tests/frame-drag-test.mjs`.
 
-  | Case | Omni | Zones |
-  |---|---|---|
-  | frame in frame in frame: drag innermost body | `handle-frame` ×3 and `stamp-frame` ×3 | `frame-node` ×3 |
-  | same at layer zoom 2 and with pan | ✓ | ✓ (camera zoom) |
-  | drag a corner of the middle frame | `drag-point` corner | corner handle |
-  | resize the outer frame with nested content | ✓ | ✓ (children rescale) |
-  | drag a child out onto the strip | — | ✓ |
-  | `postit-node` inside `handle-frame`: drag and hit at zoom 2 | ✓ | — |
+  It runs under Node with no DOM or three.js:
 
-  The two "suspected" and "likely" bugs above should show up here. If they don't, update this analysis before going further.
+  ```
+  node docs/tests/frame-drag-test.mjs omni-stamp | omni-handle | zones
+  ```
+
+  It is convention-neutral. It finds a frame's on-screen box by probing a grid of points with the real `hit_test` walk, grabs it where it is topmost, calls the real `applyDrag` with the pointer moved by D = (37, 23), and checks that the box moved by exactly D. Each case uses three frames nested inside one another, tested at each depth at zoom 1 and 2.
+
+  Baseline before any frame change:
+
+  | Frame | depth 1 | depth 2 | depth 3 |
+  |---|---|---|---|
+  | `stamp-frame` (B) | ok (both zooms) | ok | ok |
+  | `handle-frame` (mixed) | ok | **wrong**: moved (−67, −54), and (−152, −119) at zoom 2 | **lost**: frame ends up off screen |
+  | Zones `frame-node` (A) | **wrong**: (7, 8) | **wrong**: (177, 158) | **wrong**, lost at zoom 2 |
+
+  What this shows:
+
+  - **B works at any depth, as predicted.**
+  - **The `handle-frame` nesting bug is confirmed.** Its body drag uses `params.panX`, `params.zoom` and `ctxMix.W/2` instead of `T`.
+  - **Zones `frame-node` is worse than predicted.** Its `after_hit_test` wraps the current hit's `applyDrag` with "subtract my centre" whenever the hit is *not itself*. It never checks that the hit was produced inside its subtree. So any frame visited after the hit (a descendant frame, or a later sibling) shifts the drag by its own position. The innermost such frame runs first and sets `_wrappedByChartCoordMap`, which then stops the correct ancestors from wrapping. Depth-1 dragging is only right when nothing after the hit is a frame. That is the demo case, which is why it hasn't shown up. `pane-camera` gets this right by comparing `hitResult` with the one saved in its `before_` hook.
+  - **Walker rule:** a container-pattern node with an **empty `subtree`** receives no `before_`/`after_` hooks, only the plain phase. So a childless `stamp-frame` or `frame-node` is never hit-tested, and by the same rule never drawn. The test checks this and prints it. This is not a frame bug as such, but a frame is a container people will leave empty. A fix belongs in `walkPhase`: when a node has no subtree but no plain handler for the phase, call its `before_`/`after_` pair.
 - **FR1 — Names only.** Rename the classes `StampFrameNode`, `ContentFrameNode` (the Zones one) and `SizingFrameNode`, keeping all type names. `HandleFrameNode` is unchanged. This ends three classes sharing one name and changes no behaviour.
 - **FR2 — Zones `frame-node` to B.**
   - Replace the `hitPoint` rewrite and the `applyDrag` wrapping (and the `_wrappedByChartCoordMap` flag) with a push of `ctxMix.T.child({x, y})` and a captured-`T` drag.
