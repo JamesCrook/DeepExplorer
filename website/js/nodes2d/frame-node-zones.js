@@ -1,9 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Values } from '../omni-support/values.js';
-export { FrameNode };
+export { ContentFrameNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-FrameNode — generic, content-agnostic frame with drag, resize, and screen-fit.
+ContentFrameNode — generic, content-agnostic frame with drag, resize, and screen-fit.
 
 Node value properties:
  x, y          — world position (centre of frame)
@@ -16,7 +16,7 @@ Node value properties:
 What it provides to children via ctxMix:
  ctxMix.getWH() → { W:cw, H:ch }   — current frame content dimensions
 ──────────────────────────────────────────────────────────────────────────── */
-class FrameNode {
+class ContentFrameNode {
 /* ── geometry helpers (private) ────────────────────────────────────────── */
   static _pad(node) {
     const p = node.value.padding;
@@ -27,7 +27,7 @@ class FrameNode {
 
   static _frameExtents(node) {
     const cw = node.value.cw || 700, ch = node.value.ch || 400;
-    const pad = FrameNode._pad(node);
+    const pad = ContentFrameNode._pad(node);
     return {
       hw: cw / 2 + (pad.left + pad.right) / 2,
       hh: ch / 2 + (pad.top + pad.bottom) / 2,
@@ -35,7 +35,7 @@ class FrameNode {
   }
 
   static _corners(node) {
-    const { hw, hh } = FrameNode._frameExtents(node);
+    const { hw, hh } = ContentFrameNode._frameExtents(node);
     return [
       { cx: -hw, cy: -hh, signX: -1, signY: -1, cursor: 'nwse-resize' },
       { cx:  hw, cy: -hh, signX:  1, signY: -1, cursor: 'nesw-resize' },
@@ -45,7 +45,7 @@ class FrameNode {
   }
 
   static _edges(node) {
-    const { hw, hh } = FrameNode._frameExtents(node);
+    const { hw, hh } = ContentFrameNode._frameExtents(node);
     return [
       { side: 'top',    test: (lx, ly) => Math.abs(ly + hh) <= 8 && lx > -hw && lx < hw, cursor: 'ns-resize',   axis: 'y', sign: -1 },
       { side: 'bottom', test: (lx, ly) => Math.abs(ly - hh) <= 8 && lx > -hw && lx < hw, cursor: 'ns-resize',   axis: 'y', sign:  1 },
@@ -83,7 +83,7 @@ class FrameNode {
     const { W, H, Z, ox, oy } = ctxMix.getWH();
 // Screen-mode auto-fit
     if (params.screenMode) {
-      const pad = FrameNode._pad(node);
+      const pad = ContentFrameNode._pad(node);
       const targetCw = Math.max(node.value.minCw ?? 200, W / Z - pad.left - pad.right);
       const targetCh = Math.max(node.value.minCh ?? 150, H / Z - pad.top - pad.bottom);
       /* Left as a direct write on purpose.  These are a draw phase editing
@@ -94,11 +94,11 @@ class FrameNode {
       if (!node.value._screenSnap) {
         node.value._screenSnap = {
           cw, ch,
-          children: FrameNode._snapChildren(node)
+          children: ContentFrameNode._snapChildren(node)
         };
       }
       const s = node.value._screenSnap;
-      FrameNode._applySize(node, targetCw, targetCh, s.cw, s.ch, s.children);
+      ContentFrameNode._applySize(node, targetCw, targetCh, s.cw, s.ch, s.children);
     } else if (node.value._screenSnap) {
       delete node.value._screenSnap;
     }
@@ -113,7 +113,7 @@ class FrameNode {
 
     if (params.showChartBounds) {
       ctx.fillStyle = 'rgba(55, 55, 255, 0.15)';
-      const { hw, hh } = FrameNode._frameExtents(node);
+      const { hw, hh } = ContentFrameNode._frameExtents(node);
       ctx.fillRect(-hw, -hh, hw * 2, hh * 2);
     }
   }
@@ -126,7 +126,7 @@ class FrameNode {
     const drawFrame = (hi && mode) || params.showChartBounds; 
 
     if (drawFrame) {
-      const { hw, hh } = FrameNode._frameExtents(node);
+      const { hw, hh } = ContentFrameNode._frameExtents(node);
       const { W, H, Z, ox, oy } = ctxMix.getWH();
 
       ctx.strokeStyle = 'rgba(102, 204, 255, 0.4)';
@@ -136,7 +136,7 @@ class FrameNode {
       if (mode === 'corners') {
         const size = 10 /Z;
         ctx.fillStyle = '#6cf';
-        for (const c of FrameNode._corners(node)) ctx.fillRect(c.cx - size / 2, c.cy - size / 2, size, size);
+        for (const c of ContentFrameNode._corners(node)) ctx.fillRect(c.cx - size / 2, c.cy - size / 2, size, size);
       } else if (mode === 'edges') {
         ctx.setLineDash([4, 4]);
         ctx.strokeStyle = 'rgba(102, 204, 255, 0.6)';
@@ -174,23 +174,23 @@ class FrameNode {
     };
     ctxMix.hitPoint = localPt;
 
-    const { hw, hh } = FrameNode._frameExtents(node);
+    const { hw, hh } = ContentFrameNode._frameExtents(node);
     const fv = ctxMix.getValue(ctxMix, node, params) || {};
     const isHi = !!(fv.selected || fv.hovered);
     const mode = node.value.resizeMode ?? 'corners';
 
   // Resize hit-test (only when selected and not in screen mode)
     if (isHi && mode && !params.screenMode) {
-      const pad = FrameNode._pad(node);
+      const pad = ContentFrameNode._pad(node);
       const startCw = node.value.cw || 700, startCh = node.value.ch || 400;
 
       if (mode === 'corners') {
         const hs = 14;
-        for (const c of FrameNode._corners(node)) {
+        for (const c of ContentFrameNode._corners(node)) {
           if (Math.abs(localPt.x - c.cx) <= hs && Math.abs(localPt.y - c.cy) <= hs) {
             const fixedWx = (node.value.x || 0) - c.signX * hw;
             const fixedWy = (node.value.y || 0) - c.signY * hh;
-            const childSnap = FrameNode._snapChildren(node);
+            const childSnap = ContentFrameNode._snapChildren(node);
 
             ctxMix.hitResult = {
               node,
@@ -203,7 +203,7 @@ class FrameNode {
                   const newCh = Math.abs(wy - fixedWy) - totalPadY;
                   Values.setValue(Values, node, params,
                     { x: (fixedWx + wx) / 2, y: (fixedWy + wy) / 2 });
-                  FrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
+                  ContentFrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
                   return node;
                 }
               }
@@ -212,9 +212,9 @@ class FrameNode {
           }
         }
       } else if (mode === 'edges') {
-        for (const e of FrameNode._edges(node)) {
+        for (const e of ContentFrameNode._edges(node)) {
           if (e.test(localPt.x, localPt.y)) {
-            const childSnap = FrameNode._snapChildren(node);
+            const childSnap = ContentFrameNode._snapChildren(node);
             ctxMix.hitResult = {
               node,
               interactions: {
@@ -228,7 +228,7 @@ class FrameNode {
                     const localWy = wy - (node.value.y || 0);
                     newCh = Math.abs(localWy / e.sign) * 2;
                   }
-                  FrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
+                  ContentFrameNode._applySize(node, newCw, newCh, startCw, startCh, childSnap);
                   return node;
                 }
               }
@@ -286,4 +286,4 @@ class FrameNode {
   }
 }
 
-SYS.NODE_CLASSES.push({ name: 'frame-node', cls: FrameNode });;
+SYS.NODE_CLASSES.push({ name: 'frame-node', cls: ContentFrameNode });;

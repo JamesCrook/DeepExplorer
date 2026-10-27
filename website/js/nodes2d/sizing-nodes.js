@@ -22,7 +22,7 @@ import { SYS } from '../omni-support/sys.js';
  * Displays correctly and drags correctly. No hit test required,
  * 
  * Chart is centred as a frame and has a handle frame as an addable.
- * Chart frame does zoom-pan and then FrameNode
+ * Chart frame does zoom-pan and then SizingFrameNode
  * Chart addable does handle frame then FrameBox
  * 
  * Display and dragging do pan and scale correctly. Hit test working and dragging within 
@@ -42,7 +42,7 @@ const CHART_NAT_H = 600;
 // canvas dimensions centred at (W/2, H/2).  ctx.scale(zoom)
 // and ctx.translate(pan) handle the rest.
 //
-// FrameNode replicates this so that existing chart
+// SizingFrameNode replicates this so that existing chart
 // nodes (whose _bounds multiplies by zoom) keep working.
 // The parent ZoomScaleNode applies ctx.translate + ctx.scale.
 //
@@ -50,7 +50,7 @@ const CHART_NAT_H = 600;
 // When chart nodes are converted to manual zoom, ChartFrameNode
 // can switch to zoomed dimensions and ZoomScaleNode goes away.
 
-class FrameNode {
+class SizingFrameNode {
 
   static before_draw2d(ctxMix, node, params) {
     const child = node.subtree?.[0];
@@ -67,7 +67,7 @@ class FrameNode {
 
   static before_hit_test(ctxMix, node, params) {
     // Set child dimensions (same as draw2d)
-    FrameNode.before_draw2d(ctxMix, node, params);
+    SizingFrameNode.before_draw2d(ctxMix, node, params);
 
     // Inverse of ZoomPanNode's draw2d: translate(panX,panY) + scale(z)
     // so the chart's geometry (computed in pre-zoom space) matches hitPoint.
@@ -102,7 +102,7 @@ class FrameNode {
   }
 }
 
-SYS.NODE_CLASSES.push({ name: 'frame', cls: FrameNode });
+SYS.NODE_CLASSES.push({ name: 'frame', cls: SizingFrameNode });
 
 
 // ═══════════════════════════════════════════════════════
@@ -325,7 +325,7 @@ SYS.NODE_CLASSES.push({ name: 'uncenter', cls: UncenterNode });
  * nm-sizing-nodes.js
  *
  * Sizing nodes for nanometre coordinate space (mask editor).
- * Analogous to sizing-nodes.js (FrameNode / BoxNode) for charts.
+ * Analogous to sizing-nodes.js (SizingFrameNode / BoxNode) for charts.
  *
  * Two nodes:
  *   nm-frame  — scene mode: offscreen at PHYSICAL pixel size (1:1 blit)
@@ -356,7 +356,7 @@ SYS.NODE_CLASSES.push({ name: 'uncenter', cls: UncenterNode });
  * nm-sizing-nodes.js
  *
  * Sizing nodes for nanometre coordinate space (mask editor).
- * Analogous to sizing-nodes.js (FrameNode / BoxNode) for charts.
+ * Analogous to sizing-nodes.js (SizingFrameNode / BoxNode) for charts.
  *
  * Two nodes:
  *   nm-frame  — scene mode: offscreen at CSS-pixel size + DPR-scaled blit

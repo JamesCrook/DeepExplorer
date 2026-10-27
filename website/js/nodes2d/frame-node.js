@@ -261,7 +261,7 @@ const FRAME_DEFAULTS = Object.freeze({
 //  FRAME NODE — container: before/after pattern
 // ═══════════════════════════════════════════════════════
 
-class FrameNode {
+class StampFrameNode {
 
   // ── Draw ───────────────────────────────────────────────
 
@@ -433,7 +433,7 @@ class FrameNode {
   }
 }
 
-SYS.NODE_CLASSES.push({ name: 'stamp-frame', cls: FrameNode });
+SYS.NODE_CLASSES.push({ name: 'stamp-frame', cls: StampFrameNode });
 
-export { FrameNode, generateEdgePoints, traceEdgePath,
+export { StampFrameNode, generateEdgePoints, traceEdgePath,
          buildBumpPoly, evalBumpPoly, bumpProfile };

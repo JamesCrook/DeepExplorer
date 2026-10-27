@@ -14,7 +14,7 @@ Changes from original:
  immediately, not just after user interaction.
 - applyControl(id, val, getValues) merges into params and redraws,
  fixing the bug where HUD controls displayed but had no effect on 2D.
-- Adds getWH() to ctxMix (pane dims + camera state) so FrameNode's
+- Adds getWH() to ctxMix (pane dims + camera state) so ContentFrameNode's (frame-node)
  screenMode path works (it calls ctxMix.getWH(), distinct from getWH).
 ═══════════════════════════════════════════════════════════════════════════ */
 class DemoHarness2D {
@@ -98,7 +98,7 @@ class DemoHarness2D {
       iterators: [],
       state: { index: 0, pass: 0, isHovered: false, isSelected: false },
 
-  // Stable pane + camera info (never overwritten) — used by FrameNode screenMode
+  // Stable pane + camera info (never overwritten) — used by ContentFrameNode (frame-node) screenMode
       getWH: () => ({
         W: this.W, H: this.H,
         Z: cam.zoom || 1,
