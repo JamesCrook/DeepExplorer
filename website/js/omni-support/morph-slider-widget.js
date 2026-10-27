@@ -151,7 +151,8 @@ class MorphSliderWidget {
     function render(v) {
       const pct = pctFromValue(v) * 100;
       fill.style.width = pct + '%';
-      pip.style.left   = pct + '%';
+      // Map over the track (inset 8px each side), keeping the whole pip inside it at 0 and 1
+      pip.style.left   = `calc(8px + var(--ms-pip-w) * 0.5px + (100% - 16px - var(--ms-pip-w) * 1px) * ${pct / 100})`;
       val.textContent  = fmt(v);
     }
 
