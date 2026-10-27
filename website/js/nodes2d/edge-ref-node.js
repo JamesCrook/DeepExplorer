@@ -55,7 +55,10 @@ class EdgeRefNode {
   }
 
   static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
+    // Compared with T.toScreen, so it must be the screen point.  An enclosing
+    // container may have rewritten ctxMix.hitPoint into its own local space
+    // (handle-frame does, for its content); SceneRootNode keeps the original.
+    const pt = ctxMix.screenHitPoint ?? ctxMix.hitPoint;
     const T  = ctxMix.T;
     if (!pt || !T) return;
     const v  = node.value || {};

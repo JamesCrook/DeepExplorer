@@ -351,7 +351,10 @@ class StampFrameNode {
   // during recursion can overwrite hitResult.
 
   static before_hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
+    // Compared with T.toScreen, so it must be the screen point.  An enclosing
+    // container may have rewritten ctxMix.hitPoint into its own local space
+    // (handle-frame does, for its content); SceneRootNode keeps the original.
+    const pt = ctxMix.screenHitPoint ?? ctxMix.hitPoint;
     if (!pt) return;
 
     const p    = { ...FRAME_DEFAULTS, ...params };

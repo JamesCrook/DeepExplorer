@@ -244,16 +244,19 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
   - The old `panX`/`zoom`/`W/2` arithmetic is kept only as a fallback for a walk with no `T`.
   - Body drags now pass at depths 1–3, zoom 1 and 2. Before, they were wrong from depth 2 and lost the frame at depth 3.
 
-  Open: **corners of nested frames.** `frame-drag-test.mjs omni-handle` rows 5–6 show a nested frame's corner drag-point is off at zoom 1 and unreachable at zoom 2. This was the same before FR3. Omni `drag-point` maps itself with `T` (screen space) but compares with `ctxMix.hitPoint`, which the enclosing `handle-frame` has rewritten to frame-local space.
+  **Corners of nested frames: fixed (27 Oct)**, without FR5 first. A probe that records, at hit-test time, both `ctxMix.hitPoint` and `T.toLocal(screenHitPoint)` under every container combination showed two things:
 
-  The obvious fix is to compare with `screenHitPoint`. That is right under `handle-frame`, but wrong under the sizing `zoom-pan`/`box` nodes, which rewrite `hitPoint` *without* pushing a matching `T`. Two options:
+  - `T` is right everywhere: centred layer, `uncenter`, `zoom-pan > frame`, stretched and scaled `handle-frame`, and nested `handle-frame`s.
+  - `hitPoint` is screen in some contexts, local in some, and in a third space inside `handle-frame` content.
 
-  - **(a)** Do FR5 first (sizing nodes push `T`); after that, every B node can compare with `screenHitPoint`.
-  - **(b)** Have `handle-frame` stop rewriting `hitPoint` for content children that hit-test with `T`. That needs a per-class flag, and `postit-node.js`'s undo would go at the same time.
+  So `T`-based nodes now compare with `ctxMix.screenHitPoint ?? ctxMix.hitPoint`. Those nodes are `drag-point`, `button-node`, `stamp-frame`, `edge-ref` and `ribbon-point`, plus the `handle-frame` body. Where nothing rewrites `hitPoint`, the two are equal and nothing changes.
 
-  (a) is the principled one.
+  `frame-drag-test.mjs`: `omni-handle` passes all 12 rows (nested corners included). A new `omni-mixed` case, a `stamp-frame` holding a `drag-point` as `handle-frame` content, passes all 6. Before, it was 113 px off at zoom 1 and lost at zoom 2.
+
 - **FR4 — `stamp-frame` cleanup.** List its children that still need raw `ctx` translation or `params.panX`. When none are left, drop the legacy pan shift and `ctx.translate`, and replace `frameRect`'s `params.zoom` with `res.T.uniformScale`. That ends the double-recorded zoom.
-- **FR5 — `sizing-nodes` (`frame`, `zoom-pan`, `uncenter`, `box`) to B.** `zoom-pan` pushes `T.zoomed`/`T.shift` instead of `ctx.scale` plus `hitPoint` rewriting. This is the widest change; do it last, and only if FR0 is still green.
+- **FR5 — reframed (27 Oct).** `zoom-pan` and `uncenter` already push `T` and leave `hitPoint` alone. `frame`'s rewrite already equals `T.toLocal(screen)`. So no sizing node needs to start pushing `T`.
+
+  What the probe did find: in a **scaled** `handle-frame`, content is drawn with separate x/y scales (`ctx.scale(scaleX, scaleY)`, and `T` matches). But `before_child_hit_test` converts `hitPoint` with one width-based scale, and `box`'s correction assumes the same. So a chart in a `handle-frame` whose aspect ratio differs from 800×600 hit-tests vertically off. The fix: `handle-frame` hands content `T.toLocal(screenHitPoint)`, and `box` uses `T` instead of its hand-made correction.
 
 ## Notes for later sessions (27 Oct, end of day)
 

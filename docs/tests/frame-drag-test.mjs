@@ -2,6 +2,7 @@
 //
 //   node docs/tests/frame-drag-test.mjs omni-stamp     stamp-frame in stamp-frame in stamp-frame
 //   node docs/tests/frame-drag-test.mjs omni-handle    handle-frame ×3 (corners are drag-points)
+//   node docs/tests/frame-drag-test.mjs omni-mixed     stamp-frame + drag-point as handle-frame content
 //   node docs/tests/frame-drag-test.mjs zones          frame-node ×3 under a pane-camera
 //
 // Convention-neutral: a frame's on-screen box is measured by probing a grid
@@ -44,6 +45,14 @@ if (kind.startsWith('omni')) {
       const a = mk('stamp-frame', { x: -20, y: 0, width: 300, height: 220 }, [b]);
       const layer = mk('layer', { center: true, params: { zoom } }, [a]);
       return { root: mk('scene-root', {}, [layer]), targets: [a, b, c] };
+    }
+    if (kind === 'omni-mixed') {
+      // conventions mixed: a stamp-frame (T-based) holding a drag-point, as content of a handle-frame
+      const dp = mk('drag-point', { x: 15, y: 10 });
+      const st = mk('stamp-frame', { x: 120, y: 80, width: 90, height: 60 }, [dp]);
+      const a = mk('handle-frame', { draggable: true, stretchContent: true }, [mk('drag-point', { x: -150, y: -110 }), mk('drag-point', { x: 150, y: 110 }), st]);
+      const layer = mk('layer', { center: true, params: { zoom } }, [a]);
+      return { root: mk('scene-root', {}, [layer]), targets: [a, st, dp] };
     }
     // handle-frame: two drag-point corners, then content (stretchContent: no scaling)
     const hf = (x0, y0, x1, y1, inner) => mk('handle-frame', { draggable: true, stretchContent: true },
@@ -95,7 +104,7 @@ function measure(root, target) {
 
 // A childless container-pattern frame: is it reachable at all?  (Not meaningful
 // for handle-frame, whose two corner children define the frame.)
-if (kind !== 'omni-handle') {
+if (kind !== 'omni-handle' && kind !== 'omni-mixed') {
   const lone = build(1);
   const t = lone.targets[2]; t.subtree.length = 0;
   console.log('childless innermost frame hit anywhere:', measure(lone.root, t) ? 'yes' : 'NO (an empty container got no before_/after_ hooks)');
