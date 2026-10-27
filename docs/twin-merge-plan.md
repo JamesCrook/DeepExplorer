@@ -217,6 +217,38 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
 - **FR4 — `stamp-frame` cleanup.** List its children that still need raw `ctx` translation or `params.panX`. When none are left, drop the legacy pan shift and `ctx.translate`, and replace `frameRect`'s `params.zoom` with `res.T.uniformScale`. That ends the double-recorded zoom.
 - **FR5 — `sizing-nodes` (`frame`, `zoom-pan`, `uncenter`, `box`) to B.** `zoom-pan` pushes `T.zoomed`/`T.shift` instead of `ctx.scale` plus `hitPoint` rewriting. This is the widest change; do it last, and only if FR0 is still green.
 
+## Notes for later sessions (27 Oct, end of day)
+
+### Hit-test ordering: where the reverse-and-abort variant lives
+
+The house rule: hit-test in draw order and let the last hit win, matching "last drawn is on top". The walker supports an alternative: `ctxMix.abortPhase = true` breaks the *current node's* child loop (`scene.js` `walkPhase`). The flag is cleared before `after_X`, so it never propagates to ancestors, whose loops continue with last-wins.
+
+Only three files use it:
+
+| File | What it does | Verdict |
+|---|---|---|
+| `nodes2d/flyweight-array-node.js` | `_order` yields items in **reverse** for `hit_test` (or `value.hitOrder`); `after_child_hit_test` aborts after the first item hit | Same result as last-wins, and much cheaper with thousands of items. **Gap:** it aborts only when `hit.node === child`, i.e. the proto itself. If the proto is a container and one of *its* children is hit, there's no abort, the reverse walk continues, and the **lowest** item wins. Reverting to forward/last-wins fixes that but costs a full scan; the alternative is to abort whenever `hitResult` changed during that child. |
+| `nodes2d/pipper-node.js` | `before_hit_test` scans followers' pips **in reverse** and aborts on the first pip hit; `after_child_hit_test` aborts after the first **body** hit | The pip scan is a deliberate *priority* rule (any pip beats any body), not just z-order. Keep it. **Bug:** body hits use the default *forward* iterator plus abort, so the **first-drawn (bottom)** overlapping body wins. Here reverting to last-wins (drop the abort in `after_child_hit_test`) is the right fix. |
+| `nodes2d/stock-strip-node.js` | `before_hit_test` aborts when the point is outside the strip, as a cull; `after_child_hit_test` aborts after the first hit | The cull is fine, and items don't overlap, so order doesn't matter. **Check:** `after_child_hit_test` tests `if (!ctxMix.hitResult)` rather than `hitResult.node === child`, so a hit left by an earlier-drawn sibling (e.g. the arena) can be mistaken for a stock prototype. |
+
+### Morph-slider pip sits outside the track at 0 and 1
+
+`omni-support/morph-slider-widget.js` appends `.ms-pip` to `.morph-slider` as a **sibling** of `.ms-track`, and sets `pip.style.left = pct + '%'`. A percentage `left` on an absolutely positioned element is relative to the slider's full padding box. The track is inset `left: 8px; right: 8px` (in both `css/omni-scene.css` and `css/panopticon.css`). So:
+
+- at 0 the pip's centre is 8px left of the track;
+- at 1 it is 8px past the track's end;
+- in between it disagrees with the fill, which lives inside the track, everywhere except 50%.
+
+The drag mapping uses `track.getBoundingClientRect()`, so dragging is right and only the pip is drawn wrong.
+
+Fix (JS, one line), keeping the pip wholly inside the track at both ends:
+
+```js
+pip.style.left = `calc(8px + var(--ms-pip-w) * 0.5px + (100% - 16px - var(--ms-pip-w) * 1px) * ${pct / 100})`;
+```
+
+Apply the same fix to the copy of `buildMorphSlider` in `nodes2d/pipped-edge-ref-node.js`, or better, make that file import `morph-slider-widget.js` (see the reorganisation notes).
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.
