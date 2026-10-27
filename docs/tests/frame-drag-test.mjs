@@ -9,7 +9,8 @@
 // that frame is the topmost hit.  The test grabs the box centre, calls the
 // real applyDrag with the pointer moved by D (as the page's mousemove does),
 // re-measures, and expects the box to have moved by exactly D.  It runs at
-// each nesting depth, at zoom 1 and zoom 2.  No DOM or three.js needed.
+// each nesting depth, at zoom 1 and zoom 2.  For zones, rows 4-5 are a drag-point
+// inside the innermost frame and a later sibling frame.  No DOM or three.js needed.
 
 const W = 800, H = 600, STEP = 2, D = { x: 37, y: 23 };
 const kind = process.argv[2] || 'omni-stamp';
@@ -55,6 +56,7 @@ if (kind.startsWith('omni')) {
 } else {
   await import(js + 'nodes2d/pane-camera-node.js');
   await import(js + 'nodes2d/frame-node-zones.js');      // frame-node
+  await import(js + 'nodes2d/drag-point-node-zones.js'); // drag-point (Zones), content inside frames
   // as demo-harness2-d.js builds its ctxMix (camera at identity origin, zoom z)
   let camZoom = 1;
   hitWalk = (root, x, y) => {
@@ -67,10 +69,12 @@ if (kind.startsWith('omni')) {
   build = (zoom) => {
     camZoom = zoom;
     const fr = (x, y, cw, ch, kids = []) => mk('frame-node', { x, y, cw, ch, padding: 10, resizeMode: null }, kids);
-    const c = fr(30, 15, 50, 30, [mk('test-content', { x: 0, y: 0 })]);
+    const p = mk('drag-point', { x: -20, y: 0, r: 6 });        // content child, frame-local coords
+    const c = fr(30, 15, 50, 30, [p]);
     const b = fr(40, 30, 160, 110, [c]);
     const a = fr(170, 150, 300, 220, [b]);
-    return { root: mk('pane-camera', { zoom, centerOrigin: false, scrollX: 0, scrollY: 0 }, [a]), targets: [a, b, c] };
+    const sib = fr(355, 60, 10, 10, [mk('test-content', { x: 0, y: 0 })]);   // later sibling frame
+    return { root: mk('pane-camera', { zoom, centerOrigin: false, scrollX: 0, scrollY: 0 }, [a, sib]), targets: [a, b, c, p, sib] };
   };
 }
 
@@ -95,7 +99,7 @@ function measure(root, target) {
 }
 
 const rows = [];
-for (const zoom of [1, 2]) for (let depth = 0; depth < 3; depth++) {
+for (const zoom of [1, 2]) for (let depth = 0; depth < build(1).targets.length; depth++) {
   const { root, targets } = build(zoom);
   const t = targets[depth];
   const before = measure(root, t);

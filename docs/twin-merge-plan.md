@@ -216,11 +216,18 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
   - **Zones `frame-node` is worse than predicted.** Its `after_hit_test` wraps the current hit's `applyDrag` with "subtract my centre" whenever the hit is *not itself*. It never checks that the hit was produced inside its subtree. So any frame visited after the hit (a descendant frame, or a later sibling) shifts the drag by its own position. The innermost such frame runs first and sets `_wrappedByChartCoordMap`, which then stops the correct ancestors from wrapping. Depth-1 dragging is only right when nothing after the hit is a frame. That is the demo case, which is why it hasn't shown up. `pane-camera` gets this right by comparing `hitResult` with the one saved in its `before_` hook.
   - **Walker rule:** a container-pattern node with an **empty `subtree`** receives no `before_`/`after_` hooks, only the plain phase. So a childless `stamp-frame` or `frame-node` is never hit-tested, and by the same rule never drawn. The test checks this and prints it. This is not a frame bug as such, but a frame is a container people will leave empty. A fix belongs in `walkPhase`: when a node has no subtree but no plain handler for the phase, call its `before_`/`after_` pair.
 - **FR1 — Names only.** Rename the classes `StampFrameNode`, `ContentFrameNode` (the Zones one) and `SizingFrameNode`, keeping all type names. `HandleFrameNode` is unchanged. This ends three classes sharing one name and changes no behaviour.
-- **FR2 — Zones `frame-node` to B.**
-  - Replace the `hitPoint` rewrite and the `applyDrag` wrapping (and the `_wrappedByChartCoordMap` flag) with a push of `ctxMix.T.child({x, y})` and a captured-`T` drag.
-  - Zones coordinates are world coordinates from the harness. With F2's identity `T` at the top, that is the space `T` maps into, so nothing else changes.
-  - Keep resize, screen-fit and strip-drop logic as they are. The strip-drop wrapper in `after_child_hit_test` stays, but should preserve the other `interactions` members (`cursor`, `getValue`…), which it currently drops.
-  - Rerun FR0: the depth-≥2 drag case should now pass.
+- **FR2 — Zones `frame-node` made correct within convention A: done (27 Oct).**
+
+  The plan said "move it to B". That turned out to be the wrong first step. Zones content children (`drag-point` Zones, `mouse-zone`, the chart zones) compare their *local* coordinates with `ctxMix.hitPoint`, so they depend on the frame rewriting `hitPoint` and wrapping their drags. Moving the frame alone to B would break them. B must come child by child (pair 6 onward), and the frame can follow once its children use `res.T`.
+
+  What changed in `frame-node-zones.js` instead:
+
+  - `before_hit_test` saves the incoming `hitResult`. `after_hit_test` wraps only a hit produced inside its own subtree, which is the test `pane-camera` already uses.
+  - The `_wrappedByChartCoordMap` flag is gone, so every enclosing frame adds its offset and nesting composes.
+  - The strip-drop wrapper now keeps the other `interactions` members.
+  - `ctxMix.getWH` is restored after the frame in both draw and hit-test, so it is scoped to the frame's children.
+
+  `frame-drag-test.mjs zones` now passes every case at zoom 1 and 2: three nested frames, a Zones `drag-point` inside the innermost frame (previously 247 px off), and a later sibling frame.
 - **FR3 — `handle-frame` to B.**
   - The body drag uses `T.toScreen` of the frame centre and a captured `T`, like `stamp-frame`, dropping the `panX`/`zoom`/`W/2` arithmetic.
   - Content children get `T.child(...)` only, with no `hitPoint` rewrite.

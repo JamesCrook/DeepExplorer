@@ -103,8 +103,9 @@ class ContentFrameNode {
       delete node.value._screenSnap;
     }
 
-    // Expose frame dimensions to children
+    // Expose frame dimensions to children (restored in after_draw2d)
     const frameCw = node.value.cw || 700, frameCh = node.value.ch || 400;
+    node.value._savedGetWH = ctxMix.getWH;
     ctxMix.getWH = () => ({ W: frameCw, H: frameCh, Z });
 
     const ctx = ctxMix.ctx;
@@ -152,13 +153,18 @@ class ContentFrameNode {
       }
     }
     ctx.restore();
+    if (node.value._savedGetWH) { ctxMix.getWH = node.value._savedGetWH; node.value._savedGetWH = null; }
   }
 
   /* ── hit-test ─────────────────────────────────────────────────────────── */
 
   static before_hit_test(ctxMix, node, params) {
+    // A hit already made before this frame (an ancestor, an earlier sibling)
+    // is not in this frame's local space; after_hit_test must leave it alone.
+    node.value._savedHitResult = ctxMix.hitResult;
+    node.value._savedGetWH = ctxMix.getWH;
     const { W, H, Z, ox, oy } = ctxMix.getWH();
-  // Expose frame dimensions for children's hit-test
+  // Expose frame dimensions for children's hit-test (restored in after_hit_test)
     const frameCw = node.value.cw || 700, frameCh = node.value.ch || 400;
     ctxMix.getWH = () => ({ W: frameCw, H: frameCh, Z });
     if( ! ctxMix.getWH().W )
@@ -259,6 +265,7 @@ class ContentFrameNode {
       const inner = ctxMix.hitResult.interactions;
       const sub = node.subtree;
       ctxMix.hitResult.interactions = {
+        ...inner,                       // keep cursor, getValue, setValue, …
         applyDrag: (wx, wy) => { return inner?.applyDrag?.(wx, wy); },
         endDrag: (onStrip) => {
           if (inner && inner.endDrag) inner.endDrag(onStrip);
@@ -271,17 +278,21 @@ class ContentFrameNode {
     }
   }
 
+  /* A hit made inside this frame's subtree was made in frame-local space
+     (before_hit_test rewrote hitPoint), so its drag must be mapped the same
+     way.  Every enclosing frame does this once, innermost first, so nesting
+     composes.  Hits that existed before this frame was visited are left
+     alone — they are not in its space (pane-camera uses the same test). */
   static after_hit_test(ctxMix, node, params) {
-    ctxMix.hitPoint = node.value._savedHit; 
-    if (ctxMix.hitResult && ctxMix.hitResult.node !== node) {
-      const innerDrag = ctxMix.hitResult.interactions?.applyDrag;
+    ctxMix.hitPoint = node.value._savedHit;
+    if (node.value._savedGetWH) { ctxMix.getWH = node.value._savedGetWH; node.value._savedGetWH = null; }
+    const hit = ctxMix.hitResult;
+    const fromInside = hit && hit !== node.value._savedHitResult;
+    node.value._savedHitResult = null;
+    if (fromInside && hit.node !== node) {
+      const innerDrag = hit.interactions?.applyDrag;
       const cx = node.value.x || 0, cy = node.value.y || 0;
-      if (innerDrag && !ctxMix.hitResult._wrappedByChartCoordMap) {
-        ctxMix.hitResult.interactions.applyDrag = (wx, wy) => {
-          return innerDrag(wx - cx, wy - cy);
-        };
-        ctxMix.hitResult._wrappedByChartCoordMap = true; 
-      }
+      if (innerDrag) hit.interactions.applyDrag = (wx, wy) => innerDrag(wx - cx, wy - cy);
     }
   }
 }
