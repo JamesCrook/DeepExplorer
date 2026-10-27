@@ -1,4 +1,5 @@
 export { Values };
+import { Transform } from './transform.js';
 
 /* ─────────────────────────────────────────────────────────────────────────────
 Values — the one channel through which anything reads or writes a node, and
@@ -65,7 +66,13 @@ function applyPlain(node, patch) {
    that a ctxMix is built by spreading these and overriding what it means to
    change.  A class's statics are not, which is how the pane came to carry a
    second copy of getValue that had drifted from this one. */
+/* The identity transform: geometry outside a walk, or in a pane whose space
+   is already the one nodes draw in.  Walk-time containers override ctxMix.T. */
+const IDENTITY_T = Object.freeze(new Transform({ x: 0, y: 0 }, 1, 1));
+
 const Values = Object.freeze({
+
+  T: IDENTITY_T,
 
   getValue(res, node, params) {
     if (node?.flyFn) return node.flyFn(res, node, params);

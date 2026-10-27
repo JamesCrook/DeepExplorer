@@ -8,6 +8,7 @@
  */
 
 import { sceneRegistry } from './scene.js';
+import { Values } from './values.js';
 
 
 class Omni2d {
@@ -58,6 +59,7 @@ class Omni2d {
     }
 
     const ctxMix = {
+      ...Values,                 // resolver; SceneRootNode replaces T at the root
       ctx:          this.ctx,
       iterators:    [],
       flyweight:    {},
@@ -142,6 +144,7 @@ class Omni2d {
       const y  = e.clientY - br.top;
 
       const ctxMix = {
+        ...Values,
         ctx: this.ctx, hitPoint: { x, y },
         hitResult: null, iterators: [], flyweight: {},
       };
