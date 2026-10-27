@@ -264,6 +264,55 @@ class HandleFrameNode {
   static before_hit_test(ctxMix, node, params) {
     if (!node.value?.draggable) return;
 
+    // Body drag works in screen space with the T in force here (captured-T
+    // convention, as stamp-frame).  ctxMix.hitPoint can't be used: an
+    // enclosing handle-frame rewrites it to its own frame-local space for
+    // content children, so a nested frame would compare in the wrong space.
+    // SceneRootNode keeps the untouched pointer as ctxMix.screenHitPoint.
+    const T  = ctxMix.T;
+    const pt = ctxMix.screenHitPoint ?? ctxMix.hitPoint;
+    if (!pt || !T) return HandleFrameNode._legacyBodyHit(ctxMix, node, params);
+
+    const local = HandleFrameNode._getFrameLocal(node);
+    if (!local) return;
+    const tl = T.toScreen({ x: local.left, y: local.top });
+    const sw = local.width * T.sx, sh = local.height * T.sy;
+    if (sw < 1) return;
+
+    if (pt.x >= tl.x && pt.x <= tl.x + sw && pt.y >= tl.y && pt.y <= tl.y + sh) {
+      const ch = node.subtree;
+      const p0 = ch[0].value;
+      const p1 = ch[1].value;
+
+      // Capture starting positions, the grab offset, and the mapping
+      const startP0x = p0.x, startP0y = p0.y;
+      const startP1x = p1.x, startP1y = p1.y;
+      const oldMidX = (startP0x + startP1x) / 2;
+      const oldMidY = (startP0y + startP1y) / 2;
+      const dxHit = pt.x - (tl.x + sw / 2);
+      const dyHit = pt.y - (tl.y + sh / 2);
+      const Ts = T.clone();
+
+      ctxMix.hitResult = {
+        node,
+        interactions: {
+          applyDrag(screenX, screenY) {
+            const mid = Ts.toLocal({ x: screenX - dxHit, y: screenY - dyHit });
+            const dx = mid.x - oldMidX;
+            const dy = mid.y - oldMidY;
+            p0.x = startP0x + dx;
+            p0.y = startP0y + dy;
+            p1.x = startP1x + dx;
+            p1.y = startP1y + dy;
+          },
+        },
+      };
+    }
+  }
+
+  // The previous body hit-test, kept for a walk with no T (no scene-root).
+  // Correct only for a frame directly under a centred layer.
+  static _legacyBodyHit(ctxMix, node, params) {
     const pt = ctxMix.hitPoint;
     if (!pt) return;
 
@@ -276,36 +325,25 @@ class HandleFrameNode {
     const cxS  = (ctxMix.W || 0) / 2;
     const cyS  = (ctxMix.H || 0) / 2;
 
-    // Screen-space AABB
     const sLeft = frame.left + panX + cxS;
     const sTop  = frame.top  + panY + cyS;
 
     if (pt.x >= sLeft && pt.x <= sLeft + frame.width &&
         pt.y >= sTop  && pt.y <= sTop  + frame.height) {
-
       const ch = node.subtree;
       const p0 = ch[0].value;
       const p1 = ch[1].value;
-
-      // Capture starting positions
       const startP0x = p0.x, startP0y = p0.y;
       const startP1x = p1.x, startP1y = p1.y;
-      const midSx = sLeft + frame.width  / 2;
-      const midSy = sTop  + frame.height / 2;
-      const dxHit = pt.x - midSx;
-      const dyHit = pt.y - midSy;
-      const sz = zoom, spx = panX, spy = panY;
+      const dxHit = pt.x - (sLeft + frame.width  / 2);
+      const dyHit = pt.y - (sTop  + frame.height / 2);
 
       ctxMix.hitResult = {
         node,
         interactions: {
           applyDrag(screenX, screenY) {
-            const oldMidX = (startP0x + startP1x) / 2;
-            const oldMidY = (startP0y + startP1y) / 2;
-            const newMidX = (screenX - dxHit - spx - cxS) / sz;
-            const newMidY = (screenY - dyHit - spy - cyS) / sz;
-            const dx = newMidX - oldMidX;
-            const dy = newMidY - oldMidY;
+            const dx = (screenX - dxHit - panX - cxS) / zoom - (startP0x + startP1x) / 2;
+            const dy = (screenY - dyHit - panY - cyS) / zoom - (startP0y + startP1y) / 2;
             p0.x = startP0x + dx;
             p0.y = startP0y + dy;
             p1.x = startP1x + dx;

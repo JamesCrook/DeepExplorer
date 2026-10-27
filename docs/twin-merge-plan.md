@@ -228,11 +228,23 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
   - `ctxMix.getWH` is restored after the frame in both draw and hit-test, so it is scoped to the frame's children.
 
   `frame-drag-test.mjs zones` now passes every case at zoom 1 and 2: three nested frames, a Zones `drag-point` inside the innermost frame (previously 247 px off), and a later sibling frame.
-- **FR3 — `handle-frame` to B.**
-  - The body drag uses `T.toScreen` of the frame centre and a captured `T`, like `stamp-frame`, dropping the `panX`/`zoom`/`W/2` arithmetic.
-  - Content children get `T.child(...)` only, with no `hitPoint` rewrite.
-  - Then delete `postit-node.js`'s hit-point restore.
-  - Rerun FR0.
+- **FR3 — `handle-frame` body drag to captured-T: done (27 Oct). Nested corners still open.**
+
+  Done:
+
+  - `before_hit_test` now finds the frame on screen with the `T` in force, from its own corner values, and compares it with `ctxMix.screenHitPoint`. That is the untouched pointer `SceneRootNode` keeps; `hitPoint` can't be used because an enclosing `handle-frame` has rewritten it for its content.
+  - The drag captures `T` and inverts once, as `stamp-frame` does.
+  - The old `panX`/`zoom`/`W/2` arithmetic is kept only as a fallback for a walk with no `T`.
+  - Body drags now pass at depths 1–3, zoom 1 and 2. Before, they were wrong from depth 2 and lost the frame at depth 3.
+
+  Open: **corners of nested frames.** `frame-drag-test.mjs omni-handle` rows 5–6 show a nested frame's corner drag-point is off at zoom 1 and unreachable at zoom 2. This was the same before FR3. Omni `drag-point` maps itself with `T` (screen space) but compares with `ctxMix.hitPoint`, which the enclosing `handle-frame` has rewritten to frame-local space.
+
+  The obvious fix is to compare with `screenHitPoint`. That is right under `handle-frame`, but wrong under the sizing `zoom-pan`/`box` nodes, which rewrite `hitPoint` *without* pushing a matching `T`. Two options:
+
+  - **(a)** Do FR5 first (sizing nodes push `T`); after that, every B node can compare with `screenHitPoint`.
+  - **(b)** Have `handle-frame` stop rewriting `hitPoint` for content children that hit-test with `T`. That needs a per-class flag, and `postit-node.js`'s undo would go at the same time.
+
+  (a) is the principled one.
 - **FR4 — `stamp-frame` cleanup.** List its children that still need raw `ctx` translation or `params.panX`. When none are left, drop the legacy pan shift and `ctx.translate`, and replace `frameRect`'s `params.zoom` with `res.T.uniformScale`. That ends the double-recorded zoom.
 - **FR5 — `sizing-nodes` (`frame`, `zoom-pan`, `uncenter`, `box`) to B.** `zoom-pan` pushes `T.zoomed`/`T.shift` instead of `ctx.scale` plus `hitPoint` rewriting. This is the widest change; do it last, and only if FR0 is still green.
 

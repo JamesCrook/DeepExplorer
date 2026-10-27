@@ -22,7 +22,8 @@ const fakeCtx = new Proxy({ canvas: { width: W, height: H } }, { get: (t, p) => 
 
 const { SYS, sceneRegistry } = await import(js + 'omni-support/sys.js');
 const { Values } = await import(js + 'omni-support/values.js');
-const mk = (type, value, subtree = []) => SYS.makeNode(type, value, subtree);
+// Omni scenes are MiniAstNodes, which carry token = type (handle-frame tests child.token)
+const mk = (type, value, subtree = []) => Object.assign(SYS.makeNode(type, value, subtree), { token: type });
 
 let build, hitWalk;
 if (kind.startsWith('omni')) {
@@ -51,7 +52,8 @@ if (kind.startsWith('omni')) {
     const b = hf(20, 20, 200, 140, c);
     const a = hf(-150, -110, 150, 110, b);
     const layer = mk('layer', { center: true, params: { zoom } }, [a]);
-    return { root: mk('scene-root', {}, [layer]), targets: [a, b, c] };
+    // rows 4-6: the top-left corner drag-point of the outer, middle and inner frame
+    return { root: mk('scene-root', {}, [layer]), targets: [a, b, c, a.subtree[0], b.subtree[0], c.subtree[0]] };
   };
 } else {
   await import(js + 'nodes2d/pane-camera-node.js');
