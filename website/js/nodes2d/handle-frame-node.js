@@ -407,17 +407,24 @@ class HandleFrameNode {
           y: (ctxMix.hitPoint.y - frame.top)  / localScale,
         };
       }
-      ctxMix.contentScale = node._savedContentScale * localScale;
+      const nh = node._naturalHeight || nw;
+      // Match draw2d, which scales x and y separately and uses their geometric mean.
+      ctxMix.contentScale = node._savedContentScale * Math.sqrt(localScale * (frame.height / nh));
       ctxMix.W = nw;
       ctxMix.H = node._naturalHeight;
-      ctxMix.box = { _w: nw, _h: (node._naturalHeight || nw),
+      ctxMix.box = { _w: nw, _h: nh,
                      width() { return this._w; }, height() { return this._h; },
                      tl() { return { x: 0, y: 0 }; } };
 
       if (ctxMix.T && localFrame) {
         ctxMix.T = ctxMix.T.child(
           { x: localFrame.left, y: localFrame.top },
-          localFrame.width / nw, localFrame.height / (node._naturalHeight || nw));
+          localFrame.width / nw, localFrame.height / nh);
+        // Content is drawn with separate x and y scales (as T now maps it), so
+        // its hit point must be mapped the same way.  The single width-based
+        // scale above is only a fallback; it put content hits vertically off
+        // whenever the frame's aspect differed from the content's.
+        if (ctxMix.screenHitPoint) ctxMix.hitPoint = ctxMix.T.toLocal(ctxMix.screenHitPoint);
       }
     }
 

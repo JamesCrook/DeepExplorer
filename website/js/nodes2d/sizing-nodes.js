@@ -153,12 +153,22 @@ class BoxNode {
     // Set chart dimensions (same as draw2d)
     BoxNode.before_draw2d(ctxMix, node, params);
 
-    // The parent handle-frame already transformed hitPoint as
+    // The chart's space is the one T maps here (the parent handle-frame pushes
+    // it, with separate x and y scales, matching how it draws the content).
+    // So the chart's hit point and drags are both T.toLocal of the screen point.
+    if (ctxMix.screenHitPoint && ctxMix.T) {
+      node._boxT = ctxMix.T.clone();
+      node._boxHitBefore = ctxMix.hitPoint ? { ...ctxMix.hitPoint } : null;
+      ctxMix.hitPoint = node._boxT.toLocal(ctxMix.screenHitPoint);
+      node._hitResultBefore = ctxMix.hitResult;
+      return;
+    }
+
+    // Fallback without T: the parent handle-frame transformed hitPoint as
     //   (screenHitPoint - frame.left) / localScale
-    // but that's wrong: frame.left is in layer-local space while
-    // screenHitPoint includes the layer's center+pan translate.
-    // Correct by subtracting the missing (canvasW/2 + panX) offset,
-    // scaled by the handle-frame's localScale.
+    // but frame.left is in layer-local space while screenHitPoint includes
+    // the layer's center+pan translate.  Correct by subtracting the missing
+    // (canvasW/2 + panX) offset, scaled by the handle-frame's localScale.
     if (ctxMix.hitPoint) {
       const ls = ctxMix.contentScale || 1;
       const ctx = ctxMix.ctx;
@@ -184,6 +194,22 @@ class BoxNode {
   }
 
   static after_hit_test(ctxMix, node, params) {
+    if (node._boxT) {
+      const Ts = node._boxT;
+      ctxMix.hitPoint = node._boxHitBefore;
+      // Only wrap a hit made in this subtree: screen coords -> chart-local coords.
+      const hit = ctxMix.hitResult;
+      if (hit && hit !== node._hitResultBefore && hit.interactions?.applyDrag) {
+        const originalDrag = hit.interactions.applyDrag;
+        hit.interactions.applyDrag = (sx, sy) => {
+          const p = Ts.toLocal({ x: sx, y: sy });
+          return originalDrag(p.x, p.y);
+        };
+      }
+      node._boxT = null; node._boxHitBefore = null; node._hitResultBefore = null;
+      BoxNode.after_draw2d(ctxMix, node, params);
+      return;
+    }
     const state = node._boxHitState;
     if (state) {
       ctxMix.hitPoint = state.hitBefore;
