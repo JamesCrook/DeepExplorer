@@ -82,7 +82,7 @@ Risk to check: registered classes whose constructor needs arguments. `omni-widge
   - `nodes3d/imposter-atom-node-zones.js`: export the real `getResidueColor` and `computeResidueTangents` by re-exporting from `3d-support/molam-objects.js`, deleting the stub.
   - Verify: buttons and post-its look the same on `html/omni-scene.html`.
 
-## Pairs, easiest first (one commit per pair)
+## Pairs, in order (one commit per pair or step)
 
 Each step:
 
@@ -92,7 +92,7 @@ Each step:
 4. Change the Zones callers.
 5. Open the pages listed.
 
-Stopping after any pair leaves the repo working.
+Stopping after any pair leaves the repo working. Order: MolamBondNode first (it proves D1/D2 cheaply), then FrameNode (the one that matters most), then the rest.
 
 ### 1. MolamBondNode (wrapper only)
 
@@ -103,21 +103,25 @@ Stopping after any pair leaves the repo working.
 - **Opacity:** keep `bondOpacity ?? 1` and the `atomRange ?? 0/100` defaults from the Zones version in `update`. These are what make it visible when params are missing, and Omni's initial renderer opacity is `0`.
 - **Pages:** `html/molam.html`, `demos/3d-demos.html` (dumbbell), `demos/panopticon.html`.
 
-### 2. GroundPlaneNode
+### 2. FrameNode (analysed below; its own sequence FR0–FR5)
+
+This is not a twin merge. See **FrameNode analysis** for why, and for the steps that replace a merge.
+
+### 3. GroundPlaneNode
 
 Same lifecycle conversion. The Omni version handles `build`/`teardown` and the Zones version `build3d`/`update3d`, so the merged class needs `build`, `update` and `teardown`; port `update3d`'s body into `update`.
 
 - **Callers:** `models/ground-plane-model.js` changes `'build3d'`→`'build'`, `'update3d'`→`'update'`, and `value.group`→`inst.group`.
 - **Pages:** `html/molam.html`, `demos/3d-demos.html`.
 
-### 3. PlanetNode
+### 4. PlanetNode
 
 The Omni file is loaded by no page and is the larger one (296 vs 94 lines). Diff it first. If it is a superset, convert the Zones caller; if not, port the Zones-only behaviour into it.
 
 - **Callers:** `models/planet-model.js`.
 - **Pages:** `demos/astro-demos.html`, `demos/panopticon.html`.
 
-### 4. ImposterAtomNode
+### 5. ImposterAtomNode
 
 Largest 3D pair (536 vs 224 lines): 9 methods only in Zones, 11 only in Omni, 1 shared and different. Token-diff the shared method, then list the Zones-only methods and port each into the instance class.
 
@@ -125,7 +129,7 @@ Largest 3D pair (536 vs 224 lines): 9 methods only in Zones, 11 only in Omni, 1 
 - **Callers:** `nodes3d/dumbbell-node.js`, as in pair 1.
 - **Pages:** `html/molam.html`, `demos/3d-demos.html`.
 
-### 5. DragPointNode (first 2D pair; proves D3)
+### 6. DragPointNode (first 2D pair; proves D3)
 
 Merged class:
 
@@ -135,23 +139,83 @@ Merged class:
 
 Pages: `html/omni-scene.html` (drag a point at zoom ≠ 1) and `demos/graph-demos.html` (pips snap as before).
 
-### 6. ButtonNode
+### 7. ButtonNode
 
-Same pattern as pair 5. The Zones version's `zoom = 1` becomes `res.T.uniformScale`, which is 1 under identity `T`, so Zones demos are unchanged. Keep the Zones `getCentreXY`.
+Same pattern as pair 6. The Zones version's `zoom = 1` becomes `res.T.uniformScale`, which is 1 under identity `T`, so Zones demos are unchanged. Keep the Zones `getCentreXY`.
 
 Pages: `html/omni-scene.html`, `demos/widget-demos.html`, `demos/stockstrip-demos.html`.
 
-### 7. FrameNode (hardest, do last)
+## FrameNode analysis
 
-There are three classes called `FrameNode`:
+Written before touching any frame code, because nested-frame dragging was hard to get right. Read from source; nothing run.
 
-- `frame-node.js` → `stamp-frame`
-- `frame-node-zones.js` → `frame-node`
-- `sizing-nodes.js` → `frame`
+### There are four frame-like containers, not two twins
 
-All are containers. First decide whether `stamp-frame` and `frame-node` are the same concept. Zones adds `after_child_hit_test`, and Omni has 11 methods Zones lacks. Leave the `sizing-nodes.js` `frame` alone, but rename its class (e.g. `SizingFrameNode`) so the name stops colliding.
+| Type | Class (file) | What it is | Hit-space convention |
+|---|---|---|---|
+| `stamp-frame` | `FrameNode` (`nodes2d/frame-node.js`, Omni) | decorative movable card with a bumpy perimeter; move only | **B** (map forward) |
+| `handle-frame` | `HandleFrameNode` (`nodes2d/handle-frame-node.js`, Omni) | resizable frame: two `drag-point` children are its corners; body drag moves both; content scaled to fit or stretched | **mixed**: A for content children, B for its corners, legacy pan/`W/2` arithmetic for its own body drag |
+| `frame-node` | `FrameNode` (`nodes2d/frame-node-zones.js`, Zones) | resizable content frame: `cw`/`ch` + padding, corner or edge handles that rescale children's x/y, screen-fit mode, drop-to-strip removal | **A** (rewrite down, wrap up) |
+| `frame` | `FrameNode` (`nodes2d/sizing-nodes.js`, Omni) | sizing adapter that centres or offsets an addable inside a zoom-pan; works with `zoom-pan`, `uncenter`, `box` | **A**, with `ctx.scale` |
 
-Pages: `html/omni-scene.html`, `deep-wiki/d-plus.html`, `demos/chart-demos.html`, `demos/panopticon.html`.
+The Zones `frame-node` is conceptually the twin of `handle-frame`, not of `stamp-frame`: both are resizable frames. They have different resize models, though.
+
+- `handle-frame` corners are child *nodes* (`drag-point`), so resizing is two ordinary point drags.
+- Zones `frame-node` corners are handles inside the frame, and a resize rewrites every child's position proportionally.
+
+### The two hit-space conventions
+
+**A — rewrite down, wrap up.** On the way down, a container converts `ctxMix.hitPoint` into its children's local space and restores it in `after_*`. On the way up, it wraps the winning descendant's `applyDrag` so that pointer coordinates are converted the same way. Every level must do both, symmetrically.
+
+**B — map forward, capture T.** `ctxMix.hitPoint` stays in one space throughout. Containers push `ctxMix.T`; each node maps its *own* geometry forward with `T.toScreen` and compares there. A drag captures the `T` in force at hit time and inverts once with `T.toLocal`. Nothing is wrapped, so nesting depth costs nothing: the captured `T` already *is* the full accumulated mapping. `stamp-frame` and Omni `drag-point` work this way, and so does D3.
+
+### Why nested dragging was painful
+
+The pain sits at the boundaries between A and B, which needed compensating code:
+
+- `handle-frame` rewrites `hitPoint` to frame-local for content children, but also pushes `T`. A B-style child inside it therefore compares a screen-space `T.toScreen(...)` with a local `hitPoint`. `postit-node.js` exists partly to undo this: its header says its `hit_test` "restores hitPoint to screen coordinates (undoing handle-frame's frame-local transform)".
+- `handle-frame`'s own body drag uses `params.panX`, `params.zoom` and `ctxMix.W/2`, not `T`. Inside another `handle-frame`, `ctxMix.W` has been replaced by the parent frame's width, so the `W/2` centring term is wrong. **Suspected:** body-dragging a `handle-frame` nested inside another `handle-frame` mis-tracks. Corner drags are fine, because `drag-point` uses `T`.
+- `stamp-frame` keeps a legacy branch: it shifts `params.panX/panY` in `before_hit_test` "so non-T children still work", and calls `ctx.translate` in `before_draw2d` for children that draw on raw `ctx`.
+- Zoom is recorded twice on the Omni path. A zoomed `layer` pushes `T.zoomed(z)` *and* passes `zoom` in params, which `frameRect` uses for sizes and offsets. `stamp-frame` is correct because the two agree, and `ctx` is never scaled on that path. **Fragile:** nested layers *multiply* `T.sx` but *override* `params.zoom`, and a `zoom-pan` (`ctx.scale`, not `T`) above a `stamp-frame` would break the agreement.
+- **Likely bug in Zones `frame-node` at depth ≥ 2.** Each frame's `after_hit_test` wraps the winning descendant's `applyDrag` to subtract its own centre, then sets `hitResult._wrappedByChartCoordMap = true`. `after_hit_test` runs innermost-first, so only the *innermost* enclosing frame subtracts its offset; every outer frame sees the flag and skips. `hitPoint` is converted at every level, so hits land correctly, but drags of anything two frames deep are offset by the outer frames' positions. Single-level nesting, which is what the demos use, is unaffected.
+
+### What the code already gets right (keep it)
+
+- **Hit priority:** containers set `hitResult` in `before_hit_test`, and children overwrite during recursion, so the deepest and topmost node wins. Draw order and hit order agree. All four frames rely on this.
+- **Omni drag capture:** `stamp-frame` and `drag-point` capture `Ts = T.clone()` (the parent's accumulated `T`) plus the grab offset, and invert once. This is exactly the right mechanism for nesting.
+- **Zones writes:** Zones `frame-node` writes through `Values.setValue`. The exception is screen-fit mode, which writes `node.value` during draw; the code says so in a comment.
+
+### Recommendation
+
+Standardise all frames on **B**. It is what D3 already establishes (`T` on the resolver, identity outside a walk), it makes nesting correct by construction, and it is the convention a warping `T` needs (forward map for hits, inverse only for drags). Do not merge `stamp-frame` with `frame-node`; they are different objects. Whether `handle-frame` and Zones `frame-node` become one resizable frame is a design choice (corners-as-nodes versus handles-in-frame) to make after FR3, not before.
+
+### Steps (each its own commit; stop after any)
+
+- **FR0 — Nested-drag test scenes first.** Before any frame code changes, build a small scene for each world (or reuse `apps/scenes-frame.js`). Check each case and record the result in this doc as the baseline.
+
+  | Case | Omni | Zones |
+  |---|---|---|
+  | frame in frame in frame: drag innermost body | `handle-frame` ×3 and `stamp-frame` ×3 | `frame-node` ×3 |
+  | same at layer zoom 2 and with pan | ✓ | ✓ (camera zoom) |
+  | drag a corner of the middle frame | `drag-point` corner | corner handle |
+  | resize the outer frame with nested content | ✓ | ✓ (children rescale) |
+  | drag a child out onto the strip | — | ✓ |
+  | `postit-node` inside `handle-frame`: drag and hit at zoom 2 | ✓ | — |
+
+  The two "suspected" and "likely" bugs above should show up here. If they don't, update this analysis before going further.
+- **FR1 — Names only.** Rename the classes `StampFrameNode`, `ContentFrameNode` (the Zones one) and `SizingFrameNode`, keeping all type names. `HandleFrameNode` is unchanged. This ends three classes sharing one name and changes no behaviour.
+- **FR2 — Zones `frame-node` to B.**
+  - Replace the `hitPoint` rewrite and the `applyDrag` wrapping (and the `_wrappedByChartCoordMap` flag) with a push of `ctxMix.T.child({x, y})` and a captured-`T` drag.
+  - Zones coordinates are world coordinates from the harness. With F2's identity `T` at the top, that is the space `T` maps into, so nothing else changes.
+  - Keep resize, screen-fit and strip-drop logic as they are. The strip-drop wrapper in `after_child_hit_test` stays, but should preserve the other `interactions` members (`cursor`, `getValue`…), which it currently drops.
+  - Rerun FR0: the depth-≥2 drag case should now pass.
+- **FR3 — `handle-frame` to B.**
+  - The body drag uses `T.toScreen` of the frame centre and a captured `T`, like `stamp-frame`, dropping the `panX`/`zoom`/`W/2` arithmetic.
+  - Content children get `T.child(...)` only, with no `hitPoint` rewrite.
+  - Then delete `postit-node.js`'s hit-point restore.
+  - Rerun FR0.
+- **FR4 — `stamp-frame` cleanup.** List its children that still need raw `ctx` translation or `params.panX`. When none are left, drop the legacy pan shift and `ctx.translate`, and replace `frameRect`'s `params.zoom` with `res.T.uniformScale`. That ends the double-recorded zoom.
+- **FR5 — `sizing-nodes` (`frame`, `zoom-pan`, `uncenter`, `box`) to B.** `zoom-pan` pushes `T.zoomed`/`T.shift` instead of `ctx.scale` plus `hitPoint` rewriting. This is the widest change; do it last, and only if FR0 is still green.
 
 ## Afterwards
 
