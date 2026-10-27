@@ -82,6 +82,13 @@ Risk to check: registered classes whose constructor needs arguments. `omni-widge
   - `nodes3d/imposter-atom-node-zones.js`: export the real `getResidueColor` and `computeResidueTangents` by re-exporting from `3d-support/molam-objects.js`, deleting the stub.
   - Verify: buttons and post-its look the same on `html/omni-scene.html`.
 
+## Decisions taken 27 Oct (late)
+
+1. **Nested-corner fix via FR5.** The sizing nodes (`zoom-pan`, `box`, `frame`, `uncenter`) push `T`. After that, `T`-using nodes compare with `screenHitPoint`. Order: FR5 → corner fix → pairs 3–7.
+2. **Childless containers.** `walkPhase` gives a node with an empty subtree, and no plain handler for the phase, its `before_`/`after_` pair. Every container class is audited for empty-subtree assumptions first.
+3. **Hit order.** `PipperNode` body hits go back to last-wins (pip-first priority kept). Also fix the flyweight container-proto case and `stock-strip`'s unowned-hit check.
+4. **Type names.** Omni names are canonical (`molam-bonds`, `imposter-atoms`, `planet`). Zones names stay registered as aliases until it is confirmed no saved data uses them.
+
 ## Pairs, in order (one commit per pair or step)
 
 Each step:
