@@ -277,8 +277,10 @@ class RingLabelNode {
   }
 }
 
-sceneRegistry.registerNodeClass('label-layer', LabelLayerNode);
-sceneRegistry.registerNodeClass('ring-label', RingLabelNode);
+//sceneRegistry.registerNodeClass('label-layer', LabelLayerNode);
+//sceneRegistry.registerNodeClass('ring-label', RingLabelNode);
+SYS.NODE_CLASSES.push({ name: 'label-layer', cls: LabelLayerNode });
+SYS.NODE_CLASSES.push({ name: 'ring-label', cls: RingLabelNode });
 
 SYS.STOCK.push(
   SYS.makeNode('ring-label', { x: 0, y: 0, text: 'Annular label & ring', mag: 3, cls: 'B', px: 8, ringRadius: 30, ring: true, label: 'Ring label' }),

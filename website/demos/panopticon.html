@@ -37,7 +37,6 @@ import '../js/models/procedural-tree-model.js';
 import '../js/models/procedural-complete-model.js';
 import '../js/models/benzene-model.js';
 import '../js/models/butanol-model.js';
-import '../js/models/stock-strip-model.js';
 import '../js/models/seed-model.js';
 import '../js/models/climate-model.js';
 import '../js/models/ramachandran-model.js';
@@ -56,6 +55,8 @@ import '../js/models/mouse-model.js';
 import '../js/models/piano-model.js';
 import '../js/models/bga-model.js';
 import '../js/models/button-set-model.js';
+// Stock strip needs to be after all modules that donate items to the stock strip
+import '../js/models/stock-strip-model.js';
 import { App } from '../js/omni-support/app.js';
 
 new App();
