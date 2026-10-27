@@ -1,6 +1,6 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
-import '../nodes3d/ground-plane-node-zones.js';   // 'ground-plane'
+import '../nodes3d/ground-plane-node.js';   // 'ground-plane'
 export { GroundPlaneModel };
 class GroundPlaneModel {
   get name() { return 'Ground Plane'; }
@@ -22,11 +22,11 @@ class GroundPlaneModel {
     const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(5,8,4); v.scene.add(sun);
     this.nv = SYS.makeNode('ground-plane', {grid:{size:20,divisions:20,y:-4,color1:0x444444,color2:0x333333},axes:{size:2,position:[-9,-3.9,-9]}});
     sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, {}); 
-    v.scene.add(this.nv.value.group);
+    v.scene.add(this.nv.inst.group);   // inst made by the registry during build
     return v;
   }
   onControl(id, val, getValues) {
-    if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, getValues());
+    if (this.nv?.inst?.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, getValues());
   }
 }
 SYS.MODELS.push(new GroundPlaneModel());
