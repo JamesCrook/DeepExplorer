@@ -1,7 +1,7 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 import { ImposterAtomNode } from './imposter-atom-node-zones.js';
-import { MolamBondNode } from './molam-bond-node-zones.js';
+import './molam-bond-node.js';   // registers 'molam-bond'
 export { DumbbellNode };
 class DumbbellNode {
   static build3d(ctxMix, node, params) {
@@ -18,10 +18,10 @@ class DumbbellNode {
     sceneRegistry.walkPhase(ctxMix, 'build3d', v.bondNode, params);
 
     ImposterAtomNode.setData(v.atomNode, atoms, 1.0, new Map());
-    MolamBondNode.setData(v.bondNode, atoms, 1.0, new Map());
+    v.bondNode.inst.setData(atoms, 1.0, new Map());   // inst made by the registry during build
 
     v.group.add(v.atomNode.value.group);
-    v.group.add(v.bondNode.value.group);
+    v.group.add(v.bondNode.inst.group);
   }
 }
 SYS.NODE_CLASSES.push({ name: 'dumbbell-node', cls: DumbbellNode });;

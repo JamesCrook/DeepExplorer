@@ -1,4 +1,8 @@
-import { BOND_BLACK, BOND_RING_PINK, BOND_WHITE, CPK_ATOM_DATA, NEUTRAL_CHAIN_COLOR, computeResidueTangents, getResidueColor } from '../nodes3d/imposter-atom-node-zones.js';
+// The one BondRenderer, used by both worlds.  Its import graph never reaches
+// three.js (THREE is passed to the constructor), so Zones pages load three lazily.
+import { BOND_BLACK, BOND_RING_PINK, BOND_WHITE, NEUTRAL_CHAIN_COLOR, getResidueColor,
+         computeResidueTangents } from './residue-colours.js';
+import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
 export { BondRenderer };
 class BondRenderer {
   constructor(_THREE, sceneManager) {
@@ -23,7 +27,7 @@ class BondRenderer {
     this.chainColors = chainColors || new Map(); this.clear();
     this.atoms = atoms; this.totalAtomCount = atoms.length; this.modelScale = scale;
     if (atoms.length === 0) return;
-    this.residueTangents = computeResidueTangents(atoms);
+    this.residueTangents = computeResidueTangents(atoms, this.THREE);
     this.bonds = this.detectBonds(atoms);
     if (this.bonds.length > 0) { this.detectRings(); this.createBondGeometry(); }
   }

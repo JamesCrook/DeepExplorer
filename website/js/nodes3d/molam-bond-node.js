@@ -1,31 +1,37 @@
 import { SceneNode } from '../omni-support/scene.js';
-import * as THREE from 'three';
-// BondRenderer must be exported from molam-objects.js.
-// Add to the export line: export { ..., AtomRenderer, BondRenderer };
-import { BondRenderer } from '../3d-support/molam-objects.js';
+import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
+import { BondRenderer } from '../3d-support/bond-renderer.js';
 import { SYS } from '../omni-support/sys.js';
 // #mol/node/bond
 
 /**
  * MolamBondNode — wraps BondRenderer as an AST leaf node.
  *
- * AST wiring:
- *   new MiniAstNode('molam-bonds', [], {})
+ * One class for both worlds (it replaces molam-bond-node-zones.js):
+ *   Omni:  new MiniAstNode('molam-bonds', [], {}), driven by omni-3d.js /
+ *          molam-widget.js through build / update / teardown.
+ *   Zones: SYS.makeNode('molam-bond', {}), driven by a model or a parent
+ *          node (dumbbell-node.js); node.inst is created by the registry.
  *
- * Data (set on inst before or after build):
- *   inst.setData(atoms, scale, chainColorMap)
+ * THREE comes from ctxMix.THREE (the Omni harnesses put it there) or else
+ * from three-boot's live binding (Zones).  Nothing in this file's import
+ * graph imports three.js, so a Zones page still loads it lazily.
+ *
+ * Data (on the instance, before or after build):
+ *   node.inst.setData(atoms, scale, chainColorMap)
  *     atoms         — normalised atom array
  *     scale         — model scale factor
  *     chainColorMap — Map<chainID, colorHex>
  *
  * After build:
- *   node.inst.group — THREE.Group (for parent to add to scene)
+ *   node.inst.group — THREE.Group (for the parent to add to its scene)
  *
  * Update params:
  *   bondRadius, bondOpacity, bondHalfColor, bondLightness, bondRingPink,
  *   atomRangeStart, atomRangeEnd, sidechainFade, referenceAxis (injected)
  *
- * Phases handled: build, update, teardown
+ * Phases handled: build, update, teardown (build3d / update3d are
+ * transitional aliases for Zones callers not yet moved to the Omni names).
  */
 
 const BOND_UPDATE_PARAMS = [
@@ -43,6 +49,7 @@ class MolamBondNode extends SceneNode {
   build(ctxMix, node, params) {
     if (this.group) return;
 
+    const THREE = ctxMix?.THREE ?? BOOT_THREE;
     this.group = new THREE.Group();
 
     this._sceneShim = {
@@ -83,8 +90,9 @@ class MolamBondNode extends SceneNode {
     if (params.bondHalfColor !== undefined) this.renderer.setHalfColor(params.bondHalfColor);
     if (params.bondLightness !== undefined) this.renderer.setbondLightness(params.bondLightness);
     if (params.bondRingPink !== undefined) this.renderer.setRingPink(params.bondRingPink);
-    this.renderer.setOpacity(params.bondOpacity);
-    this.renderer.setAtomRange(params.atomRangeStart, params.atomRangeEnd);
+    // Defaults from the Zones version: visible, full range, when params omit them.
+    this.renderer.setOpacity(params.bondOpacity ?? 1);
+    this.renderer.setAtomRange(params.atomRangeStart ?? 0, params.atomRangeEnd ?? 100);
 
     // Axis fade — referenceAxis injected into params by the app
     this.renderer.setFade(
@@ -92,6 +100,11 @@ class MolamBondNode extends SceneNode {
       params.referenceAxis || null
     );
   }
+
+  // ── Transitional aliases (Zones phase names) ───────────
+
+  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
+  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   // ── Teardown ───────────────────────────────────────────
 
@@ -115,7 +128,9 @@ class MolamBondNode extends SceneNode {
   }
 }
 
+// One class, both type names: 'molam-bonds' (Omni) and 'molam-bond' (Zones).
 SYS.NODE_CLASSES.push({ name: 'molam-bonds', cls: MolamBondNode });
+SYS.NODE_CLASSES.push({ name: 'molam-bond',  cls: MolamBondNode });
 
 export { MolamBondNode };
 
