@@ -1,6 +1,6 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
-import '../nodes3d/planet-node-zones.js';   // 'planet-node'
+import '../nodes3d/planet-node.js';   // 'planet-node' (and 'planet')
 export { PlanetModel };
 class PlanetModel {
   get name() { return 'Planet Cutaway'; }
@@ -24,7 +24,7 @@ class PlanetModel {
     this.sg = new THREE.Group(); v.scene.add(this.sg);
     this.nv = SYS.makeNode('planet-node', { crustRadius:1, coreRadius:0.6 }); 
     sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, {}); 
-    this.sg.add(this.nv.value.group);
+    this.sg.add(this.nv.inst.group);   // inst made by the registry during build
     return v;
   }
   onControl(id, val, getValues) {

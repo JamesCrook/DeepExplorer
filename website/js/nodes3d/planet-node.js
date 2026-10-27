@@ -1,5 +1,5 @@
 import { SceneNode } from '../omni-support/scene.js';
-import * as THREE from 'three';
+import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
 import { SYS } from '../omni-support/sys.js';
 
 /**
@@ -16,7 +16,12 @@ import { SYS } from '../omni-support/sys.js';
  *   node.inst.group          — THREE.Group containing all planet meshes
  *   node.inst.clippingPlanes — [clipPlane1, clipPlane2] (for external use if needed)
  *
- * Phases handled: build, update, teardown
+ * One class for both worlds (it replaces planet-node-zones.js), registered as
+ * 'planet' and 'planet-node'.  THREE comes from ctxMix.THREE (Omni harnesses)
+ * or three-boot's live binding (Zones), so a Zones page loads three lazily.
+ *
+ * Phases handled: build, update, teardown (build3d / update3d are
+ * transitional aliases for Zones callers).
  *
  * Update params (cheap):
  *   rotation, wedgeStart, wedgeAngle, planeOpacity, coreOpacity
@@ -39,11 +44,12 @@ class PlanetNode extends SceneNode {
   build(ctxMix, node, params) {
     if (this.group) return;
 
+    this.THREE = ctxMix?.THREE ?? BOOT_THREE;
     const cfg = node.value || {};
     this._crustRadius = cfg.crustRadius ?? 1;
     this._coreRadius  = cfg.coreRadius ?? 0.6;
 
-    this.group = new THREE.Group();
+    this.group = new this.THREE.Group();
 
     this._createClippingPlanes();
     this._createMaterials(cfg);
@@ -54,6 +60,8 @@ class PlanetNode extends SceneNode {
   // ── Update ─────────────────────────────────────────────
 
   update(ctxMix, node, params) {
+    if (!this.group) return;
+    const THREE = this.THREE;
     // Clipping planes must compensate for parent sphereGroup rotation.
     // We read params.rotation directly (same source as SceneNode3D).
     const rotRad = ((params.rotation ?? 0) * Math.PI) / 180;
@@ -91,6 +99,11 @@ class PlanetNode extends SceneNode {
       params.coreOpacity ?? 1.0
     );
   }
+
+  // ── Transitional aliases (Zones phase names) ───────────
+
+  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
+  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   // ── Teardown ───────────────────────────────────────────
 
@@ -137,6 +150,7 @@ class PlanetNode extends SceneNode {
   // ── Internal: clipping planes ──────────────────────────
 
   _createClippingPlanes() {
+    const THREE = this.THREE;
     this.clipPlane1 = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
     this.clipPlane2 = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
     this.clippingPlanes = [this.clipPlane1, this.clipPlane2];
@@ -145,6 +159,7 @@ class PlanetNode extends SceneNode {
   // ── Internal: materials ────────────────────────────────
 
   _createMaterials(cfg) {
+    const THREE = this.THREE;
     const textureLoader = new THREE.TextureLoader();
     const earthTex = textureLoader.load(cfg.earthTexture ?? DEFAULT_EARTH_TEXTURE);
 
@@ -188,6 +203,7 @@ class PlanetNode extends SceneNode {
   // ── Internal: geometry ─────────────────────────────────
 
   _createGeometry() {
+    const THREE = this.THREE;
     const r = this._crustRadius;
 
     this.crust = new THREE.Mesh(
@@ -219,6 +235,7 @@ class PlanetNode extends SceneNode {
   // ── Internal: radial texture for cutaway planes ────────
 
   _createRadialTexture(coreRadius, coreOpacity) {
+    const THREE = this.THREE;
     const canvas = document.createElement('canvas');
     const size = 512;
     canvas.width = size;
@@ -286,7 +303,9 @@ class PlanetNode extends SceneNode {
   }
 }
 
-SYS.NODE_CLASSES.push({ name: 'planet', cls: PlanetNode });
+// One class, both type names: 'planet' (Omni) and 'planet-node' (Zones).
+SYS.NODE_CLASSES.push({ name: 'planet',      cls: PlanetNode });
+SYS.NODE_CLASSES.push({ name: 'planet-node', cls: PlanetNode });
 
 export { PlanetNode };
 
