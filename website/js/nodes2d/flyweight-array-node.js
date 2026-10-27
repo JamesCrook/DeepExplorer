@@ -72,14 +72,24 @@ class FlyweightArrayNode {
   static before_draw2d(ctxMix, node, params)   { FlyweightArrayNode._install(ctxMix, node, params, 'draw2d'); }
   static before_hit_test(ctxMix, node, params) { FlyweightArrayNode._install(ctxMix, node, params, 'hit_test'); }
 
-  /* A hit landed on the shared proto.  Bind every interaction to this item,
-     so that the app can act on the hit long after the walk has ended without
-     ever knowing that an index exists.  Wrapping composes: a nested flyweight
-     wraps these again, adding its own scope. */
+  /* Items are visited topmost first (reverse draw order), so the first item
+     that produces a hit wins and the walk stops.  "Produces" means any hit
+     made while visiting the item — on the proto itself or on a node inside
+     it when the proto is a container.  Only a hit on the proto is bound to
+     the item's value; a node inside the proto has values of its own. */
+  static before_child_hit_test(ctxMix, node, params, child) {
+    node._hitBefore = ctxMix.hitResult;
+  }
+
   static after_child_hit_test(ctxMix, node, params, child) {
     const hit = ctxMix.hitResult;
-    if (!hit || hit.node !== child) return;
+    if (!hit || hit === node._hitBefore) return;
+    if (hit.node !== child) { ctxMix.abortPhase = true; return; }
 
+    // A hit landed on the shared proto.  Bind every interaction to this item,
+    // so that the app can act on the hit long after the walk has ended without
+    // ever knowing that an index exists.  Wrapping composes: a nested flyweight
+    // wraps these again, adding its own scope.
     const index = ctxMix.iterators.at(-1)?.current ?? 0;
     const inner = hit.interactions || {};
 

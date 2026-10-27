@@ -81,8 +81,14 @@ class StockStripNode {
     StockStripNode.layout(ctxMix, node);
   }
 
+  // Only a hit this prototype made is a request to clone it; a hit left by a
+  // node drawn earlier (the arena behind the strip, say) is not ours.
+  static before_child_hit_test(ctxMix, node, params, child) {
+    node._hitBefore = ctxMix.hitResult;
+  }
+
   static after_child_hit_test(ctxMix, node, params, child) {
-    if (!ctxMix.hitResult) return;
+    if (!ctxMix.hitResult || ctxMix.hitResult === node._hitBefore) return;
 
     const arena = node.inst?.arenaNode;
     const camNode = node.inst?.cameraNode;

@@ -128,7 +128,12 @@ class PipperNode {
     }
   }
 
-  // Wrap a body drag if no pip was hit.
+  /* Wrap a body drag if no pip was hit.  Bodies are visited in draw order and
+     the last one hit wins (it is drawn on top), so this only records the
+     candidate; the claim waits for after_hit_test.  Claiming here, as this
+     used to, picked the bottom-most body and needed an abort, because a
+     controller's wrapHit can reorder this subtree (raft: bring to front)
+     while it is being walked. */
   static after_child_hit_test(ctxMix, node, params, child) {
     if (!ctxMix.hitResult || ctxMix.hitResult.node !== child || ctxMix.hoverOnly) return;
 
@@ -137,6 +142,7 @@ class PipperNode {
     const mgr = PipperNode.manager(node);
 
     ctxMix.hitResult.interactions = {
+      ...inner,                       // keep cursor, getValue, setValue, …
       applyDrag: (wx, wy) => inner?.applyDrag?.(wx, wy),
       endDrag: (onStrip) => {
         inner?.endDrag?.(onStrip);
@@ -146,9 +152,15 @@ class PipperNode {
         mgr.removeNode(child);
       },
     };
+    node._bodyHit = ctxMix.hitResult;   // the candidate; a later (higher) body replaces it
+  }
 
-    PipperNode.claim(ctxMix, node, ctxMix.hitResult, params);
-    ctxMix.abortPhase = true;
+  // Claim the winning body once the walk of the children is over.
+  static after_hit_test(ctxMix, node, params) {
+    const hit = node._bodyHit;
+    node._bodyHit = null;
+    if (hit && ctxMix.hitResult === hit && !ctxMix.hoverOnly)
+      PipperNode.claim(ctxMix, node, hit, params);
   }
 
   // ── drag-time state (node.state, recomputable) ───────────────────
