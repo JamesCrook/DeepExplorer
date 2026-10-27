@@ -75,6 +75,7 @@ class ChipLayerNode {
   // Set up offscreen buffer; optionally push a tile iterator.
 
   static before_draw2d(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     const ctx = ctxMix.ctx;
     if (!ctx) return;
 
@@ -155,6 +156,7 @@ class ChipLayerNode {
   // Read offscreen buffer, Sobel edge detect, composite.
 
   static after_draw2d(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     const offCtx = ctxMix.ctx;
     const mainCtx = node._mainCtx;
     if (!mainCtx) return;

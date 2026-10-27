@@ -69,6 +69,8 @@ the earlier class's handlers are removed rather than left to mix with the
 new one's.  Names are one namespace for every backend, so a warning here is
 usually two modules meaning different things by one word.
 */
+const EMPTY_SUBTREE = Object.freeze([]);
+
 class SceneRegistry {
   constructor(source = null) {
     this.handlers = {};   // { phase: { nodeType: handler } }
@@ -265,10 +267,20 @@ class SceneRegistry {
     // Leaf node — dispatch directly, no iterator needed
     if( !node )
       return;
-    // This fast path is an optimisation.
-    if (!node?.subtree || node?.subtree?.length === 0) {
-      this.dispatch(ctxMix, phase, node, params);
-      return;
+    // Leaf fast path.  A node with no children normally gets only the plain
+    // phase.  But a container (before_/after_ handlers, no plain one) would
+    // then get nothing at all — an empty frame was neither drawn nor
+    // hit-testable — so it goes the full container way, with no children.
+    const subtree = node.subtree || EMPTY_SUBTREE;
+    if (subtree.length === 0) {
+      this.absorb();
+      const h = this.handlers;
+      const isContainer = !h[phase]?.[node.type]
+        && (h['before_' + phase]?.[node.type] || h['after_' + phase]?.[node.type]);
+      if (!isContainer) {
+        this.dispatch(ctxMix, phase, node, params);
+        return;
+      }
     }
 
     // Push default iterator; before_ hook may replace it
@@ -280,7 +292,7 @@ class SceneRegistry {
     // A handler may set ctxMix.abortPhase to stop visiting this node's
     // children (a hit found, say); it is cleared before the after_ hook.
     let child;
-    while ((child = ctxMix.iterators.at(-1).next(node.subtree)) !== null) {
+    while ((child = ctxMix.iterators.at(-1).next(subtree)) !== null) {
       if (ctxMix.abortPhase) break;
       this.dispatch(ctxMix, 'before_child_' + phase, node, params, child);
       if (ctxMix.abortPhase) break;

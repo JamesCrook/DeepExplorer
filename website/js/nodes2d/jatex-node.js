@@ -108,6 +108,7 @@ class JatexSymbolNode {
 
 class JatexExpNode {
   static after_measure(ctxMix, node, params){ 
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     let width = 0;
     let height = 0;
     node.box = new Box(0,0)
@@ -126,6 +127,7 @@ class JatexExpNode {
 
   // layout in a horizontal straight line.
   static after_layout(ctxMix, node, params){ 
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     let x = node.box.tl().x;
     let y = node.box.tl().y;
     let height = node.box.height();
@@ -143,6 +145,7 @@ class JatexExpNode {
 
 class JatexFrac {
   static after_measure(ctxMix, node, params){ 
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     let width = 0;
     let height = 0;
     node.box = new Box(0,0)
@@ -164,6 +167,7 @@ class JatexFrac {
     node.box.set1( width,height )
   }
   static after_draw2d(ctxMix, node, params){ 
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     const bar = 25;
     const box = node.subtree[0].subtree[0].box
     const v1 = box.tl();
@@ -268,6 +272,7 @@ class JatexNode {
 //  }
 
   static after_measure(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     // Parser AST: jatex → [Jatex_rep → jterm → frac/jsymbol/jexp]
     // Walk first-child chain until we hit a node with a computed box.
     let current = node.subtree?.[0];

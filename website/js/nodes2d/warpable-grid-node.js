@@ -431,6 +431,7 @@ class WarpableGridNode {
   }  
 
   static before_hit_test(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     WarpableGridNode.before_draw2d(ctxMix, node, params);
   }
   static before_child_hit_test(ctxMix, node, params, child) {
@@ -439,6 +440,7 @@ class WarpableGridNode {
 
   // ── before_draw2d ──────────────────────────────────────
   static before_draw2d(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     WarpableGridNode._wire(node);
 
     const data     = node.value;

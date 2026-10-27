@@ -164,6 +164,7 @@ class ThreeSceneNode extends SceneNode {
   }
 
   after_build(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     const lightsInst = node.subtree[1].inst;   // LightsNode
     const sceneInst  = node.subtree[2].inst;   // SceneNode3D
 
@@ -183,6 +184,7 @@ class ThreeSceneNode extends SceneNode {
   //    This is the actual THREE render call.
 
   after_update(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: nothing to arrange (walkPhase now calls container hooks for these)
     const camera = node.subtree[0].inst.camera;
     this.renderer.render(this.scene, camera);
   }

@@ -287,6 +287,10 @@ pip.style.left = `calc(8px + var(--ms-pip-w) * 0.5px + (100% - 16px - var(--ms-p
 
 Apply the same fix to the copy of `buildMorphSlider` in `nodes2d/pipped-edge-ref-node.js`, or better, make that file import `morph-slider-widget.js` (see the reorganisation notes).
 
+### Found while sweeping childless containers (not fixed)
+
+`nodes2d/workhorse-nodes.js` (`mind-map`, used by `apps/scenes-workhorse.js`) calls `anglesFromAtoms(val)` and `minEnergy2(ctxMix, val)` in its draw hook. Neither is defined anywhere in the repo. The import at line 63 is commented out, and only `bondsFromAtoms` and `quadsFromAtoms` exist, in `2d-support/workhorse.js`. So drawing a `mind-map` throws a `ReferenceError` whether or not it has children.
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.

@@ -419,6 +419,7 @@ const NM_NAT_H = 600;
 class NmFrameNode {
 
   static before_draw2d(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     const ctx = ctxMix.ctx;
     if (!ctx) return;
 
@@ -452,6 +453,7 @@ class NmFrameNode {
   }
 
   static after_draw2d(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     const mainCtx = node._mainCtx;
     if (!mainCtx) return;
 
@@ -481,6 +483,7 @@ class NmFrameNode {
   // offscreen.  No transform needed.
 
   static before_hit_test(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     const ctx = ctxMix.ctx;
     if (!ctx) return;
     const xf = ctx.getTransform();
@@ -492,6 +495,7 @@ class NmFrameNode {
   }
 
   static after_hit_test(ctxMix, node, params) {
+    if (!node.subtree?.length) return;   // childless: unchanged from before walkPhase gave containers their hooks
     if (node._savedW !== undefined) {
       ctxMix.W = node._savedW;
       ctxMix.H = node._savedH;

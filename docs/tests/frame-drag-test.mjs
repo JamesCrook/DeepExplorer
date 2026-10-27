@@ -93,11 +93,12 @@ function measure(root, target) {
   return { x0, y0, x1, y1, cx, cy, gx: g[0], gy: g[1] };
 }
 
-// A childless container-pattern frame: is it reachable at all?
-{
+// A childless container-pattern frame: is it reachable at all?  (Not meaningful
+// for handle-frame, whose two corner children define the frame.)
+if (kind !== 'omni-handle') {
   const lone = build(1);
   const t = lone.targets[2]; t.subtree.length = 0;
-  console.log('childless innermost frame hit anywhere:', measure(lone.root, t) ? 'yes' : 'NO (walkPhase sends only the plain phase to a node with no subtree)');
+  console.log('childless innermost frame hit anywhere:', measure(lone.root, t) ? 'yes' : 'NO (an empty container got no before_/after_ hooks)');
 }
 
 const rows = [];
