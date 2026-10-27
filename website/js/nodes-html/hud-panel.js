@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -236,13 +236,13 @@ class HudSeparatorNode {
 //  REGISTRATIONS
 // ═══════════════════════════════════════════════════════════════
 
-sceneRegistry.registerNodeClass('hud-panel',     HudPanelNode);
-sceneRegistry.registerNodeClass('hud-slider',    HudSliderNode);
-sceneRegistry.registerNodeClass('hud-button',    HudButtonNode);
-sceneRegistry.registerNodeClass('hud-checkbox',  HudCheckboxNode);
-sceneRegistry.registerNodeClass('hud-select',    HudSelectNode);
-sceneRegistry.registerNodeClass('hud-color',     HudColorNode);
-sceneRegistry.registerNodeClass('hud-separator', HudSeparatorNode);
+SYS.NODE_CLASSES.push({ name: 'hud-panel', cls: HudPanelNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-slider', cls: HudSliderNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-button', cls: HudButtonNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-checkbox', cls: HudCheckboxNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-select', cls: HudSelectNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-color', cls: HudColorNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-separator', cls: HudSeparatorNode });;
 
 
 // ═══════════════════════════════════════════════════════════════

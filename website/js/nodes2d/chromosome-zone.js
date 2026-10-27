@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { ChromosomeBandNode, chrGeometry };
 
@@ -65,4 +65,4 @@ class ChromosomeBandNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chromosome-band', ChromosomeBandNode);
+SYS.NODE_CLASSES.push({ name: 'chromosome-band', cls: ChromosomeBandNode });;

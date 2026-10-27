@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 import { BondRenderer } from '../3d-support/bond-renderer.js';
 export { MolamBondNode };
@@ -33,4 +33,4 @@ class MolamBondNode {
     v.renderer.setFade(params.sidechainFade || 0, params.referenceAxis || null);
   }
 }
-sceneRegistry.registerNodeClass('molam-bond', MolamBondNode);
+SYS.NODE_CLASSES.push({ name: 'molam-bond', cls: MolamBondNode });;

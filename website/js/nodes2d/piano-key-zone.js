@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT, rrPath } from '../2d-support/paint.js';
 export { PianoKeyNode, keyValue, NOTE_NAMES };
 
@@ -111,4 +111,4 @@ class PianoKeyNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('piano-key', PianoKeyNode);
+SYS.NODE_CLASSES.push({ name: 'piano-key', cls: PianoKeyNode });;

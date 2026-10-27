@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { RamachandranChartNode, RC_DEFAULTS };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -271,4 +271,4 @@ class RamachandranChartNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ramachandran-chart', RamachandranChartNode);
+SYS.NODE_CLASSES.push({ name: 'ramachandran-chart', cls: RamachandranChartNode });;

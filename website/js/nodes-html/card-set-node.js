@@ -274,7 +274,7 @@ ${sample.slice(1).map(text => `    <div class="ocard-body-item">${this.escapeHtm
   }
 }
 
-sceneRegistry.registerNodeClass('card-set', CardSetNode);
+SYS.NODE_CLASSES.push({ name: 'card-set', cls: CardSetNode });;
 
 export { CardSetNode }
 

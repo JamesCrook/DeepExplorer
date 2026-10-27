@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { LineDotNode, LINE_DEFAULTS };
 
 const LINE_DEFAULTS = Object.freeze({
@@ -38,4 +38,4 @@ class LineDotNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('line-dot-element', LineDotNode);
+SYS.NODE_CLASSES.push({ name: 'line-dot-element', cls: LineDotNode });;

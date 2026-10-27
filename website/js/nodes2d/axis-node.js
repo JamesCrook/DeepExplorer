@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { AxisNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -49,4 +49,4 @@ class AxisNode {
     ctx.restore();
   }
 }
-sceneRegistry.registerNodeClass('axis-node', AxisNode);
+SYS.NODE_CLASSES.push({ name: 'axis-node', cls: AxisNode });;

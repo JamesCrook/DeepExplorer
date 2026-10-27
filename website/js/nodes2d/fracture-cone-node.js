@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { FractureConeNode };
 class FractureConeNode {
@@ -45,4 +45,4 @@ class FractureConeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('fracture-cone', FractureConeNode);
+SYS.NODE_CLASSES.push({ name: 'fracture-cone', cls: FractureConeNode });;

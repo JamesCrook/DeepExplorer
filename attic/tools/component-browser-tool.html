@@ -696,7 +696,7 @@ function generateFixedContent(content, parsed, issues) {
       }
 
       if (issue.registration && issue.regDisplaced) {
-        result.push(`//>> sceneRegistry.registerNodeClass('${issue.registration.nodeType}', ${issue.className});`);
+        result.push(`//>> SYS.NODE_CLASSES.push({ name: '${issue.registration.nodeType}', cls: ${issue.className});` });;
       }
 
       result.push(`//>> export { ${issue.className} };`);
@@ -740,7 +740,7 @@ function generateFixedContent(content, parsed, issues) {
             }
           }
           if (found) {
-            finalResult.push(`sceneRegistry.registerNodeClass('${issue.registration.nodeType}', ${issue.className});`);
+            finalResult.push(`SYS.NODE_CLASSES.push({ name: '${issue.registration.nodeType}', cls: ${issue.className});` });;
             displacedByEnd.delete(classEnd);
           }
         }

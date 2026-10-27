@@ -24,4 +24,4 @@ class DumbbellNode {
     v.group.add(v.bondNode.value.group);
   }
 }
-sceneRegistry.registerNodeClass('dumbbell-node', DumbbellNode);
+SYS.NODE_CLASSES.push({ name: 'dumbbell-node', cls: DumbbellNode });;

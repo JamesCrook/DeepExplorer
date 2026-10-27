@@ -89,4 +89,6 @@ const SYS = {
   registry: sceneRegistry,
 };
 
+// Old code registered with sceneRegistry
+// Newer code pushes to the relevant array in SYS
 export { SYS, sceneRegistry };

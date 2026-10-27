@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { hexToRgba } from '../2d-support/paint.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
@@ -182,4 +182,4 @@ class WordNode {
   }
 }
 
-sceneRegistry.registerNodeClass('word-node', WordNode);
+SYS.NODE_CLASSES.push({ name: 'word-node', cls: WordNode });;

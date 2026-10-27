@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { BasicCollectionNode };
 class BasicCollectionNode {
@@ -33,4 +33,4 @@ class BasicCollectionNode {
   }
 }
 
-sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
+SYS.NODE_CLASSES.push({ name: 'basic-collection', cls: BasicCollectionNode });;

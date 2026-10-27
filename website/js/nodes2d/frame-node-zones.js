@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Values } from '../omni-support/values.js';
 export { FrameNode };
 
@@ -286,4 +286,4 @@ class FrameNode {
   }
 }
 
-sceneRegistry.registerNodeClass('frame-node', FrameNode);
+SYS.NODE_CLASSES.push({ name: 'frame-node', cls: FrameNode });;

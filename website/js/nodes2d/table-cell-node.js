@@ -10,10 +10,10 @@
  * the scene registry under whatever name(s) you need.
  *
  * Usage:
- *   sceneRegistry.registerNodeClass('ms-cell',
- *     createCellClass(new CellConfig()));
- *   sceneRegistry.registerNodeClass('grid-scroll-cell',
- *     createCellClass(new CellConfig({ grid: true })));
+ *   SYS.NODE_CLASSES.push({ name: 'ms-cell', cls: 
+ *     createCellClass(new CellConfig()) });;
+ *   SYS.NODE_CLASSES.push({ name: 'grid-scroll-cell', cls: 
+ *     createCellClass(new CellConfig({ grid: true })) });;
  */
 
 import { sceneRegistry } from '../omni-support/scene.js';

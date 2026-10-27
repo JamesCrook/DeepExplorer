@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { BGAPinNode, ROW_LETTERS, pinLayout };
 
@@ -120,4 +120,4 @@ class BGAPinNode {
   }
 }
 
-sceneRegistry.registerNodeClass('bga-pin', BGAPinNode);
+SYS.NODE_CLASSES.push({ name: 'bga-pin', cls: BGAPinNode });;

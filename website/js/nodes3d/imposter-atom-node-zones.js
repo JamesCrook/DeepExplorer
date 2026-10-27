@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { BOND_BLACK, BOND_RING_PINK, BOND_WHITE, CPK_ATOM_DATA, ImposterAtomNode, NEUTRAL_CHAIN_COLOR, computeResidueTangents, getResidueColor };
 const CPK_ATOM_DATA = {
@@ -220,4 +220,4 @@ class ImposterAtomNode {
     v._instanceRadii.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('imposter-atom', ImposterAtomNode);
+SYS.NODE_CLASSES.push({ name: 'imposter-atom', cls: ImposterAtomNode });;

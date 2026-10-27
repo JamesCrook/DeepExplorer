@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { HexChunkNode };
 const isPrint = (b) => b >= 0x20 && b <= 0x7e;
 const SYMBOLS = ['FIN', 'SYN', 'RST', 'PSH', 'ACK', 'URG', 'ECE', 'CWR'];
@@ -179,4 +179,4 @@ class HexChunkNode {
 
 }
 
-sceneRegistry.registerNodeClass('hex-chunk', HexChunkNode);
+SYS.NODE_CLASSES.push({ name: 'hex-chunk', cls: HexChunkNode });;

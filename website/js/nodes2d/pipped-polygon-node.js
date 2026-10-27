@@ -59,4 +59,4 @@ class PippedPolygonNode {
 
 SYS.STOCK?.push( SYS.makeNode('pipped-polygon', { x: 0, y: 0, r: SYS.R*0.55, n: 4, tilt: Math.PI / 4, label: 'Square' }))
 
-sceneRegistry.registerNodeClass('pipped-polygon', PippedPolygonNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-polygon', cls: PippedPolygonNode });;

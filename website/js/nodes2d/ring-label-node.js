@@ -277,8 +277,8 @@ class RingLabelNode {
   }
 }
 
-//sceneRegistry.registerNodeClass('label-layer', LabelLayerNode);
-//sceneRegistry.registerNodeClass('ring-label', RingLabelNode);
+//SYS.NODE_CLASSES.push({ name: 'label-layer', cls: LabelLayerNode });;
+//SYS.NODE_CLASSES.push({ name: 'ring-label', cls: RingLabelNode });;
 SYS.NODE_CLASSES.push({ name: 'label-layer', cls: LabelLayerNode });
 SYS.NODE_CLASSES.push({ name: 'ring-label', cls: RingLabelNode });
 

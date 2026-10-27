@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { FlyweightIterator } from '../omni-support/flyweight-iterator.js';
 export { FlyweightArrayNode };
 
@@ -94,4 +94,4 @@ class FlyweightArrayNode {
   }
 }
 
-sceneRegistry.registerNodeClass('flyweight-array', FlyweightArrayNode);
+SYS.NODE_CLASSES.push({ name: 'flyweight-array', cls: FlyweightArrayNode });;

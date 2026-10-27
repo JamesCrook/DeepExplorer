@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { BODY, BODY_REGIONS, ORGAN_LABELS, OrganRegionNode, organGeometry };
 
 /* Geometry for the heatmap's body template, asked for by the model when it
@@ -357,4 +357,4 @@ class OrganRegionNode {
   }
 }
 
-sceneRegistry.registerNodeClass('organ-region', OrganRegionNode);
+SYS.NODE_CLASSES.push({ name: 'organ-region', cls: OrganRegionNode });;

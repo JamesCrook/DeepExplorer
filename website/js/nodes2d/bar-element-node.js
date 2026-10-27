@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { BarElementNode, BAR_DEFAULTS };
 
 const BAR_DEFAULTS = Object.freeze({
@@ -46,4 +46,4 @@ class BarElementNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('bar-element', BarElementNode);
+SYS.NODE_CLASSES.push({ name: 'bar-element', cls: BarElementNode });;

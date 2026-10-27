@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { LineChartNode };
 import { LINE_DEFAULTS } from './line-dot-node.js';
 class LineChartNode {
@@ -36,4 +36,4 @@ class LineChartNode {
   ctx.restore();
 }
 }
-sceneRegistry.registerNodeClass('line-chart-node', LineChartNode);
+SYS.NODE_CLASSES.push({ name: 'line-chart-node', cls: LineChartNode });;

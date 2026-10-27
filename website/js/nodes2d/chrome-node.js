@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { ChromeNode };
 
 /* Whatever a family draws behind or in front of its items.  It is an ordinary
@@ -11,4 +11,4 @@ class ChromeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chrome-node', ChromeNode);
+SYS.NODE_CLASSES.push({ name: 'chrome-node', cls: ChromeNode });;

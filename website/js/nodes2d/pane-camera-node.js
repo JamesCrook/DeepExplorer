@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { PaneCameraNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -69,4 +69,4 @@ class PaneCameraNode {
   }
 }
 
-sceneRegistry.registerNodeClass('pane-camera', PaneCameraNode);
+SYS.NODE_CLASSES.push({ name: 'pane-camera', cls: PaneCameraNode });;

@@ -173,4 +173,4 @@ class StockStripNode {
 }
 
 
-sceneRegistry.registerNodeClass('stock-strip', StockStripNode);
+SYS.NODE_CLASSES.push({ name: 'stock-strip', cls: StockStripNode });;

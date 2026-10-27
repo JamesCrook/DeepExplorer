@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { TreeRingNode, ringGeometry, treeRingData };
 
 function ringGeometry(ctxMix, node, params, data) {
@@ -164,4 +164,4 @@ function treeRingData(count) {
   return { rings, totalR: r };
 }
 
-sceneRegistry.registerNodeClass('tree-ring', TreeRingNode);
+SYS.NODE_CLASSES.push({ name: 'tree-ring', cls: TreeRingNode });;

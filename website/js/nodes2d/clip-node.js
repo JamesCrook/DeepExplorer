@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { ClipNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -23,4 +23,4 @@ class ClipNode {
   static after_draw2d(ctxMix, node, params) { ctxMix.ctx.restore(); }
 }
 
-sceneRegistry.registerNodeClass('clip-node', ClipNode);
+SYS.NODE_CLASSES.push({ name: 'clip-node', cls: ClipNode });;

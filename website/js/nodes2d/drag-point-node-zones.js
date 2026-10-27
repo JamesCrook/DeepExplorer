@@ -65,4 +65,4 @@ class DragPointNode {
 
 SYS.STOCK?.push( SYS.makeNode('drag-point',     { x: 0, y: 0, r: 5, label: 'Junction' }))
 
-sceneRegistry.registerNodeClass('drag-point', DragPointNode);
+SYS.NODE_CLASSES.push({ name: 'drag-point', cls: DragPointNode });;

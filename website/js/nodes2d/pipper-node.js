@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Geo } from '../2d-support/geo.js';
 import { Values } from '../omni-support/values.js';
 import { Utils } from '../omni-support/utils.js';
@@ -264,4 +264,4 @@ class PipperNode {
   }
 }
 
-sceneRegistry.registerNodeClass('pipper-node', PipperNode);
+SYS.NODE_CLASSES.push({ name: 'pipper-node', cls: PipperNode });;

@@ -107,4 +107,4 @@ class PippedButtonNode {
 }
 SYS.STOCK?.push( SYS.makeNode('pipped-button-node',    { x: 0, y: 0, width: 40, height: 24, label: 'Button', sub: '', color: '#e0ddd4' }))
 
-sceneRegistry.registerNodeClass('pipped-button-node', PippedButtonNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-button-node', cls: PippedButtonNode });;

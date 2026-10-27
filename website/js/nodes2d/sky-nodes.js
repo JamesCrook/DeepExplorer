@@ -117,9 +117,9 @@ class DeepSkyNode {
   }
 }
 
-sceneRegistry.registerNodeClass('star', StarNode);
-sceneRegistry.registerNodeClass('field-star', FieldStarNode);
-sceneRegistry.registerNodeClass('deep-sky', DeepSkyNode);
+SYS.NODE_CLASSES.push({ name: 'star', cls: StarNode });;
+SYS.NODE_CLASSES.push({ name: 'field-star', cls: FieldStarNode });;
+SYS.NODE_CLASSES.push({ name: 'deep-sky', cls: DeepSkyNode });;
 
 SYS.STOCK.push(
   SYS.makeNode('star',     { x: 0, y: 0, mag: 1.4, cls: 'B', label: 'Star' }),

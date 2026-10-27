@@ -1409,7 +1409,7 @@ class PaneCameraNode {
   }
 }
 
-sceneRegistry.registerNodeClass('pane-camera', PaneCameraNode);
+SYS.NODE_CLASSES.push({ name: 'pane-camera', cls: PaneCameraNode });;
 //-- endfile --
 
 //<< import { PipperNode } from './pipper-node.js';
@@ -1680,7 +1680,7 @@ class PipperNode {
   }
 }
 
-sceneRegistry.registerNodeClass('pipper-node', PipperNode);
+SYS.NODE_CLASSES.push({ name: 'pipper-node', cls: PipperNode });;
 //-- endfile --
 
 //<< import { PippedPolygonNode } from './pipped-polygon-node.js';
@@ -1746,7 +1746,7 @@ class PippedPolygonNode {
 
 SYS.STOCK?.push( SYS.makeNode('pipped-polygon', { x: 0, y: 0, r: SYS.R*0.55, n: 4, tilt: Math.PI / 4, label: 'Square' }))
 
-sceneRegistry.registerNodeClass('pipped-polygon', PippedPolygonNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-polygon', cls: PippedPolygonNode });;
 //-- endfile --
 
 //<< import { PippedButtonNode } from './pipped-button-node.js';
@@ -1860,7 +1860,7 @@ class PippedButtonNode {
 }
 SYS.STOCK?.push( SYS.makeNode('pipped-button-node',    { x: 0, y: 0, width: 40, height: 24, label: 'Button', sub: '', color: '#e0ddd4' }))
 
-sceneRegistry.registerNodeClass('pipped-button-node', PippedButtonNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-button-node', cls: PippedButtonNode });;
 //-- endfile --
 
 //<< import { DragPointNode } from './drag-point-node.js';
@@ -1932,7 +1932,7 @@ class DragPointNode {
 
 SYS.STOCK?.push( SYS.makeNode('drag-point',     { x: 0, y: 0, r: 5, label: 'Junction' }))
 
-sceneRegistry.registerNodeClass('drag-point', DragPointNode);
+SYS.NODE_CLASSES.push({ name: 'drag-point', cls: DragPointNode });;
 //-- endfile --
 
 //<< import { FractureConeNode } from './fracture-cone-node.js';
@@ -1984,7 +1984,7 @@ class FractureConeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('fracture-cone', FractureConeNode);
+SYS.NODE_CLASSES.push({ name: 'fracture-cone', cls: FractureConeNode });;
 //-- endfile --
 
 //<< import { RaftSnapController } from './raft-snap-controller.js';
@@ -2712,7 +2712,7 @@ class BasicCollectionNode {
   }
 }
 
-sceneRegistry.registerNodeClass('basic-collection', BasicCollectionNode);
+SYS.NODE_CLASSES.push({ name: 'basic-collection', cls: BasicCollectionNode });;
 //-- endfile --
 
 
@@ -2754,7 +2754,7 @@ class CameraNode {
   }
 }
 
-sceneRegistry.registerNodeClass('camera-node', CameraNode);
+SYS.NODE_CLASSES.push({ name: 'camera-node', cls: CameraNode });;
 //-- endfile --
 
 //<< import { StockStripNode } from './stock-strip-node.js';
@@ -2934,7 +2934,7 @@ class StockStripNode {
 }
 
 
-sceneRegistry.registerNodeClass('stock-strip', StockStripNode);
+SYS.NODE_CLASSES.push({ name: 'stock-strip', cls: StockStripNode });;
 //-- endfile --
 
 
@@ -3543,7 +3543,7 @@ class FlyweightArrayNode {
   }
 }
 
-sceneRegistry.registerNodeClass('flyweight-array', FlyweightArrayNode);
+SYS.NODE_CLASSES.push({ name: 'flyweight-array', cls: FlyweightArrayNode });;
 //-- endfile --
 
 //<< import { ChromeNode } from './chrome-node.js';
@@ -3561,7 +3561,7 @@ class ChromeNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chrome-node', ChromeNode);
+SYS.NODE_CLASSES.push({ name: 'chrome-node', cls: ChromeNode });;
 //-- endfile --
 
 //<< import { ClipNode } from './clip-node.js';
@@ -3591,7 +3591,7 @@ class ClipNode {
   static after_draw2d(ctxMix, node, params) { ctxMix.ctx.restore(); }
 }
 
-sceneRegistry.registerNodeClass('clip-node', ClipNode);
+SYS.NODE_CLASSES.push({ name: 'clip-node', cls: ClipNode });;
 //-- endfile --
 
 
@@ -3872,7 +3872,7 @@ class MorphSliderWidget {
   }
 }
 
-sceneRegistry.registerNodeClass('morph-slider', MorphSliderWidget);
+SYS.NODE_CLASSES.push({ name: 'morph-slider', cls: MorphSliderWidget });;
 
 
 
@@ -3885,7 +3885,7 @@ SYS.CONTROLS.push({ id: 'edgeOutline', label: 'Outline', min: 0,    max: 6,   st
 SYS.CONTROLS.push({ type: 'morph-slider', id: 'edgeBend',   label: 'Bend2',    min: -1.5, max: 1.5, step: 0.05,value: SYS.P.edgeBend })
 
 
-sceneRegistry.registerNodeClass('pipped-edge', PippedEdgeRefNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-edge', cls: PippedEdgeRefNode });;
 //-- endfile --
 
 
@@ -4075,7 +4075,7 @@ class WordNode {
   }
 }
 
-sceneRegistry.registerNodeClass('word-node', WordNode);
+SYS.NODE_CLASSES.push({ name: 'word-node', cls: WordNode });;
 //-- endfile --
 
 //<< import { WordCloudModel } from './word-cloud-model.js';
@@ -4406,7 +4406,7 @@ class FrameNode {
   }
 }
 
-sceneRegistry.registerNodeClass('frame-node', FrameNode);
+SYS.NODE_CLASSES.push({ name: 'frame-node', cls: FrameNode });;
 //-- endfile --
 
 //<< import { RamachandranChartNode } from './ramachandran-chart-node.js';
@@ -4684,7 +4684,7 @@ class RamachandranChartNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ramachandran-chart', RamachandranChartNode);
+SYS.NODE_CLASSES.push({ name: 'ramachandran-chart', cls: RamachandranChartNode });;
 //-- endfile --
 
 //<< import { RamachandranPointNode } from './ramachandran-point-node.js';
@@ -4751,7 +4751,7 @@ class RamachandranPointNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ramachandran-point', RamachandranPointNode);
+SYS.NODE_CLASSES.push({ name: 'ramachandran-point', cls: RamachandranPointNode });;
 //-- endfile --
 
 //<< import { RamachandranModel } from './ramachandran-model.js';
@@ -4917,7 +4917,7 @@ class AxisNode {
     ctx.restore();
   }
 }
-sceneRegistry.registerNodeClass('axis-node', AxisNode);
+SYS.NODE_CLASSES.push({ name: 'axis-node', cls: AxisNode });;
 //-- endfile --
 
 //<< import { BarElementNode } from './bar-element-node.js';
@@ -4970,7 +4970,7 @@ class BarElementNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('bar-element', BarElementNode);
+SYS.NODE_CLASSES.push({ name: 'bar-element', cls: BarElementNode });;
 //-- endfile --
 
 //<< import { LineDotNode } from './line-dot-node.js';
@@ -5015,7 +5015,7 @@ class LineDotNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('line-dot-element', LineDotNode);
+SYS.NODE_CLASSES.push({ name: 'line-dot-element', cls: LineDotNode });;
 
 //-- endfile --
 
@@ -5058,7 +5058,7 @@ class LineChartNode {
   ctx.restore();
 }
 }
-sceneRegistry.registerNodeClass('line-chart-node', LineChartNode);
+SYS.NODE_CLASSES.push({ name: 'line-chart-node', cls: LineChartNode });;
 //-- endfile --
 
 //<< import { ClimateModel } from './climate-model.js';
@@ -5530,13 +5530,13 @@ class HudSeparatorNode {
 //  REGISTRATIONS
 // ═══════════════════════════════════════════════════════════════
 
-sceneRegistry.registerNodeClass('hud-panel',     HudPanelNode);
-sceneRegistry.registerNodeClass('hud-slider',    HudSliderNode);
-sceneRegistry.registerNodeClass('hud-button',    HudButtonNode);
-sceneRegistry.registerNodeClass('hud-checkbox',  HudCheckboxNode);
-sceneRegistry.registerNodeClass('hud-select',    HudSelectNode);
-sceneRegistry.registerNodeClass('hud-color',     HudColorNode);
-sceneRegistry.registerNodeClass('hud-separator', HudSeparatorNode);
+SYS.NODE_CLASSES.push({ name: 'hud-panel', cls: HudPanelNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-slider', cls: HudSliderNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-button', cls: HudButtonNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-checkbox', cls: HudCheckboxNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-select', cls: HudSelectNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-color', cls: HudColorNode });;
+SYS.NODE_CLASSES.push({ name: 'hud-separator', cls: HudSeparatorNode });;
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -5775,7 +5775,7 @@ class GroundPlaneNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('ground-plane', GroundPlaneNode);
+SYS.NODE_CLASSES.push({ name: 'ground-plane', cls: GroundPlaneNode });;
 
 //-- endfile --
 
@@ -5910,7 +5910,7 @@ class PlanetNode {
     v.planeMat2.map = v.radialTexture; v.planeMat2.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('planet-node', PlanetNode);
+SYS.NODE_CLASSES.push({ name: 'planet-node', cls: PlanetNode });;
 
 //-- endfile --
 
@@ -6138,7 +6138,7 @@ class ImposterAtomNode {
     v._instanceRadii.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('imposter-atom', ImposterAtomNode);
+SYS.NODE_CLASSES.push({ name: 'imposter-atom', cls: ImposterAtomNode });;
 
 //-- endfile --
 
@@ -6412,7 +6412,7 @@ class MolamBondNode {
     v.renderer.setFade(params.sidechainFade || 0, params.referenceAxis || null);
   }
 }
-sceneRegistry.registerNodeClass('molam-bond', MolamBondNode);
+SYS.NODE_CLASSES.push({ name: 'molam-bond', cls: MolamBondNode });;
 
 //-- endfile --
 
@@ -6444,7 +6444,7 @@ class DumbbellNode {
     v.group.add(v.bondNode.value.group);
   }
 }
-sceneRegistry.registerNodeClass('dumbbell-node', DumbbellNode);
+SYS.NODE_CLASSES.push({ name: 'dumbbell-node', cls: DumbbellNode });;
 
 //-- endfile --
 
@@ -6517,7 +6517,7 @@ class PhyloNode {
     if (v.instancedMesh.instanceColor) v.instancedMesh.instanceColor.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('phylo-node', PhyloNode);
+SYS.NODE_CLASSES.push({ name: 'phylo-node', cls: PhyloNode });;
 //-- endfile --
 
 
@@ -6590,7 +6590,7 @@ class ChromosomeBandNode {
   }
 }
 
-sceneRegistry.registerNodeClass('chromosome-band', ChromosomeBandNode);
+SYS.NODE_CLASSES.push({ name: 'chromosome-band', cls: ChromosomeBandNode });;
 //-- endfile --
 
 //<< import { ChromosomeModel } from './chromosome-model.js';
@@ -6740,7 +6740,7 @@ class PianoKeyNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('piano-key', PianoKeyNode);
+SYS.NODE_CLASSES.push({ name: 'piano-key', cls: PianoKeyNode });;
 //-- endfile --
 
 //<< import { PianoModel } from './piano-model.js';
@@ -6901,7 +6901,7 @@ class BGAPinNode {
   }
 }
 
-sceneRegistry.registerNodeClass('bga-pin', BGAPinNode);
+SYS.NODE_CLASSES.push({ name: 'bga-pin', cls: BGAPinNode });;
 //-- endfile --
 //<< import { BGAModel } from './bga-model.js';
 //-- file: ./bga-model.js --
@@ -7323,7 +7323,7 @@ class OrganRegionNode {
   }
 }
 
-sceneRegistry.registerNodeClass('organ-region', OrganRegionNode);
+SYS.NODE_CLASSES.push({ name: 'organ-region', cls: OrganRegionNode });;
 //-- endfile --
 
 //<< import { HeatmapModel } from './heatmap-model.js';
@@ -7561,7 +7561,7 @@ class MouseButtonNode {
     if (inside) ctxMix.hitResult = { node };
   }
 }
-sceneRegistry.registerNodeClass('mouse-button', MouseButtonNode);
+SYS.NODE_CLASSES.push({ name: 'mouse-button', cls: MouseButtonNode });;
 //-- endfile --
 
 //<< import { MouseModel } from './mouse-model.js';
@@ -7773,7 +7773,7 @@ function treeRingData(count) {
   return { rings, totalR: r };
 }
 
-sceneRegistry.registerNodeClass('tree-ring', TreeRingNode);
+SYS.NODE_CLASSES.push({ name: 'tree-ring', cls: TreeRingNode });;
 //-- endfile --
 
 //<< import { TreeRingModel } from './tree-ring-model.js';
@@ -8003,7 +8003,7 @@ class HexChunkNode {
 
 }
 
-sceneRegistry.registerNodeClass('hex-chunk', HexChunkNode);
+SYS.NODE_CLASSES.push({ name: 'hex-chunk', cls: HexChunkNode });;
 //-- endfile --
 
 //<< import { HexViewModel } from './hex-view-model.js';
@@ -8374,7 +8374,7 @@ class ButtonNode {
   }
 }
 
-sceneRegistry.registerNodeClass('button-node', ButtonNode);
+SYS.NODE_CLASSES.push({ name: 'button-node', cls: ButtonNode });;
 
 //-- endfile --
 
@@ -9281,9 +9281,9 @@ class DeepSkyNode {
   }
 }
 
-sceneRegistry.registerNodeClass('star', StarNode);
-sceneRegistry.registerNodeClass('field-star', FieldStarNode);
-sceneRegistry.registerNodeClass('deep-sky', DeepSkyNode);
+SYS.NODE_CLASSES.push({ name: 'star', cls: StarNode });;
+SYS.NODE_CLASSES.push({ name: 'field-star', cls: FieldStarNode });;
+SYS.NODE_CLASSES.push({ name: 'deep-sky', cls: DeepSkyNode });;
 
 SYS.STOCK.push(
   SYS.makeNode('star',     { x: 0, y: 0, mag: 1.4, cls: 'B', label: 'Star' }),
@@ -10138,8 +10138,8 @@ class RingLabelNode {
   }
 }
 
-sceneRegistry.registerNodeClass('label-layer', LabelLayerNode);
-sceneRegistry.registerNodeClass('ring-label', RingLabelNode);
+SYS.NODE_CLASSES.push({ name: 'label-layer', cls: LabelLayerNode });;
+SYS.NODE_CLASSES.push({ name: 'ring-label', cls: RingLabelNode });;
 
 SYS.STOCK.push(
   SYS.makeNode('ring-label', { x: 0, y: 0, text: 'Annular label & ring', mag: 3, cls: 'B', px: 8, ringRadius: 30, ring: true, label: 'Ring label' }),

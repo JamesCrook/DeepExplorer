@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { GroundPlaneNode };
 class GroundPlaneNode {
@@ -56,4 +56,4 @@ class GroundPlaneNode {
     }
   }
 }
-sceneRegistry.registerNodeClass('ground-plane', GroundPlaneNode);
+SYS.NODE_CLASSES.push({ name: 'ground-plane', cls: GroundPlaneNode });;

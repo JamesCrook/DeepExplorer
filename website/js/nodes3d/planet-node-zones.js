@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { PlanetNode };
 class PlanetNode {
@@ -90,4 +90,4 @@ class PlanetNode {
     v.planeMat2.map = v.radialTexture; v.planeMat2.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('planet-node', PlanetNode);
+SYS.NODE_CLASSES.push({ name: 'planet-node', cls: PlanetNode });;

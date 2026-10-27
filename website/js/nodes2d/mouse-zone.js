@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { MouseButtonNode, mouseGeometry };
 
@@ -191,4 +191,4 @@ class MouseButtonNode {
     if (inside) ctxMix.hitResult = { node };
   }
 }
-sceneRegistry.registerNodeClass('mouse-button', MouseButtonNode);
+SYS.NODE_CLASSES.push({ name: 'mouse-button', cls: MouseButtonNode });;

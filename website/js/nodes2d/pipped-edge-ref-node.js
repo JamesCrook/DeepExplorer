@@ -271,7 +271,7 @@ class MorphSliderWidget {
   }
 }
 
-sceneRegistry.registerNodeClass('morph-slider', MorphSliderWidget);
+SYS.NODE_CLASSES.push({ name: 'morph-slider', cls: MorphSliderWidget });;
 
 
 
@@ -284,4 +284,4 @@ SYS.CONTROLS.push({ id: 'edgeOutline', label: 'Outline', min: 0,    max: 6,   st
 SYS.CONTROLS.push({ type: 'morph-slider', id: 'edgeBend',   label: 'Bend2',    min: -1.5, max: 1.5, step: 0.05,value: SYS.P.edgeBend })
 
 
-sceneRegistry.registerNodeClass('pipped-edge', PippedEdgeRefNode);
+SYS.NODE_CLASSES.push({ name: 'pipped-edge', cls: PippedEdgeRefNode });;

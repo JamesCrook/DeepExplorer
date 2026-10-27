@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 export { RamachandranPointNode };
 class RamachandranPointNode {
@@ -61,4 +61,4 @@ class RamachandranPointNode {
   }
 }
 
-sceneRegistry.registerNodeClass('ramachandran-point', RamachandranPointNode);
+SYS.NODE_CLASSES.push({ name: 'ramachandran-point', cls: RamachandranPointNode });;

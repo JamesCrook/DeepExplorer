@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { PhyloNode };
 class PhyloNode {
@@ -65,4 +65,4 @@ class PhyloNode {
     if (v.instancedMesh.instanceColor) v.instancedMesh.instanceColor.needsUpdate = true;
   }
 }
-sceneRegistry.registerNodeClass('phylo-node', PhyloNode);
+SYS.NODE_CLASSES.push({ name: 'phylo-node', cls: PhyloNode });;

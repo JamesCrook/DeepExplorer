@@ -1,4 +1,4 @@
-import { sceneRegistry } from '../omni-support/sys.js';
+import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { CameraNode };
 class CameraNode {
   static before_draw2d(ctxMix, node, params) {
@@ -34,4 +34,4 @@ class CameraNode {
   }
 }
 
-sceneRegistry.registerNodeClass('camera-node', CameraNode);
+SYS.NODE_CLASSES.push({ name: 'camera-node', cls: CameraNode });;
