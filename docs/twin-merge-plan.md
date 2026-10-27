@@ -258,6 +258,8 @@ Standardise all frames on **B**. It is what D3 already establishes (`T` on the r
 
   What the probe did find: in a **scaled** `handle-frame`, content is drawn with separate x/y scales (`ctx.scale(scaleX, scaleY)`, and `T` matches). But `before_child_hit_test` converts `hitPoint` with one width-based scale, and `box`'s correction assumes the same. So a chart in a `handle-frame` whose aspect ratio differs from 800×600 hit-tests vertically off. The fix: `handle-frame` hands content `T.toLocal(screenHitPoint)`, and `box` uses `T` instead of its hand-made correction.
 
+  **Done (27 Oct).** The scaled branch only; the stretch branch is untouched. `docs/tests/content-hit-test.mjs` passes for 4:3, square and wide frames at zoom 1 and 2. Before, square frames were 25 px off and wide frames up to 143 px.
+
 ## Notes for later sessions (27 Oct, end of day)
 
 ### Hit-test ordering: where the reverse-and-abort variant lives
