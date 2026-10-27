@@ -178,8 +178,12 @@ class SceneRegistry {
           const method = p[name];
           if (typeof method !== 'function') continue;
           if (this.hasCtxMix(method, name)) {
+            // node.inst is created on first use, so a node made by SYS.makeNode
+            // (no instance) works the same as one an app instantiated by hand.
+            // Every class with instance handlers has a no-argument constructor.
             this._registerHandler(nodeType, name, (ctxMix, node, params, child) => {
-              return node.inst[name].call(node.inst, ctxMix, node, params, child);
+              const inst = node.inst ??= new nodeClass();
+              return inst[name].call(inst, ctxMix, node, params, child);
             });
           }
         }
