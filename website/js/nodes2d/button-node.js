@@ -10,43 +10,9 @@
  */
 
 import { SYS } from '../omni-support/sys.js';
+import { hexToRgb, roundRectPath, shiftColor } from '../2d-support/paint.js';
 
 // ── helpers ─────────────────────────────────────────────────
-
-function hexToRgb(hex) {
-  hex = (hex || '#888888').replace('#', '');
-  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  // handle 8-char hex (with alpha) by trimming
-  if (hex.length === 8) hex = hex.slice(0, 6);
-  const n = parseInt(hex, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-function shiftColor({ r, g, b }, amt) {
-  const f = v => Math.round(Math.min(255, Math.max(0,
-    amt > 0 ? v + (255 - v) * amt : v + v * amt)));
-  return `rgb(${f(r)},${f(g)},${f(b)})`;
-}
-
-function roundRectPath(ctx, x, y, w, h, r) {
-  r = Math.min(r, w / 2, h / 2);
-  if (ctx.roundRect) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arcTo(x + w, y, x + w, y + r, r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-    ctx.lineTo(x + r, y + h);
-    ctx.arcTo(x, y + h, x, y + h - r, r);
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    ctx.closePath();
-  }
-}
 
 function scaleFontString(fontStr, factor) {
   return fontStr.replace(/(\d+(?:\.\d+)?)(px|pt|em|rem)/,

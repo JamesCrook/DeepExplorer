@@ -9,34 +9,12 @@ const CPK_ATOM_DATA = {
   'H':       { color: 0xFFFFFF, radius: 1.20, atomicNumber:  1 },
   'DEFAULT': { color: 0xFF1493, radius: 1.50, atomicNumber:  0 },
 };
-const BOND_BLACK = 0x000000; const BOND_WHITE = 0xFFFFFF; const BOND_RING_PINK = 0xFF1493;
-const NEUTRAL_CHAIN_COLOR = 0x908882;
-
-function getResidueColor(atom, params, chainColor, _THREE) { return new _THREE.Color(chainColor); }
-
-function computeResidueTangents(atoms) {
-  const residueTangents = new Map(), residues = new Map();
-  for (const atom of atoms) {
-    const key = (atom.chainID || '') + '_' + atom.resSeq;
-    if (!residues.has(key)) residues.set(key, []);
-    residues.get(key).push(atom);
-  }
-  for (const [key, resAtoms] of residues) {
-    const ca = resAtoms.find(a => a.name === 'CA');
-    if (!ca)
-      continue;
-    const [chainID, resSeqStr] = key.split('_'), resSeq = parseInt(resSeqStr, 10);
-    const prev = residues.get(chainID + '_' + (resSeq - 1)), next = residues.get(chainID + '_' + (resSeq + 1));
-    const prevCA = prev ? prev.find(a => a.name === 'CA') : null, nextCA = next ? next.find(a => a.name === 'CA') : null;
-    let T;
-    if (prevCA && nextCA) T = new THREE.Vector3(nextCA.x - prevCA.x, nextCA.y - prevCA.y, nextCA.z - prevCA.z);
-    else if (prevCA) T = new THREE.Vector3(ca.x - prevCA.x, ca.y - prevCA.y, ca.z - prevCA.z);
-    else if (nextCA) T = new THREE.Vector3(nextCA.x - ca.x, nextCA.y - ca.y, nextCA.z - ca.z);
-    else T = new THREE.Vector3(1, 0, 0);
-    residueTangents.set(key, T.normalize());
-  }
-  return residueTangents;
-}
+// Colours and per-residue helpers are shared with the Omni world.  This file
+// used to carry a stub getResidueColor (chain colour only) and its own copies.
+import { BOND_BLACK, BOND_WHITE, BOND_RING_PINK, NEUTRAL_CHAIN_COLOR, getResidueColor,
+         computeResidueTangents as residueTangentsWith } from '../3d-support/residue-colours.js';
+// Zones callers pass atoms only; THREE is the three-boot binding, loaded by then.
+const computeResidueTangents = (atoms) => residueTangentsWith(atoms, THREE);
 
 const VERTEX_SHADER = `
 in vec3 instancePosition; in float instanceRadius; in vec3 instanceColor;
