@@ -50,6 +50,7 @@
 import { sceneRegistry }     from '../omni-support/scene.js';
 import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
 import { SYS } from '../omni-support/sys.js';
+import { drawWigglyLine, applyBend } from '../2d-support/wiggly-line.js';
 
 // ── External helpers (update paths once migrated) ────────────
 //
@@ -192,33 +193,7 @@ function drawText(ctx, obj, params) {
  * Draw a wiggly (wavy) line segment.
  * Pure canvas helper — no node dependency.
  */
-function drawWigglyLine(ctx, v0, v1, wiggleCount, bend) {
-  const along = v1.sub(v0);
-  const bender = along.perp(bend);
 
-  if (wiggleCount <= 1) {
-    const b = bender.mul(2 * 0.3333);
-    const p = v0.add(along.mul(0.3)).add(b);
-    const q = v1.sub(along.mul(0.3)).add(b);
-    ctx.bezierCurveTo(p.x, p.y, q.x, q.y, v1.x, v1.y);
-    return;
-  }
-
-  const seg = along.mul(1 / wiggleCount);
-  const disp = seg.perp(0.3);
-
-  for (let j = 0; j < wiggleCount; j++) {
-    const m = v0.add(seg.mul(j + 0.5).add(disp.mul((j % 2) ? -1 : 1)));
-    const r = v0.add(seg.mul(j + 1));
-    const mBent = applyBend(bender, m, (j + 0.5) / wiggleCount);
-    const rBent = applyBend(bender, r, (j + 1) / wiggleCount);
-    ctx.quadraticCurveTo(mBent.x, mBent.y, rBent.x, rBent.y);
-  }
-}
-
-function applyBend(bender, p, t) {
-  return p.add(bender.mul(2 * t * (1 - t)));
-}
 
 function svgWigglyLine(n, d, bend) {
   let str = '';

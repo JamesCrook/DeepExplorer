@@ -11,6 +11,7 @@ import { createItemFields }      from '../omni-support/item-fields.js';
 import '../nodes2d/frame-node.js';
 import '../nodes2d/button-node.js';
 import '../nodes2d/ribbon-node.js';
+import { resolveSelectedOfType } from '../omni-support/layer-ops.js';
 
 // ═══════════════════════════════════════════════════════
 //  SLIDER SECTIONS
@@ -127,16 +128,7 @@ const FRAME_PRESETS = {
 //  HELPERS
 // ═══════════════════════════════════════════════════════
 
-function resolveFrameNode(layer, app) {
-  const buf = app?._selectionBuffer || [];
-  for (const entry of buf) {
-    if (entry.node?.token === 'stamp-frame' && layer.subtree?.includes(entry.node)) {
-      return entry.node;
-    }
-  }
-  const frames = (layer.subtree || []).filter(n => n.token === 'stamp-frame');
-  return frames.length ? frames[frames.length - 1] : null;
-}
+const resolveFrameNode = (layer, app) => resolveSelectedOfType(layer, app, 'stamp-frame');
 
 /** Pick from a rotating set of kanji for new frames. */
 const KANJI_SETS = [

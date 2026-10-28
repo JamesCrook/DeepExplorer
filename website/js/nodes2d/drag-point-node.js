@@ -2,6 +2,7 @@ import { SYS } from '../omni-support/sys.js';
 import { Geo } from '../2d-support/geo.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
+import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { DragPointNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -57,10 +58,7 @@ class DragPointNode {
 
   // ── Geometry (local coordinates, through the resolver) ──
 
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
   static getPips(res, node, params) {
     const { x, y } = DragPointNode.getCentreXY(res, node, params);
     return [{ x, y, out: 0 }];

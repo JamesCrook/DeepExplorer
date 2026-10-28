@@ -2,6 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Geo } from '../2d-support/geo.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
+import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { PippedPolygonNode };
 class PippedPolygonNode {
   static meta = {
@@ -10,10 +11,7 @@ class PippedPolygonNode {
     coneParams: (node) => ({ n: node.value.n || 4, tilt: node.value.tilt || 0 }),
     spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, r: SYS.R }),
   };
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
   static getPips(res, node, params) {
     const v = res.getValue(res, node, params);
     return Geo.pips(v.n, v.x || 0, v.y || 0, v.r, v.tilt);

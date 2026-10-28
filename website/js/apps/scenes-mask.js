@@ -31,6 +31,7 @@ import '../nodes2d/chip-layer-node.js';
 import '../nodes2d/sizing-nodes.js';
 
 import { ETCH_RULES, getEtchRule } from '../nodes2d/lloyd-mask-node.js';
+import { findByToken } from '../omni-support/layer-ops.js';
 
 
 // ── Helpers ──────────────────────────────────────────────
@@ -62,15 +63,6 @@ function createLloydData(color = '#4ecdc4') {
 }
 
 /** Walk a subtree and return the first node matching a token. */
-function findByToken(root, token) {
-  if (!root) return null;
-  if (root.token === token) return root;
-  for (const child of (root.subtree || [])) {
-    const hit = findByToken(child, token);
-    if (hit) return hit;
-  }
-  return null;
-}
 
 /** Get the lloyd-data object from a layer's subtree. */
 function findLloydData(layer) {

@@ -42,6 +42,7 @@ import { Vector2D } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, BlendedPath } from '../2d-support/path.js';
 import { sceneRegistry } from '../omni-support/scene.js';
 import { SYS } from '../omni-support/sys.js';
+import { bboxFromCorners } from '../2d-support/node-geometry.js';
 
 
 // ============================================================
@@ -315,17 +316,7 @@ class StackNode {
     }
   }
 
-  static _bboxFromCorners(corners) {
-    let x0 = corners[0].x, y0 = corners[0].y, x1 = x0, y1 = y0;
-    for (let i = 1; i < 4; i++) {
-      const c = corners[i];
-      if (c.x < x0) x0 = c.x;
-      if (c.y < y0) y0 = c.y;
-      if (c.x > x1) x1 = c.x;
-      if (c.y > y1) y1 = c.y;
-    }
-    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-  }
+  static _bboxFromCorners = bboxFromCorners;
 
   static _stampChild(child, corners) {
     const bb = StackNode._bboxFromCorners(corners);

@@ -3,6 +3,7 @@
 import { Vector2D } from './vector2d.js'
 import { Box } from './box.js'
 import { Shape } from './shape.js'
+import { drawWigglyLine, applyBend } from './wiggly-line.js';
 
 var metaData = 
 { 
@@ -682,50 +683,7 @@ function getEndShape( codes )
 
 // At the mid point we apply half the bend vector.
 // But we are using a cubic bezier to the canvas...
-function applyBend( bender, p, t)
-{
-  var bend = bender.mul( 2*t*(1-t));
-  return p.add( bend );
-}
 
-function drawWigglyLine( ctx, v0, v1, wiggleCount, bend){
-
-  var along = v1.sub(v0);
-  var bender = along.perp( bend );
-  if( wiggleCount <=1){
-    //ctx.lineTo( v1.x, v1.y);
-
-    bender = bender.mul( 2*0.3333);
-    p = v0.add( along.mul( 0.3)).add(bender);
-    q = v1.sub( along.mul( 0.3)).add(bender);
-
-    ctx.bezierCurveTo( p.x, p.y, q.x, q.y, v1.x,v1.y);
-    return;
-  }
-  //wiggleCount=2;
-  var along = along.mul( 1/wiggleCount );
-  var disp = along.perp(0.3);
-
-  var t;
-  var p,q,r;
-
-  for(var j=0;j<wiggleCount;j++){
-    p = v0.add( along.mul(j+0.333 ).add( disp.mul( (j%2)?-1:1)));
-    q = v0.add( along.mul(j+0.666 ).add( disp.mul( (j%2)?-1:1)));
-    r = v0.add( along.mul(j+1 ));
-    p = applyBend( bender, p, (j+0.333)/wiggleCount);
-    q = applyBend( bender, q, (j+0.666)/wiggleCount);
-    r = applyBend( bender, r, (j+1)/wiggleCount);
-
-    var m = v0.add( along.mul(j+0.5 ).add( disp.mul( (j%2)?-1:1)));
-    m = applyBend( bender, m, (j+0.5)/wiggleCount);
-    ctx.quadraticCurveTo( m.x, m.y, r.x, r.y );
-
-//    ctx.bezierCurveTo( p.x, p.y, q.x, q.y, r.x,r.y);
-//    ctx.lineTo( r.x,r.y);
-  }
-
-}
 
 // To become subsumed into 'drawTaper'
 function drawStyledLine( A, obj, d){

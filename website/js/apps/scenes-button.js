@@ -8,7 +8,7 @@
 
 import { MiniAstNode, ADDABLES } from '../omni-support/scene.js';
 import { createItemFields }      from '../omni-support/item-fields.js';
-import { createLayerOps }        from '../omni-support/layer-ops.js';
+import { createLayerOps, resolveSelectedOfType } from '../omni-support/layer-ops.js';
 import '../nodes2d/button-node.js';
 
 // ═══════════════════════════════════════════════════════
@@ -125,16 +125,7 @@ const BUTTON_PRESETS = {
 // ═══════════════════════════════════════════════════════
 
 /** Resolve the selected button-node in a button layer. */
-function resolveButtonNode(layer, app) {
-  const buf = app?._selectionBuffer || [];
-  for (const entry of buf) {
-    if (entry.node?.token === 'button-node' && layer.subtree?.includes(entry.node)) {
-      return entry.node;
-    }
-  }
-  const pts = (layer.subtree || []).filter(n => n.token === 'button-node');
-  return pts.length ? pts[pts.length - 1] : null;
-}
+const resolveButtonNode = (layer, app) => resolveSelectedOfType(layer, app, 'button-node');
 
 
 // ═══════════════════════════════════════════════════════

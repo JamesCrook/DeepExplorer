@@ -17,7 +17,7 @@ What this map proposed, and where it stands (all pushed to `master`):
 | README tree (step 6) | **Done.** |
 | Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | `mol-scene-nodes` is gone (replaced by generic nodes, 28 Oct). The rest not started. |
 | `card-grid` / `flash-card` out of `apps/scenes-cards.js` (§2.3) | **Done** (28 Oct): `nodes-html/card-grid-node.js` and `flash-card-node.js`. |
-| Copy clusters (§3.3) | Not started. |
+| Copy clusters (§3.3) | **Done** (28 Oct): `2d-support/node-geometry.js` (pointCentreXY ×8, bboxFromCorners ×3, layoutInline ×4), `2d-support/wiggly-line.js` (×3), `parsers/cif-atom.js` (×2), `apps/molam-parts.js` (make*, buildProteinScene, buildThreeRoot, constants), `resolveSelectedOfType` and `findByToken` in `layer-ops.js`. Left alone: the two `Ribbon` class names (different classes, ES modules keep them apart). |
 | The four `attic/unfolded` apps | **Done** (28 Oct): rebuilt as OmniScene scenes with pages in `html/`; omni-grid's renderer is still one opaque node. See `attic/unfolded/README.md`. |
 
 The rest of this document is the map as first written, at commit `0348426`.

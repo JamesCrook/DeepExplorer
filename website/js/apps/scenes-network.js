@@ -16,7 +16,7 @@
 
 import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
 import { createItemFields } from '../omni-support/item-fields.js';
-import { autoName, isNodeInLayer } from '../omni-support/layer-ops.js';
+import { autoName, isNodeInLayer, resolveSelectedOfType } from '../omni-support/layer-ops.js';
 import '../nodes2d/edge-ref-node.js';
 
 // ═══════════════════════════════════════════════════════
@@ -131,17 +131,7 @@ function getNodeDisplayName(node, nodesLayer, app) {
 // ═══════════════════════════════════════════════════════
 
 /** Resolve the selected drag-point in a network-nodes layer. */
-function resolveNetworkNode(layer, app) {
-  const buf = app?._selectionBuffer || [];
-  for (const entry of buf) {
-    if (entry.node?.token === 'drag-point' && layer.subtree?.includes(entry.node)) {
-      return entry.node;
-    }
-  }
-  // Fallback: last node in layer
-  const pts = (layer.subtree || []).filter(n => n.token === 'drag-point');
-  return pts.length ? pts[pts.length - 1] : null;
-}
+const resolveNetworkNode = (layer, app) => resolveSelectedOfType(layer, app, 'drag-point');
 
 const networkNodesOps = {
 

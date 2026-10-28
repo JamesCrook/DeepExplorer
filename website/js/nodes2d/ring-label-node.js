@@ -4,6 +4,7 @@ import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 import { SPECTRAL, STAR_DEFAULTS, StarRender, magWeight, mixWhite, rgbCss } from '../2d-support/sky-gl.js';
 import { CollisionGrid, LabelLayouter, LabelSpriteFactory, TextMeasurer, TextStyle, annulusShape, circleShape, rectShape } from '../2d-support/annular-labels.js';
+import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { LabelLayerNode, RING_DEFAULTS, RingLabelNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -185,10 +186,7 @@ class RingLabelNode {
     ],
   };
 
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
 
   static draw2d(ctxMix, node, params) {
     const v = ctxMix.getValue(ctxMix, node, params) || {};

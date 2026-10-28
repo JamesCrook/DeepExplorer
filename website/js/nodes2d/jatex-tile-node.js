@@ -1,5 +1,6 @@
 import { Shape } from '../2d-support/shape.js'
 import { drawScorpioLabel } from '../2d-support/workhorse.js'
+import { layoutInline } from '../2d-support/node-geometry.js';
 
 /**
  * A class for creating and managing tiled elements.
@@ -230,10 +231,7 @@ class JatexTileNode {
   static measure(ctxMix, node, params){ 
     node.box = new Box(40,20)
   }
-  static layout(ctxMix, node, params){ 
-    node.box.move( ctxMix.layout.x, ctxMix.layout.y)
-    ctxMix.layout.x += node.box.width();
-  }   
+  static layout = layoutInline;
   out( ctx, node, p2, color ){
     var v = node.box.vecs[0];
     var dv = node.box.diagonal();    

@@ -2,6 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 import { DeepRender, StarRender, magWeight } from '../2d-support/sky-gl.js';
+import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { DeepSkyNode, FieldStarNode, StarNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -27,10 +28,7 @@ class StarNode {
       { key: 'cls', label: 'Class B/G/M/N', type: 'text', value: node.value.cls || 'G' },
     ],
   };
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
   static draw2d(ctxMix, node, params) {
     const v = ctxMix.getValue(ctxMix, node, params) || {};
     const mag = v.mag ?? 3;
@@ -85,10 +83,7 @@ class DeepSkyNode {
       { key: 'bulge', label: 'Bulge', type: 'number', value: node.value.bulge ?? 0.4 },
     ],
   };
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
   static draw2d(ctxMix, node, params) {
     const v = ctxMix.getValue(ctxMix, node, params) || {};
     DeepRender.draw(ctxMix.ctx, v, params);

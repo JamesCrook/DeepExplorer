@@ -162,4 +162,17 @@ function createLayerOps(config) {
 }
 
 
-export { findByToken, containsNode, isNodeInLayer, autoName, createLayerOps };
+/**
+ * The node of a given type that a layer's actions should act on: the most
+ * recently selected one in this layer, else the layer's last of that type.
+ * (Was resolveButtonNode / resolveFrameNode / resolveNetworkNode.)
+ */
+function resolveSelectedOfType(layer, app, token) {
+  for (const entry of (app?._selectionBuffer || [])) {
+    if (entry.node?.token === token && layer.subtree?.includes(entry.node)) return entry.node;
+  }
+  const ofType = (layer.subtree || []).filter(n => n.token === token);
+  return ofType.length ? ofType[ofType.length - 1] : null;
+}
+
+export { findByToken, containsNode, isNodeInLayer, autoName, createLayerOps, resolveSelectedOfType };

@@ -26,6 +26,8 @@ import { Twisty } from './jatex-twisty-node.js'
 import { JatexTileNode } from './jatex-tile-node.js'
 import { JatexDrawnNode } from './jatex-electronic-node.js'
 import { SYS } from '../omni-support/sys.js';
+import { bboxFromCorners } from '../2d-support/node-geometry.js';
+import { layoutInline } from '../2d-support/node-geometry.js';
 
 const JatexProcessor = window.JatexProcessor;
 
@@ -90,10 +92,7 @@ class JatexSymbolNode {
     var width = sym ? ctx.measureText(sym).width : 30;
     node.box = new Box(width,40)
   }  
-  static layout(ctxMix, node, params){ 
-    node.box.move( ctxMix.layout.x, ctxMix.layout.y)
-    ctxMix.layout.x += node.box.width();
-  } 
+  static layout = layoutInline;
 
   static draw2d(ctxMix, node, params){
     const ctx = ctxMix.ctx;
@@ -305,17 +304,7 @@ class JatexNode {
 
   // ── helpers ────────────────────────────────────────────
 
-  static _bboxFromCorners(corners) {
-    let x0 = corners[0].x, y0 = corners[0].y, x1 = x0, y1 = y0;
-    for (let i = 1; i < 4; i++) {
-      const c = corners[i];
-      if (c.x < x0) x0 = c.x;
-      if (c.y < y0) y0 = c.y;
-      if (c.x > x1) x1 = c.x;
-      if (c.y > y1) y1 = c.y;
-    }
-    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-  }
+  static _bboxFromCorners = bboxFromCorners;
 }
 
 SYS.NODE_CLASSES.push({ name: 'jatex', cls: JatexNode });

@@ -3,6 +3,7 @@ import { roundRectPath } from '../2d-support/paint.js';
 import { hexToRgb, shiftColor } from '../colour/colour.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
+import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { BTN_DEFAULTS, PippedButtonNode };
 
 const BTN_DEFAULTS = Object.freeze({
@@ -26,10 +27,7 @@ class PippedButtonNode {
       { key: 'color', label: 'Color', type: 'color', value: node.value.color || BTN_DEFAULTS.fill },
     ],
   };
-  static getCentreXY(res, node, params) {
-    const v = res.getValue(res, node, params) || {};
-    return { x: v.x || 0, y: v.y || 0 };
-  }
+  static getCentreXY = pointCentreXY;
   static getPips(res, node, params) {
     const v = res.getValue(res, node, params);
     const w = v.width || 70, h = v.height || 42, hw = w / 2, hh = h / 2;

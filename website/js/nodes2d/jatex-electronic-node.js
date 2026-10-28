@@ -1,11 +1,9 @@
+import { layoutInline } from '../2d-support/node-geometry.js';
 class JatexDrawnNode {
   static measure(ctxMix, node, params){ 
     node.box = new Box(80,60)
   }
-  static layout(ctxMix, node, params){ 
-    node.box.move( ctxMix.layout.x, ctxMix.layout.y)
-    ctxMix.layout.x += node.box.width();
-  } 
+  static layout = layoutInline;
   static draw2d(ctxMix, node, params){ 
     const ctx = ctxMix.ctx;
     const color = params?.color ?? "#559";
