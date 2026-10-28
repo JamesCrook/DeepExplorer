@@ -47,7 +47,9 @@ class OmniSceneApp {
       title        = 'OmniScene',
       subtitle     = 'Drag to reshape. Scroll to zoom. Drag background to pan.',
       defaultScene = 'chart-sales',
+      groups       = null,   // scene groups offered in the Scene selector; null = all
     } = options;
+    this.groups = groups;
 
     // A host may inject its own shell — an object exposing the same four
     // things OmniApp provides: { container, controls, multiscroller, layers }.
@@ -186,7 +188,20 @@ class OmniSceneApp {
 
   render() {
     if (!this.activeBackend || !this.root) return;
+    this._updateValues();
     this.activeBackend.render(this.sceneLayer?.value?.params);
+  }
+
+  /**
+   * The model step.  A layer whose inst has updateValues(layer, params) gets
+   * to write its nodes' values from its params before the phases run, so the
+   * nodes themselves only draw.
+   */
+  _updateValues() {
+    const layers = [this.sceneLayer, ...this._contentLayers()];
+    for (const layer of layers) {
+      layer?.inst?.updateValues?.(layer, layer.value?.params || {}, this);
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -644,6 +659,7 @@ class OmniSceneApp {
   _buildSceneSection() {
     const optgroups = {};
     for (const s of SCENES) {
+      if (this.groups && !this.groups.includes(s.group)) continue;
       (optgroups[s.group] ??= []).push({
         value: s.id, label: s.label,
         selected: s.id === this.currentScene?.id,

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Algorithm Explorer</title>
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+  <script type="module" src="../js/page/nav.js"></script>
+  <link rel="stylesheet" href="../css/omni-controls.css">
+  <link rel="stylesheet" href="../css/omni-scene.css">
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <!-- Boot OmniSceneApp ourselves, on the algorithm-trace scenes only. -->
+  <script>window.OMNI_SCENE_NO_AUTOBOOT = true;</script>
+  <script type="module">
+    import { OmniSceneApp } from '../js/apps/omni-scene-app.js';
+    new OmniSceneApp({
+      title: 'Algorithm Explorer',
+      subtitle: 'Execution traces of grid algorithms. Slide time to step through. Drag to pan, scroll to zoom.',
+      defaultScene: 'run-fft',
+      groups: ['Algorithms'],
+    });
+  </script>
+</body>
+</html>

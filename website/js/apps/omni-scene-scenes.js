@@ -32,6 +32,7 @@ import './scenes-mask.js';
 import './scenes-button.js';
 import './scenes-frame.js';
 import './scenes-postit.js';
+import './scenes-run.js';
 
 // ── Palettes ─────────────────────────────────────────────
 const PT_COLORS = [
