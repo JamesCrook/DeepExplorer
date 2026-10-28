@@ -1,7 +1,7 @@
 import { SYS } from '../omni-support/sys.js';
 import { BasicCollectionNode } from '../nodes2d/basic-collection-node.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
-import '../nodes2d/drag-point-node-zones.js';   // 'drag-point'
+import '../nodes2d/drag-point-node.js';   // 'drag-point'
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { SilhouetteModel };
 class SilhouetteModel {

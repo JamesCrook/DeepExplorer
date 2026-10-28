@@ -67,14 +67,14 @@ if (kind.startsWith('omni')) {
 } else {
   await import(js + 'nodes2d/pane-camera-node.js');
   await import(js + 'nodes2d/frame-node-zones.js');      // frame-node
-  await import(js + 'nodes2d/drag-point-node-zones.js'); // drag-point (Zones), content inside frames
+  await import(js + 'nodes2d/drag-point-node.js');       // drag-point, content inside frames
   // as demo-harness2-d.js builds its ctxMix (camera at identity origin, zoom z)
   let camZoom = 1;
   hitWalk = (root, x, y) => {
     const c = { ...Values, ctx: fakeCtx, iterators: [], state: { index: 0, pass: 0 },
       getWH: () => ({ W, H, Z: camZoom, ox: 0, oy: 0 }), viewport: { x: 0, y: 0, w: W / camZoom, h: H / camZoom },
       W, H, hitPoint: { x, y }, hitResult: null };
-    sceneRegistry.walkPhase(c, 'hit_test', root, {});
+    sceneRegistry.walkPhase(c, 'hit_test', root, { dragPointLook: 'junction' });   // as demo-harness2-d.js seeds params
     return c.hitResult;
   };
   build = (zoom) => {

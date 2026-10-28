@@ -29,7 +29,9 @@ class DemoHarness2D {
     this.node = paneConfig.sceneRoot;
 
 // ── Seed params from model controls so draw2d gets them on first frame ──
-    this.params = {};
+    // Zones looks for nodes shared with the Omni world (see the class comments):
+    // a model's own controls, below, can still override them.
+    this.params = { dragPointLook: 'junction' };
     if (paneConfig.controls) {
       for (const c of paneConfig.controls) {
         if (c.id && c.value !== undefined) this.params[c.id] = c.value;
