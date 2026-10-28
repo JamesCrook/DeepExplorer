@@ -459,10 +459,6 @@ class ImposterAtomNode extends SceneNode {
 
   // ── Teardown ───────────────────────────────────────────
 
-  // ── Transitional aliases (Zones phase names) ───────────
-
-  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
-  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   teardown(ctxMix, node, params) {
     this.clear();

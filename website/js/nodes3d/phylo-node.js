@@ -2,7 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { PhyloNode };
 class PhyloNode {
-  static build3d(ctxMix, node, params) {
+  static build(ctxMix, node, params) {
     if (node.value.group) return;
     const v = node.value;
     v.group = new THREE.Group();
@@ -22,9 +22,9 @@ class PhyloNode {
     const m = new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide});
     v.instancedMesh = new THREE.InstancedMesh(g, m, v.MAX_INSTANCES);
     v.group.add(v.instancedMesh);
-    PhyloNode.update3d(ctxMix, node, params);
+    PhyloNode.update(ctxMix, node, params);
   }
-  static update3d(ctxMix, node, params) {
+  static update(ctxMix, node, params) {
     const v = node.value;
     if (!v.group || !params || !params.levels) return;
     let sd = [];

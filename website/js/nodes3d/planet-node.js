@@ -20,8 +20,7 @@ import { SYS } from '../omni-support/sys.js';
  * 'planet' and 'planet-node'.  THREE comes from ctxMix.THREE (Omni harnesses)
  * or three-boot's live binding (Zones), so a Zones page loads three lazily.
  *
- * Phases handled: build, update, teardown (build3d / update3d are
- * transitional aliases for Zones callers).
+ * Phases handled: build, update, teardown.
  *
  * Update params (cheap):
  *   rotation, wedgeStart, wedgeAngle, planeOpacity, coreOpacity
@@ -100,10 +99,6 @@ class PlanetNode extends SceneNode {
     );
   }
 
-  // ── Transitional aliases (Zones phase names) ───────────
-
-  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
-  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   // ── Teardown ───────────────────────────────────────────
 

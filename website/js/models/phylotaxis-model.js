@@ -31,7 +31,7 @@ class PhylotaxisModel {
     if (!v) return null;
     v.camera.position.set(0,-50,80);
     this.nv = SYS.makeNode('phylo-node', {}); 
-    sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, this._phyloState); 
+    sceneRegistry.walkPhase({iterators:[]}, 'build', this.nv, this._phyloState); 
     v.scene.add(this.nv.value.group); 
     v.phyloNode = this.nv; 
     return v;
@@ -49,12 +49,12 @@ class PhylotaxisModel {
       app.buildHud(); 
     } else if (['baseHue','splatSize','splatLength','splatWidth'].includes(id)) {
       this._phyloState[id] = val;
-      if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, this._phyloState);
+      if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update', this.nv, this._phyloState);
       const ctrl = this.controls.find(c => c.id === id);
       if (ctrl) ctrl.value = val;
     } else {
       this._phyloState.levels[this._currentLevel][id] = val;
-      if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, this._phyloState);
+      if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update', this.nv, this._phyloState);
       const ctrl = this.controls.find(c => c.id === id);
       if (ctrl) ctrl.value = val;
     }

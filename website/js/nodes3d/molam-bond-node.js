@@ -30,8 +30,7 @@ import { SYS } from '../omni-support/sys.js';
  *   bondRadius, bondOpacity, bondHalfColor, bondLightness, bondRingPink,
  *   atomRangeStart, atomRangeEnd, sidechainFade, referenceAxis (injected)
  *
- * Phases handled: build, update, teardown (build3d / update3d are
- * transitional aliases for Zones callers not yet moved to the Omni names).
+ * Phases handled: build, update, teardown.
  */
 
 const BOND_UPDATE_PARAMS = [
@@ -101,10 +100,6 @@ class MolamBondNode extends SceneNode {
     );
   }
 
-  // ── Transitional aliases (Zones phase names) ───────────
-
-  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
-  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   // ── Teardown ───────────────────────────────────────────
 

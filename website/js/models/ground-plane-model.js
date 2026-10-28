@@ -21,12 +21,12 @@ class GroundPlaneModel {
     v.scene.add(new THREE.AmbientLight(0xffffff,0.6)); 
     const sun=new THREE.DirectionalLight(0xffffff,0.8); sun.position.set(5,8,4); v.scene.add(sun);
     this.nv = SYS.makeNode('ground-plane', {grid:{size:20,divisions:20,y:-4,color1:0x444444,color2:0x333333},axes:{size:2,position:[-9,-3.9,-9]}});
-    sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, {}); 
+    sceneRegistry.walkPhase({iterators:[]}, 'build', this.nv, {}); 
     v.scene.add(this.nv.inst.group);   // inst made by the registry during build
     return v;
   }
   onControl(id, val, getValues) {
-    if (this.nv?.inst?.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, getValues());
+    if (this.nv?.inst?.group) sceneRegistry.walkPhase({iterators:[]}, 'update', this.nv, getValues());
   }
 }
 SYS.MODELS.push(new GroundPlaneModel());

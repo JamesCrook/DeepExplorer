@@ -31,12 +31,12 @@ class DumbbellModel {
     const dumbbellGroup = new THREE.Group();
     v.scene.add(dumbbellGroup);
     this.nv = SYS.makeNode('dumbbell-node', {});
-    sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, {});
+    sceneRegistry.walkPhase({iterators:[]}, 'build', this.nv, {});
     dumbbellGroup.add(this.nv.value.group);
     return v;
   }
   onControl(id, val, getValues) {
-    if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, getValues());
+    if (this.nv && this.nv.value.group) sceneRegistry.walkPhase({iterators:[]}, 'update', this.nv, getValues());
   }
 }
 SYS.MODELS.push(new DumbbellModel());

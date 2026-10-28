@@ -1,6 +1,6 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
-import '../nodes3d/planet-node.js';   // 'planet-node' (and 'planet')
+import '../nodes3d/planet-node.js';   // 'planet' (and its Zones alias 'planet-node')
 export { PlanetModel };
 class PlanetModel {
   get name() { return 'Planet Cutaway'; }
@@ -22,8 +22,8 @@ class PlanetModel {
     v.scene.add(new THREE.AmbientLight(0xffffff,0.5)); 
     const sun=new THREE.DirectionalLight(0xffffff,0.9); sun.position.set(5,3,4); v.scene.add(sun);
     this.sg = new THREE.Group(); v.scene.add(this.sg);
-    this.nv = SYS.makeNode('planet-node', { crustRadius:1, coreRadius:0.6 }); 
-    sceneRegistry.walkPhase({iterators:[]}, 'build3d', this.nv, {}); 
+    this.nv = SYS.makeNode('planet', { crustRadius:1, coreRadius:0.6 }); 
+    sceneRegistry.walkPhase({iterators:[]}, 'build', this.nv, {}); 
     this.sg.add(this.nv.inst.group);   // inst made by the registry during build
     return v;
   }
@@ -31,7 +31,7 @@ class PlanetModel {
     if (!this.sg) return;
     const p = getValues();
     this.sg.rotation.y = (p.rotation * Math.PI) / 180;
-    sceneRegistry.walkPhase({iterators:[]}, 'update3d', this.nv, p);
+    sceneRegistry.walkPhase({iterators:[]}, 'update', this.nv, p);
   }
 }
 SYS.MODELS.push(new PlanetModel());

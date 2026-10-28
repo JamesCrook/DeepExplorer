@@ -24,8 +24,7 @@ import { SYS } from '../omni-support/sys.js';
  * THREE comes from ctxMix.THREE (Omni harnesses) or three-boot's live
  * binding (Zones), so a Zones page still loads three.js lazily.
  *
- * Phases handled: build, update, teardown (build3d / update3d are
- * transitional aliases for Zones callers).
+ * Phases handled: build, update, teardown.
  */
 
 class GroundPlaneNode extends SceneNode {
@@ -105,10 +104,6 @@ class GroundPlaneNode extends SceneNode {
     this.gridHelper = null;
   }
 
-  // ── Transitional aliases (Zones phase names) ───────────
-
-  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
-  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
 
   // ── Teardown ───────────────────────────────────────────
 
