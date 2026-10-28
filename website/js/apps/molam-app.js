@@ -89,6 +89,7 @@ class MolamApp {
       },
       sliderConfig:   this._buildSliderConfig(),
       presets:        Molam.PRESETS,
+      animator:       this.widget.animator,   // one frame loop for panel morphs and the 3D render
       defaultPreset,
       enablePanZoom:  false,
       aspectRatio:    1,

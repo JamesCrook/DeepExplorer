@@ -6,6 +6,7 @@ import { Utils } from './utils.js';
 import { DemoHarness2D } from './demo-harness2-d.js';
 import { DemoHarness3D } from './demo-harness3-d.js';
 import { HudPanel } from '../nodes-html/hud-panel.js';
+import { Animator } from './animator.js';
 export { App };
 /* ═══════════════════════════════════════════════════════════════════════════
 App — the application shell.
@@ -23,6 +24,7 @@ class App {
     this.paneEls = [];
     this.harnesses = [];
     this.hudState = {};
+    this.animator = new Animator();   // one frame loop for every pane
 
     SYS.MODELS.forEach((m, i) => {
       this.hudState['vis_' + i] = m.visible !== false;
@@ -349,10 +351,16 @@ class App {
 
 /* ── render loop ───────────────────────────────────────────────── */
 
+  /* Every frame, for ever, as before: the 3D panes orbit and spin.  A track
+     on the App's Animator, which the 2D and HTML harnesses also batch their
+     redraws on, so one frame does all the work. */
   animate() {
-    requestAnimationFrame(() => this.animate());
-    for (const h of this.harnesses) {
-      if (h.animate) h.animate();
-    }
+    if (this.animator.has('harnesses')) return;
+    this.animator.add('harnesses', () => {
+      for (const h of this.harnesses) {
+        if (h.animate) h.animate();
+      }
+      return true;
+    });
   }
 }

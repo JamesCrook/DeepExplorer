@@ -121,7 +121,11 @@ class DemoHarness2D {
 
 /* ── drawing ───────────────────────────────────────────────────── */
 
+  /* One draw per frame however often asked.  On the App's Animator when there
+     is one (a track keyed by this harness, so repeats replace), else rAF. */
   draw() {
+    const anim = this.app?.animator;
+    if (anim) { anim.add(this, () => { this.drawInRaf(); return false; }); return; }
     if (this._raf) return;
     this._raf = requestAnimationFrame(() => { this._raf = null; this.drawInRaf(); });
   }

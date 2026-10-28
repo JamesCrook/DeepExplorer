@@ -51,6 +51,7 @@ import {
   makeGroundPlane, makeRibbon, makeAtoms, makeBonds,
   buildProteinScene, buildThreeRoot,
 } from './molam-parts.js';
+import { Animator }                   from '../omni-support/animator.js';
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -252,6 +253,7 @@ class MolamWidget {
    * @param {string} [opts.preset]        – initial preset name
    * @param {Object} [opts.params]        – initial param overrides
    * @param {number} [opts.morphDuration] – ms for animated transitions
+   * @param {Animator} [opts.animator]    – frame loop to share (default: its own)
    */
   /**
    * @param {string|HTMLElement} el — CSS selector or DOM element (div)
@@ -260,6 +262,7 @@ class MolamWidget {
    * @param {string} [opts.preset]        – initial preset name
    * @param {Object} [opts.params]        – initial param overrides
    * @param {number} [opts.morphDuration] – ms for animated transitions
+   * @param {Animator} [opts.animator]    – frame loop to share (default: its own)
    */
   constructor(el, opts = {}) {
     const host = resolveElement(el);
@@ -288,12 +291,16 @@ class MolamWidget {
 
     sceneRegistry.runPhases(this._ctxMix, this._rootNode, {}, ['build']);
 
+    // ── Frame loop: shared by preset morphs and the render (orbit damping) ──
+    this._animator = opts.animator || new Animator();
+
     // ── Param engine ─────────────────────────────────────────
     this._engine = new OmniParamEngine({
       params:  { ...DEFAULT_PARAMS, ...opts.params },
       presets: PRESETS,
       onUpdate: () => this._update(),
       morphDuration: opts.morphDuration,
+      animator: this._animator,
     });
 
     if (opts.preset && PRESETS[opts.preset]) {
@@ -329,14 +336,16 @@ class MolamWidget {
     });
 
     // ── Animation loop (OrbitControls damping + render) ──────
+    // Every frame, as before.  The render is deferred to the end of the
+    // frame, so a preset morph stepping in the same frame is drawn at once.
     const threeSceneInst = getThreeScene(this._rootNode);
-    const animate = () => {
-      if (this._destroyed) return;
-      requestAnimationFrame(animate);
+    const render = () => threeSceneInst.renderer.render(threeSceneInst.scene, cameraInst.camera);
+    this._animator.add(this, () => {
+      if (this._destroyed) return false;
       cameraInst.controls.update();
-      threeSceneInst.renderer.render(threeSceneInst.scene, cameraInst.camera);
-    };
-    animate();
+      this._animator.defer(render);
+      return true;
+    });
 
     // ── Initial update ───────────────────────────────────────
     this._update();
@@ -652,6 +661,9 @@ class MolamWidget {
   }
 
   // ── Accessors for app-level wiring ─────────────────────────
+
+  /** The widget's frame loop; a host panel can share it (OmniControlPanel's animator option). */
+  get animator() { return this._animator; }
 
   /** @internal */ get rootNode()  { return this._rootNode; }
   /** @internal */ get ctxMix()    { return this._ctxMix; }

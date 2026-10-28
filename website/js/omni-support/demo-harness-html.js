@@ -413,12 +413,11 @@ class DemoHarnessHtml {
 /* ── update — batched to one walk per frame, like DemoHarness2D.draw ── */
 
   update() {
+    const run = () => { this._walk('update'); this._applyGroups(); };
+    const anim = this.app?.animator;
+    if (anim) { anim.add(this, () => { run(); return false; }); return; }
     if (this._raf) return;
-    this._raf = requestAnimationFrame(() => {
-      this._raf = null;
-      this._walk('update');
-      this._applyGroups();
-    });
+    this._raf = requestAnimationFrame(() => { this._raf = null; run(); });
   }
 
 /* ── params ────────────────────────────────────────────────────── */

@@ -18,6 +18,7 @@
 import * as THREE                from 'three';
 import { sceneRegistry }         from './scene.js';
 import { ThreeSceneNode }        from '../nodes3d/three-scene-node.js';
+import { Animator } from './animator.js';
 
 
 class Omni3d {
@@ -34,7 +35,6 @@ class Omni3d {
 
     this._threeRoot      = null;   // MiniAstNode('three-scene', ...)
     this._ctxMix         = null;
-    this._animFrame      = null;
     this._resizeObserver = null;
     this._destroyed      = true;
   }
@@ -183,23 +183,21 @@ class Omni3d {
 
   static _IDLE_MS = 2000;
 
-  _startAnimLoop() {
-    if (this._animFrame) return;
-    const step = () => {
-      if (this._destroyed) { this._animFrame = null; return; }
+  /** The frame loop: the app's shared Animator, or a private one. */
+  get animator() {
+    return this.app?.animator ?? (this._animator ??= new Animator());
+  }
 
+  _startAnimLoop() {
+    if (this.animator.has(this)) return;
+    this.animator.add(this, () => {
+      if (this._destroyed) return false;
       const cam = this.camera;
       if (cam?.controls) cam.controls.update();
       this._renderFrame();
-
-      // Self-terminate when idle
-      if (performance.now() - (this._lastActivity || 0) > Omni3d._IDLE_MS) {
-        this._animFrame = null;
-        return;
-      }
-      this._animFrame = requestAnimationFrame(step);
-    };
-    this._animFrame = requestAnimationFrame(step);
+      // Stop when idle; pointer events and orbit changes wake it again.
+      return performance.now() - (this._lastActivity || 0) <= Omni3d._IDLE_MS;
+    });
   }
 
   /** Wake the loop (call on any user interaction or camera change). */
@@ -209,10 +207,7 @@ class Omni3d {
   }
 
   _stopAnimLoop() {
-    if (this._animFrame) {
-      cancelAnimationFrame(this._animFrame);
-      this._animFrame = null;
-    }
+    this.animator.remove(this);
   }
 
   // ── Resize observer ───────────────────────────────────────
