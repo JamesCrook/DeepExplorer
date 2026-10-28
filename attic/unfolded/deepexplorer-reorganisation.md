@@ -4,7 +4,7 @@ Based on `JamesCrook/DeepExplorer` at commit `0348426` ("Shift to using SYS", 27
 
 ## Status, 28 Oct
 
-What this map proposed, and where it stands (all pushed to `main`):
+What this map proposed, and where it stands (all pushed to `master`):
 
 | Proposal | Status |
 |---|---|
