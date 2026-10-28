@@ -276,6 +276,8 @@ Only three files use it:
 
 ### Morph-slider pip sits outside the track at 0 and 1
 
+**Fixed (28 Oct).** The notes below record the cause.
+
 `omni-support/morph-slider-widget.js` appends `.ms-pip` to `.morph-slider` as a **sibling** of `.ms-track`, and sets `pip.style.left = pct + '%'`. A percentage `left` on an absolutely positioned element is relative to the slider's full padding box. The track is inset `left: 8px; right: 8px` (in both `css/omni-scene.css` and `css/panopticon.css`). So:
 
 - at 0 the pip's centre is 8px left of the track;
@@ -292,7 +294,9 @@ pip.style.left = `calc(8px + var(--ms-pip-w) * 0.5px + (100% - 16px - var(--ms-p
 
 Apply the same fix to the copy of `buildMorphSlider` in `nodes2d/pipped-edge-ref-node.js`, or better, make that file import `morph-slider-widget.js` (see the reorganisation notes).
 
-### Found while sweeping childless containers (not fixed)
+### Found while sweeping childless containers (deferred)
+
+**Deferred (28 Oct):** fixing `anglesFromAtoms`/`minEnergy2` is postponed by decision, not overlooked.
 
 `nodes2d/workhorse-nodes.js` (`mind-map`, used by `apps/scenes-workhorse.js`) calls `anglesFromAtoms(val)` and `minEnergy2(ctxMix, val)` in its draw hook. Neither is defined anywhere in the repo. The import at line 63 is commented out, and only `bondsFromAtoms` and `quadsFromAtoms` exist, in `2d-support/workhorse.js`. So drawing a `mind-map` throws a `ReferenceError` whether or not it has children.
 
