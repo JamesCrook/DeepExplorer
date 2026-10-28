@@ -3,17 +3,38 @@ import { OmniAnimateModel } from './omni-animate-model.js';
 import { ReactiveRuntime }  from '../omni-support/reactive-runtime.js';
 
 
-/* Each scene is { root, rules, update } (omni-animate-model.js).  The app
-   ticks layer.inst.runtime; then, before every render, updateValues calls the
-   scene's update(), the facade that writes the nodes from the entities. */
-function animateUpdateValues(layer) {
-  layer.inst?.scene?.update();
+/* An animation unit is { runtime, scene }, scene = { root, rules, update }
+   (omni-animate-model.js).  A layer animates every unit it holds: its own
+   (layer.inst.anim, the full-page scenes) or one per item (item.anim, the
+   Haemoglobin frames added to a canvas layer, however many there are).  Each
+   frame the layer's tick advances every unit's runtime; before each render,
+   updateValues runs every unit's facade, which writes its nodes. */
+function animUnits(layer) {
+  const items = (layer.subtree || []).filter(n => n.anim).map(n => n.anim);
+  return items.length ? items : (layer.inst?.anim ? [layer.inst.anim] : []);
 }
 
-/* The layer's own clock: advance its runtime by one frame at params.speed.
-   (The runtime steps a fixed 1/60 s per tick, scaled by speed, as before.) */
+function animateUpdateValues(layer) {
+  for (const u of animUnits(layer)) u.scene.update();
+}
+
+/* Advance each runtime by one frame at params.speed.  (A runtime steps a
+   fixed 1/60 s per tick, scaled by speed, as before.) */
 function animateTick(layer, params) {
-  layer.inst?.runtime?.tick(params.speed ?? 1);
+  for (const u of animUnits(layer)) u.runtime.tick(params.speed ?? 1);
+}
+
+/* A Haemoglobin frame for a canvas layer, carrying its own animation unit. */
+function makeHbFrame(offset = 0) {
+  const runtime = new ReactiveRuntime();
+  const scene = OmniAnimateModel.setupHB(runtime);
+  const frame = new MiniAstNode('handle-frame', [
+    new MiniAstNode('drag-point', [], { x: -160 + offset, y: -130 + offset, name: '⌜', color: '#ffffffaa' }),
+    new MiniAstNode('drag-point', [], { x:  160 + offset, y:  130 + offset, name: '⌟', color: '#ffffffaa' }),
+    scene.root,
+  ]);
+  frame.anim = { runtime, scene };
+  return frame;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -92,9 +113,8 @@ function createAnimateScene(sceneId) {
   layer.inst = {
     buildUI: animateBuildUI,
     presets: null,
-    runtime: R,
     rules: scene.rules,
-    scene,
+    anim: { runtime: R, scene },
     updateValues: animateUpdateValues,
     tick: animateTick,
   };
@@ -147,18 +167,16 @@ function hbAddableBuildUI(layer) {
         resetBtn.style.flex = '1';
         resetBtn.textContent = '⟲ Reset';
         resetBtn.onclick = () => {
-          const R = layer.inst?.runtime;
-          if (!R) return;
-          // A fresh scene: new runtime state, new nodes, in place of the old root.
-          const old = layer.inst.scene;
-          const scene = OmniAnimateModel.setupHB(R);
-          const frame = layer.subtree?.[0];
-          if (frame) {
-            const idx = frame.subtree.indexOf(old?.root);
-            if (idx >= 0) frame.subtree[idx] = scene.root;
+          // Every frame starts again: fresh runtime state and nodes, in place.
+          for (const item of layer.subtree || []) {
+            if (!item.anim) continue;
+            const scene = OmniAnimateModel.setupHB(item.anim.runtime);
+            const idx = item.subtree.indexOf(item.anim.scene.root);
+            if (idx >= 0) item.subtree[idx] = scene.root;
+            item.anim.scene = scene;
           }
-          layer.inst.scene = scene;
-          layer.inst.rules = scene.rules;
+          const first = (layer.subtree || []).find(n => n.anim);
+          if (first) layer.inst.rules = first.anim.scene.rules;
         };
 
         row.appendChild(playBtn);
@@ -199,31 +217,13 @@ const HB_ADDABLE = {
   buildUI:       hbAddableBuildUI,
   presets:       null,
 
+  /* Another frame in an existing Haemoglobin layer: it animates too. */
   createItem(index = 0) {
-    const offset = index * 30;
-    const R = new ReactiveRuntime();
-    const scene = OmniAnimateModel.setupHB(R);
-    const frame = new MiniAstNode('handle-frame', [
-      new MiniAstNode('drag-point', [], { x: -160 + offset, y: -130 + offset, name: '⌜', color: '#ffffffaa' }),
-      new MiniAstNode('drag-point', [], { x:  160 + offset, y:  130 + offset, name: '⌟', color: '#ffffffaa' }),
-      scene.root,
-    ]);
-    // An extra item in an existing layer: drawn in its starting state.  Only
-    // the layer's own runtime is ticked (as before).
-    frame._runtime = R;
-    frame._rules   = scene.rules;
-    return frame;
+    return makeHbFrame(index * 30);
   },
 
   create() {
-    const R = new ReactiveRuntime();
-    const scene = OmniAnimateModel.setupHB(R);
-    const frame = new MiniAstNode('handle-frame', [
-      new MiniAstNode('drag-point', [], { x: -160, y: -130, name: '⌜', color: '#ffffffaa' }),
-      new MiniAstNode('drag-point', [], { x:  160, y:  130, name: '⌟', color: '#ffffffaa' }),
-      scene.root,
-    ]);
-
+    const frame = makeHbFrame(0);
     const layer = new MiniAstNode('layer', [frame], {
       name:      'Haemoglobin',
       layerType: 'animate-hb',
@@ -235,9 +235,7 @@ const HB_ADDABLE = {
       presets:       null,
       selectionSize: 1,
       refCount:      0,
-      runtime:       R,
-      rules:         scene.rules,
-      scene,
+      rules:         frame.anim.scene.rules,   // the sidebar shows the first frame's rules
       updateValues:  animateUpdateValues,
       tick:          animateTick,
     };
