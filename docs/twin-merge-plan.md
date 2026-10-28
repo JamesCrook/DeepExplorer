@@ -342,6 +342,34 @@ Separately, the `jatex` text in a post-it starts at the note's centre rather tha
   pushes its centre with T.child (local) instead of a screen shift.  At zoom 2
   the note, its lines and its text now all double.  Frame tests unchanged.
 
+## Status, 28 Oct (end of day)
+
+Done since the later status: the stretch branch (option 1), the D4 aliases
+retired, the four attic/unfolded apps rebuilt (see attic/unfolded/README.md),
+the animations on generic nodes with a model facade, and one Animator for
+preset morphs and layer ticks.
+
+Still open, in rough order of value:
+
+- **Unwrap omni-grid.** grid-view is one opaque node around the old GridScene.
+  Target: real cell nodes, with the sticky headers reusing the table's cell
+  drawing.
+- **Copy clusters** (reorganisation map §3.3): the eight identical
+  getCentreXY, drawWigglyLine/applyBend twice, _bboxFromCorners three times,
+  the jatex layout four times, makeGroundPlane/makeRibbon/makeBonds in
+  molam-widget and scenes-molam, resolveButtonNode/FrameNode/NetworkNode,
+  findByToken, formatAtom.
+- **Other frame loops** that could join the Animator: Omni3d's camera loop,
+  the Zones App and demo harnesses, molam-widget's own animate loop.
+- **Extra Haemoglobin items** added into an existing layer (createItem) are
+  drawn in their starting state: only the layer's own runtime ticks.
+- **jatex in a post-it** starts at the note's centre rather than centred.
+- **General T** beyond rotation: isAffine, scaleAt(p), a PathTransform.
+- **Rerun Code Cartographer** to confirm no duplicate type names remain.
+- Deferred by decision: anglesFromAtoms/minEnergy2 (mind-map); the event
+  system and its DSL interpreter; splitting the remaining multi-node files
+  (not to be done).
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.
