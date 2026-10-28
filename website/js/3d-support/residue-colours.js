@@ -4,8 +4,9 @@ helpers both 3D worlds share.  Free of any THREE import: the functions take
 THREE as an argument, so importing this file never forces three.js to load
 (three-boot.js loads it lazily on Zones pages).
 
-Moved out of molam-objects.js unchanged, so the Zones nodes can use the real
-getResidueColor instead of a stub.
+Moved out of molam-objects.js unchanged.  bond-renderer.js and
+nodes3d/imposter-atom-node.js use it in both worlds; before, the Zones world had
+its own copies and a stub getResidueColor.
 */
 const RESIDUE_COLORS = {
   'ALA': 0x8CFF8C,

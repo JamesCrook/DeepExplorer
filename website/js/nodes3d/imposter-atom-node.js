@@ -1,5 +1,6 @@
 import { SceneNode } from '../omni-support/scene.js';
-import * as THREE from 'three';
+import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
+import { computeResidueTangents as residueTangentsWith } from '../3d-support/residue-colours.js';
 import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
 import { SYS } from '../omni-support/sys.js';
 
@@ -155,50 +156,17 @@ const FRAGMENT_SHADER = /* glsl */ `
 // Light directions: toward the light source (for dot product with normal).
 // THREE DirectionalLight at position P shining toward origin:
 // direction toward light = normalize(P).
-const DEFAULT_LIGHTS = [
-  { dir: new THREE.Vector3( 5, 15,  10).normalize(), color: new THREE.Color(0xffffff), intensity: 1.2 },
-  { dir: new THREE.Vector3(-10,  5,  -5).normalize(), color: new THREE.Color(0x4488ff), intensity: 0.5 },
-  { dir: new THREE.Vector3( -5,-10, -10).normalize(), color: new THREE.Color(0xffdddd), intensity: 1.2 },
-];
-
-const DEFAULT_AMBIENT = new THREE.Color(0x404040).multiplyScalar(0.5);
-
-// ── Residue tangent computation (for axis fade) ──────────
-//    Inlined to keep the file self-contained.
-
-function computeResidueTangents(atoms) {
-  const residueTangents = new Map();
-  const residues = new Map();
-
-  for (const atom of atoms) {
-    const key = (atom.chainID || '') + '_' + atom.resSeq;
-    if (!residues.has(key)) residues.set(key, []);
-    residues.get(key).push(atom);
-  }
-
-  for (const [key, resAtoms] of residues) {
-    const ca = resAtoms.find(a => a.name === 'CA');
-    if (!ca) continue;
-
-    const [chainID, resSeqStr] = key.split('_');
-    const resSeq = parseInt(resSeqStr, 10);
-    const prev = residues.get(chainID + '_' + (resSeq - 1));
-    const next = residues.get(chainID + '_' + (resSeq + 1));
-    const prevCA = prev ? prev.find(a => a.name === 'CA') : null;
-    const nextCA = next ? next.find(a => a.name === 'CA') : null;
-
-    let T;
-    if (prevCA && nextCA)  T = new THREE.Vector3(nextCA.x - prevCA.x, nextCA.y - prevCA.y, nextCA.z - prevCA.z);
-    else if (prevCA)       T = new THREE.Vector3(ca.x - prevCA.x, ca.y - prevCA.y, ca.z - prevCA.z);
-    else if (nextCA)       T = new THREE.Vector3(nextCA.x - ca.x, nextCA.y - ca.y, nextCA.z - ca.z);
-    else                   T = new THREE.Vector3(1, 0, 0);
-
-    residueTangents.set(key, T.normalize());
-  }
-
-  return residueTangents;
+function defaultLights(THREE) {
+  return [
+    { dir: new THREE.Vector3( 5, 15,  10).normalize(), color: new THREE.Color(0xffffff), intensity: 1.2 },
+    { dir: new THREE.Vector3(-10,  5,  -5).normalize(), color: new THREE.Color(0x4488ff), intensity: 0.5 },
+    { dir: new THREE.Vector3( -5,-10, -10).normalize(), color: new THREE.Color(0xffdddd), intensity: 1.2 },
+  ];
 }
 
+function defaultAmbient(THREE) {
+  return new THREE.Color(0x404040).multiplyScalar(0.5);
+}
 
 // ── Update params ────────────────────────────────────────
 
@@ -221,7 +189,8 @@ class ImposterAtomNode extends SceneNode {
   build(ctxMix, node, params) {
     if (this.group) return;
 
-    this.group = new THREE.Group();
+    this.THREE = ctxMix?.THREE ?? BOOT_THREE;
+    this.group = new this.THREE.Group();
     this.mesh = null;
     this.atoms = [];
     this.totalAtomCount = 0;
@@ -265,7 +234,7 @@ class ImposterAtomNode extends SceneNode {
 
     if (atoms.length === 0) return;
 
-    this.residueTangents = computeResidueTangents(atoms);
+    this.residueTangents = residueTangentsWith(atoms, this.THREE);
 
     // Build base arrays
     const n = atoms.length;
@@ -273,7 +242,7 @@ class ImposterAtomNode extends SceneNode {
     this._baseRadii     = new Float32Array(n);
     this._baseColors    = new Float32Array(n * 3);
 
-    const color = new THREE.Color();
+    const color = new this.THREE.Color();
 
     for (let i = 0; i < n; i++) {
       const atom = atoms[i];
@@ -296,6 +265,8 @@ class ImposterAtomNode extends SceneNode {
   }
 
   _buildMesh(instanceCount) {
+    const THREE = this.THREE;
+    const ambient = defaultAmbient(THREE), lights = defaultLights(THREE);
     // Base quad: 4 verts, 2 triangles
     const quadPositions = new Float32Array([
       -1, -1, 0,
@@ -335,16 +306,16 @@ class ImposterAtomNode extends SceneNode {
       uniforms: {
         uOpacity:         { value: 1.0 },
         uLightness:       { value: 0.5 },
-        uAmbientColor:    { value: DEFAULT_AMBIENT.clone() },
-        uLightDir0:       { value: DEFAULT_LIGHTS[0].dir.clone() },
-        uLightColor0:     { value: DEFAULT_LIGHTS[0].color.clone() },
-        uLightIntensity0: { value: DEFAULT_LIGHTS[0].intensity },
-        uLightDir1:       { value: DEFAULT_LIGHTS[1].dir.clone() },
-        uLightColor1:     { value: DEFAULT_LIGHTS[1].color.clone() },
-        uLightIntensity1: { value: DEFAULT_LIGHTS[1].intensity },
-        uLightDir2:       { value: DEFAULT_LIGHTS[2].dir.clone() },
-        uLightColor2:     { value: DEFAULT_LIGHTS[2].color.clone() },
-        uLightIntensity2: { value: DEFAULT_LIGHTS[2].intensity },
+        uAmbientColor:    { value: ambient.clone() },
+        uLightDir0:       { value: lights[0].dir.clone() },
+        uLightColor0:     { value: lights[0].color.clone() },
+        uLightIntensity0: { value: lights[0].intensity },
+        uLightDir1:       { value: lights[1].dir.clone() },
+        uLightColor1:     { value: lights[1].color.clone() },
+        uLightIntensity1: { value: lights[1].intensity },
+        uLightDir2:       { value: lights[2].dir.clone() },
+        uLightColor2:     { value: lights[2].color.clone() },
+        uLightIntensity2: { value: lights[2].intensity },
       },
     });
 
@@ -428,6 +399,7 @@ class ImposterAtomNode extends SceneNode {
   //    For 4,500 atoms this takes ~0.1ms.
 
   sortInstances(camera) {
+    const THREE = this.THREE;
     const n = this.totalAtomCount;
     if (n === 0 || !this._basePositions) return;
 
@@ -487,6 +459,11 @@ class ImposterAtomNode extends SceneNode {
 
   // ── Teardown ───────────────────────────────────────────
 
+  // ── Transitional aliases (Zones phase names) ───────────
+
+  build3d(ctxMix, node, params)  { return this.build(ctxMix, node, params); }
+  update3d(ctxMix, node, params) { return this.update(ctxMix, node, params); }
+
   teardown(ctxMix, node, params) {
     this.clear();
   }
@@ -517,19 +494,15 @@ class ImposterAtomNode extends SceneNode {
   }
 }
 
+// One class, both type names: 'imposter-atoms' (Omni) and 'imposter-atom' (Zones).
 SYS.NODE_CLASSES.push({ name: 'imposter-atoms', cls: ImposterAtomNode });
+SYS.NODE_CLASSES.push({ name: 'imposter-atom',  cls: ImposterAtomNode });
 
 export { ImposterAtomNode };
 // Auto-generated exports
-if (typeof window !== 'undefined') window.DEFAULT_AMBIENT = DEFAULT_AMBIENT;
-export { DEFAULT_AMBIENT };
-if (typeof window !== 'undefined') window.DEFAULT_LIGHTS = DEFAULT_LIGHTS;
-export { DEFAULT_LIGHTS };
 if (typeof window !== 'undefined') window.FRAGMENT_SHADER = FRAGMENT_SHADER;
 export { FRAGMENT_SHADER };
 if (typeof window !== 'undefined') window.IMPOSTER_UPDATE_PARAMS = IMPOSTER_UPDATE_PARAMS;
 export { IMPOSTER_UPDATE_PARAMS };
 if (typeof window !== 'undefined') window.VERTEX_SHADER = VERTEX_SHADER;
 export { VERTEX_SHADER };
-if (typeof window !== 'undefined') window.computeResidueTangents = computeResidueTangents;
-export { computeResidueTangents };
