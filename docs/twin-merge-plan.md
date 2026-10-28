@@ -296,6 +296,17 @@ Apply the same fix to the copy of `buildMorphSlider` in `nodes2d/pipped-edge-ref
 
 `nodes2d/workhorse-nodes.js` (`mind-map`, used by `apps/scenes-workhorse.js`) calls `anglesFromAtoms(val)` and `minEnergy2(ctxMix, val)` in its draw hook. Neither is defined anywhere in the repo. The import at line 63 is commented out, and only `bondsFromAtoms` and `quadsFromAtoms` exist, in `2d-support/workhorse.js`. So drawing a `mind-map` throws a `ReferenceError` whether or not it has children.
 
+## Status, 28 Oct (early)
+
+Done: F1–F3; pairs 1–5 (MolamBond, GroundPlane, Planet, ImposterAtom; all 3D twins are now one class each, registered under both type names, with `build3d`/`update3d` aliases for Zones callers); FR0–FR3 and the reframed FR5; hit-order fixes; childless containers in `walkPhase`; `T`-based nodes hit-test against `screenHitPoint`. Tests: `docs/tests/frame-drag-test.mjs` (4 kinds), `content-hit-test.mjs`, `hit-space-probe.mjs`.
+
+Open — **pairs 6–7 need a look-and-feel decision.** The 2D twins differ in design as well as in coordinate contract. `drag-point`:
+
+- Omni: cyan, shadowed, fixed screen size (`params.pointRadius`), label and emoji, highlight from `ctxMix.highlighted`.
+- Zones: dark, world-size (`value.r`), selection from `value.selected`, plus pip-junction meta and a stock-strip entry.
+
+The code can be one class under D3: draw at `res.T.toScreen(getCentreXY(...))`, on `directCtx` where the harness provides it (Omni, screen space) and otherwise on the transformed `ctx` (Zones, where `T` is identity). Each world then keeps its own size behaviour. The open question is the defaults: one look for both, or each world's look supplied through params by its harness.
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.
