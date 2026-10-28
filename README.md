@@ -10,53 +10,45 @@ Rich diagrams work. The chat interface is just a place holder.
 
 ## Project Structure
 
-This ASCII tree needs redoing
+```
+DeepExplorer/
+├─ website/                     # everything that is served
+│  ├─ index.html                # clickable index of the pages
+│  ├─ html/                     # --> START HERE. The top level programs
+│  │  ├─ omni-scene.html        #   the scene editor
+│  │  ├─ molam.html             #   molecular structure viewer
+│  │  └─ ...                    #   aa-colors, cmos-viewer, tree-browse
+│  ├─ deep-wiki/d-plus.html     # the main 'everything app' (Markdown+ chat UI)
+│  ├─ demos/                    # Zones demo pages; panopticon.html has them all
+│  ├─ css/                      # shared css
+│  └─ js/
+│     ├─ omni-support/          # the framework: scene.js (registry, walker), sys.js,
+│     │                         #   values.js, harnesses, control panel, param engine
+│     ├─ nodes2d/               # scene graph nodes, 2D canvas
+│     ├─ nodes3d/               # scene graph nodes, three.js
+│     ├─ nodes-html/            # scene graph nodes, HTML
+│     │  └─ widgets/            #   panel and nav widgets, one file per type
+│     ├─ models/                # ready-made scenes (Zones), registered in SYS.MODELS
+│     ├─ apps/                  # app and scene code behind the pages
+│     ├─ 2d-support/            # 2D geometry, paths, ribbons, snapping, paint
+│     ├─ 3d-support/            # three.js boot, molecule objects, ribbons, colours
+│     ├─ colour/                # colour.js (hex/rgb arithmetic), perceptual.js (LCH)
+│     ├─ parsers/               # my parser, grammars, AST manager, file formats
+│     ├─ data/                  # sample data and data adapters
+│     └─ page/                  # page chrome: nav (hamburger menu), help
+├─ docs/                        # plans (twin-merge-plan.md) and tests
+│  └─ tests/load-graph.mjs      # node docs/tests/load-graph.mjs: broken imports, unloaded files
+├─ attic/                       # not loaded by any page; kept for reference
+│  ├─ website-unloaded/         #   files no page reached, at their old paths
+│  ├─ stand-alones/             #   all-in-one-file apps (STNDAs) and spike_kit.py
+│  ├─ tools/                    #   work-cascade-tool.html and other code tools
+│  ├─ cascade/                  #   design blueprints
+│  └─ ksy/                      #   files from KaiTai
+└─ LICENSE.md
+```
 
-```
-DeepExplorer/                            #
-├─ cascade/                              # Markdown documents with design blueprints
-│  └─ ...                                #
-├─ css/                                  # Shared css
-│  └─ ...                                #
-├─ html/                                 # --> START HERE. The top level programs
-│  ├─ d-plus.html                        # The main 'everything app'
-│  └─ ...                                #
-├─ js/                                   #
-│  ├─ 2d-support/                        # 2d helpers
-│  │  └─ ...                             #
-│  ├─ 3d-support/                        # 3d helpers
-│  │  └─ ...                             #
-│  ├─ apps/                              # Javascript for the apps
-│  │  └─ ...                             #
-│  ├─ data/                              # Sample data
-│  │  └─ ...                             #
-│  ├─ nodes-html/                        # Scene graph nodes for html widgets
-│  │  └─ ...                             #
-│  ├─ nodes2d/                           # Scene graph nodes for 2d canvas drawing
-│  │  └─ ...                             #
-│  ├─ nodes3d/                           # Scene graph nodes for 3d (mostly molecules)
-│  │  └─ ...                             #
-│  ├─ omni-support/                      # General support functions
-│  │  └─ ...                             #
-│  ├─ parsers/                           # My parser and grammars
-│  │  └─ ...                             #
-│  ├─ utilities/                         # General utilities
-│  │  └─ ...                             #
-│  └─ utilities2/                        # General utilities
-│     └─ ...                             #
-├─ ksy/                                  # Files from KaiTai
-│  └─ ...                                #
-├─ stand-alones/                         # All-in-one-file apps
-│  ├─ block-fracture-stnda.html          # Tiles that click together, and raft together
-│  ├─ zoned-heatmap-stnda.html           # Diagrams with hotspots
-│  ├─ spike_kit.py                       # Tool to split stndas into reusable libraries
-│  └─ ...                                #
-├─ tools/                                # Tools for working with code
-│  ├─ work-cascade-tool.html             # Organiser for work in progress
-│  └─ ...                                #
-├─ index.html                            # Clickable index of the html
-└─ .gitignore                            #
-```
+Every `.js` file under `website/js/` except some parsers is reached from a page;
+`node docs/tests/load-graph.mjs --unloaded` lists the exceptions.
 
 ## Scene graph nodes and demos
 
@@ -66,7 +58,7 @@ DeepExplorer/                            #
 - `models/`: models, each a scene ready to show. A model imports the nodes it draws with and registers itself in `SYS.MODELS`.
 - `website/demos/`: small demo pages, each a few model imports and `new App()`: graphs, stock strip, charts, astronomy, 3D, widgets, and `panopticon.html` with everything.
 
-The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Eight of them share a name with a different design already here, and keep a `-zones` suffix until the two are merged: `button-node`, `camera-node`, `drag-point-node`, `frame-node` (nodes2d) and `ground-plane-node`, `imposter-atom-node`, `molam-bond-node`, `planet-node` (nodes3d). `button-node`, `drag-point` and `ground-plane` are also the same node type name in both, so a page loading both versions gets a registry warning and the later one wins.
+The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Where one shared a name with a different design here, the two are being merged into one class that serves both worlds (see `docs/twin-merge-plan.md`). Merged so far: `drag-point-node` (nodes2d) and `ground-plane-node`, `imposter-atom-node`, `molam-bond-node`, `planet-node` (nodes3d). Still separate: `button-node-zones.js`; `frame-node-zones.js` is now its own type, `ContentFrameNode`.
 
 ## Getting started
 
