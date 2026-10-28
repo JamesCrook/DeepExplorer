@@ -105,6 +105,8 @@ class PostitNode {
     const w = ctxMix.W || node.box?.width()  || p.noteSize;
     const h = ctxMix.H || node.box?.height() || p.noteSize;
 
+    node._noteW = w;
+    node._noteH = h;
     const fillHex  = node.value?.color || p.noteColor;
     const base     = hexToRgb(fillHex);
     const foldSize = p.foldSize || 0;
@@ -234,6 +236,64 @@ class PostitNode {
     }
 
     // Context stays saved — children render between before/after
+  }
+
+  // ── JaTeX content: centred on the note, shrunk to fit ──
+  // A jatex lays itself out from its own (0,0) and draws on ctx, so in the
+  // note's centred space it would start at the centre and run off the edge.
+  // For a child holding a jatex, centre its measured box on the note and
+  // scale it down (never up) to fit inside a margin.  Other children (charts,
+  // ribbons) keep the centred space as before.
+
+  static _jatexIn(child) {
+    if (child?.token === 'jatex') return child;
+    for (const c of child?.subtree || []) {
+      const hit = PostitNode._jatexIn(c);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** Union of the laid-out boxes of a jatex's leaves: where it will draw.
+   *  (jatex's own box is copied from its first boxed descendant, which can be
+   *  a single glyph, so it is not used.) */
+  static _inkBox(jatex) {
+    if (!jatex) return null;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const visit = (n) => {
+      const kids = (n.subtree || []).filter(Boolean);
+      let boxedBelow = false;
+      for (const k of kids) boxedBelow = visit(k) || boxedBelow;
+      if (!boxedBelow && n.box && n !== jatex) {
+        const a = n.box.tl(), b = n.box.br();
+        x0 = Math.min(x0, a.x, b.x); y0 = Math.min(y0, a.y, b.y);
+        x1 = Math.max(x1, a.x, b.x); y1 = Math.max(y1, a.y, b.y);
+        return true;
+      }
+      return boxedBelow || !!n.box;
+    };
+    visit(jatex);
+    if (!(x1 > x0) || !(y1 > y0)) return null;
+    return { width: () => x1 - x0, height: () => y1 - y0, midpoint: () => ({ x: (x0 + x1) / 2, y: (y0 + y1) / 2 }) };
+  }
+
+  static before_child_draw2d(ctxMix, node, params, child) {
+    const box = PostitNode._inkBox(PostitNode._jatexIn(child));
+    const ctx = ctxMix.ctx;
+    if (!ctx || !box || !(box.width() > 0) || !(box.height() > 0)) return;
+    const w = node._noteW || 200, h = node._noteH || 200;
+    const fit = Math.min(1, (w * 0.86) / box.width(), (h * 0.86) / box.height());
+    const mid = box.midpoint();
+    ctx.save();
+    ctx.scale(fit, fit);
+    ctx.translate(-mid.x, -mid.y);
+    node._centredChild = child;
+  }
+
+  static after_child_draw2d(ctxMix, node, params, child) {
+    if (node._centredChild !== child) return;
+    node._centredChild = null;
+    ctxMix.ctx?.restore();
   }
 
   static after_draw2d(ctxMix, node) {
