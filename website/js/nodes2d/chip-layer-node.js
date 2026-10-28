@@ -26,7 +26,8 @@
 // #wsi/rectnode/code
 
 import { SubtreeIterator } from '../omni-support/scene.js';
-import { nm2screen, viewBounds, hexToRgb } from './mask-scene-nodes.js';
+import { nm2screen, viewBounds } from './mask-scene-nodes.js';
+import { hexToRgbArray } from '../colour/colour.js';
 import { SYS } from '../omni-support/sys.js';
 
 
@@ -168,7 +169,7 @@ class ChipLayerNode {
     ctxMix.ctx = mainCtx;
 
     const layer = node.value || ctxMix.currentLayer || {};
-    const color = hexToRgb(layer.color || '#4ecdc4');
+    const color = hexToRgbArray(layer.color || '#4ecdc4');
 
     // Read offscreen mask
     const img = offCtx.getImageData(0, 0, W, H);

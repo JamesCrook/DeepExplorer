@@ -10,7 +10,8 @@
  */
 
 import { SYS } from '../omni-support/sys.js';
-import { hexToRgb, roundRectPath, shiftColor } from '../2d-support/paint.js';
+import { roundRectPath } from '../2d-support/paint.js';
+import { hexToRgb, shiftColor } from '../colour/colour.js';
 
 // ── helpers ─────────────────────────────────────────────────
 

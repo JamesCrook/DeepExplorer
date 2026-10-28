@@ -1,5 +1,6 @@
 import { sceneRegistry } from '../../omni-support/scene.js';
 import { Values } from '../../omni-support/values.js';
+import { isHexColor, parseHexColor, formatHexColor, lerpColor } from '../../colour/colour.js';
 
 /* ============================================
    widget-base.js — what the panel and nav widgets share
@@ -49,34 +50,8 @@ function formatValue(val, format) {
   return val.toFixed(2);
 }
 
-function isHexColor(v) {
-  return typeof v === 'string' && /^#[0-9a-fA-F]{6,8}$/.test(v);
-}
-
-function parseHexColor(hex) {
-  const h = hex.replace('#', '');
-  return {
-    r: parseInt(h.slice(0, 2), 16),
-    g: parseInt(h.slice(2, 4), 16),
-    b: parseInt(h.slice(4, 6), 16),
-    a: h.length >= 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1,
-  };
-}
-
-function formatHexColor({ r, g, b, a }) {
-  const hx = (v) => Math.round(Math.max(0, Math.min(255, v)))
-                      .toString(16).padStart(2, '0');
-  return '#' + hx(r) + hx(g) + hx(b) + hx((a ?? 1) * 255);
-}
-
-function lerpColor(c0, c1, t) {
-  return {
-    r: c0.r + (c1.r - c0.r) * t,
-    g: c0.g + (c1.g - c0.g) * t,
-    b: c0.b + (c1.b - c0.b) * t,
-    a: c0.a + (c1.a - c0.a) * t,
-  };
-}
+// isHexColor, parseHexColor, formatHexColor, lerpColor: colour/colour.js
+// (re-exported here for the widgets and index.js).
 
 
 // ── HTML helpers ──────────────────────────────────────────────

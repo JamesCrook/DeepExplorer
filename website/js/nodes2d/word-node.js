@@ -1,5 +1,5 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
-import { hexToRgba } from '../2d-support/paint.js';
+import { hexToRgba } from '../colour/colour.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 export { WordNode };

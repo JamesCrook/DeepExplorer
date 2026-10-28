@@ -1,3 +1,4 @@
+import { isHexColor, parseHexColor, formatHexColor } from '../colour/colour.js';
 /* ============================================
    OmniParamEngine — DOM-free param + preset manager
    ============================================
@@ -19,9 +20,6 @@
 */
 
 // ── Color interpolation helpers ──────────────────────────────
-const _isHex  = v => typeof v === 'string' && /^#[0-9a-fA-F]{6,8}$/.test(v);
-const _parseC = h => { h = h.replace('#',''); return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16), a: h.length>=8 ? parseInt(h.slice(6,8),16)/255 : 1 }; };
-const _fmtC   = c => { const x=v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0'); return '#'+x(c.r)+x(c.g)+x(c.b)+x((c.a??1)*255); };
 
 class OmniParamEngine {
 
@@ -102,10 +100,10 @@ class OmniParamEngine {
       const sv = start[k], tv = preset[k];
       if (typeof sv === 'number' && typeof tv === 'number') {
         numKeys.push(k);
-      } else if (_isHex(sv) && _isHex(tv)) {
+      } else if (isHexColor(sv) && isHexColor(tv)) {
         colorKeys.push(k);
-        colorStart[k] = _parseC(sv);
-        colorEnd[k]   = _parseC(tv);
+        colorStart[k] = parseHexColor(sv);
+        colorEnd[k]   = parseHexColor(tv);
       } else {
         this.params[k] = tv;     // snap non-interpolatable
       }
@@ -129,7 +127,7 @@ class OmniParamEngine {
       }
       for (const k of colorKeys) {
         const s = colorStart[k], e = colorEnd[k];
-        this.params[k] = _fmtC({
+        this.params[k] = formatHexColor({
           r: s.r + (e.r - s.r) * eased,
           g: s.g + (e.g - s.g) * eased,
           b: s.b + (e.b - s.b) * eased,

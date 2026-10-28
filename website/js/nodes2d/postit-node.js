@@ -29,7 +29,7 @@
 
 import { Box } from '../2d-support/box.js';
 import { SYS } from '../omni-support/sys.js';
-import { hexToRgb, shiftColor } from '../2d-support/paint.js';
+import { hexToRgb, shiftColor } from '../colour/colour.js';
 // ── helpers ─────────────────────────────────────────────────
 
 /** CSS-pixel dimensions of the canvas (matches ribbon-node.js). */

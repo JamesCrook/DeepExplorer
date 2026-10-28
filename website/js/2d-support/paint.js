@@ -1,7 +1,8 @@
-export { HIGHLIGHT, hexToRgb, hexToRgba, roundRectPath, rrPath, shiftColor };
+export { HIGHLIGHT, roundRectPath, rrPath };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-paint — colour arithmetic and canvas paths.  No scene-graph knowledge.
+paint — canvas paths and the highlight colour.  No scene-graph knowledge.
+(The colour arithmetic that was here is in colour/colour.js.)
 
 These were strays: the colour helpers lived at the foot of model-utils, where a
 builder facade had quietly become a helper bag, and rrPath/HIGHLIGHT lived in
@@ -12,27 +13,6 @@ sit next to each other so that stays visible.
 ──────────────────────────────────────────────────────────────────────────── */
 
 const HIGHLIGHT = '#daa02e';
-
-function hexToRgb(hex) {
-  hex = (hex || '#888888').replace('#', '');
-  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  if (hex.length === 8) hex = hex.slice(0, 6);
-  const n = parseInt(hex, 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-function hexToRgba(hex, alpha) {
-  hex = (hex || '#888888').replace('#', '');
-  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  if (hex.length === 8) hex = hex.slice(0, 6);
-  const n = parseInt(hex, 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
-}
-
-function shiftColor({ r, g, b }, amt) {
-  const f = v => Math.round(Math.min(255, Math.max(0, amt > 0 ? v + (255 - v) * amt : v + v * amt)));
-  return `rgb(${f(r)},${f(g)},${f(b)})`;
-}
 
 function roundRectPath(ctx, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);

@@ -17,7 +17,8 @@
  */
 
 import { sceneRegistry } from '../omni-support/scene.js';
-import { ColorEngine, TextUtils } from '../utilities/color-engine.js';
+import { ColorEngine } from '../colour/colour.js';
+import { TextUtils } from '../2d-support/text-utils.js';
 import { WarpedPolygon } from './warped-polygon.js';
 import { RoundedWarpedPolygon } from './rounded-warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';

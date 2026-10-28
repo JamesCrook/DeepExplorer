@@ -1,5 +1,6 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
-import { hexToRgb, roundRectPath, shiftColor } from '../2d-support/paint.js';
+import { roundRectPath } from '../2d-support/paint.js';
+import { hexToRgb, shiftColor } from '../colour/colour.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 export { BTN_DEFAULTS, PippedButtonNode };

@@ -39,6 +39,7 @@ circles for control points.
 import { sceneRegistry } from '../omni-support/scene.js';
 import { Ribbon } from '../../js/2d-support/ribbon2d.js';
 import { RibbonPath } from '../2d-support/line-geometry.js';
+import { Colours } from '../colour/perceptual.js';
 import { SYS } from '../omni-support/sys.js';
 
 // ── Fallback ribbon drawing ──────────────────────────────────
@@ -201,7 +202,7 @@ class RibbonNode {
     });
 
     // ── Apply gradient if requested ───────────────────────
-    if (params.ribbonGradient && typeof Colours !== 'undefined') {
+    if (params.ribbonGradient) {
       const colors = Colours.interpolateGradient(params.ribbonGradient, points.length);
       points.forEach((p, i) => { p.color = colors[i]; });
     }

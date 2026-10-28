@@ -20,7 +20,8 @@
  * (set by chip-layer-node's after_draw2d).
  */
 
-import { nm2screen, hexToRgb } from './mask-scene-nodes.js';
+import { nm2screen } from './mask-scene-nodes.js';
+import { hexToRgbArray } from '../colour/colour.js';
 import { SYS } from '../omni-support/sys.js';
 
 
@@ -139,7 +140,7 @@ class LloydMaskNode {
         } else {
           // Normal view: layer color
           if (etched) {
-            const rgb = hexToRgb(layer.color || '#4ecdc4');
+            const rgb = hexToRgbArray(layer.color || '#4ecdc4');
             D[pi] = rgb[0]; D[pi + 1] = rgb[1]; D[pi + 2] = rgb[2]; D[pi + 3] = 180;
           }
         }

@@ -39,17 +39,6 @@ function viewBounds(params, W, H) {
   };
 }
 
-function hexToRgb(hex) {
-  hex = hex.replace('#', '');
-  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
-  return [
-    parseInt(hex.substr(0, 2), 16),
-    parseInt(hex.substr(2, 2), 16),
-    parseInt(hex.substr(4, 2), 16),
-  ];
-}
-
-
 // ═══════════════════════════════════════════════════════
 //  RECT NODE — filled rectangle in nm coordinates
 // ═══════════════════════════════════════════════════════
@@ -237,4 +226,4 @@ class ClipOutlineNode {
 SYS.NODE_CLASSES.push({ name: 'clip-outline', cls: ClipOutlineNode });
 
 
-export { nm2screen, screen2nm, viewBounds, hexToRgb };
+export { nm2screen, screen2nm, viewBounds };
