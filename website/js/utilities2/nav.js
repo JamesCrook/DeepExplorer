@@ -9,7 +9,7 @@
    The hamburger opens a dropdown menu built from nav-widget configs.
    Menu rendering is delegated to WidgetFactory.buildControls —
    every menu item is a widget (nav-item, nav-checkbox, nav-submenu,
-   nav-divider, nav-link) defined in omni-widget.js.
+   nav-divider, nav-link) defined in nodes-html/widgets/.
 
    Apps register menu items via:
 
@@ -31,7 +31,7 @@
    Call NavMenu.clear() to reset, NavMenu.setItems(config) to replace.
 */
 
-import { WidgetContext } from '../omni-support/omni-widget.js';
+import { WidgetContext } from '../nodes-html/widgets/widget-base.js';
 import { sceneRegistry } from '../omni-support/scene.js';
 // ============================================================
 // STYLES (OmniBase dark theme)

@@ -45,7 +45,7 @@ MAP = {
     './demo-harness-html.js':   'js/omni-support/demo-harness-html.js',
     './formats.js':             'js/omni-support/formats.js',
     './values.js':              'js/omni-support/values.js',
-    './morph-slider-widget.js': 'js/omni-support/morph-slider-widget.js',
+    './morph-slider-widget.js': 'js/nodes-html/widgets/morph-slider-widget.js',
 }
 
 # spike nugget path -> library file that says the same thing in its own dialect

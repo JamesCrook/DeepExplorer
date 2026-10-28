@@ -11,9 +11,9 @@
    picks up each topic as a nav-item inside a nav-submenu.
 */
 
-import { OmniWidget } from './omni-widget.js';
-import { sceneRegistry } from './scene.js';
-import { SYS } from './sys.js';
+import { OmniWidget } from './widget-base.js';
+import { sceneRegistry } from '../../omni-support/scene.js';
+import { SYS } from '../../omni-support/sys.js';
 
 // ════════════════════════════════════════════════════════════════
 //  Styles (injected once)

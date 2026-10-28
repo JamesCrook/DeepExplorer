@@ -32,7 +32,7 @@ an OmniSceneApp, is an html-host: host-omni-scene.js.
 */
 
 import { SYS } from '../omni-support/sys.js';
-import { MorphSliderWidget, covBar, TAG_STYLES } from '../omni-support/omni-widget.js';
+import { MorphSliderWidget, covBar, TAG_STYLES } from './widgets/index.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 

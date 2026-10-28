@@ -1,5 +1,5 @@
-import { SYS } from './sys.js';
-import './formats.js';   // format.* in SYS.FUNCTIONS
+import { SYS } from '../../omni-support/sys.js';
+import '../../omni-support/formats.js';   // format.* in SYS.FUNCTIONS
 export { MorphSliderWidget };
 
 /* ─────────────────────────────────────────────────────────────────────────────

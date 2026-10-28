@@ -11,8 +11,8 @@
  *   - Double-click to rename
  */
 
-import { OmniWidget } from './omni-widget.js';
-import { SYS } from './sys.js';
+import { OmniWidget } from './widget-base.js';
+import { SYS } from '../../omni-support/sys.js';
 
 
 // ═══════════════════════════════════════════════════════

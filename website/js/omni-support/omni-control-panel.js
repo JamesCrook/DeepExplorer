@@ -23,9 +23,9 @@ import { sceneRegistry } from './scene.js';
 import {
   resolveWidgetType, stripConfigs, WidgetContext,
   formatValue, isHexColor, parseHexColor, formatHexColor, lerpColor,
-} from './omni-widget.js';
-import './layers-widget.js'
-import './topics-widget.js'
+} from '../nodes-html/widgets/index.js';
+import '../nodes-html/widgets/layers-widget.js'
+import '../nodes-html/widgets/topics-widget.js'
 
 // ============================================================
 // Spec support — constants for the JSON control-spec compiler

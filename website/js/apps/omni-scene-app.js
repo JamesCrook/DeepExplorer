@@ -19,7 +19,7 @@ import { Omni2d }             from '../omni-support/omni-2d.js';
 import { autoName }           from '../omni-support/layer-ops.js';
 
 import '../nodes2d/omni-scene-nodes.js';
-import '../omni-support/layers-widget.js';
+import '../nodes-html/widgets/layers-widget.js';
 
 import { LAYER_COLORS }       from './omni-scene-scenes.js';
 

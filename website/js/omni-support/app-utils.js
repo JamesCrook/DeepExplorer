@@ -42,7 +42,7 @@ class AppUtils {
     }, { passive: false });
   }
 
-  // All the create methods should be using widgets from omni-widget.js, 
+  // All the create methods should be using widgets from nodes-html/widgets/, 
   // suitably configured.
   static createSizeSelector(options) {
     const {
