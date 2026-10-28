@@ -1,6 +1,6 @@
 // demo-fns.js
 
-import { FunctionData} from './csv-data.js'
+import { CSVData, FunctionData } from './csv-data.js';
 
 function randomMatrix(size = 'medium') {
   const sizes = { small: 10, medium: 50, large: 200 };

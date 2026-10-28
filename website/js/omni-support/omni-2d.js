@@ -101,6 +101,26 @@ class Omni2d {
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
 
+      // A node under the cursor may own the wheel (interactions.applyWheel),
+      // as a node may own a drag.  Hit-testing changes nothing, so this is safe.
+      {
+        const br = el.getBoundingClientRect();
+        const x = e.clientX - br.left, y = e.clientY - br.top;
+        const hitMix = {
+          ...Values, ctx: this.ctx, hitPoint: { x, y },
+          hitResult: null, iterators: [], flyweight: {},
+        };
+        sceneRegistry.runPhases(hitMix, app.root, {}, ['hit_test']);
+        const wheel = hitMix.hitResult?.interactions?.applyWheel;
+        if (wheel) {
+          wheel(x, y, e.deltaY, e);
+          const z = app.sceneLayer?.value?.params?.zoom;
+          if (z !== undefined) app.controls.updateSliderDOM('zoom', z);
+          app.render();
+          return;
+        }
+      }
+
       // If the selected layer uses nm coordinates, zoom it;
       // otherwise zoom the scene layer.
       const selP = app.selectedLayer?.value?.params;
@@ -179,6 +199,7 @@ class Omni2d {
         this._dragging = { type: 'point', interactions: ctxMix.hitResult.interactions,}
 //          startX: e.clientX, startY: e.clientY, };
         ctxMix.hitResult.interactions.applyDrag(x, y);
+        app.render();                  // a press can change what is shown (a focus, a selection)
       } else {
         const sp = app.sceneLayer?.value?.params;
         if (sp) {

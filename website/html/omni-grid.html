@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniGrid</title>
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+  <script type="module" src="../js/page/nav.js"></script>
+  <link rel="stylesheet" href="../css/omni-controls.css">
+  <link rel="stylesheet" href="../css/omni-scene.css">
+  <style>
+    /* From the old OmniGrid app: the sample-size buttons and the info row. */
+    .size-selector { display: flex; gap: 4px; margin-top: 8px; }
+    .size-selector button {
+      flex: 1; padding: 6px 8px; border: 1px solid #333; border-radius: 4px;
+      background: #0f0f23; color: #888; font-size: 11px; cursor: pointer; transition: all 0.2s;
+    }
+    .size-selector button:hover { border-color: #4fc3f7; color: #eee; }
+    .size-selector button.active { border-color: #4fc3f7; background: rgba(79, 195, 247, 0.15); color: #4fc3f7; }
+    .grid-info { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 8px; }
+    .grid-info .value { color: #ccc; }
+  </style>
+</head>
+<body>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <!-- Boot OmniSceneApp ourselves, on the grid scene only. -->
+  <script>window.OMNI_SCENE_NO_AUTOBOOT = true;</script>
+  <script type="module">
+    import { OmniSceneApp } from '../js/apps/omni-scene-app.js';
+    new OmniSceneApp({
+      title: 'OmniGrid',
+      subtitle: 'Matrix and heatmap viewer. Drag to pan, scroll to zoom, click a cell to focus its run.',
+      defaultScene: 'grid-viewer',
+      groups: ['Grid'],
+    });
+  </script>
+</body>
+</html>
