@@ -17,6 +17,7 @@ import { OmniApp }            from '../omni-support/omni-app.js';
 import { OmniControlPanel }   from '../omni-support/omni-control-panel.js';
 import { Omni2d }             from '../omni-support/omni-2d.js';
 import { autoName }           from '../omni-support/layer-ops.js';
+import { Animator }           from '../omni-support/animator.js';
 
 import '../nodes2d/omni-scene-nodes.js';
 import '../nodes-html/widgets/layers-widget.js';
@@ -85,7 +86,6 @@ class OmniSceneApp {
     this.sceneLayer      = null;
     this.selectedLayer   = null;   // depth-0 selection
     this._animPlaying    = true;
-    this._animFrame      = null;
 
     this._selectionBuffer  = [];
     this._networkCounter   = 0;
@@ -95,7 +95,11 @@ class OmniSceneApp {
     // Whoever is live calls _rebuildContext(), which re-points the panel's
     // onRender at itself. ownsControls tells us whether we may dispose it.
     this.ownsControls = !options.controls;
+    // One frame loop for this app's ticks and its panel's preset morphs.  A
+    // host's shared panel brings its own; then the apps share that one.
+    this.animator = options.controls?.animator || new Animator();
     this.controls = options.controls || new OmniControlPanel({
+      animator: this.animator,
       elements: {
         container:     shell.container,
         controls:      shell.controls,
@@ -188,9 +192,16 @@ class OmniSceneApp {
 
   render() {
     if (!this.activeBackend || !this.root) return;
+    // Inside an animation frame, render once after all its tracks have run.
+    if (this.animator.defer(this._renderNow)) return;
+    this._renderNow();
+  }
+
+  _renderNow = () => {
+    if (!this.activeBackend || !this.root) return;
     this._updateValues();
     this.activeBackend.render(this.sceneLayer?.value?.params);
-  }
+  };
 
   /**
    * The model step.  A layer whose inst has updateValues(layer, params) gets
@@ -205,38 +216,41 @@ class OmniSceneApp {
   }
 
   // ═══════════════════════════════════════════════════════
-  //  ANIMATION LOOP
-  // This code is way too specific to a particular use case.
-  // Needs to become more general.
+  //  ANIMATION — one loop (this.animator) for ticks and preset morphs
   // ═══════════════════════════════════════════════════════
+  //
+  // A layer that animates by itself gives its inst a tick(layer, params, dt).
+  // The 'tick' track calls every such layer each frame, then renders (the
+  // models then write their nodes in updateValues).  Preset morphs are tracks
+  // on the same animator (the panel shares it), so a morph during an
+  // animation costs no extra render.
 
-  _hasActiveRuntimes() {
-    if (this.sceneLayer?.inst?.runtime) return true;
-    return this._contentLayers().some(l => l.inst?.runtime);
+  /** Layers that tick: the scene layer and its content layers. */
+  _tickers() {
+    return [this.sceneLayer, ...this._contentLayers()].filter(l => l?.inst?.tick);
   }
 
   _startAnimLoop() {
-    if (this._animFrame) return;
     this._animPlaying = true;
-    const step = () => {
-      if (!this._hasActiveRuntimes()) { this._stopAnimLoop(); this.render(); return; }
-      this._animFrame = requestAnimationFrame(step);
-      if (this._animPlaying) {
-        const sceneRT = this.sceneLayer?.inst?.runtime;
-        if (sceneRT) sceneRT.tick(this.sceneLayer.value.params?.speed ?? 1);
-        for (const layer of this._contentLayers()) {
-          const rt = layer.inst?.runtime;
-          if (rt && rt !== sceneRT) rt.tick(layer.value.params?.speed ?? 1);
-        }
-        this.render();
-        this._updateRuleCards();
-      }
-    };
-    this._animFrame = requestAnimationFrame(step);
+    if (this.animator.has('tick')) return;
+    this.animator.add('tick', (now, dt) => {
+      const tickers = this._tickers();
+      if (!this._animPlaying || !tickers.length) return false;
+      for (const layer of tickers) layer.inst.tick(layer, layer.value?.params || {}, dt);
+      this.render();
+      this._updateRuleCards();
+      return true;
+    });
   }
 
   _stopAnimLoop() {
-    if (this._animFrame) { cancelAnimationFrame(this._animFrame); this._animFrame = null; }
+    this.animator.remove('tick');
+  }
+
+  /** Play / pause the ticking layers (a Play button calls this). */
+  setPlaying(playing) {
+    if (playing) this._startAnimLoop();
+    else { this._animPlaying = false; this._stopAnimLoop(); }
   }
 
   _updateRuleCards() {
@@ -458,7 +472,7 @@ class OmniSceneApp {
 
     this._selectionBuffer = [];
     this._rebuildContext();
-    if (layers.some(l => l.inst?.runtime) && !this._animFrame) this._startAnimLoop();
+    if (layers.some(l => l.inst?.tick)) this._startAnimLoop();
     this.render();
   }
 

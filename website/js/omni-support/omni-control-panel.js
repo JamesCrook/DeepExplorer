@@ -26,6 +26,7 @@ import {
 } from '../nodes-html/widgets/index.js';
 import '../nodes-html/widgets/layers-widget.js'
 import '../nodes-html/widgets/topics-widget.js'
+import { Animator } from './animator.js';
 
 // ============================================================
 // Spec support — constants for the JSON control-spec compiler
@@ -73,8 +74,9 @@ class OmniControlPanel {
     this.statusEl = null;
     this.infoEl = null;
 
-    // Morph animation state
-    this._morphAnim = null;
+    // One frame loop for morphs: the app's, when it passes one, so morphs and
+    // its own animation share frames and renders.
+    this.animator = config.animator || new Animator();
 
     // Retained AST (for future update walks)
     this._panelAST = null;
@@ -88,6 +90,7 @@ class OmniControlPanel {
         this.render();
       },
       morphDuration: config.morphDuration ?? 600,
+      animator: this.animator,
     });
 
     this.params = this.engine.params;
@@ -985,7 +988,9 @@ class OmniControlPanel {
   // ============================================================
 
   _morphToTarget(params, target, duration = 500) {
-    if (this._morphAnim) cancelAnimationFrame(this._morphAnim);
+    // Keyed by the params object: a new morph of the same params replaces the
+    // old one, while morphs of different layers' params run side by side.
+    this.animator.remove(params);
 
     const start = {};
     const numKeys = [];
@@ -1027,11 +1032,10 @@ class OmniControlPanel {
       }
 
       this.render();
-      if (t < 1) { this._morphAnim = requestAnimationFrame(step); }
-      else { this._morphAnim = null; }
+      return t < 1;
     };
 
-    this._morphAnim = requestAnimationFrame(step);
+    this.animator.add(params, step);
   }
 
 

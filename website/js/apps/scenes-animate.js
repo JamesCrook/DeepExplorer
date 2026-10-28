@@ -10,6 +10,12 @@ function animateUpdateValues(layer) {
   layer.inst?.scene?.update();
 }
 
+/* The layer's own clock: advance its runtime by one frame at params.speed.
+   (The runtime steps a fixed 1/60 s per tick, scaled by speed, as before.) */
+function animateTick(layer, params) {
+  layer.inst?.runtime?.tick(params.speed ?? 1);
+}
+
 // ═══════════════════════════════════════════════════════
 //  ANIMATE SCENES
 // ═══════════════════════════════════════════════════════
@@ -32,7 +38,7 @@ function animateBuildUI(layer) {
         playBtn.style.flex = '1';
         playBtn.textContent = '⏸ Pause';
         playBtn.onclick = () => {
-          app._animPlaying = !app._animPlaying;
+          app.setPlaying(!app._animPlaying);
           playBtn.textContent = app._animPlaying ? '⏸ Pause' : '▶ Play';
         };
 
@@ -90,6 +96,7 @@ function createAnimateScene(sceneId) {
     rules: scene.rules,
     scene,
     updateValues: animateUpdateValues,
+    tick: animateTick,
   };
 
   return new MiniAstNode('scene-root', [layer]);
@@ -232,6 +239,7 @@ const HB_ADDABLE = {
       rules:         scene.rules,
       scene,
       updateValues:  animateUpdateValues,
+      tick:          animateTick,
     };
     return layer;
   },

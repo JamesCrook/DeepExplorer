@@ -1,4 +1,5 @@
 import { isHexColor, parseHexColor, formatHexColor } from '../colour/colour.js';
+import { Animator } from './animator.js';
 /* ============================================
    OmniParamEngine — DOM-free param + preset manager
    ============================================
@@ -29,13 +30,15 @@ class OmniParamEngine {
    * @param {Object}   config.presets   – { presetName: { id: value, … }, … }
    * @param {Function} [config.onUpdate] – called with (params) after any change
    * @param {number}   [config.morphDuration=600] – ms for animated transitions
+   * @param {Animator} [config.animator] – frame loop to morph on (shared with the app)
    */
   constructor(config) {
     this.params   = { ...config.params };
     this.presets  = config.presets || {};
     this.onUpdate = config.onUpdate || (() => {});
     this.morphDuration = config.morphDuration ?? 600;
-    this._animId  = null;          // tracks in-flight rAF
+    // The frame loop morphs run on: shared when given (an app's), else private.
+    this.animator = config.animator || new Animator();
     this._activePreset = null;
   }
 
@@ -76,7 +79,7 @@ class OmniParamEngine {
 
   /** Cancel any in-flight morph. */
   cancelMorph() {
-    if (this._animId) { cancelAnimationFrame(this._animId); this._animId = null; }
+    this.animator.remove(this);
   }
 
   // ── Internals ────────────────────────────────────────────────
@@ -136,15 +139,12 @@ class OmniParamEngine {
       }
       this.onUpdate(this.params);
 
-      if (t < 1) {
-        this._animId = requestAnimationFrame(step);
-      } else {
-        this._animId = null;
-        if (onDone) onDone();
-      }
+      if (t < 1) return true;
+      if (onDone) onDone();
+      return false;
     };
 
-    this._animId = requestAnimationFrame(step);
+    this.animator.add(this, step);   // keyed by this engine: a new morph replaces the old
   }
 }
 

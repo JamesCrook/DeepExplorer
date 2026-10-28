@@ -68,6 +68,8 @@ Every `.js` file under `website/js/` except some parsers is reached from a page;
 
 Generic diagram nodes (`nodes2d/`): `shape` (rounded rect with label; a circle when the corner radius is half the size), `caption`, `polyline` (dashes, arrowheads, sampled arcs), `composite` (a group with its own position, rotation and scale, pushed as `T`) and `fit-stage` (a reference area fitted to its box). They have no logic: a model writes their values before each render through `layer.inst.updateValues`. The Haemoglobin and ATP Synthase animations (`apps/omni-animate-model.js`) are built this way: the rules are written in the subject's own names (`O2`, `Fe`, `His`…), and a facade, `update()`, maps those onto the nodes' general fields. `Transform` carries an optional rotation for this.
 
+Animation runs on one loop, `omni-support/animator.js`: preset morphs and layer ticks (`layer.inst.tick(layer, params, dt)`) are tracks on the same `Animator`, which the control panel shares with `OmniSceneApp`. Renders requested while tracks run are coalesced into one per frame; the loop stops when no track is live.
+
 The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Where one shared a name with a different design here, the two are being merged into one class that serves both worlds (see `docs/twin-merge-plan.md`). All seven pairs are merged. `frame-node-zones.js` remains, as its own type, `ContentFrameNode`.
 
 ## Getting started
