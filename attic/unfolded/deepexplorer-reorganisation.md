@@ -15,8 +15,8 @@ What this map proposed, and where it stands (all pushed to `master`):
 | One colour module (§3.2) | **Done.** `js/colour/colour.js` holds hex/RGB parse and format, `shift`, `lerp` and `ColorEngine`. `colour/perceptual.js` is `colours.js` brought back, and `ribbon-node` now imports it. The private copies are gone. `TextUtils` → `2d-support/text-utils.js`. Two parsers remain on purpose: a forgiving one for drawing and a strict one with alpha for morphing. |
 | Twins (§1.2, §2.1) | **Done.** All seven pairs are merged; see `docs/twin-merge-plan.md`. So no `zones/` sub-folders are needed. |
 | README tree (step 6) | **Done.** |
-| Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | Not started. |
-| `card-grid` / `flash-card` out of `apps/scenes-cards.js` (§2.3) | Not started. |
+| Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | `mol-scene-nodes` is gone (replaced by generic nodes, 28 Oct). The rest not started. |
+| `card-grid` / `flash-card` out of `apps/scenes-cards.js` (§2.3) | **Done** (28 Oct): `nodes-html/card-grid-node.js` and `flash-card-node.js`. |
 | Copy clusters (§3.3) | Not started. |
 | The four `attic/unfolded` apps | **Done** (28 Oct): rebuilt as OmniScene scenes with pages in `html/`; omni-grid's renderer is still one opaque node. See `attic/unfolded/README.md`. |
 
