@@ -18,6 +18,7 @@ What this map proposed, and where it stands (all pushed to `master`):
 | Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | Not started. |
 | `card-grid` / `flash-card` out of `apps/scenes-cards.js` (§2.3) | Not started. |
 | Copy clusters (§3.3) | Not started. |
+| The four `attic/unfolded` apps | **Done** (28 Oct): rebuilt as OmniScene scenes with pages in `html/`; omni-grid's renderer is still one opaque node. See `attic/unfolded/README.md`. |
 
 The rest of this document is the map as first written, at commit `0348426`.
 

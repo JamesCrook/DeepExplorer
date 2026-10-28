@@ -10,6 +10,12 @@ old place under `website/`, so any one comes back with
 The parsers and grammars (`website/js/parsers/`) were left in place: nothing
 loads them yet, but the work plans in `attic/cascade/` intend to.
 
+Brought back since: `data/demo-fns.js` (28 Oct, for omni-grid's generated
+samples). Superseded by the rebuilt `attic/unfolded` apps, so left here:
+`nodes2d/algorithms-node.js`, `nodes2d/structural-nodesxxx.js` (omni-run now
+uses `trace-cell` / `trace-link`) and `nodes-html/card-set-node.js` (omni-card
+now uses `card-grid`).
+
 Some of these are used from elsewhere. `apps/omni-picker-model.js` and
 `omni-support/tree-browser.js` import from a sibling `q-legacy/` checkout, and
 `nodes2d/algorithms-node.js` imports `./structural-nodes.js`, which no longer

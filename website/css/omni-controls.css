@@ -1138,3 +1138,14 @@ body.layout-landscape .controls-wrapper {
   opacity: 0.3;
   cursor: default;
 }
+
+/* ── Sample-size buttons and info row (AppUtils.createSizeSelector, createInfoRow) ── */
+.size-selector { display: flex; gap: 4px; margin-top: 8px; }
+.size-selector button {
+  flex: 1; padding: 6px 8px; border: 1px solid #333; border-radius: 4px;
+  background: #0f0f23; color: #888; font-size: 11px; cursor: pointer; transition: all 0.2s;
+}
+.size-selector button:hover { border-color: #4fc3f7; color: #eee; }
+.size-selector button.active { border-color: #4fc3f7; background: rgba(79, 195, 247, 0.15); color: #4fc3f7; }
+.grid-info { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 8px; }
+.grid-info .value { color: #ccc; }

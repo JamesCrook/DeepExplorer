@@ -17,6 +17,10 @@ DeepExplorer/
 │  ├─ html/                     # --> START HERE. The top level programs
 │  │  ├─ omni-scene.html        #   the scene editor
 │  │  ├─ molam.html             #   molecular structure viewer
+│  │  ├─ omni-run.html          #   algorithm traces     } OmniScene scenes,
+│  │  ├─ omni-card.html         #   card grid from CSV   } one page each,
+│  │  ├─ omni-gguf.html         #   GGUF model viewer    } from attic/unfolded
+│  │  ├─ omni-grid.html         #   matrix/heatmap viewer}
 │  │  └─ ...                    #   aa-colors, cmos-viewer, tree-browse
 │  ├─ deep-wiki/d-plus.html     # the main 'everything app' (Markdown+ chat UI)
 │  ├─ demos/                    # Zones demo pages; panopticon.html has them all
@@ -37,8 +41,12 @@ DeepExplorer/
 │     ├─ data/                  # sample data and data adapters
 │     └─ page/                  # page chrome: nav (hamburger menu), help
 ├─ docs/                        # plans (twin-merge-plan.md) and tests
-│  └─ tests/load-graph.mjs      # node docs/tests/load-graph.mjs: broken imports, unloaded files
+│  └─ tests/                    # node docs/tests/<name>.mjs
+│     ├─ load-graph.mjs         #   broken imports, unloaded files
+│     ├─ frame-drag-test.mjs    #   nested-frame drags; content-hit-test, hit-space-probe
+│     └─ gguf-parse-test.mjs    #   GGUF parser on a synthetic file
 ├─ attic/                       # not loaded by any page; kept for reference
+│  ├─ unfolded/                 #   pre-scene-graph apps, now rebuilt in website/html/
 │  ├─ website-unloaded/         #   files no page reached, at their old paths
 │  ├─ stand-alones/             #   all-in-one-file apps (STNDAs) and spike_kit.py
 │  ├─ tools/                    #   work-cascade-tool.html and other code tools
@@ -58,7 +66,7 @@ Every `.js` file under `website/js/` except some parsers is reached from a page;
 - `models/`: models, each a scene ready to show. A model imports the nodes it draws with and registers itself in `SYS.MODELS`.
 - `website/demos/`: small demo pages, each a few model imports and `new App()`: graphs, stock strip, charts, astronomy, 3D, widgets, and `panopticon.html` with everything.
 
-The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Where one shared a name with a different design here, the two are being merged into one class that serves both worlds (see `docs/twin-merge-plan.md`). Merged so far: `drag-point-node` (nodes2d) and `ground-plane-node`, `imposter-atom-node`, `molam-bond-node`, `planet-node` (nodes3d). Still separate: `button-node-zones.js`; `frame-node-zones.js` is now its own type, `ContentFrameNode`.
+The Zones nodes came from `attic/stand-alones/multi-zone-stnda.html`. Where one shared a name with a different design here, the two are being merged into one class that serves both worlds (see `docs/twin-merge-plan.md`). All seven pairs are merged. `frame-node-zones.js` remains, as its own type, `ContentFrameNode`.
 
 ## Getting started
 
