@@ -307,6 +307,30 @@ Open — **pairs 6–7 need a look-and-feel decision.** The 2D twins differ in d
 
 The code can be one class under D3: draw at `res.T.toScreen(getCentreXY(...))`, on `directCtx` where the harness provides it (Omni, screen space) and otherwise on the transformed `ctx` (Zones, where `T` is identity). Each world then keeps its own size behaviour. The open question is the defaults: one look for both, or each world's look supplied through params by its harness.
 
+## Status, 28 Oct (later)
+
+Done since the early status:
+
+- **Pair 6, `drag-point`, and pair 7, `button-node`.** Each is now one class. The look is kept per world: `params.dragPointLook` is `'pin'` (Omni) or `'junction'` (Zones, seeded by `demo-harness2-d.js`). The two button looks were the same already, so `button-node` needs no look param. Both use the D3 contract: the value comes through the resolver, position and zoom come from `T`, draw goes to `directCtx` or a saved `ctx`, hits test `screenHitPoint ?? hitPoint`, and drags write through `Values.setValue`. Canvas call logs are identical to the old classes in both worlds. The button merge fixed two Zones bugs:
+  - an unbalanced `restore` let one button's alpha dim every later button;
+  - value-level style edits were ignored, and hit tests ignored value `scale`, `liftY` and `cornerRadius`.
+- **FR4.** `stamp-frame` is now `T`-only: it draws at `T.toScreen(value)`, sizes by `T.uniformScale`, and pushes `T.child(value)`. The legacy `ctx.translate` and `params.panX/panY` shift are gone, `params.zoom` is no longer read (so zoom is no longer recorded twice), and `ctxMix.frameRect` is removed. The one child that relied on the translate was `handle-frame`: its fill and content `ctx` were placed relative to whatever `ctx` an ancestor left. It now resets to screen pixels and places both from `T`. A browser check (frame holding button grids, charts and ribbons, layer zoom 1 and 1.6) gave identical pixels, hit maps and drags before and after.
+- **D4 phase aliases retired.** `build3d`/`update3d` are gone. The Zones models, `dumbbell-node` and `phylo-node` use `build`/`update`, and Zones callers create the Omni type names (`imposter-atoms`, `molam-bonds`, `planet`). The Zones type-name aliases stay registered. The 3D and astro demos render the same before and after driving every model control (three r160, routed locally).
+- No `-zones` twin files remain except `frame-node-zones.js`, which is now its own type (`ContentFrameNode`). There are no duplicate type names apart from the D4 aliases.
+
+**Step 4 probe: the `handle-frame` stretch branch. Open, needs a decision.** In stretch mode the content `ctx` is in screen pixels (translate only, `W/H` = frame pixels), while the `T` pushed for content keeps the parent's scale. At layer zoom ≠ 1 the two disagree by the zoom factor. In a post-it at zoom 2:
+
+- the note doubles, because its corners are `T`-placed;
+- `T`-based content (ribbons, drag-points) would double;
+- the `jatex` text, drawn on `ctx`, stays the same size.
+
+Separately, the `jatex` text in a post-it starts at the note's centre rather than being centred, and overflows the default note at zoom 1. That is pre-existing and unchanged by FR4. The two options:
+
+  1. *Content zooms* (`T` semantics). Set the stretch content `ctx` from `T` too, so text grows with the note. This is consistent with every other container now.
+  2. *Content stays pixel-sized* (`ctx` semantics). Push `T.child(offset, 1/T.sx, 1/T.sy)` so `T` agrees with `ctx`. `T`-based children inside a stretched frame would then stop zooming; `frame-drag-test omni-mixed` depends on today's behaviour.
+
+  I'd take option 1.
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.
