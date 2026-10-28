@@ -1,4 +1,5 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
+import { Values } from '../omni-support/values.js';
 export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -330,6 +331,10 @@ class HudPanel {
       iterators:      [],
       flyweight:      {},
 
+      // The params object a control reads and writes (morph-slider asks).
+      getParams(res, node, params) {
+        return Values.getParams(res, node, params);
+      },
       setParam(id, val) {
         self.params[id] = val;
       },
