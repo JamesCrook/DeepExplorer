@@ -345,5 +345,5 @@ Separately, the `jatex` text in a post-it starts at the note's centre rather tha
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.
-- Retire D4 aliases one at a time with a grep-replace commit each.
+- ~~Retire D4 aliases one at a time with a grep-replace commit each.~~ **Done (28 Oct):** `molam-bond`, `imposter-atom` and `planet-node` are no longer registered; the Omni names are the only ones (Molam is the main 3D client). No page or model used the old names.
 - Later: the general-`T` interface (`toScreen`, `toLocal`, `uniformScale`→`scaleAt(p)`, `isAffine`) and a `PathTransform` built on `2d-support/path.js`. D3 is the prerequisite; nothing in this plan depends on it.

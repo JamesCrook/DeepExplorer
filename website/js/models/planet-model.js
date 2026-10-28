@@ -1,6 +1,6 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
-import '../nodes3d/planet-node.js';   // 'planet' (and its Zones alias 'planet-node')
+import '../nodes3d/planet-node.js';   // 'planet'
 export { PlanetModel };
 class PlanetModel {
   get name() { return 'Planet Cutaway'; }

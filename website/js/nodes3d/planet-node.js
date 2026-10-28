@@ -17,7 +17,7 @@ import { SYS } from '../omni-support/sys.js';
  *   node.inst.clippingPlanes — [clipPlane1, clipPlane2] (for external use if needed)
  *
  * One class for both worlds (it replaces planet-node-zones.js), registered as
- * 'planet' and 'planet-node'.  THREE comes from ctxMix.THREE (Omni harnesses)
+ * 'planet'.  THREE comes from ctxMix.THREE (Omni harnesses)
  * or three-boot's live binding (Zones), so a Zones page loads three lazily.
  *
  * Phases handled: build, update, teardown.
@@ -298,9 +298,8 @@ class PlanetNode extends SceneNode {
   }
 }
 
-// One class, both type names: 'planet' (Omni) and 'planet-node' (Zones).
+// Type name 'planet'.  (The Zones alias 'planet-node' was retired 28 Oct.)
 SYS.NODE_CLASSES.push({ name: 'planet',      cls: PlanetNode });
-SYS.NODE_CLASSES.push({ name: 'planet-node', cls: PlanetNode });
 
 export { PlanetNode };
 

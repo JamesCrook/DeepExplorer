@@ -490,9 +490,8 @@ class ImposterAtomNode extends SceneNode {
   }
 }
 
-// One class, both type names: 'imposter-atoms' (Omni) and 'imposter-atom' (Zones).
+// Type name 'imposter-atoms'.  (The Zones alias 'imposter-atom' was retired 28 Oct.)
 SYS.NODE_CLASSES.push({ name: 'imposter-atoms', cls: ImposterAtomNode });
-SYS.NODE_CLASSES.push({ name: 'imposter-atom',  cls: ImposterAtomNode });
 
 export { ImposterAtomNode };
 // Auto-generated exports

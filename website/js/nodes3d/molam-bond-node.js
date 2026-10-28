@@ -10,7 +10,7 @@ import { SYS } from '../omni-support/sys.js';
  * One class for both worlds (it replaces molam-bond-node-zones.js):
  *   Omni:  new MiniAstNode('molam-bonds', [], {}), driven by omni-3d.js /
  *          molam-widget.js through build / update / teardown.
- *   Zones: SYS.makeNode('molam-bond', {}), driven by a model or a parent
+ *   Zones: SYS.makeNode('molam-bonds', {}), driven by a model or a parent
  *          node (dumbbell-node.js); node.inst is created by the registry.
  *
  * THREE comes from ctxMix.THREE (the Omni harnesses put it there) or else
@@ -123,9 +123,8 @@ class MolamBondNode extends SceneNode {
   }
 }
 
-// One class, both type names: 'molam-bonds' (Omni) and 'molam-bond' (Zones).
+// Type name 'molam-bonds'.  (The Zones alias 'molam-bond' was retired 28 Oct.)
 SYS.NODE_CLASSES.push({ name: 'molam-bonds', cls: MolamBondNode });
-SYS.NODE_CLASSES.push({ name: 'molam-bond',  cls: MolamBondNode });
 
 export { MolamBondNode };
 
