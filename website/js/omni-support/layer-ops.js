@@ -59,11 +59,7 @@ function containsNode(parent, target) {
 
 /** True if `node` is (or is inside) any direct child of `layer`. */
 function isNodeInLayer(node, layer) {
-  for (const item of (layer.subtree || [])) {
-    if (item === node) return true;
-    if (containsNode(item, node)) return true;
-  }
-  return false;
+  return containsNode(layer, node);
 }
 
 

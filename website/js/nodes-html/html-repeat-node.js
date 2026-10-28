@@ -1,5 +1,5 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
-import { skipChildren } from './html-nodes.js';
+import { skipChildren } from '../omni-support/scene.js';
 export { HtmlRepeatNode, HtmlVariantsNode, Clones };
 
 /* ─────────────────────────────────────────────────────────────────────────────

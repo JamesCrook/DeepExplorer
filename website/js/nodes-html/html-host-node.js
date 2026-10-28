@@ -1,5 +1,5 @@
 import { SYS } from '../omni-support/sys.js';
-import { skipChildren } from './html-nodes.js';
+import { skipChildren } from '../omni-support/scene.js';
 import { HtmlTemplateNode } from './html-template-node.js';
 export { HtmlHostNode };
 

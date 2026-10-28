@@ -13,10 +13,8 @@
  */
 
 import { SYS } from '../omni-support/sys.js';
+import { skipChildren } from '../omni-support/scene.js';
 
-function skipChildren(ctxMix) {
-  ctxMix.iterators[ctxMix.iterators.length - 1] = { next: () => null };
-}
 
 class CompositeNode {
   static _push(ctxMix, node, params, tag) {

@@ -7,6 +7,19 @@
  * @namespace PathAst
  * @description A utility for creating and rendering path ASTs.
  */
+/** The parent of targetNode in an AST (nodes with .subtree), or null.
+    (Was defined twice, inside PathAst and inside PathToContext.) */
+function findParentOf(ast, targetNode) {
+  if (ast.subtree) {
+    for (const child of ast.subtree) {
+      if (child === targetNode) return ast;
+      const found = findParentOf(child, targetNode);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 const PathAst = (() => {
   /**
    * @function createEmptyPath
@@ -283,26 +296,6 @@ const PathAst = (() => {
 
   function getEndShapes() {
     return Object.keys(EndShapeLibrary);
-  }
-
-  /**
-   * @function findParentOf
-   * @description Helper function to find parent of a node in AST.
-   * @param {object} ast - The AST to search.
-   * @param {object} targetNode - The node to find the parent of.
-   * @returns {object|null} The parent node or null if not found.
-   */
-  function findParentOf(ast, targetNode) {
-    if(ast.subtree) {
-      for(let child of ast.subtree) {
-        if(child === targetNode) {
-          return ast;
-        }
-        const found = findParentOf(child, targetNode);
-        if(found) return found;
-      }
-    }
-    return null;
   }
 
   /**
@@ -651,26 +644,6 @@ const PathAst = (() => {
 })();
 
 const PathToContext = (() => {
-  /**
-   * @function findParentOf
-   * @description Helper function to find parent of a node in AST.
-   * @param {object} ast - The AST to search.
-   * @param {object} targetNode - The node to find the parent of.
-   * @returns {object|null} The parent node or null if not found.
-   */
-  function findParentOf(ast, targetNode) {
-    if(ast.subtree) {
-      for(let child of ast.subtree) {
-        if(child === targetNode) {
-          return ast;
-        }
-        const found = findParentOf(child, targetNode);
-        if(found) return found;
-      }
-    }
-    return null;
-  }
-
   /**
    * @function _calculateArcParameters
    * @description Calculate arc parameters from SVG arc command.

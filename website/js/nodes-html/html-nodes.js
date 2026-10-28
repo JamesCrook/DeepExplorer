@@ -1,5 +1,6 @@
 import { SYS } from '../omni-support/sys.js';
-export { HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, HtmlFill, skipChildren };
+import { skipChildren } from '../omni-support/scene.js';
+export { HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, HtmlFill };
 
 /* ─────────────────────────────────────────────────────────────────────────────
 html-nodes — the structural HTML node types: a box that holds nodes, a text
@@ -16,13 +17,6 @@ the library's registry.  A type may carry handlers for several backends, but a
 name that means two different things is a rosetta problem waiting.
 ──────────────────────────────────────────────────────────────────────────── */
 
-/** Stop the walk descending into this node's children: they belong to
-    another backend, or the node mounts copies of them itself.  The walker
-    pushed an iterator before calling before_*; replacing it ends the loop at
-    once.  Only for before_* handlers: a leaf has no iterator of its own. */
-function skipChildren(ctxMix) {
-  ctxMix.iterators[ctxMix.iterators.length - 1] = { next: () => null };
-}
 
 class HtmlFill {
   static has(s) { return typeof s === 'string' && s.includes('{'); }

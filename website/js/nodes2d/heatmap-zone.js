@@ -1,4 +1,5 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
+import { fillPoly, strokePoly, scalePts } from '../2d-support/poly-draw.js';
 export { BODY, BODY_REGIONS, ORGAN_LABELS, OrganRegionNode, organGeometry };
 
 /* Geometry for the heatmap's body template, asked for by the model when it
@@ -53,25 +54,8 @@ const BODY = {
 const ORGAN_LABELS = ['Brain', 'L.Lung', 'R.Lung', 'Heart', 'Liver', 'Stomach', 'L.Kid', 'R.Kid', 'Intestines'];
 const HEATMAP_ASPECT_RATIO = 500 / 700;
 
-function fillPoly(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.closePath();
-  ctx.fill();
-}
 
-function strokePoly(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.closePath();
-  ctx.stroke();
-}
 
-function scalePts(pts, w, h) {
-  return pts.map(p => [p[0] * w, p[1] * h]);
-}
 
 const hmTempCanvas1 = document.createElement('canvas');
 const hmTempCanvas2 = document.createElement('canvas');

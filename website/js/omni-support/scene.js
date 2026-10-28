@@ -316,4 +316,12 @@ const SCENES = [];
 
 // Addables (components) are pushed onto this array
 const ADDABLES = [];
-export { SceneNode, SceneRegistry, sceneRegistry, MiniAstNode, SubtreeIterator, SCENES, ADDABLES };
+/** Stop the walk descending into this node's children (they belong to another
+    backend, or the node is hiding them).  The walker pushed an iterator before
+    calling before_*; replacing it ends the loop at once.  Only for before_*
+    handlers: a leaf has no iterator of its own. */
+function skipChildren(ctxMix) {
+  ctxMix.iterators[ctxMix.iterators.length - 1] = { next: () => null };
+}
+
+export { SceneNode, SceneRegistry, sceneRegistry, MiniAstNode, SubtreeIterator, SCENES, ADDABLES, skipChildren };

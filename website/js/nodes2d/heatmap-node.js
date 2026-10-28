@@ -16,6 +16,7 @@
  */
 
 import { SYS } from '../omni-support/sys.js';
+import { fillPoly, strokePoly, scalePts } from '../2d-support/poly-draw.js';
 // #heat/node/code
 
 // ═══════════════════════════════════════════════════════
@@ -147,25 +148,8 @@ function fillEllipse(ctx, cx, cy, rx, ry) {
   ctx.fill();
 }
 
-function fillPoly(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.closePath();
-  ctx.fill();
-}
 
-function strokePoly(ctx, pts) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-  ctx.closePath();
-  ctx.stroke();
-}
 
-function scalePts(pts, w, h) {
-  return pts.map(p => [p[0] * w, p[1] * h]);
-}
 
 
 // ═══════════════════════════════════════════════════════
