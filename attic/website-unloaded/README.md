@@ -16,6 +16,10 @@ samples). Superseded by the rebuilt `attic/unfolded` apps, so left here:
 uses `trace-cell` / `trace-link`) and `nodes-html/card-set-node.js` (omni-card
 now uses `card-grid`).
 
+Moved here later (28 Oct): `nodes2d/mol-scene-nodes.js` and
+`2d-support/mol-primitives.js`, the special-purpose animation nodes, replaced by
+the generic shape / caption / polyline / composite / fit-stage nodes.
+
 Some of these are used from elsewhere. `apps/omni-picker-model.js` and
 `omni-support/tree-browser.js` import from a sibling `q-legacy/` checkout, and
 `nodes2d/algorithms-node.js` imports `./structural-nodes.js`, which no longer

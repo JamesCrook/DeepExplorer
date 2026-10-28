@@ -2,7 +2,13 @@ import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
 import { OmniAnimateModel } from './omni-animate-model.js';
 import { ReactiveRuntime }  from '../omni-support/reactive-runtime.js';
 
-import '../nodes2d/mol-scene-nodes.js';
+
+/* Each scene is { root, rules, update } (omni-animate-model.js).  The app
+   ticks layer.inst.runtime; then, before every render, updateValues calls the
+   scene's update(), the facade that writes the nodes from the entities. */
+function animateUpdateValues(layer) {
+  layer.inst?.scene?.update();
+}
 
 // ═══════════════════════════════════════════════════════
 //  ANIMATE SCENES
@@ -70,18 +76,20 @@ function createAnimateScene(sceneId) {
   const R = new ReactiveRuntime();
   const sceneDef = OmniAnimateModel.SCENES.find(s => s.id === sceneId);
   if (!sceneDef) return null;
-  const { root, rules } = sceneDef.setup(R);
+  const scene = sceneDef.setup(R);
 
-  const zoomable = new MiniAstNode('zoom-pan', [root]);
+  const zoomable = new MiniAstNode('zoom-pan', [scene.root]);
   const layer = new MiniAstNode('layer', [zoomable], {
     name: sceneDef.label, visible: true,
-    params: { speed: 1, _runtime: R },
+    params: { speed: 1 },
   });
   layer.inst = {
     buildUI: animateBuildUI,
     presets: null,
     runtime: R,
-    rules,
+    rules: scene.rules,
+    scene,
+    updateValues: animateUpdateValues,
   };
 
   return new MiniAstNode('scene-root', [layer]);
@@ -134,14 +142,16 @@ function hbAddableBuildUI(layer) {
         resetBtn.onclick = () => {
           const R = layer.inst?.runtime;
           if (!R) return;
-          const { root: newRoot, rules: newRules } = OmniAnimateModel.setupHB(R);
-          // Replace animate-scene content inside the handle-frame
+          // A fresh scene: new runtime state, new nodes, in place of the old root.
+          const old = layer.inst.scene;
+          const scene = OmniAnimateModel.setupHB(R);
           const frame = layer.subtree?.[0];
           if (frame) {
-            const idx = frame.subtree.findIndex(c => c.token !== 'drag-point');
-            if (idx >= 0) frame.subtree[idx] = newRoot;
+            const idx = frame.subtree.indexOf(old?.root);
+            if (idx >= 0) frame.subtree[idx] = scene.root;
           }
-          layer.inst.rules = newRules;
+          layer.inst.scene = scene;
+          layer.inst.rules = scene.rules;
         };
 
         row.appendChild(playBtn);
@@ -185,31 +195,33 @@ const HB_ADDABLE = {
   createItem(index = 0) {
     const offset = index * 30;
     const R = new ReactiveRuntime();
-    const { root, rules } = OmniAnimateModel.setupHB(R);
+    const scene = OmniAnimateModel.setupHB(R);
     const frame = new MiniAstNode('handle-frame', [
       new MiniAstNode('drag-point', [], { x: -160 + offset, y: -130 + offset, name: '⌜', color: '#ffffffaa' }),
       new MiniAstNode('drag-point', [], { x:  160 + offset, y:  130 + offset, name: '⌟', color: '#ffffffaa' }),
-      root,
+      scene.root,
     ]);
+    // An extra item in an existing layer: drawn in its starting state.  Only
+    // the layer's own runtime is ticked (as before).
     frame._runtime = R;
-    frame._rules   = rules;
+    frame._rules   = scene.rules;
     return frame;
   },
 
   create() {
     const R = new ReactiveRuntime();
-    const { root, rules } = OmniAnimateModel.setupHB(R);
+    const scene = OmniAnimateModel.setupHB(R);
     const frame = new MiniAstNode('handle-frame', [
       new MiniAstNode('drag-point', [], { x: -160, y: -130, name: '⌜', color: '#ffffffaa' }),
       new MiniAstNode('drag-point', [], { x:  160, y:  130, name: '⌟', color: '#ffffffaa' }),
-      root,
+      scene.root,
     ]);
 
     const layer = new MiniAstNode('layer', [frame], {
       name:      'Haemoglobin',
       layerType: 'animate-hb',
       visible:   true,
-      params:    { speed: 1, _runtime: R, pointRadius: 5 },
+      params:    { speed: 1, pointRadius: 5 },
     });
     layer.inst = {
       buildUI:       hbAddableBuildUI,
@@ -217,7 +229,9 @@ const HB_ADDABLE = {
       selectionSize: 1,
       refCount:      0,
       runtime:       R,
-      rules,
+      rules:         scene.rules,
+      scene,
+      updateValues:  animateUpdateValues,
     };
     return layer;
   },
