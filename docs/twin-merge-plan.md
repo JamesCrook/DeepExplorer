@@ -351,24 +351,18 @@ preset morphs and layer ticks.
 
 Still open, in rough order of value:
 
-- **Unwrap omni-grid.** grid-view is one opaque node around the old GridScene.
-  Target: real cell nodes, with the sticky headers reusing the table's cell
-  drawing.
-- **Copy clusters** (reorganisation map §3.3): the eight identical
-  getCentreXY, drawWigglyLine/applyBend twice, _bboxFromCorners three times,
-  the jatex layout four times, makeGroundPlane/makeRibbon/makeBonds in
-  molam-widget and scenes-molam, resolveButtonNode/FrameNode/NetworkNode,
-  findByToken, formatAtom.
-- **Other frame loops** that could join the Animator: Omni3d's camera loop,
-  the Zones App and demo harnesses, molam-widget's own animate loop.
-- **Extra Haemoglobin items** added into an existing layer (createItem) are
-  drawn in their starting state: only the layer's own runtime ticks.
-- **jatex in a post-it** starts at the note's centre rather than centred.
-- **General T** beyond rotation: isAffine, scaleAt(p), a PathTransform.
-- **Rerun Code Cartographer** to confirm no duplicate type names remain.
+- **Unwrap omni-grid** and **general T**: designed, not built. See
+  `docs/general-t-and-grid-unwrap.md` (four decisions at its end).
 - Deferred by decision: anglesFromAtoms/minEnergy2 (mind-map); the event
   system and its DSL interpreter; splitting the remaining multi-node files
   (not to be done).
+
+Done 28 Oct (evening): copy clusters folded (node-geometry, wiggly-line,
+poly-draw, cif-atom, molam-parts, layer-ops helpers, skipChildren in
+scene.js); Omni3d, the Zones App and harnesses and the Molam widget on the
+Animator; every Haemoglobin frame in a layer animates; JaTeX centred and
+fitted in post-its; Code Cartographer rerun headlessly
+(`docs/tests/cartographer-headless.py`): 155 node types, none registered twice.
 
 ## Afterwards
 

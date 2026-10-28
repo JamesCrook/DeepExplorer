@@ -40,10 +40,11 @@ DeepExplorer/
 │     ├─ parsers/               # my parser, grammars, AST manager, file formats
 │     ├─ data/                  # sample data and data adapters
 │     └─ page/                  # page chrome: nav (hamburger menu), help
-├─ docs/                        # plans (twin-merge-plan.md) and tests
+├─ docs/                        # plans (twin-merge-plan.md, general-t-and-grid-unwrap.md) and tests
 │  └─ tests/                    # node docs/tests/<name>.mjs
 │     ├─ load-graph.mjs         #   broken imports, unloaded files
 │     ├─ frame-drag-test.mjs    #   nested-frame drags; content-hit-test, hit-space-probe
+│     ├─ cartographer-headless.py #  duplicate type names (python3 + Playwright)
 │     └─ gguf-parse-test.mjs    #   GGUF parser on a synthetic file
 ├─ attic/                       # not loaded by any page; kept for reference
 │  ├─ unfolded/                 #   pre-scene-graph apps, now rebuilt in website/html/
