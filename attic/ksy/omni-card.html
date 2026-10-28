@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniCard - Card Designer</title>
+  <link rel="icon" type="image/x-icon" href="../wheel.ico">
+  <script type="module" src="../deep-explorer/js/utilities2/nav.js"></script>
+  <script type="module" src="../deep-explorer/js/utilities2/help.js"></script>
+  <link rel="stylesheet" href="../deep-explorer/css/omni-controls.css">
+  <link rel="stylesheet" href="../deep-explorer/css/omni-scene.css">
+</head>
+<body>
+  <script type="module" src="./js/apps/omni-card.js"></script>
+  <script type="module">
+    window.helpConfig = [
+      {
+        panelPosition: {
+          targetId : 'RightPanel', 
+          x: 0.5,
+          y: 0.5,
+        },
+        items: [
+          {
+            text: '<strong>OmniCard:</strong><br>HTML card designer. Choose and fine tune styling.',
+            targetId: 'page-title',
+            type: 'results'
+          },                    
+          {
+            text: '<strong>Menu:</strong><br>Click to get a menu of choices - such as other web pages to visit.',
+            targetId: 'nav-utility-btn',
+            type: 'default'
+          },
+          {
+            text: '<strong>Presets:</strong><br>Press these to try different display modes',
+            targetId: 'section-presets',
+            type: 'default'
+          },
+          {
+            text: '<strong>Sliders:</strong><br>Adjust sliders to for example change height and width.',
+            targetId: 'section-dimensions',
+            type: 'default'
+          },
+        ]
+      },
+    ];
+  </script>
+
+</body>
+</html>

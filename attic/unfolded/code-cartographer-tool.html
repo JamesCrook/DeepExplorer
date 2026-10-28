@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Code Cartographer</title>
+<style>
+:root{
+  --bg:#f5f4f0; --panel:#ffffff; --ink:#1c1e22; --muted:#6a6e77; --line:#e2e0da; --hover:#f0eee9;
+  --accent:#2a64d0; --accent-soft:#e5edfb; --warn:#b4511a; --warn-soft:#fbe9dd; --ok:#2b7a4b; --ok-soft:#e0f1e6;
+  --code:#f3f2ee; --chip:#ebe9e3; --shadow:0 8px 30px rgba(0,0,0,.12);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#14161a; --panel:#1c1f24; --ink:#e5e5e2; --muted:#9a9ea6; --line:#2c3037; --hover:#252930;
+    --accent:#76a4ff; --accent-soft:#213150; --warn:#f0a26f; --warn-soft:#3a281c; --ok:#71cf97; --ok-soft:#1d3226;
+    --code:#17191d; --chip:#2a2e35; --shadow:0 8px 30px rgba(0,0,0,.5); }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){background:var(--hover)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{filter:brightness(1.08);background:var(--accent)}
+input[type=search],input[type=text],input[type=number],select,textarea{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+textarea{font-family:var(--mono);font-size:12px;width:100%}
+a{color:var(--accent);text-decoration:none;cursor:pointer}
+a:hover{text-decoration:underline}
+code,.mono{font-family:var(--mono);font-size:12.5px}
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.brand{display:flex;gap:10px;align-items:center;min-width:220px;flex:1}
+.brand h1{font-size:16px;margin:0}
+.brand p{margin:0;color:var(--muted);font-size:12.5px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative}
+#search{width:260px}
+.pop{position:absolute;top:40px;right:0;width:min(460px,92vw);max-height:60vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:40;padding:4px}
+.pop a{display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:6px;color:var(--ink)}
+.pop a:hover{background:var(--hover);text-decoration:none}
+.pop small{color:var(--muted)}
+details#settings{margin:0 16px;border-bottom:1px solid var(--line)}
+details#settings summary{cursor:pointer;color:var(--muted);padding:8px 0;font-size:13px}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px;padding:4px 0 14px}
+.sgrid label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.sgrid label.wide{grid-column:1/-1}
+.sgrid input[type=text]{width:100%}
+nav#tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav#tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 12px;white-space:nowrap;color:var(--muted)}
+nav#tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+nav#tabs button .n{font-size:11px;background:var(--chip);border-radius:9px;padding:1px 6px;margin-left:5px}
+main{padding:16px;max-width:1500px}
+.empty{border:2px dashed var(--line);border-radius:14px;padding:50px 20px;text-align:center;color:var(--muted);margin-top:20px}
+.empty h2{color:var(--ink);font-size:18px;margin:0 0 8px}
+body.drag .empty{border-color:var(--accent);background:var(--accent-soft)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.card b{display:block;font-size:22px}
+.card span{color:var(--muted);font-size:12.5px}
+.card.warn{border-color:var(--warn);background:var(--warn-soft)}
+section.block{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+section.block h2{font-size:15px;margin:0 0 4px}
+section.block h3{font-size:13.5px;margin:16px 0 6px}
+.hint{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.toolbar label{display:flex;gap:5px;align-items:center;font-size:13px;color:var(--muted)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;white-space:nowrap;user-select:none}
+th.sort{cursor:pointer}
+th.sort:hover{color:var(--ink)}
+tr:hover td{background:var(--hover)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.chip{display:inline-block;background:var(--chip);border-radius:10px;padding:0 7px;font-size:11.5px;margin:1px 3px 1px 0;white-space:nowrap}
+.chip.t{background:var(--accent-soft);color:var(--accent);cursor:pointer}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.muted{color:var(--muted)}
+.sym{font-family:var(--mono);font-size:12.5px}
+.file{color:var(--muted);font-size:12px}
+.flag{color:var(--warn);font-weight:600}
+.matrix td,.matrix th{text-align:center;padding:4px 6px}
+.matrix td:first-child,.matrix th:first-child{text-align:left}
+.matrix td.c{cursor:pointer;font-variant-numeric:tabular-nums}
+.matrix td.c:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.matrix th.th{cursor:pointer;writing-mode:vertical-rl;transform:rotate(180deg);height:120px;vertical-align:bottom}
+.matrix th.th.on{color:var(--accent)}
+.tokcloud{display:flex;flex-wrap:wrap;gap:4px}
+.tok{border-radius:6px;padding:2px 7px;font-size:12px;cursor:pointer;border:1px solid var(--line)}
+.tok.themed{background:var(--accent-soft);border-color:transparent}
+.tok:hover{border-color:var(--accent)}
+details.fileitem{border-bottom:1px solid var(--line)}
+details.fileitem summary{cursor:pointer;padding:6px 4px;display:flex;gap:10px;align-items:baseline;list-style:none}
+details.fileitem summary::-webkit-details-marker{display:none}
+details.fileitem summary:before{content:"▸";color:var(--muted);width:10px}
+details.fileitem[open] summary:before{content:"▾"}
+details.fileitem .inner{padding:2px 0 10px 24px}
+ul.tree{list-style:none;padding-left:16px;margin:2px 0}
+ul.tree li{margin:2px 0}
+.hier ul{list-style:none;padding-left:18px;border-left:1px solid var(--line);margin:2px 0 2px 6px}
+.hier li{margin:3px 0}
+aside#drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:50;display:flex;flex-direction:column}
+aside#drawer[hidden]{display:none}
+.dhead{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+.dhead .sp{flex:1}
+#dBody{overflow:auto;padding:14px 16px 40px;flex:1}
+#dBody h2{font-family:var(--mono);font-size:16px;margin:0 0 4px;word-break:break-all}
+#dBody h3{font-size:13px;margin:16px 0 5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+#dBody ul{margin:0;padding-left:18px}
+pre.src{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:8px 0;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.5;margin:6px 0;max-height:70vh}
+pre.src .ln{display:inline-block;width:46px;text-align:right;padding-right:10px;color:var(--muted);user-select:none}
+pre.src .hl{background:var(--accent-soft)}
+.cmp{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+@media (max-width:900px){ .cmp{grid-template-columns:1fr} #search{width:100%} .actions{width:100%} }
+.score{font-variant-numeric:tabular-nums;font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.legend{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="var(--accent)"/><path d="M7 19l5-10 4 7 2-3 3 6" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div><h1>Code Cartographer</h1><p id="status">Open your project folder to begin. Nothing leaves your browser.</p></div>
+  </div>
+  <div class="actions">
+    <button id="btnOpen" class="primary">Open folder…</button>
+    <button id="btnRescan" disabled title="Re-read the folder from disk">Rescan</button>
+    <input id="search" type="search" placeholder="Jump to class or function…" autocomplete="off" disabled>
+    <button id="btnMd" disabled title="Download the full report as Markdown">Report .md</button>
+    <button id="btnJson" disabled title="Download the raw inventory as JSON">Data .json</button>
+    <div id="searchResults" class="pop" hidden></div>
+  </div>
+</header>
+
+<details id="settings">
+  <summary>Settings</summary>
+  <div class="sgrid">
+    <label>File extensions <input type="text" id="sExts"></label>
+    <label>Ignore (folder names, path fragments, * globs) <input type="text" id="sIgnore"></label>
+    <label class="wide">Node registration pattern (regex: group 1 = type name, group 2 = class). When it matches, registered classes are the scene-graph nodes. <input type="text" id="sReg"></label>
+    <label>Handler first parameter (blank = any method) <input type="text" id="sHandler"></label>
+    <label>Container hook names (regex) — a node with such a handler wraps children <input type="text" id="sHook"></label>
+    <label>Fallback: base class(es) when nothing is registered — blank = auto <input type="text" id="sBases" placeholder="e.g. SceneNode"></label>
+    <label>Fallback: “has children” evidence (regex over class source) <input type="text" id="sCompound"></label>
+    <label>Body-similarity threshold (0–1) <input type="number" id="sSim" min="0.3" max="1" step="0.05"></label>
+    <label style="flex-direction:row;align-items:center;gap:8px;margin-top:18px"><input type="checkbox" id="sMethods"> Include class methods in themes &amp; overlap checks</label>
+    <label class="wide">Themes — one per line, <code>theme name: word word word</code>. A function joins a theme when a word of its name (camelCase / snake_case split) is in the list.
+      <textarea id="sThemes" rows="9"></textarea></label>
+    <div class="row"><button id="btnApply" class="primary">Apply</button><button id="btnReset">Reset to defaults</button><span class="muted" id="applyNote"></span></div>
+  </div>
+</details>
+
+<nav id="tabs"></nav>
+<main id="view">
+  <div class="empty">
+    <h2>Drop your project folder here</h2>
+    <p>…or use <b>Open folder</b>. JS, TS, MJS and inline &lt;script&gt; blocks in HTML are scanned.<br>
+    Files are parsed locally with a small built-in tokenizer — no upload, no libraries.</p>
+  </div>
+</main>
+
+<aside id="drawer" hidden>
+  <div class="dhead"><button id="dBack" title="Back">←</button><span class="sp"></span><button id="dClose" title="Close (Esc)">✕</button></div>
+  <div id="dBody"></div>
+</aside>
+<input type="file" id="fileInput" webkitdirectory multiple hidden>
+
+<script>
+'use strict';
+/*CORE-START*/
+// ============================================================================
+//  CORE — tokenizer, declaration extractor, resolver, analysis. No DOM here.
+// ============================================================================
+
+const KW_REGEX = new Set(['return','typeof','instanceof','in','of','new','delete','void','throw','case','do','else','yield','await','extends']);
+const RESERVED = new Set(('break case catch class const continue debugger default delete do else export extends finally for function if import in instanceof new return super switch this throw try typeof var void while with yield let static await null true false undefined arguments NaN Infinity').split(' '));
+const STMT_KW = new Set(['const','let','var','function','class','export','import','if','for','while','return','switch','try','throw','do']);
+const MODS = new Set(['static','async','get','set','public','private','protected','readonly','override','abstract','declare','accessor']);
+const PUNCTS = ['>>>=','...','===','!==','**=','<<=','>>=','>>>','&&=','||=','??=','=>','==','!=','<=','>=','&&','||','??','?.','++','--','+=','-=','*=','/=','%=','&=','|=','^=','**','<<','>>'];
+
+const isIdStart = c => (c>=65&&c<=90)||(c>=97&&c<=122)||c===36||c===95||c===35||c>=0xc0;
+const isIdPart  = c => (c>=65&&c<=90)||(c>=97&&c<=122)||(c>=48&&c<=57)||c===36||c===95||c>=0xc0;
+
+function tokenize(src){
+  const T=[]; const n=src.length; let i=0, line=1, nl=true, last=null; const bs=[]; const comments=[]; T.comments=comments;
+  if(src.startsWith('#!')) while(i<n && src[i]!=='\n') i++;
+  const push=(t,v,ln)=>{ const tk={t,v,line:ln,nl}; T.push(tk); nl=false; last=tk; };
+  const regexOk=()=>{ if(!last) return true; if(last.t==='id') return KW_REGEX.has(last.v); if(last.t==='p') return last.v!==')' && last.v!==']'; return false; };
+  const scanTpl=()=>{ while(i<n){ const ch=src[i];
+      if(ch==='\\'){ if(src[i+1]==='\n') line++; i+=2; continue; }
+      if(ch==='`'){ i++; return; }
+      if(ch==='$' && src[i+1]==='{'){ i+=2; bs.push('tpl'); last=null; return; }
+      if(ch==='\n') line++; i++; } };
+  while(i<n){
+    const c=src[i], cc=src.charCodeAt(i);
+    if(c==='\n'){ line++; nl=true; i++; continue; }
+    if(cc<=32||cc===0xa0||cc===0xfeff||cc===0x2028||cc===0x2029){ i++; continue; }
+    if(c==='/'){
+      const d=src[i+1];
+      if(d==='/'){ const s0=i; while(i<n && src[i]!=='\n') i++; comments.push([s0,i]); continue; }
+      if(d==='*'){ const e=src.indexOf('*/',i+2), end=e<0?n:e+2; for(let k=i;k<end;k++) if(src.charCodeAt(k)===10){ line++; nl=true; } comments.push([i,end]); i=end; continue; }
+      if(regexOk()){
+        let j=i+1, inC=false, ok=false;
+        while(j<n){ const ch=src[j]; if(ch==='\n') break; if(ch==='\\'){ j+=2; continue; }
+          if(inC){ if(ch===']') inC=false; } else if(ch==='[') inC=true; else if(ch==='/'){ ok=true; break; } j++; }
+        if(ok){ j++; while(j<n && /[a-z]/i.test(src[j])) j++; push('re',src.slice(i,j),line); i=j; continue; }
+      }
+    }
+    if(c==='"'||c==="'"){
+      const ln=line; let j=i+1;
+      while(j<n){ const ch=src[j]; if(ch==='\\'){ if(src[j+1]==='\n') line++; j+=2; continue; } if(ch===c||ch==='\n') break; j++; }
+      push('str',src.slice(i+1,Math.min(j,n)),ln); i=(src[j]===c)?j+1:j; continue;
+    }
+    if(c==='`'){ push('str','`',line); i++; scanTpl(); continue; }
+    if(c==='{'){ bs.push('{'); push('p','{',line); i++; continue; }
+    if(c==='}'){
+      if(bs[bs.length-1]==='tpl'){ bs.pop(); push('str','`',line); i++; scanTpl(); continue; }
+      bs.pop(); push('p','}',line); i++; continue;
+    }
+    if(isIdStart(cc)){ let j=i+1; while(j<n && isIdPart(src.charCodeAt(j))) j++; push('id',src.slice(i,j),line); i=j; continue; }
+    if((cc>=48&&cc<=57)||(c==='.' && /[0-9]/.test(src[i+1]||''))){
+      let j=i+1;
+      while(j<n){ const ch=src[j]; if(/[0-9A-Za-z_.]/.test(ch)) j++; else if((ch==='+'||ch==='-') && /[eE]/.test(src[j-1]) && !/^0[xX]/.test(src.slice(i,j))) j++; else break; }
+      push('num',src.slice(i,j),line); i=j; continue;
+    }
+    let p=c; for(const q of PUNCTS){ if(q.charCodeAt(0)===cc && src.startsWith(q,i)){ p=q; break; } }
+    if(p==='?.' && /[0-9]/.test(src[i+2]||'')) p='?';
+    push('p',p,line); i+=p.length;
+  }
+  return T;
+}
+
+function matchBrackets(T){
+  const M=new Int32Array(T.length).fill(-1); const st=[]; const open={'(':')','[':']','{':'}'};
+  for(let k=0;k<T.length;k++){ const t=T[k]; if(t.t!=='p') continue; const v=t.v;
+    if(v==='('||v==='['||v==='{') st.push(k);
+    else if(v===')'||v===']'||v==='}'){
+      for(let s=st.length-1; s>=0 && s>=st.length-4; s--){ if(open[T[st[s]].v]===v){ M[st[s]]=k; M[k]=st[s]; st.length=s; break; } }
+    } }
+  return M;
+}
+
+function htmlScripts(src){
+  // Keep line numbers: blank out everything except inline JS script bodies.
+  const blank=s=>s.replace(/[^\n]/g,' ');
+  const re=/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi; let m, out='', last=0;
+  while((m=re.exec(src))){
+    const attrs=m[1], bodyStart=m.index+m[0].indexOf('>')+1, body=m[2];
+    const tm=attrs.match(/\btype\s*=\s*["']?([^"'\s>]+)/i);
+    const js=!tm || /^(module|text\/javascript|application\/javascript|javascript)$/i.test(tm[1]);
+    // the blanked gap between blocks gets a ';' (in place of a space, so line numbers hold)
+    out+=blank(src.slice(last,bodyStart)).replace(' ',';') + (js?body:blank(body));
+    last=bodyStart+body.length;
+  }
+  return out + blank(src.slice(last));
+}
+
+function fnv(s){ let h=0x811c9dc5; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193); } return h>>>0; }
+
+function parseFile(path, raw, opts={}){
+  const isHtml=/\.html?$/i.test(path);
+  const src=isHtml?htmlScripts(raw):raw;
+  const T=tokenize(src), N=T.length, M=matchBrackets(T);
+  const skip=new Uint8Array(N+1);
+  const base=path.split('/').pop().replace(/\.[^.]+$/,'');
+  const top={ek:'top', locals:new Set(), up:null};
+  const F={path, base, fns:[], classes:[], refs:[], imports:[], inherits:[], exportNames:new Set(), defaultNs:null, defaultName:null, top, lineCount:raw.split('\n').length};
+  let exportAt=-1;
+
+  const v=k=>(k>=0&&k<N)?T[k].v:undefined;
+  const ty=k=>(k>=0&&k<N)?T[k].t:undefined;
+  const isId=k=>ty(k)==='id';
+  const close=k=>{ const c=M[k]; return c<0?N:c; };
+  const lineAt=k=>{ const t=T[Math.max(0,Math.min(k,N-1))]; return t?t.line:1; };
+  const opener=w=>w==='('||w==='['||w==='{';
+
+  function text(a,b,max=90){
+    let s='', pw=false;
+    for(let k=a;k<b&&k<N;k++){ const t=T[k];
+      const val=t.t==='str'?(t.v==='`'?'`':"'"+t.v+"'"):t.v; const word=t.t==='id'||t.t==='num';
+      if(t.v===','||t.v===':'){ s+=t.v+' '; pw=false; }
+      else if(t.v==='='||t.v==='=>'){ s+=' '+t.v+' '; pw=false; }
+      else { if(s && word && pw) s+=' '; s+=val; pw=word; }
+      if(s.length>max) return s.slice(0,max)+'…'; }
+    return s.trim();
+  }
+  function skipAngles(j){ let d=0; for(let q=j;q<N&&q<j+200;q++){ const w=v(q); if(w==='<') d++; else if(w==='>') d--; else if(w==='>>') d-=2; else if(w==='>>>') d-=3; else if(w==='{'||w===';') return q; if(d<=0) return q+1; } return j+1; }
+  function findBody(k){
+    if(v(k)==='{') return k; if(v(k)!==':') return -1;
+    for(let q=k+1;q<Math.min(N,k+80);q++){ const w=v(q);
+      if(w==='{'){ const c=close(q); if(v(c+1)==='{'){ q=c; continue; } return q; }
+      if(w===';'||w==='}'||w==='=>') return -1;
+      if(w==='('||w==='[') q=close(q); }
+    return -1;
+  }
+  function exprEnd(s){
+    let j=s;
+    while(j<N){ const t=T[j];
+      if(t.t==='p'){ const w=t.v; if(opener(w)){ j=close(j)+1; continue; } if(w===')'||w===']'||w==='}'||w===','||w===';') break; }
+      else if(j>s && t.nl && t.t==='id' && STMT_KW.has(t.v)) break;
+      j++; }
+    return j;
+  }
+  function valEnd(s,b){ let j=s; while(j<b){ const w=v(j); if(opener(w)){ j=close(j)+1; continue; } if(w===',') break; j++; } return Math.min(j,b); }
+  function fieldEnd(s,b){
+    let j=s;
+    while(j<b){ const t=T[j]; const w=t.v;
+      if(t.t==='p' && opener(w)){ j=close(j)+1; continue; }
+      if(w===';') return j;
+      if(j>s && t.nl){ const p=T[j-1]; if(p.t!=='p' || p.v===')'||p.v===']'||p.v==='}') return j; }
+      j++; }
+    return j;
+  }
+  function bindParams(a,b,owner){
+    for(let k=a+1;k<b;k++){ if(!isId(k)) continue; const p=v(k-1), q=v(k+1);
+      if((p==='('||p===','||p==='{'||p==='['||p==='...') && (q===','||q===')'||q==='='||q==='}'||q===']'||q===':'||q==='?'||k===b-1)){
+        skip[k]=1; owner.locals.add(T[k].v); } }
+  }
+  function newFn(name, kind, start, o, owner){
+    const fn={ek:'fn', name, kind, ns:o.ns||null, cls:o.cls||null, isStatic:!!o.isStatic, line:lineAt(start), endLine:lineAt(start), params:'',
+      parent:(owner && owner.ek==='fn')?owner:null, up:owner||top, locals:new Set(), exported:(start===exportAt)||!!o.exported, isDefault:!!o.isDefault,
+      global:!!o.global, bodyA:0, bodyB:0, clsRef:o.clsRef||null};
+    if(fn.parent && !fn.ns && !fn.cls) fn.parent.locals.add(name);
+    if(start===exportAt && !o.ns && !o.cls) F.exportNames.add(name);
+    F.fns.push(fn); return fn;
+  }
+  function setBody(fn,a,b,block){ fn.bodyA=a; fn.bodyB=b; fn.endLine=lineAt(block?b:Math.max(a,b-1)); }
+
+  function parseFunctionKw(k, owner, nameOverride, o={}){
+    let j=k+1; if(v(j)==='*') j++;
+    let name=nameOverride||null;
+    if(isId(j) && (v(j+1)==='('||v(j+1)==='<')){ if(!name) name=T[j].v; skip[j]=1; j++; }
+    if(v(j)==='<') j=skipAngles(j);
+    if(v(j)!=='(') return -1;
+    const pc=close(j); const bo=findBody(pc+1);
+    if(bo<0) return pc+1;
+    const bc=close(bo);
+    if(!name){ bindParams(j,pc,owner); return bo+1; }           // anonymous: scan its body as part of the owner
+    const fn=newFn(name, o.kind||'function', o.start!=null?o.start:k, o, owner);
+    fn.params=text(j+1,pc); bindParams(j,pc,fn); setBody(fn,bo+1,bc,true);
+    if(o.onFn) o.onFn(fn);
+    scanRange(bo+1,bc,fn);
+    return bc+1;
+  }
+  function arrowAt(k){
+    let j=k;
+    if(v(j)==='async' && T[j+1] && !T[j+1].nl && (v(j+1)==='('||isId(j+1))) j++;
+    if(v(j)==='<') j=skipAngles(j);
+    if(v(j)==='('){ const pc=close(j), a=pc+1;
+      if(v(a)==='=>') return {pa:j,pb:pc,arrow:a};
+      if(v(a)===':'){ for(let q=a+1;q<Math.min(N,a+40);q++){ const w=v(q);
+          if(w==='=>') return {pa:j,pb:pc,arrow:q};
+          if(w===';'||w===','||w==='='||w==='}'||w===')'||w==='{') return null;
+          if(w==='('||w==='[') q=close(q); } }
+      return null; }
+    if(isId(j) && v(j+1)==='=>') return {pa:j,pb:j,arrow:j+1,single:true};
+    return null;
+  }
+  function parseArrow(k, owner, name, o={}){
+    const A=arrowAt(k); if(!A) return -1;
+    const fn=name?newFn(name, o.kind||'arrow', o.start!=null?o.start:k, o, owner):null;
+    const tgt=fn||owner;
+    if(A.single){ skip[A.pa]=1; tgt.locals.add(T[A.pa].v); if(fn) fn.params=T[A.pa].v; }
+    else { bindParams(A.pa,A.pb,tgt); if(fn) fn.params=text(A.pa+1,A.pb); }
+    if(fn && o.onFn) o.onFn(fn);
+    const s=A.arrow+1;
+    if(v(s)==='{'){ const e=close(s); if(fn){ setBody(fn,s+1,e,true); scanRange(s+1,e,fn); return e+1; } return s+1; }
+    const e=exprEnd(s); if(fn){ setBody(fn,s,e,false); scanRange(s,e,fn); return e; }
+    return s;
+  }
+  function parseClass(k, owner, nameOverride, o={}){
+    let j=k+1, name=null;
+    if(isId(j) && v(j)!=='extends' && v(j)!=='implements'){ name=T[j].v; skip[j]=1; j++; }
+    if(nameOverride) name=nameOverride;
+    if(v(j)==='<') j=skipAngles(j);
+    let extendsRaw=null, base=null, es=-1, ee=-1;
+    if(v(j)==='extends'){ j++; es=j;
+      while(j<N && v(j)!=='{' && v(j)!=='implements'){ const w=v(j); if(w==='('||w==='['){ j=close(j)+1; continue; } if(w==='<'){ j=skipAngles(j); continue; } j++; }
+      ee=j; extendsRaw=text(es,ee);
+      for(let q=ee-1;q>=es;q--) if(isId(q) && v(q)!=='prototype'){ base=T[q].v; break; } }
+    while(j<N && v(j)!=='{' && v(j)!==';') j++;
+    if(v(j)!=='{') return -1;
+    const bc=close(j);
+    const start=o.start!=null?o.start:k;
+    const cls={ek:'cls', name:name||'(anonymous)', kind:'class', line:lineAt(start), endLine:lineAt(bc), extendsRaw, base, exported:start===exportAt||!!o.exported, isDefault:!!o.isDefault, methods:[], ns:o.ns||null};
+    if(start===exportAt) F.exportNames.add(cls.name);
+    F.classes.push(cls);
+    if(es>=0) scanRange(es,ee,owner);
+    scanClassBody(j+1,bc,cls,owner);
+    return bc+1;
+  }
+  function scanClassBody(a,b,cls,owner){
+    const co={ek:'cl', cls, locals:new Set(), up:owner||top};
+    let j=a;
+    while(j<b){
+      const w=v(j);
+      if(w===';'||w===','){ j++; continue; }
+      if(w==='@'){ j++; if(isId(j)) j++; while(v(j)==='.' && isId(j+1)) j+=2; if(v(j)==='(') j=close(j)+1; continue; }
+      if(w==='static' && v(j+1)==='{'){ const c=close(j+1); scanRange(j+2,c,co); j=c+1; continue; }
+      const start=j; let isStatic=false, kind='method';
+      while(isId(j) && MODS.has(v(j))){ const nx=v(j+1);
+        if(nx==='('||nx==='='||nx===';'||nx==='}'||nx==='<'||nx===':'||nx==='?'||nx==='!') break;
+        if(v(j)==='static') isStatic=true; else if(v(j)==='get') kind='getter'; else if(v(j)==='set') kind='setter'; j++; }
+      if(v(j)==='*') j++;
+      let name=null;
+      if(isId(j)){ name=T[j].v; skip[j]=1; j++; }
+      else if(ty(j)==='str'||ty(j)==='num'){ name=T[j].v; j++; }
+      else if(v(j)==='['){ const c=close(j); name='['+text(j+1,c,40)+']'; scanRange(j+1,c,co); j=c+1; }
+      else { j++; continue; }
+      if(v(j)==='?'||v(j)==='!') j++;
+      if(v(j)==='<') j=skipAngles(j);
+      if(v(j)==='('){
+        const pc=close(j), bo=findBody(pc+1);
+        if(bo<0){ j=pc+1; continue; }
+        const bc=close(bo);
+        const fn=newFn(name, name==='constructor'?'constructor':kind, start, {cls:cls.name, isStatic, clsRef:cls}, co);
+        fn.params=text(j+1,pc); bindParams(j,pc,fn); setBody(fn,bo+1,bc,true); cls.methods.push(fn);
+        scanRange(bo+1,bc,fn); j=bc+1; continue;
+      }
+      if(v(j)===':'){ j++; while(j<b && v(j)!=='=' && v(j)!==';' && !(T[j].nl)){ if(opener(v(j))) j=close(j)+1; else j++; } }
+      if(v(j)==='='){
+        const s=j+1, o={kind:'method', cls:cls.name, isStatic, start, clsRef:cls, onFn:fn=>cls.methods.push(fn)};
+        let r=-1;
+        if(v(s)==='function') r=parseFunctionKw(s,co,name,o);
+        else if(v(s)==='async' && v(s+1)==='function') r=parseFunctionKw(s+1,co,name,o);
+        else if(arrowAt(s)) r=parseArrow(s,co,name,o);
+        if(r>j){ j=r; continue; }
+        const e=fieldEnd(s,b); scanRange(s,e,co); j=Math.max(e,j+1); continue;
+      }
+    }
+  }
+  function scanObject(a,b,ns,owner,opt={}){
+    // members of an object literal used as a namespace / prototype
+    let j=a;
+    while(j<b){
+      const w=v(j);
+      if(w===','||w===';'){ j++; continue; }
+      if(w==='...'){ const e=valEnd(j+1,b); scanRange(j+1,e,owner); j=e; continue; }
+      const start=j; let kind=opt.cls?'method':'member';
+      if((w==='get'||w==='set') && (isId(j+1)||ty(j+1)==='str') && v(j+2)==='('){ kind=w==='get'?'getter':'setter'; j++; }
+      else if(w==='async' && (isId(j+1)||v(j+1)==='*') && v(j+1)!=='(' ){ j++; }
+      if(v(j)==='*') j++;
+      let name=null, nameTok=-1;
+      if(isId(j)||ty(j)==='str'||ty(j)==='num'){ name=T[j].v; if(isId(j)){ skip[j]=1; nameTok=j; } j++; }
+      else if(v(j)==='['){ const c=close(j); name='['+text(j+1,c,40)+']'; j=c+1; }
+      else { j++; continue; }
+      const o={ns:opt.cls?null:ns, cls:opt.cls||null, kind, start, exported:!!opt.exported};
+      if(v(j)==='('){
+        const pc=close(j), bo=findBody(pc+1);
+        if(bo<0){ j=pc+1; continue; }
+        const bc=close(bo); const fn=newFn(name,kind,start,o,owner);
+        fn.params=text(j+1,pc); bindParams(j,pc,fn); setBody(fn,bo+1,bc,true); scanRange(bo+1,bc,fn); j=bc+1; continue;
+      }
+      if(v(j)===':'){
+        const s=j+1; let r=-1;
+        if(v(s)==='function') r=parseFunctionKw(s,owner,name,o);
+        else if(v(s)==='async' && v(s+1)==='function') r=parseFunctionKw(s+1,owner,name,o);
+        else if(arrowAt(s)) r=parseArrow(s,owner,name,o);
+        else if(v(s)==='{' && ns && !opt.cls){ const c=close(s); scanObject(s+1,c,ns+'.'+name,owner,opt); r=c+1; }
+        if(r>j){ j=r; continue; }
+        const e=valEnd(s,b); scanRange(s,e,owner); j=Math.max(e,s); continue;
+      }
+      // shorthand `{ foo, bar }`
+      if(nameTok>=0){
+        if(opt.exportsObj){ F.exportNames.add(name); }
+        else { skip[nameTok]=0; scanRange(nameTok,nameTok+1,owner); }
+      }
+    }
+  }
+  function parseVarDecl(k, owner){
+    let j=k+1;
+    if(v(j)==='{'||v(j)==='['){
+      const pc=close(j), names=[];
+      for(let q=j+1;q<pc;q++) if(isId(q) && v(q+1)!==':' && v(q-1)!=='='){ names.push(T[q].v); skip[q]=1; if(owner!==top) owner.locals.add(T[q].v); }
+      if(v(pc+1)==='=' && v(pc+2)==='require' && v(pc+3)==='(' && ty(pc+4)==='str'){
+        for(const nm of names) F.imports.push({local:nm, imported:nm, from:T[pc+4].v}); return pc+6; }
+      return pc+1;
+    }
+    if(!isId(j)) return -1;
+    const name=T[j].v; skip[j]=1;
+    if(owner!==top) owner.locals.add(name);
+    let q=j+1;
+    if(v(q)===':'){ q++; while(q<N && v(q)!=='=' && v(q)!==';' && v(q)!==',' && !T[q].nl){ if(opener(v(q))) q=close(q)+1; else q++; } }
+    if(v(q)!=='=') return q;
+    const s=q+1, o={start:k};
+    let r=-1;
+    if(v(s)==='function') r=parseFunctionKw(s,owner,name,{...o,kind:'function expr'});
+    else if(v(s)==='async' && v(s+1)==='function') r=parseFunctionKw(s+1,owner,name,{...o,kind:'function expr'});
+    else if(v(s)==='class') r=parseClass(s,owner,name,o);
+    else if(arrowAt(s)) r=parseArrow(s,owner,name,{...o,kind:'arrow'});
+    else if(v(s)==='require' && v(s+1)==='(' && ty(s+2)==='str' && v(s+3)===')'){ F.imports.push({local:name, imported:'*', from:T[s+2].v}); r=s+4; }
+    else if(v(s)==='{' && owner===top){ const c=close(s); scanObject(s+1,c,name,owner,{exported:k===exportAt}); r=c+1; }
+    return r>k?r:s;
+  }
+  function parseImport(i){
+    let j=i+1;
+    if(ty(j)==='str'){ F.imports.push({local:null, imported:null, from:T[j].v}); return j+1; }
+    if(v(j)==='type') j++;
+    const specs=[];
+    while(j<N && v(j)!=='from' && ty(j)!=='str' && v(j)!==';'){
+      if(v(j)==='*' && v(j+1)==='as' && isId(j+2)){ specs.push({local:T[j+2].v, imported:'*'}); skip[j+2]=1; j+=3; continue; }
+      if(v(j)==='{'){ const c=close(j);
+        for(let q=j+1;q<c;q++){ if(!isId(q)||v(q)==='type') continue; let imp=T[q].v, loc=imp; skip[q]=1;
+          if(v(q+1)==='as' && isId(q+2)){ loc=T[q+2].v; skip[q+2]=1; q+=2; } specs.push({local:loc, imported:imp}); }
+        j=c+1; continue; }
+      if(isId(j)){ specs.push({local:T[j].v, imported:'default'}); skip[j]=1; j++; continue; }
+      j++;
+    }
+    if(v(j)==='from') j++;
+    const from=ty(j)==='str'?T[j].v:null;
+    for(const s of specs) F.imports.push({...s, from});
+    // `import {} from 'x'` names nothing but still loads x
+    if(!specs.length && from) F.imports.push({local:null, imported:null, from});
+    return j+1;
+  }
+  function parseExport(i){
+    let j=i+1;
+    if(v(j)==='default'){
+      j++; exportAt=j;
+      if(v(j)==='function'||(v(j)==='async'&&v(j+1)==='function')){
+        const fk=v(j)==='async'?j+1:j; const anon=!(isId(fk+1)||(v(fk+1)==='*'&&isId(fk+2)));
+        const r=parseFunctionKw(fk,top,anon?'default':null,{start:j,isDefault:true}); return r>j?r:j+1; }
+      if(v(j)==='class'){ const anon=!isId(j+1)||v(j+1)==='extends'; const r=parseClass(j,top,anon?'default':null,{start:j,isDefault:true}); return r>j?r:j+1; }
+      if(v(j)==='{'){ const c=close(j); scanObject(j+1,c,base,top,{exported:true}); F.defaultNs=base; return c+1; }
+      if(isId(j) && (v(j+1)===';'||j+1>=N||(T[j+1]&&T[j+1].nl))){ F.exportNames.add(T[j].v); F.defaultName=T[j].v; skip[j]=1; return j+1; }
+      return j;
+    }
+    if(v(j)==='type' && v(j+1)==='{') j++;
+    if(v(j)==='{'){
+      const c=close(j), hasFrom=v(c+1)==='from';
+      for(let q=j+1;q<c;q++){ if(!isId(q)) continue; skip[q]=1; if(v(q-1)!=='as'){ const loc=T[q].v; F.exportNames.add(v(q+1)==='as'&&isId(q+2)?T[q+2].v:loc);
+          if(hasFrom && ty(c+2)==='str') F.imports.push({local:loc, imported:loc, from:T[c+2].v, reexport:true}); } }
+      return hasFrom?c+3:c+1;
+    }
+    if(v(j)==='*'){ while(j<N && ty(j)!=='str' && v(j)!==';') j++; return j+1; }
+    exportAt=j; return j;
+  }
+  function parseMemberAssign(i){
+    let j=i; const chain=[T[i].v]; j++;
+    while(v(j)==='.' && isId(j+1)){ chain.push(T[j+1].v); j+=2; }
+    if(chain.length<2 || v(j)!=='=') return -1;
+    const s=j+1, head=chain[0], last=chain[chain.length-1];
+    const markChain=()=>{ for(let q=i;q<j;q++) if(isId(q)) skip[q]=1; };
+    if(last==='prototype'){
+      const A=chain.slice(0,-1).join('.');
+      if(v(s)==='Object' && v(s+1)==='.' && v(s+2)==='create' && v(s+3)==='('){
+        const e=close(s+3); let b=null; for(let q=s+4;q<e;q++) if(isId(q) && v(q)!=='prototype'){ b=T[q].v; break; }
+        if(b) F.inherits.push({child:A, base:b, line:lineAt(i)}); markChain(); return s;   // continue scanning: records a ref to the base
+      }
+      if(v(s)==='new' && isId(s+1)){ F.inherits.push({child:A, base:T[s+1].v, line:lineAt(i)}); markChain(); return s; }
+      if(v(s)==='{'){ markChain(); const c=close(s); F.protoNames=(F.protoNames||new Set()).add(A); scanObject(s+1,c,null,top,{cls:A}); return c+1; }
+      return -1;
+    }
+    let ns=null, cls=null, kind='member', global=false, exported=false;
+    if(chain.length>=3 && chain[chain.length-2]==='prototype'){ cls=chain.slice(0,-2).join('.'); kind='method'; }
+    else if(head==='module' && chain.length===2 && last==='exports'){
+      if(v(s)==='{'){ markChain(); const c=close(s); scanObject(s+1,c,'module.exports',top,{exportsObj:true,exported:true}); return c+1; }
+      if(isId(s) && !(v(s+1)==='('||v(s+1)==='.')){ F.exportNames.add(T[s].v); markChain(); return s; }
+      return -1;
+    }
+    else if(((head==='window'||head==='globalThis'||head==='self'||head==='global'||head==='exports') && chain.length===2) || (head==='module'&&chain[1]==='exports'&&chain.length===3)){
+      global=true; kind='function'; exported=head==='exports'||head==='module'; }
+    else ns=chain.slice(0,-1).join('.');
+    const o={ns, cls, kind, start:i, global, exported};
+    let r=-1;
+    if(v(s)==='function') r=parseFunctionKw(s,top,last,o);
+    else if(v(s)==='async' && v(s+1)==='function') r=parseFunctionKw(s+1,top,last,o);
+    else if(arrowAt(s)) r=parseArrow(s,top,last,o);
+    else if(v(s)==='class') r=parseClass(s,top,last,{ns,start:i});
+    else if(v(s)==='{' && !cls && ns!==null){ const c=close(s); scanObject(s+1,c,chain.join('.'),top,{}); r=c+1; }
+    if(r>i){ markChain(); return r; }
+    return -1;
+  }
+  function atStmt(i){ if(i===0) return true; const p=T[i-1]; return p.v===';'||p.v==='{'||p.v==='}'||T[i].nl; }
+  function recordRef(i, owner, dotted){
+    let qual=null;
+    if(dotted){ let k=i-2; if(isId(k)){ const parts=[T[k].v]; while((v(k-1)==='.'||v(k-1)==='?.') && isId(k-2)){ k-=2; parts.unshift(T[k].v); } qual=parts.join('.'); } else qual='?'; }
+    F.refs.push({name:T[i].v, qual, owner, line:T[i].line, call:v(i+1)==='('});
+  }
+  function scanRange(a,b,owner){
+    let i=a;
+    while(i<b && i<N){
+      const t=T[i];
+      if(t.t==='id'){
+        if(skip[i]){ i++; continue; }
+        const w=t.v, pv=v(i-1), dotted=pv==='.'||pv==='?.';
+        if(!dotted){
+          let r=-1;
+          switch(w){
+            case 'function': r=parseFunctionKw(i,owner,null,{start:i}); break;
+            case 'async': if(v(i+1)==='function') r=parseFunctionKw(i+1,owner,null,{start:i}); else if(arrowAt(i)) r=parseArrow(i,owner,null); break;
+            case 'class': r=parseClass(i,owner,null,{start:i}); break;
+            case 'const': case 'let': case 'var': r=parseVarDecl(i,owner); break;
+            case 'import': if(owner===top && v(i+1)!=='(' && v(i+1)!=='.') r=parseImport(i); break;
+            case 'export': if(owner===top) r=parseExport(i); break;
+            case 'catch': if(v(i+1)==='('){ bindParams(i+1,close(i+1),owner); r=close(i+1)+1; } break;
+            case 'inherits': if(v(i+1)==='(' && isId(i+2) && v(i+3)===',' && isId(i+4)) F.inherits.push({child:T[i+2].v, base:T[i+4].v, line:t.line}); break;
+            case 'Object': if(v(i+1)==='.' && v(i+2)==='setPrototypeOf' && v(i+3)==='(' && isId(i+4) && v(i+5)==='.' && v(i+6)==='prototype' && v(i+7)===',' && isId(i+8))
+                F.inherits.push({child:T[i+4].v, base:T[i+8].v, line:t.line}); break;
+          }
+          if(r>i){ i=r; continue; }
+          if(v(i+1)==='=>'){ r=parseArrow(i,owner,null); if(r>i){ i=r; continue; } }
+          if(owner===top && v(i+1)==='.' && atStmt(i)){ r=parseMemberAssign(i); if(r>i){ i=r; continue; } }
+          if(v(i+1)===':' && (pv==='{'||pv===',')){ i++; continue; }        // object key
+          // Constructor-style inheritance: function Child(){ Parent.call(this, …) }
+          if(v(i+1)==='.' && v(i+2)==='call' && v(i+3)==='(' && v(i+4)==='this' && owner.ek==='fn' && /^[A-Z]/.test(w) && /^[A-Z]/.test(owner.name||''))
+            F.inherits.push({child:owner.name, base:w, line:t.line});
+        }
+        if(!RESERVED.has(w)) recordRef(i,owner,dotted);
+        i++; continue;
+      }
+      if(t.t==='p' && t.v==='('){ const A=arrowAt(i); if(A && !A.single){ const r=parseArrow(i,owner,null); if(r>i){ i=r; continue; } } }
+      i++;
+    }
+  }
+
+  scanRange(0,N,top);
+  if(isHtml){   // onclick="foo()" style handlers count as references from the file's top level
+    const re=/\son[a-z]+\s*=\s*("([^"]*)"|'([^']*)')/gi; let m;
+    while((m=re.exec(raw))){ const val=m[2]!=null?m[2]:m[3]; const ln=raw.slice(0,m.index).split('\n').length;
+      const idr=/(^|[^.\w$])([A-Za-z_$][\w$]*)\s*\(/g; let k;
+      while((k=idr.exec(val))) if(!RESERVED.has(k[2])) F.refs.push({name:k[2], qual:null, owner:top, line:ln, call:true}); }
+  }
+
+  // Node registrations, e.g. SYS.NODE_CLASSES.push({ name:'x', cls: XNode }) — group 1 = type name, group 2 = class
+  F.regs=[];
+  if(opts.regRe){ let re=null; try{ re=new RegExp(opts.regRe,'g'); }catch(e){}
+    if(re){ const cm=T.comments||[]; const inComment=pos=>cm.some(([a,b])=>pos>=a&&pos<b); let m;
+      while((m=re.exec(src))){ if(!m[0].length){ re.lastIndex++; continue; } if(inComment(m.index) || !m[1] || !m[2] || /\$\{/.test(m[1]) || m[2]==='$') continue;
+        F.regs.push({type:m[1], clsName:m[2], line:src.slice(0,m.index).split('\n').length}); } } }
+  // What this file pulls in: static imports, literal dynamic imports, <script src>
+  F.depSpecs=F.imports.map(i=>i.from).filter(Boolean);
+  for(const m of src.matchAll(/\bimport\(\s*['"`]([^'"`]+)['"`]\s*\)/g)) F.depSpecs.push(m[1]);
+  if(isHtml) for(const m of raw.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) F.depSpecs.push(m[1]);
+
+  // Body fingerprints for duplicate / similarity detection
+  for(const fn of F.fns){
+    if(fn.bodyB>fn.bodyA){
+      const norm=[];
+      for(let k=fn.bodyA;k<fn.bodyB;k++){ const t=T[k]; norm.push(t.t==='id'?(fn.locals.has(t.v)?'L':t.v):t.t==='str'?'S':t.t==='re'?'R':t.v); }
+      fn.bodyLen=norm.length;
+      const joined=norm.join(' ');
+      fn.bodyKey=norm.length>=6?fnv(joined)+'_'+fnv(joined.split('').reverse().join(''))+'_'+norm.length:null;
+      const sh=new Set(); for(let k=0;k+2<norm.length;k++) sh.add(fnv(norm[k]+' '+norm[k+1]+' '+norm[k+2]));
+      fn.shingles=[...sh];
+    } else { fn.bodyLen=0; fn.shingles=[]; fn.bodyKey=null; }
+  }
+  return F;
+}
+
+// ---------------------------------------------------------------- names & themes
+const BRIT = {colour:'color',colours:'colors',normalise:'normalize',serialise:'serialize',deserialise:'deserialize',grey:'gray',centre:'center',initialise:'initialize',to:'2'};
+function nameTokens(name){
+  return String(name).replace(/^[#_$]+/,'')
+    .replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g,'$1 $2')
+    .replace(/([a-zA-Z])([0-9])/g,'$1 $2').replace(/([0-9])([a-zA-Z])/g,'$1 $2')
+    .split(/[^A-Za-z0-9]+/).filter(Boolean).map(s=>s.toLowerCase());
+}
+const normName = name => nameTokens(name).map(t=>BRIT[t]||t).join('');
+function parseThemes(txt){
+  const out=[];
+  for(const line of String(txt).split('\n')){ const m=line.match(/^\s*([^:#]+?)\s*:\s*(.+)$/); if(!m) continue;
+    out.push({name:m[1].trim(), words:new Set(m[2].toLowerCase().split(/[\s,]+/).filter(Boolean))}); }
+  return out;
+}
+function themesFor(tokens, themes){
+  const scored=[];
+  for(const th of themes){ let n=0, lastPos=-1;
+    tokens.forEach((t,pos)=>{ if(th.words.has(t) || (t.length>3 && t.endsWith('s') && th.words.has(t.slice(0,-1)))){ n++; lastPos=pos; } });
+    if(n) scored.push({name:th.name, n, lastPos}); }
+  scored.sort((a,b)=>b.n-a.n || b.lastPos-a.lastPos);
+  return scored.map(s=>s.name);
+}
+
+// ---------------------------------------------------------------- analysis
+function resolveImport(fromPath, spec, fileMap){
+  if(!spec) return null;
+  let p;
+  if(spec.startsWith('.')){ const parts=fromPath.split('/'); parts.pop();
+    for(const seg of spec.split('/')){ if(seg==='.'||seg==='') continue; if(seg==='..') parts.pop(); else parts.push(seg); }
+    p=parts.join('/'); }
+  else p=spec.replace(/^\/+/,'');
+  const tries=[p,p+'.js',p+'.mjs',p+'.ts',p+'.cjs',p+'/index.js',p+'/index.ts'];
+  for(const t of tries) if(fileMap.has(t)) return fileMap.get(t);
+  if(!spec.startsWith('.') && !spec.startsWith('/')) return null;   // bare package name
+  for(const t of tries) for(const f of fileMap.values()) if(f.path.endsWith('/'+t)) return f;
+  return null;
+}
+
+function analyse(files, S){
+  const DB={files, fns:[], classes:[], byUid:new Map(), out:new Map(), inn:new Map(), loose:new Map(), themes:parseThemes(S.themes), settings:S};
+  const fileMap=new Map(files.map(f=>[f.path,f]));
+  DB.fileMap=fileMap;
+  // page load graph: which files does each HTML page actually pull in?
+  const pages=files.filter(F=>/\.html?$/i.test(F.path));
+  for(const F of files){ F.deps=new Set(); for(const sp of F.depSpecs||[]){ const t=resolveImport(F.path,sp,fileMap); if(t && t!==F) F.deps.add(t); } F.pages=[]; }
+  for(const P of pages){ const seen=new Set([P]), st=[P]; while(st.length){ for(const d of st.pop().deps) if(!seen.has(d)){ seen.add(d); st.push(d); } } for(const F of seen) if(F!==P) F.pages.push(P.path); P.reach=seen.size-1; }
+  DB.pages=pages; DB.hasPages=pages.some(P=>P.reach>0);
+  for(const F of files) F.unloaded=DB.hasPages && !/\.html?$/i.test(F.path) && !F.pages.length;
+  const add=(m,k,x)=>{ let a=m.get(k); if(!a) m.set(k,a=[]); a.push(x); return a; };
+
+  for(const F of files){
+    F.ek='file'; F.uid='t:'+F.path; F.label=F.path; F.file=F.path; DB.byUid.set(F.uid,F);
+    for(const c of F.classes){ c.id=DB.classes.length; c.uid='c'+c.id; c.file=F.path; DB.classes.push(c); DB.byUid.set(c.uid,c); }
+    for(const fn of F.fns){ fn.id=DB.fns.length; fn.uid='f'+fn.id; fn.file=F.path; DB.fns.push(fn); DB.byUid.set(fn.uid,fn); }
+  }
+  // attach Foo.prototype.bar methods to real classes; synthesise prototype-style classes
+  const clsByName=new Map(); for(const c of DB.classes) add(clsByName,c.name,c);
+  const protoInfo=new Map();
+  for(const F of files) for(const inh of F.inherits) if(!clsByName.has(inh.child)){
+    const p=protoInfo.get(inh.child)||{name:inh.child,file:F.path,line:inh.line}; if(!p.base) p.base=inh.base; protoInfo.set(inh.child,p); }
+  for(const F of files) if(F.protoNames) for(const nm of F.protoNames) if(!clsByName.has(nm) && !protoInfo.has(nm)) protoInfo.set(nm,{name:nm,file:F.path,line:1});
+  for(const fn of DB.fns){
+    if(!fn.cls || fn.clsRef) continue;
+    const real=clsByName.get(fn.cls);
+    if(real){ const c=real.find(x=>x.file===fn.file)||real[0]; fn.clsRef=c; c.methods.push(fn); continue; }
+    if(!protoInfo.has(fn.cls)) protoInfo.set(fn.cls,{name:fn.cls,file:fn.file,line:fn.line});
+  }
+  for(const p of protoInfo.values()){
+    const ctors=DB.fns.filter(f=>!f.cls && !f.ns && !f.parent && f.name===p.name);
+    const ctor=ctors.find(f=>f.file===p.file)||ctors[0]||null;
+    const c={ek:'cls', name:p.name, kind:'prototype', file:ctor?ctor.file:p.file, line:ctor?ctor.line:p.line, endLine:ctor?ctor.endLine:p.line,
+      base:p.base||null, extendsRaw:p.base||null, methods:[], ctorFn:ctor, exported:ctor?ctor.exported:false};
+    c.id=DB.classes.length; c.uid='c'+c.id; DB.classes.push(c); DB.byUid.set(c.uid,c); add(clsByName,c.name,c);
+    if(ctor) ctor.ctorOf=c;
+    for(const fn of DB.fns) if(fn.cls===p.name && !fn.clsRef){ fn.clsRef=c; c.methods.push(fn); }
+  }
+  for(const fn of DB.fns){
+    fn.top=!fn.cls && !fn.ns && !fn.parent;
+    fn.qname=fn.cls?fn.cls+(fn.isStatic?'.':'#')+fn.name : fn.ns?fn.ns+'.'+fn.name : fn.parent?fn.parent.qname+' › '+fn.name : fn.name;
+    fn.label=fn.qname; fn.tokens=nameTokens(fn.name); fn.themes=themesFor(fn.tokens,DB.themes); fn.norm=normName(fn.name);
+  }
+  // hierarchy
+  for(const c of DB.classes){ c.label=c.name; c.subs=[];
+    if(c.base){ const cands=clsByName.get(c.base)||[]; c.baseCls=cands.find(x=>x.file===c.file && x!==c)||cands.find(x=>x!==c)||null; } else c.baseCls=null; }
+  for(const c of DB.classes) if(c.baseCls) c.baseCls.subs.push(c);
+  DB.ancestors=c=>{ const out=[], seen=new Set([c]); let a=c.baseCls; while(a && !seen.has(a)){ out.push(a); seen.add(a); a=a.baseCls; } return out; };
+  DB.descendants=c=>{ const out=[], seen=new Set([c]); const st=[...c.subs]; while(st.length){ const x=st.pop(); if(seen.has(x)) continue; seen.add(x); out.push(x); st.push(...x.subs); } return out; };
+
+  // symbol tables
+  const topByName=new Map(), nsByKey=new Map(), methodsByName=new Map();
+  for(const fn of DB.fns){
+    if(fn.top) add(topByName,fn.name,fn);
+    if(fn.ns) add(nsByKey,fn.ns+'.'+fn.name,fn);
+    if(fn.cls){ if(fn.isStatic) add(nsByKey,fn.cls+'.'+fn.name,fn); else add(methodsByName,fn.name,fn); }
+  }
+  for(const c of DB.classes) if(c.kind==='class' && c.name!=='(anonymous)') add(topByName,c.name,c);
+  for(const F of files){
+    F.topDefs=new Map();
+    for(const fn of F.fns) if(fn.top) add(F.topDefs,fn.name,fn);
+    for(const c of F.classes) add(F.topDefs,c.name,c);
+    F.importMap=new Map();
+    for(const im of F.imports){ if(!im.local) continue; F.importMap.set(im.local,{target:resolveImport(F.path,im.from,fileMap), imported:im.imported, from:im.from}); }
+  }
+  const defsIn=(F,name)=>{
+    if(name===null){ if(F.defaultName) return F.topDefs.get(F.defaultName)||[]; return [...F.fns.filter(f=>f.isDefault),...F.classes.filter(c=>c.isDefault)]; }
+    return F.topDefs.get(name)||[];
+  };
+  const isLocal=(o,name)=>{ while(o){ if(o.locals && o.locals.has(name)) return true; o=o.up; } return false; };
+  const ownerClass=o=>{ while(o){ if(o.ek==='fn' && o.clsRef) return o.clsRef; if(o.ek==='fn' && o.ctorOf) return o.ctorOf; if(o.ek==='cl') return o.cls; o=o.up; } return null; };
+  const findMethod=(cls,name,sup)=>{ let c=sup?cls.baseCls:cls; const seen=new Set(); while(c && !seen.has(c)){ seen.add(c); const m=c.methods.filter(m=>m.name===name); if(m.length) return m; c=c.baseCls; } return []; };
+  const addEdge=(a,b,amb)=>{
+    let m=DB.out.get(a.uid); if(!m) DB.out.set(a.uid,m=new Map()); const e=m.get(b.uid)||{n:0,amb:false}; e.n++; e.amb=e.amb||amb; m.set(b.uid,e);
+    let r=DB.inn.get(b.uid); if(!r) DB.inn.set(b.uid,r=new Map()); const f=r.get(a.uid)||{n:0,amb:false}; f.n++; f.amb=f.amb||amb; r.set(a.uid,f);
+  };
+  const pick=(cands,F)=>{ const same=cands.filter(x=>x.file===F.path); return same.length?{t:same,amb:false}:{t:cands,amb:cands.length>1}; };
+
+  let resolved=0;
+  for(const F of files){
+    for(const r of F.refs){
+      const o=r.owner; const owner=o.ek==='fn'?o:o.ek==='cl'?o.cls:F;
+      let targets=null, amb=false;
+      if(r.qual===null){
+        if(isLocal(o,r.name)) continue;
+        const im=F.importMap.get(r.name);
+        if(im && im.target && im.imported!=='*') targets=defsIn(im.target, im.imported==='default'?null:im.imported);
+        if(!targets || !targets.length){ const c=topByName.get(r.name); if(c){ const p=pick(c,F); targets=p.t; amb=p.amb; } }
+      } else {
+        const q=r.qual, head=q.split('.')[0];
+        if(q==='this'||q==='super'){ const cls=ownerClass(o); if(cls) targets=findMethod(cls,r.name,q==='super'); }
+        else {
+          const im=q.indexOf('.')<0?F.importMap.get(q):null;
+          if(im && im.target){
+            if(im.imported==='*') targets=defsIn(im.target,r.name);
+            else if(im.target.defaultNs) targets=(nsByKey.get(im.target.defaultNs+'.'+r.name)||[]).filter(f=>f.file===im.target.path);
+            if((!targets||!targets.length) && im.imported==='*') targets=DB.fns.filter(f=>f.file===im.target.path && f.ns==='module.exports' && f.name===r.name);
+          }
+          if(!targets || !targets.length){
+            let c=nsByKey.get(q+'.'+r.name); if(!c && q.includes('.')) c=nsByKey.get(q.split('.').pop()+'.'+r.name);
+            if(!c && (head==='window'||head==='globalThis'||head==='self'||head==='global')) c=topByName.get(r.name);
+            if(c){ const p=pick(c,F); targets=p.t; amb=p.amb; }
+          }
+          if(!targets || !targets.length){
+            if(methodsByName.has(r.name)){ const L=DB.loose.get(r.name)||{n:0,files:new Set()}; L.n++; L.files.add(F.path); DB.loose.set(r.name,L); }
+            continue;
+          }
+        }
+      }
+      if(!targets || !targets.length) continue;
+      resolved++;
+      for(const t of targets) if(t!==owner) addEdge(owner,t,amb);
+    }
+  }
+  DB.resolvedRefs=resolved;
+  const fileOf=uid=>DB.byUid.get(uid).file;
+  const summarise=e=>{
+    const inn=DB.inn.get(e.uid)||new Map(), out=DB.out.get(e.uid)||new Map();
+    e.callers=[...inn.entries()].map(([u,x])=>({e:DB.byUid.get(u),n:x.n,amb:x.amb}));
+    e.callees=[...out.entries()].map(([u,x])=>({e:DB.byUid.get(u),n:x.n,amb:x.amb}));
+    e.userFiles=new Set(e.callers.map(c=>c.e.file));
+    e.extFiles=new Set([...e.userFiles].filter(f=>f!==e.file));
+  };
+  DB.fns.forEach(summarise); DB.classes.forEach(summarise); files.forEach(summarise);
+  for(const c of DB.classes){
+    if(c.ctorFn){ c.callers=c.ctorFn.callers; c.userFiles=c.ctorFn.userFiles; c.extFiles=c.ctorFn.extFiles; }
+  }
+  for(const fn of DB.fns){
+    fn.looseN=fn.cls && !fn.isStatic ? (DB.loose.get(fn.name)||{n:0}).n : 0;
+    fn.unused=!fn.callers.length && !fn.exported && !fn.looseN && fn.kind!=='constructor' && !fn.ctorOf && !fn.global && !fn.parent;
+  }
+  DB.inScope=fn=>!fn.parent && (fn.top || !!fn.ns || (S.includeMethods && !!fn.cls && fn.kind!=='constructor'));
+  computeOverlaps(DB,S);
+  computeNodes(DB,S);
+  return DB;
+}
+
+function computeOverlaps(DB,S){
+  const pool=DB.fns.filter(DB.inScope);
+  const rootOf=c=>{ if(!c) return null; const a=DB.ancestors(c); return a.length?a[a.length-1]:c; };
+  const sameFamily=(a,b)=>a.clsRef && b.clsRef && rootOf(a.clsRef)===rootOf(b.clsRef);
+  const groupsBy=(key)=>{ const m=new Map(); for(const f of pool){ const k=key(f); if(k==null) continue; let a=m.get(k); if(!a) m.set(k,a=[]); a.push(f); } return m; };
+  const dropFamilies=g=>g.filter((f,i)=>g.some((h,j)=>j!==i && !sameFamily(f,h)));
+  // same leaf name
+  const sameName=[];
+  for(const [k,g] of groupsBy(f=>f.name)){ const gg=dropFamilies(g); if(gg.length>1) sameName.push({key:k, fns:gg}); }
+  sameName.sort((a,b)=>b.fns.length-a.fns.length || a.key.localeCompare(b.key));
+  // equivalent names after normalisation (colour/color, to/2, case, separators)
+  const equivNames=[];
+  for(const [k,g] of groupsBy(f=>f.norm)){ const gg=dropFamilies(g); if(gg.length>1 && new Set(gg.map(f=>f.name)).size>1) equivNames.push({key:k, fns:gg}); }
+  // identical normalised bodies
+  const identical=[];
+  for(const [k,g] of groupsBy(f=>f.bodyKey)){ const gg=dropFamilies(g); if(gg.length>1) identical.push({key:k, fns:gg}); }
+  identical.sort((a,b)=>b.fns[0].bodyLen-a.fns[0].bodyLen);
+  const identSet=new Set(); identical.forEach(g=>g.fns.forEach(f=>identSet.add(f)));
+  // similar bodies via shingle index
+  const P=pool.filter(f=>f.shingles.length>=8);
+  const inv=new Map(); P.forEach((f,pi)=>{ for(const h of f.shingles){ let a=inv.get(h); if(!a) inv.set(h,a=[]); a.push(pi); } });
+  const pc=new Map();
+  for(const list of inv.values()){ if(list.length<2 || list.length>40) continue;
+    for(let x=0;x<list.length;x++) for(let y=x+1;y<list.length;y++){ const key=list[x]*200000+list[y]; pc.set(key,(pc.get(key)||0)+1); } }
+  const thr=+S.sim||0.6, similar=[];
+  for(const [key,c] of pc){ const a=P[Math.floor(key/200000)], b=P[key%200000];
+    const j=c/(a.shingles.length+b.shingles.length-c);
+    if(j>=thr && !(a.bodyKey && a.bodyKey===b.bodyKey) && !sameFamily(a,b)) similar.push({a,b,score:j}); }
+  similar.sort((x,y)=>y.score-x.score);
+  DB.overlaps={sameName, equivNames, identical, similar};
+  DB.similarOf=new Map();
+  for(const s of similar){ for(const [x,y] of [[s.a,s.b],[s.b,s.a]]){ let a=DB.similarOf.get(x); if(!a) DB.similarOf.set(x,a=[]); a.push({f:y,score:s.score}); } }
+  for(const g of identical) for(const f of g.fns){ let a=DB.similarOf.get(f); if(!a) DB.similarOf.set(f,a=[]); for(const h of g.fns) if(h!==f) a.unshift({f:h,score:1}); }
+}
+
+function computeNodes(DB,S){
+  const regs=[]; for(const F of DB.files) for(const r of F.regs||[]) regs.push({...r, file:F.path});
+  if(regs.length) return computeRegistryNodes(DB,S,regs);
+  const cands=DB.classes.map(c=>({c,n:DB.descendants(c).length})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n);
+  const names=String(S.bases||'').split(',').map(s=>s.trim()).filter(Boolean);
+  let bases=names.flatMap(n=>DB.classes.filter(c=>c.name===n));
+  const auto=!names.length;
+  if(auto && cands.length && cands[0].n>=2){
+    // prefer the top-most ancestor of the largest family
+    let c=cands[0].c; const anc=DB.ancestors(c); if(anc.length) c=anc[anc.length-1]; bases=[c];
+  }
+  const set=new Set(); for(const b of bases){ set.add(b); DB.descendants(b).forEach(d=>set.add(d)); }
+  let re; try{ re=new RegExp(S.compound||'\\bchildren\\b'); }catch(e){ re=/\bchildren\b/; }
+  const spans=c=>{ const s=[]; if(c.kind==='class') s.push([c.line,c.endLine]); else { if(c.ctorFn) s.push([c.ctorFn.line,c.ctorFn.endLine]); for(const m of c.methods) s.push([m.line,m.endLine]); } return s; };
+  const norm=s=>s.toLowerCase().replace(/[^a-z0-9]/g,'');
+  const nodes=[...set];
+  for(const c of nodes){
+    const F=DB.fileMap.get(c.file); const lines=F.lines||(F.lines=(F.raw||'').split('\n'));
+    c.evidence=[];
+    for(const [a,b] of spans(c)) for(let l=a;l<=b && c.evidence.length<4;l++){ const tx=lines[l-1]||''; if(re.test(tx)) c.evidence.push({line:l,text:tx.trim().slice(0,140)}); }
+    c.ownCompound=c.evidence.length>0;
+  }
+  const fileCount=new Map(); for(const c of nodes) fileCount.set(c.file,(fileCount.get(c.file)||0)+1);
+  for(const c of nodes){
+    c.inheritsFrom=null; for(const a of DB.ancestors(c)){ if(!set.has(a)) break; if(a.ownCompound){ c.inheritsFrom=a; break; } }
+    c.nodeKind=c.ownCompound?'compound':c.inheritsFrom?'inherits children':'terminal';
+    const F=DB.fileMap.get(c.file), b=norm(F.base), n=norm(c.name);
+    c.nameMatch= b===n || n===b+'node' || b===n+'node' || n.replace(/node$/,'')===b.replace(/node$/,'');
+    c.nodesInFile=fileCount.get(c.file);
+    c.otherClassesInFile=F.classes.filter(x=>x!==c).length + DB.classes.filter(x=>x.kind==='prototype' && x.file===c.file && x!==c).length;
+    c.bundled=!c.nameMatch || c.nodesInFile>1;
+  }
+  nodes.sort((a,b)=>(b.bundled-a.bundled)||a.name.localeCompare(b.name));
+  DB.nodes={mode:'inherit', bases, auto, cands, nodes, set};
+}
+
+function computeRegistryNodes(DB,S,regs){
+  const byName=new Map(); for(const c of DB.classes){ let a=byName.get(c.name); if(!a) byName.set(c.name,a=[]); a.push(c); }
+  const hp=String(S.handlerParam||'').trim(); const hpRe=hp?new RegExp('^'+hp.replace(/[$]/g,'\\$')+'\\b'):null;
+  let hook; try{ hook=new RegExp(S.hookRe||'^(before|after)_'); }catch(e){ hook=/^(before|after)_/; }
+  const handlers=c=>{ const s=new Set(), seen=new Set(); let k=c; while(k && !seen.has(k)){ seen.add(k); for(const m of k.methods) if(m.kind!=='constructor' && (!hpRe || hpRe.test(m.params||''))) s.add(m.name); k=k.baseCls; } return [...s]; };
+  const norm=x=>String(x).toLowerCase().replace(/[^a-z0-9]/g,'');
+  const rows=regs.map(r=>{
+    const nm=r.clsName.split('.')[0], cands=byName.get(nm)||[];
+    const cls=cands.find(c=>c.file===r.file)||cands[0]||null;
+    const h=cls?handlers(cls):[], hooks=h.filter(x=>hook.test(x));
+    const kind=!cls?'class not found':hooks.length?'container':h.length?'leaf':'no handlers';
+    const file=cls?cls.file:r.file, F=DB.fileMap.get(file);
+    const own=/\.html?$/i.test(file);
+    return {ek:'reg', type:r.type, clsName:r.clsName, cls, regFile:r.file, regLine:r.line, file, line:cls?cls.line:r.line, handlers:h, hooks, kind, pages:own?[file]:F?F.pages:[], ownPage:own, unloaded:F?F.unloaded:false};
+  });
+  const perFile=new Map(); for(const r of rows){ let a=perFile.get(r.file); if(!a) perFile.set(r.file,a=[]); a.push(r); }
+  for(const r of rows){
+    const F=DB.fileMap.get(r.file); const nb=norm(F.base).replace(/zones?$/,'').replace(/node$/,'');
+    const nc=r.cls?norm(r.cls.name).replace(/(node|widget)$/,''):'', nt=norm(r.type).replace(/node$/,'');
+    r.nameMatch= nb===nc || nb===nt;
+    r.typesInFile=perFile.get(r.file).length;
+    r.bundled=!r.nameMatch || new Set(perFile.get(r.file).map(x=>x.cls)).size>1;
+  }
+  const set=new Set(rows.map(r=>r.cls).filter(Boolean));
+  for(const c of set){ const mine=rows.filter(r=>r.cls===c); c.nodeTypes=mine.map(r=>r.type); c.nodeKind=mine.some(r=>r.kind==='container')?'container':'leaf'; c.bundled=mine.some(r=>r.bundled); c.hooks=[...new Set(mine.flatMap(r=>r.hooks))]; }
+  const byType=new Map(); for(const r of rows){ let a=byType.get(r.type); if(!a) byType.set(r.type,a=[]); a.push(r); }
+  const dupTypes=[];
+  for(const [type,l] of byType){ if(l.length<2) continue;
+    const files=[...new Set(l.map(r=>r.file))];
+    const together=DB.hasPages?DB.pages.filter(P=>files.length>1 && files.every(f=>DB.fileMap.get(f).pages.includes(P.path))).map(P=>P.path):[];
+    dupTypes.push({type, rows:l, sameFile:files.length===1, together}); }
+  dupTypes.sort((a,b)=>b.together.length-a.together.length || a.type.localeCompare(b.type));
+  rows.sort((a,b)=>a.type.localeCompare(b.type));
+  DB.nodes={mode:'registry', rows, nodes:rows, set, dupTypes, perFile, bases:[], cands:[], hookRe:String(hook.source), handlerParam:hp};
+}
+
+// ---------------------------------------------------------------- markdown report
+function buildMarkdown(DB){
+  const L=[]; const p=s=>L.push(s);
+  const cell=s=>String(s).replace(/\|/g,'\\|').replace(/\n/g,' ');
+  const where=e=>`${e.file}:${e.line}`;
+  const nFns=DB.fns.length, nTop=DB.fns.filter(f=>f.top).length;
+  p(`# Code inventory`); p('');
+  p(`Generated ${new Date().toISOString().slice(0,16).replace('T',' ')} · ${DB.files.length} files · ${DB.classes.length} classes · ${nFns} functions/methods (${nTop} top-level)`); p('');
+  const N=DB.nodes;
+  p(`## Scene-graph nodes`); p('');
+  if(N.mode==='registry'){
+    const live=N.rows.filter(r=>!r.unloaded);
+    p(`${N.rows.length} registered node types. A **container** has a \`${N.handlerParam||'any'}\` handler matching \`${N.hookRe}\`; the rest are **leaves**.`); p('');
+    if(N.dupTypes.length){ p(`### Type names registered more than once (${N.dupTypes.length})`); p('');
+      for(const d of N.dupTypes) p(`- \`${d.type}\`: ${d.rows.map(r=>`\`${r.clsName}\` (${r.file}${r.unloaded?', not loaded':''})`).join(' vs ')}${d.sameFile?' — same file twice':d.together.length?' — **loaded together on** '+d.together.join(', '):DB.hasPages?' — never loaded together':''}`); p(''); }
+    const multi=[...N.perFile].filter(([f,l])=>new Set(l.map(r=>r.cls)).size>1).sort((a,b)=>b[1].length-a[1].length);
+    p(`### Files registering several node classes (${multi.length})`); p('');
+    for(const [f,l] of multi) p(`- **${f}**${l[0].unloaded?' (not loaded)':''}: ${l.map(r=>r.type+(r.kind==='container'?' [C]':'')).join(', ')}`); p('');
+    for(const k of ['container','leaf']){ const list=live.filter(r=>r.kind===k);
+      p(`### ${k==='container'?'Containers':'Leaves'} (${list.length})`); p('');
+      p(`| Type | Class | File | ${k==='container'?'Hooks':'Handlers'} |`); p('|---|---|---|---|');
+      for(const r of list) p(`| \`${r.type}\` | \`${r.clsName}\` | ${cell(r.file)}:${r.line} | ${cell((k==='container'?r.hooks:r.handlers).join(' '))} |`); p(''); }
+    const odd=N.rows.filter(r=>r.kind!=='container'&&r.kind!=='leaf'); if(odd.length){ p(`### Unclassified (${odd.length})`); p(''); for(const r of odd) p(`- \`${r.type}\` → \`${r.clsName}\` (${r.file}): ${r.kind}`); p(''); }
+    const dead=N.rows.filter(r=>r.unloaded); if(dead.length){ p(`### Registered in files no page loads (${dead.length})`); p(''); p(dead.map(r=>`\`${r.type}\` (${r.file})`).join(', ')); p(''); }
+  }
+  else if(!N.bases.length){ p('_No base class found. Set one in Settings._'); }
+  else {
+    p(`Base: ${N.bases.map(b=>'`'+b.name+'`').join(', ')}${N.auto?' (auto-detected)':''} · ${N.nodes.length} node classes`); p('');
+    const bundled=N.nodes.filter(c=>c.bundled);
+    p(`### Declared outside their own file (${bundled.length})`); p('');
+    if(bundled.length){ p('| Class | File | Line | Node classes in file | Kind |'); p('|---|---|---:|---:|---|');
+      for(const c of bundled) p(`| \`${c.name}\` | ${cell(c.file)} | ${c.line} | ${c.nodesInFile} | ${c.nodeKind} |`); } else p('_None._');
+    p('');
+    for(const k of ['compound','inherits children','terminal']){
+      const list=N.nodes.filter(c=>c.nodeKind===k).sort((a,b)=>a.name.localeCompare(b.name));
+      p(`### ${k[0].toUpperCase()+k.slice(1)} (${list.length})`); p('');
+      if(!list.length){ p('_None._'); p(''); continue; }
+      p('| Class | Extends | File | Subclasses | Evidence |'); p('|---|---|---|---:|---|');
+      for(const c of list) p(`| \`${c.name}\` | ${c.base?'`'+c.base+'`':''} | ${cell(c.file)}:${c.line} | ${c.subs.length} | ${c.evidence[0]?cell('L'+c.evidence[0].line+': '+c.evidence[0].text):c.inheritsFrom?'via `'+c.inheritsFrom.name+'`':''} |`);
+      p('');
+    }
+  }
+  const O=DB.overlaps;
+  p(`## Overlaps`); p('');
+  p(`### Same name in several places (${O.sameName.length})`); p('');
+  for(const g of O.sameName) p(`- \`${g.key}\` — ${g.fns.map(f=>`\`${f.qname}\` (${where(f)})`).join(', ')}`);
+  p(''); p(`### Equivalent names (${O.equivNames.length})`); p(''); p('Names that collide after ignoring case, separators, colour/color and to/2.'); p('');
+  for(const g of O.equivNames) p(`- ${g.fns.map(f=>`\`${f.qname}\` (${where(f)})`).join(' ≈ ')}`);
+  p(''); p(`### Identical bodies (${O.identical.length})`); p('');
+  for(const g of O.identical) p(`- ${g.fns.map(f=>`\`${f.qname}\` (${where(f)})`).join(' = ')}`);
+  p(''); p(`### Similar bodies (${O.similar.length})`); p('');
+  for(const s of O.similar.slice(0,300)) p(`- ${(s.score*100).toFixed(0)}% \`${s.a.qname}\` (${where(s.a)}) ~ \`${s.b.qname}\` (${where(s.b)})`);
+  p('');
+  // theme x file
+  const pool=DB.fns.filter(DB.inScope);
+  const themeNames=[...DB.themes.map(t=>t.name),'other'];
+  const byFile=new Map(); for(const f of pool){ let m=byFile.get(f.file); if(!m) byFile.set(f.file,m=new Map()); const t=f.themes[0]||'other'; m.set(t,(m.get(t)||0)+1); }
+  p(`## Themes × files`); p(''); p('Primary theme of each support function (top-level and namespace functions).'); p('');
+  p('| File | '+themeNames.join(' | ')+' |'); p('|---|'+themeNames.map(()=>'---:').join('|')+'|');
+  for(const [file,m] of [...byFile].sort((a,b)=>a[0].localeCompare(b[0]))) p(`| ${cell(file)} | `+themeNames.map(t=>m.get(t)||'').join(' | ')+' |');
+  p('');
+  for(const th of themeNames){
+    const list=pool.filter(f=>(f.themes[0]||'other')===th); if(!list.length) continue;
+    p(`### ${th} (${list.length})`); p('');
+    const g=new Map(); for(const f of list){ let a=g.get(f.file); if(!a) g.set(f.file,a=[]); a.push(f); }
+    for(const [file,a] of [...g].sort((x,y)=>y[1].length-x[1].length)) p(`- **${file}**: ${a.sort((x,y)=>x.name.localeCompare(y.name)).map(f=>'`'+f.qname+'`').join(', ')}`);
+    p('');
+  }
+  // usage
+  p(`## Cross-file usage`); p('');
+  const prov=DB.files.map(F=>{ const users=new Map(); for(const e of [...F.fns,...F.classes]) for(const c of e.callers) if(c.e.file!==F.path) users.set(c.e.file,(users.get(c.e.file)||0)+c.n); return {F,users}; }).filter(x=>x.users.size).sort((a,b)=>b.users.size-a.users.size);
+  for(const {F,users} of prov) p(`- **${F.path}** is used by ${users.size} file(s): ${[...users].sort((a,b)=>b[1]-a[1]).map(([f,n])=>`${f} (${n})`).join(', ')}`);
+  p('');
+  const unused=DB.fns.filter(f=>f.unused && DB.inScope(f));
+  p(`### Apparently unused (${unused.length})`); p(''); p('No resolved reference anywhere in the scanned files and not exported. Check for dynamic calls before deleting.'); p('');
+  for(const f of unused) p(`- \`${f.qname}\` (${where(f)})`);
+  p('');
+  if(DB.hasPages){ const unl=DB.files.filter(F=>F.unloaded);
+    p(`## Pages and load reach`); p(''); for(const P of DB.pages) p(`- ${P.path}: ${P.reach} files`); p('');
+    p(`### Files no page loads (${unl.length})`); p(''); for(const F of unl) p(`- ${F.path} (${F.lineCount} lines)`); p(''); }
+  // inventory
+  p(`## Inventory by file`); p('');
+  for(const F of [...DB.files].sort((a,b)=>a.path.localeCompare(b.path))){
+    const cls=DB.classes.filter(c=>c.file===F.path), fns=F.fns.filter(f=>!f.clsRef && !f.parent);
+    if(!cls.length && !fns.length) continue;
+    p(`### ${F.path}`); p('');
+    for(const c of cls){
+      p(`- **class \`${c.name}\`**${c.base?' extends `'+c.base+'`':''} — L${c.line}–${c.endLine}${c.kind==='prototype'?' (prototype style)':''}`);
+      if(c.methods.length) p(`  - methods: ${c.methods.map(m=>'`'+(m.isStatic?'static ':'')+m.name+'`').join(', ')}`);
+    }
+    for(const f of fns) p(`- \`${f.qname}(${f.params})\` — L${f.line}${f.themes.length?' · '+f.themes.join(', '):''} · used by ${f.callers.length}${f.extFiles.size?' in '+f.extFiles.size+' other file(s)':''}${f.exported?' · exported':''}`);
+    p('');
+  }
+  return L.join('\n');
+}
+
+function buildJson(DB){
+  const fnJ=f=>({name:f.name, qname:f.qname, kind:f.kind, line:f.line, endLine:f.endLine, params:f.params, themes:f.themes, exported:f.exported,
+    usedBy:f.callers.map(c=>({who:c.e.label, file:c.e.file, n:c.n, ambiguous:c.amb||undefined})), uses:f.callees.map(c=>({what:c.e.label, file:c.e.file, n:c.n}))});
+  return {
+    generated:new Date().toISOString(),
+    files:DB.files.map(F=>({path:F.path, lines:F.lineCount, pages:F.pages,
+      classes:DB.classes.filter(c=>c.file===F.path).map(c=>({name:c.name, kind:c.kind, extends:c.extendsRaw, line:c.line, endLine:c.endLine, methods:c.methods.map(fnJ)})),
+      functions:F.fns.filter(f=>!f.clsRef).map(fnJ)})),
+    sceneNodes:DB.nodes.mode==='registry'?DB.nodes.rows.map(r=>({type:r.type, cls:r.clsName, file:r.file, line:r.line, kind:r.kind, hooks:r.hooks, handlers:r.handlers, pages:r.pages, typesInFile:r.typesInFile})):DB.nodes.nodes.map(c=>({name:c.name, file:c.file, line:c.line, extends:c.base, kind:c.nodeKind, ownFile:!c.bundled, nodesInFile:c.nodesInFile, subclasses:c.subs.map(s=>s.name)})),
+    overlaps:{
+      sameName:DB.overlaps.sameName.map(g=>g.fns.map(f=>f.qname+' @ '+f.file+':'+f.line)),
+      equivalentNames:DB.overlaps.equivNames.map(g=>g.fns.map(f=>f.qname+' @ '+f.file+':'+f.line)),
+      identicalBodies:DB.overlaps.identical.map(g=>g.fns.map(f=>f.qname+' @ '+f.file+':'+f.line)),
+      similarBodies:DB.overlaps.similar.map(s=>({score:+s.score.toFixed(3), a:s.a.qname+' @ '+s.a.file+':'+s.a.line, b:s.b.qname+' @ '+s.b.file+':'+s.b.line}))
+    }
+  };
+}
+/*CORE-END*/
+
+// ============================================================================
+//  UI
+// ============================================================================
+const THEMES_DEFAULT=`colour: colour color rgb rgba hsl hsla hsv hsb hex hue sat saturation lightness luminance lum tint tone shade palette gradient alpha opacity lab lch oklab gamma srgb grey gray contrast brightness
+maths: lerp clamp mix smoothstep step remap sign abs round floor ceil sqrt pow log exp min max sum mean avg average wrap mod fract approx epsilon sigmoid
+vector & matrix: vec vec2 vec3 vec4 vector dot cross normalize normalise length magnitude dist distance mat mat3 mat4 matrix quat quaternion transform rotate rotation scale translate project unproject inverse invert transpose
+geometry: point rect bounds bbox aabb box circle sphere polygon poly line segment ray plane intersect intersection contains inside area angle arc curve bezier spline path triangle mesh vertex vertices normal
+random & noise: rand random noise seed perlin simplex shuffle jitter gaussian
+text & format: str string text format pad trim parse label font word char capitalise capitalize truncate escape fixed precision
+dom & ui: el elem element dom div button panel menu slider ui css style html show hide toggle append widget dialog modal tooltip checkbox select option tab
+input & events: mouse key keyboard touch pointer event click drag drop wheel input listen listener handler on emit dispatch subscribe
+canvas & render: draw render canvas ctx context paint fill stroke webgl gl shader texture image pixel buffer viewport camera light
+scene & tree: node child children parent tree traverse walk visit graph root leaf descend descendants ancestor scene
+file & io: load save file fetch json export import download upload url serialize serialise deserialize read write storage cache
+time & animation: time timer anim animate animation tween ease easing frame tick delay interval schedule duration
+collections: array arr list filter sort unique range zip flatten chunk group index find dict keys values each
+debug: log debug trace assert warn error dump print test bench profile`;
+const DEFAULTS={exts:'js, mjs, cjs, ts, html, htm', ignore:'node_modules, .git, dist, build, vendor, third_party, *.min.js',
+  regRe:String.raw`NODE_CLASSES\.push\(\s*\{\s*name\s*:\s*['"]([^'"]+)['"]\s*,\s*cls\s*:\s*([\w$.]+)`, handlerParam:'ctxMix', hookRe:'^(before|after)_', bases:'', compound:'\\bchildren\\b|addChild|removeChild|\\bkids\\b', sim:0.6, includeMethods:false, themes:THEMES_DEFAULT};
+let S=(()=>{ try{ return {...DEFAULTS, ...JSON.parse(localStorage.getItem('codeCartographer')||'{}')}; }catch(e){ return {...DEFAULTS}; } })();
+const saveS=()=>{ try{ localStorage.setItem('codeCartographer',JSON.stringify(S)); }catch(e){} };
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let SOURCE=null, RAW=[], DB=null, TAB='overview';
+const UI={fn:{q:'',file:'',theme:'',scope:'support',unused:false,sort:'name',dir:1}, files:{q:''}, themeSel:null, ovl:'sameName'};
+
+// ---------------------------------------------------------------- loading
+const extList=()=>S.exts.split(',').map(s=>s.trim().replace(/^\./,'').toLowerCase()).filter(Boolean);
+const ignoreList=()=>S.ignore.split(',').map(s=>s.trim()).filter(Boolean).map(p=>p.includes('*')?{re:new RegExp('(^|/)'+p.replace(/[.+^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'[^/]*')+'$')}:{s:p});
+function ignored(path){ for(const ig of ignoreList()){ if(ig.re){ if(ig.re.test(path)) return true; } else if(('/'+path+'/').includes('/'+ig.s+'/')||path.split('/').pop()===ig.s) return true; } return false; }
+const wanted=path=>{ const ext=(path.split('.').pop()||'').toLowerCase(); return extList().includes(ext) && !ignored(path); };
+
+async function walkHandle(h,prefix,out){
+  for await (const [name,child] of h.entries()){
+    const p=prefix+name;
+    if(child.kind==='directory'){ if(!ignored(p)) await walkHandle(child,p+'/',out); }
+    else if(wanted(p)){ const f=await child.getFile(); out.push({path:p,file:f}); }
+  }
+}
+async function walkEntry(entry,prefix,out){
+  if(entry.isFile){ const p=prefix+entry.name; if(wanted(p)) out.push({path:p,file:await new Promise((res,rej)=>entry.file(res,rej))}); return; }
+  const p=prefix+entry.name; if(prefix && ignored(p)) return;
+  const reader=entry.createReader(); let batch;
+  do{ batch=await new Promise((res,rej)=>reader.readEntries(res,rej)); for(const e of batch) await walkEntry(e,prefix?p+'/':'',out); } while(batch.length);
+}
+async function collect(){
+  const out=[];
+  if(SOURCE.kind==='handle') await walkHandle(SOURCE.handle,'',out);
+  else if(SOURCE.kind==='entries'){ for(const e of SOURCE.entries) await walkEntry(e, SOURCE.entries.length>1?'':'', out); }
+  else for(const f of SOURCE.files){ const p=(f.webkitRelativePath||f.name).split('/').slice(1).join('/')||f.name; if(wanted(p)) out.push({path:p,file:f}); }
+  return out;
+}
+async function load(){
+  status('Reading files…');
+  const t0=performance.now();
+  let list; try{ list=await collect(); }catch(e){ status('Could not read the folder: '+e.message); return; }
+  const skipped=[]; RAW=[];
+  for(const it of list){ if(it.file.size>2e6){ skipped.push(it.path); continue; } try{ RAW.push({path:it.path, text:await it.file.text()}); }catch(e){ skipped.push(it.path); } }
+  RAW.sort((a,b)=>a.path.localeCompare(b.path));
+  RAW.skipped=skipped;
+  run(t0);
+}
+function run(t0=performance.now()){
+  status(`Parsing ${RAW.length} files…`);
+  setTimeout(()=>{
+    const parsed=[]; const errors=[];
+    for(const r of RAW){ try{ const F=parseFile(r.path,r.text,{regRe:S.regRe}); F.raw=r.text; parsed.push(F); }catch(e){ errors.push(r.path+': '+e.message); console.error(r.path,e); } }
+    DB=analyse(parsed,S); DB.errors=errors; DB.skipped=RAW.skipped||[];
+    const ms=Math.round(performance.now()-t0);
+    status(`${DB.files.length} files · ${DB.classes.length} classes · ${DB.fns.length} functions & methods · ${ms} ms${errors.length?` · ${errors.length} parse errors`:''}`);
+    ['btnRescan','btnMd','btnJson','search'].forEach(id=>$('#'+id).disabled=false);
+    renderTabs(); render();
+  },20);
+}
+function status(s){ $('#status').textContent=s; }
+
+$('#btnOpen').onclick=async()=>{
+  if(window.showDirectoryPicker){
+    try{ const h=await window.showDirectoryPicker(); SOURCE={kind:'handle',handle:h}; load(); return; }
+    catch(e){ if(e.name==='AbortError') return; }
+  }
+  $('#fileInput').click();
+};
+$('#fileInput').onchange=e=>{ if(!e.target.files.length) return; SOURCE={kind:'files',files:[...e.target.files]}; load(); };
+$('#btnRescan').onclick=()=>{ if(SOURCE) load(); };
+document.addEventListener('dragover',e=>{ e.preventDefault(); document.body.classList.add('drag'); });
+document.addEventListener('dragleave',e=>{ if(!e.relatedTarget) document.body.classList.remove('drag'); });
+document.addEventListener('drop',async e=>{
+  e.preventDefault(); document.body.classList.remove('drag');
+  const items=[...e.dataTransfer.items];
+  const handles=[];
+  for(const it of items){ if(it.getAsFileSystemHandle){ try{ const h=await it.getAsFileSystemHandle(); if(h && h.kind==='directory') handles.push(h); }catch(_){} } }
+  if(handles.length===1){ SOURCE={kind:'handle',handle:handles[0]}; load(); return; }
+  const entries=items.map(i=>i.webkitGetAsEntry&&i.webkitGetAsEntry()).filter(Boolean);
+  if(entries.length===1 && entries[0].isDirectory){ SOURCE={kind:'entries',entries:[entries[0]]}; load(); return; }
+  if(entries.length){ SOURCE={kind:'entries',entries}; load(); }
+});
+
+// ---------------------------------------------------------------- settings
+function fillSettings(){ $('#sReg').value=S.regRe; $('#sHandler').value=S.handlerParam; $('#sHook').value=S.hookRe; $('#sExts').value=S.exts; $('#sIgnore').value=S.ignore; $('#sBases').value=S.bases; $('#sCompound').value=S.compound; $('#sSim').value=S.sim; $('#sMethods').checked=!!S.includeMethods; $('#sThemes').value=S.themes; }
+fillSettings();
+$('#btnApply').onclick=()=>{
+  const reread=$('#sExts').value!==S.exts || $('#sIgnore').value!==S.ignore;
+  S={regRe:$('#sReg').value, handlerParam:$('#sHandler').value, hookRe:$('#sHook').value, exts:$('#sExts').value, ignore:$('#sIgnore').value, bases:$('#sBases').value, compound:$('#sCompound').value, sim:+$('#sSim').value||0.6, includeMethods:$('#sMethods').checked, themes:$('#sThemes').value};
+  saveS(); $('#applyNote').textContent='Saved.';
+  setTimeout(()=>$('#applyNote').textContent='',1500);
+  if(!SOURCE) return;
+  if(reread) load(); else run();
+};
+$('#btnReset').onclick=()=>{ S={...DEFAULTS}; saveS(); fillSettings(); if(SOURCE) load(); };
+
+// ---------------------------------------------------------------- downloads
+function download(name,text,type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); }
+$('#btnMd').onclick=()=>DB&&download('code-inventory.md',buildMarkdown(DB),'text/markdown');
+$('#btnJson').onclick=()=>DB&&download('code-inventory.json',JSON.stringify(buildJson(DB),null,1),'application/json');
+
+// ---------------------------------------------------------------- tabs
+const TABS=[['overview','Overview'],['files','Files'],['nodes','Scene nodes'],['functions','Functions'],['themes','Themes'],['overlaps','Overlaps'],['usage','Usage']];
+function renderTabs(){
+  const n={files:DB.files.length, nodes:DB.nodes.nodes.length, functions:DB.fns.filter(DB.inScope).length,
+    overlaps:DB.overlaps.sameName.length+DB.overlaps.equivNames.length+DB.overlaps.identical.length+DB.overlaps.similar.length};
+  $('#tabs').innerHTML=TABS.map(([k,l])=>`<button data-tab="${k}" class="${TAB===k?'on':''}">${l}${n[k]!=null?`<span class="n">${n[k]}</span>`:''}</button>`).join('');
+}
+$('#tabs').onclick=e=>{ const b=e.target.closest('[data-tab]'); if(!b||!DB) return; TAB=b.dataset.tab; renderTabs(); render(); };
+function render(){ if(!DB) return; ({overview:rOverview,files:rFiles,nodes:rNodes,functions:rFunctions,themes:rThemes,overlaps:rOverlaps,usage:rUsage})[TAB](); }
+function goTab(t){ TAB=t; renderTabs(); render(); window.scrollTo(0,0); }
+
+// ---------------------------------------------------------------- helpers
+const link=e=>e?`<a class="sym" data-uid="${esc(e.uid)}">${esc(e.label)}</a>`:'';
+const pagesCell=e=>!DB.hasPages?'':e.ownPage?'<span class="chip" title="Defined inside this HTML page itself">own page</span>':e.unloaded?'<span class="chip warn" title="No HTML page imports this file, directly or indirectly">not loaded</span>':`<span class="muted" title="${esc((e.pages||[]).join('\n'))}">${(e.pages||[]).length}</span>`;
+const flink=path=>`<a class="file" data-file="${esc(path)}">${esc(path)}</a>`;
+const loc=e=>`<span class="file">${esc(e.file)}:${e.line}</span>`;
+const themeChips=f=>f.themes.map((t,i)=>`<span class="chip t" data-theme="${esc(t)}" title="${i?'also matches':'primary theme'}">${esc(t)}</span>`).join('');
+function sourceOf(file){ const F=DB.fileMap.get(file); return F.lines||(F.lines=F.raw.split('\n')); }
+function snippet(file,a,b,hl,max=200){
+  const lines=sourceOf(file); const end=Math.min(b,a+max-1); let s='';
+  for(let l=a;l<=end;l++) s+=`<span class="${hl&&hl.has(l)?'hl':''}"><span class="ln">${l}</span>${esc(lines[l-1]||'')}\n</span>`;
+  if(b>end) s+=`<span class="muted"><span class="ln">…</span>${b-end} more lines\n</span>`;
+  return `<pre class="src">${s}</pre>`;
+}
+function groupedRefs(list,emptyText){
+  if(!list.length) return `<p class="muted">${emptyText}</p>`;
+  const g=new Map(); for(const c of list){ let a=g.get(c.e.file); if(!a) g.set(c.e.file,a=[]); a.push(c); }
+  return [...g].sort((a,b)=>b[1].length-a[1].length).map(([file,a])=>`<div style="margin:4px 0"><div class="file">${esc(file)}</div><ul>${a.map(c=>`<li>${c.e.ek==='file'?'<span class="muted">(file top level)</span>':link(c.e)}${c.n>1?` <span class="muted">×${c.n}</span>`:''}${c.amb?' <span class="chip warn" title="Name defined in several files; could be any of them">ambiguous</span>':''}</li>`).join('')}</ul></div>`).join('');
+}
+
+// ---------------------------------------------------------------- overview
+function rOverview(){
+  const O=DB.overlaps, N=DB.nodes, pool=DB.fns.filter(DB.inScope);
+  const bundled=N.nodes.filter(c=>c.bundled).length, unused=pool.filter(f=>f.unused).length;
+  const hubs=[...pool].sort((a,b)=>b.extFiles.size-a.extFiles.size||b.callers.length-a.callers.length).slice(0,12);
+  const bigFiles=DB.files.map(F=>({F,n:F.fns.filter(f=>DB.inScope(f)).length})).sort((a,b)=>b.n-a.n).slice(0,8);
+  $('#view').innerHTML=`
+  <div class="cards">
+    <div class="card"><b>${DB.files.length}</b><span>files scanned</span></div>
+    <div class="card"><b>${DB.classes.length}</b><span>classes</span></div>
+    <div class="card"><b>${pool.length}</b><span>support functions${S.includeMethods?' &amp; methods':''}</span></div>
+    <div class="card"><b>${N.nodes.length}</b><span>scene-node classes</span></div>
+    <div class="card ${bundled?'warn':''}"><b>${bundled}</b><span>nodes outside their own file</span></div>
+    <div class="card ${O.sameName.length+O.equivNames.length?'warn':''}"><b>${O.sameName.length+O.equivNames.length}</b><span>duplicate / equivalent names</span></div>
+    <div class="card ${O.identical.length?'warn':''}"><b>${O.identical.length}</b><span>identical bodies</span></div>
+    <div class="card"><b>${O.similar.length}</b><span>similar pairs ≥ ${Math.round(S.sim*100)}%</span></div>
+    <div class="card"><b>${unused}</b><span>apparently unused</span></div>
+    ${DB.hasPages?`<div class="card ${DB.files.filter(F=>F.unloaded).length?'warn':''}"><b>${DB.files.filter(F=>F.unloaded).length}</b><span>files no page loads</span></div>`:''}
+  </div>
+  <section class="block"><h2>Most widely used</h2><p class="hint">Support functions referenced from the most other files — the stable core of any reorganisation.</p>
+    <div class="tw"><table><tr><th>Function</th><th>Defined in</th><th class="num">Other files</th><th class="num">Callers</th><th>Themes</th></tr>
+    ${hubs.map(f=>`<tr><td>${link(f)}</td><td>${loc(f)}</td><td class="num">${f.extFiles.size}</td><td class="num">${f.callers.length}</td><td>${themeChips(f)}</td></tr>`).join('')}</table></div></section>
+  <section class="block"><h2>Files holding the most support functions</h2>
+    <div class="tw"><table><tr><th>File</th><th class="num">Functions</th><th>Theme mix</th></tr>
+    ${bigFiles.map(({F,n})=>{ const m=new Map(); F.fns.filter(DB.inScope).forEach(f=>{ const t=f.themes[0]||'other'; m.set(t,(m.get(t)||0)+1); });
+      return `<tr><td>${flink(F.path)}</td><td class="num">${n}</td><td>${[...m].sort((a,b)=>b[1]-a[1]).map(([t,c])=>`<span class="chip">${esc(t)} ${c}</span>`).join('')}</td></tr>`; }).join('')}</table></div></section>
+  ${DB.errors.length||DB.skipped.length?`<section class="block"><h2>Not analysed</h2>${DB.skipped.map(s=>`<div class="file">${esc(s)} — skipped (over 2 MB or unreadable)</div>`).join('')}${DB.errors.map(s=>`<div class="file">${esc(s)}</div>`).join('')}</section>`:''}
+  <p class="hint">Caveats: references are matched by name and scope, not by running the code. Calls through instances (<code>obj.method()</code>) are counted loosely by method name; calls built from strings or computed property names are invisible.</p>`;
+}
+
+// ---------------------------------------------------------------- files
+function rFiles(){
+  const q=UI.files.q.toLowerCase();
+  const items=DB.files.map(F=>{
+    const cls=DB.classes.filter(c=>c.file===F.path), fns=F.fns.filter(f=>!f.clsRef && !f.parent);
+    const nodeCls=cls.filter(c=>DB.nodes.set.has(c));
+    const hit=!q || F.path.toLowerCase().includes(q) || cls.some(c=>c.name.toLowerCase().includes(q)) || fns.some(f=>f.qname.toLowerCase().includes(q));
+    return {F,cls,fns,nodeCls,hit};
+  }).filter(x=>x.hit);
+  $('#view').innerHTML=`<section class="block"><h2>Declarations by file</h2>
+    <div class="toolbar"><input type="search" id="fq" placeholder="Filter files or names…" value="${esc(UI.files.q)}"><button id="fx">Expand all</button><button id="fc">Collapse all</button>
+    <span class="legend">Nested functions are listed under their parent in the detail panel. <span class="chip warn">n nodes</span> marks files holding several scene-node classes.</span></div>
+    ${items.map(({F,cls,fns,nodeCls})=>`<details class="fileitem" ${q?'open':''}><summary><span class="mono">${esc(F.path)}</span>
+      <span class="muted">${cls.length} class${cls.length===1?'':'es'} · ${fns.length} fn · ${F.lineCount} lines</span>
+      ${F.unloaded?'<span class="chip warn">not loaded</span>':''}${nodeCls.length>1?`<span class="chip warn">${nodeCls.length} nodes</span>`:''}${nodeCls.length===1&&nodeCls[0].bundled?'<span class="chip warn">node name ≠ file</span>':''}
+      <a data-file="${esc(F.path)}" class="muted" style="margin-left:auto;font-size:12px">details</a></summary>
+      <div class="inner">${cls.map(c=>`<div>${DB.nodes.set.has(c)?'<span class="chip ok">node</span>':''}<b>class</b> ${link(c)}${c.base?` <span class="muted">extends</span> ${c.baseCls?link(c.baseCls):esc(c.base)}`:''} <span class="file">L${c.line}–${c.endLine}${c.kind==='prototype'?' · prototype style':''}</span>
+          ${c.methods.length?`<ul class="tree">${c.methods.map(m=>`<li>${m.isStatic?'<span class="muted">static</span> ':''}${m.kind==='getter'?'<span class="muted">get</span> ':m.kind==='setter'?'<span class="muted">set</span> ':''}<a class="sym" data-uid="${m.uid}">${esc(m.name)}</a><span class="muted">(${esc(m.params)})</span> <span class="file">L${m.line}</span></li>`).join('')}</ul>`:''}</div>`).join('')}
+        ${fns.length?`<ul class="tree" style="padding-left:0">${fns.map(f=>`<li><span class="muted">${esc(f.kind==='member'?'':f.kind==='function'?'ƒ':f.kind==='arrow'?'⇒':f.kind)}</span> ${link(f)}<span class="muted">(${esc(f.params)})</span> <span class="file">L${f.line}</span> ${themeChips(f)}${f.unused?'<span class="chip warn">unused?</span>':''}</li>`).join('')}</ul>`:''}
+      </div></details>`).join('')}</section>`;
+  $('#fq').oninput=e=>{ UI.files.q=e.target.value; const p=e.target.selectionStart; rFiles(); const n=$('#fq'); n.focus(); n.setSelectionRange(p,p); };
+  $('#fx').onclick=()=>document.querySelectorAll('details.fileitem').forEach(d=>d.open=true);
+  $('#fc').onclick=()=>document.querySelectorAll('details.fileitem').forEach(d=>d.open=false);
+}
+
+// ---------------------------------------------------------------- scene nodes
+function rNodes(){
+  if(DB.nodes.mode==='registry') return rRegistry();
+  const N=DB.nodes;
+  const opts=N.cands.slice(0,30).map(x=>`<option value="${esc(x.c.name)}" ${N.bases.includes(x.c)?'selected':''}>${esc(x.c.name)} — ${x.n} descendants (${esc(x.c.file)})</option>`).join('');
+  const table=(list,showWhy)=>`<div class="tw"><table><tr><th>Class</th><th>Extends</th><th>File</th><th class="num">Nodes in file</th><th>Kind</th><th class="num">Subclasses</th><th class="num">Used in files</th>${showWhy?'<th>Evidence</th>':''}</tr>
+    ${list.map(c=>`<tr><td>${link(c)}</td><td>${c.baseCls?link(c.baseCls):esc(c.base||'')}</td><td>${flink(c.file)}<span class="file">:${c.line}</span>${c.nameMatch?'':' <span class="chip warn">name ≠ file</span>'}</td>
+      <td class="num ${c.nodesInFile>1?'flag':''}">${c.nodesInFile}</td><td>${kindChip(c)}</td><td class="num">${c.subs.length}</td><td class="num">${c.userFiles.size}</td>
+      ${showWhy?`<td class="mono" style="font-size:11.5px">${c.evidence[0]?`L${c.evidence[0].line}: ${esc(c.evidence[0].text)}`:c.inheritsFrom?`via ${esc(c.inheritsFrom.name)}`:''}</td>`:''}</tr>`).join('')}</table></div>`;
+  const kinds=['compound','inherits children','terminal'];
+  const tree=c=>`<li>${link(c)} ${kindChip(c)} ${c.bundled?`<span class="file flag">${esc(c.file)}</span>`:`<span class="file">${esc(c.file)}</span>`}${c.subs.length?`<ul>${[...c.subs].sort((a,b)=>a.name.localeCompare(b.name)).map(tree).join('')}</ul>`:''}</li>`;
+  $('#view').innerHTML=`
+  <section class="block"><h2>Scene-graph node classes</h2>
+    <p class="hint">Every class descending from the base class(es). “Compound” means the class’s own source matches the children pattern (<code>${esc(S.compound)}</code>); “inherits children” means only an ancestor does. Change the pattern or base in Settings.</p>
+    <div class="toolbar"><label>Base class <select id="nb"><option value="">(auto)</option>${opts}</select></label>
+      ${N.bases.length?`<span class="muted">${N.auto?'auto-detected':'from settings'}: ${N.bases.map(b=>link(b)).join(', ')}</span>`:'<span class="flag">No class hierarchy with 2+ descendants found.</span>'}</div>
+    <div class="cards">${kinds.map(k=>`<div class="card"><b>${N.nodes.filter(c=>c.nodeKind===k).length}</b><span>${k}</span></div>`).join('')}
+      <div class="card ${N.nodes.some(c=>c.bundled)?'warn':''}"><b>${N.nodes.filter(c=>c.bundled).length}</b><span>outside their own file</span></div></div>
+  </section>
+  <section class="block"><h2>Declared outside their own file</h2><p class="hint">File name doesn’t match the class name (allowing a “Node” suffix either way), or the file holds more than one node class.</p>
+    ${N.nodes.some(c=>c.bundled)?table(N.nodes.filter(c=>c.bundled),false):'<p class="muted">None — every node class has a file of its own.</p>'}</section>
+  ${kinds.map(k=>{ const l=N.nodes.filter(c=>c.nodeKind===k).sort((a,b)=>a.name.localeCompare(b.name)); return l.length?`<section class="block"><h2>${k[0].toUpperCase()+k.slice(1)} (${l.length})</h2>${table(l,true)}</section>`:''; }).join('')}
+  ${N.bases.length?`<section class="block hier"><h2>Hierarchy</h2><ul style="padding-left:0;border:0">${N.bases.map(tree).join('')}</ul></section>`:''}
+  <section class="block"><h2>Other class families</h2><p class="hint">Root classes with subclasses that are not part of the node hierarchy.</p>
+    <div class="tw"><table><tr><th>Root</th><th>File</th><th class="num">Descendants</th></tr>${N.cands.filter(x=>!x.c.baseCls && !N.set.has(x.c)).map(x=>`<tr><td>${link(x.c)}</td><td>${loc(x.c)}</td><td class="num">${x.n}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">None</td></tr>'}</table></div></section>`;
+  $('#nb').onchange=e=>{ S.bases=e.target.value; saveS(); $('#sBases').value=S.bases; computeNodes(DB,S); renderTabs(); rNodes(); };
+}
+const kindChip=c=>{ const k=c.kind||c.nodeKind; return !k?'':`<span class="chip ${k==='compound'||k==='container'?'ok':k==='terminal'||k==='leaf'?'':k==='inherits children'?'t':'warn'}">${esc(k)}</span>`; };
+function rRegistry(){
+  const N=DB.nodes, rows=N.rows;
+  const tag=r=>`<span class="mono">${esc(r.type)}</span>`;
+  const clsCell=r=>r.cls?link(r.cls):`<span class="flag mono">${esc(r.clsName)}</span>`;
+  const fileCell=r=>`${flink(r.file)}<span class="file">:${r.line}</span>${r.nameMatch?'':' <span class="chip warn">name ≠ file</span>'}`;
+  const table=(list,col)=>`<div class="tw"><table><tr><th>Type</th><th>Class</th><th>File</th><th class="num">Types in file</th><th>${col==='hooks'?'Container hooks':'Handlers'}</th>${DB.hasPages?'<th class="num">Pages</th>':''}</tr>
+    ${list.map(r=>`<tr style="${r.unloaded?'opacity:.55':''}"><td>${tag(r)}</td><td>${clsCell(r)}</td><td>${fileCell(r)}</td><td class="num ${r.typesInFile>1?'flag':''}">${r.typesInFile}</td>
+      <td class="mono" style="font-size:11.5px">${esc((col==='hooks'?r.hooks:r.handlers).join(' '))}</td>${DB.hasPages?`<td class="num">${pagesCell(r)}</td>`:''}</tr>`).join('')}</table></div>`;
+  const live=rows.filter(r=>!r.unloaded);
+  const cont=live.filter(r=>r.kind==='container'), leaf=live.filter(r=>r.kind==='leaf'), odd=rows.filter(r=>r.kind!=='container'&&r.kind!=='leaf');
+  const multi=[...N.perFile].filter(([f,l])=>new Set(l.map(r=>r.cls)).size>1).sort((a,b)=>b[1].length-a[1].length);
+  const folders=new Map(); for(const r of live){ const d=r.file.split('/').slice(0,-1).join('/')||'(root)'; folders.set(d,(folders.get(d)||0)+1); }
+  $('#view').innerHTML=`
+  <section class="block"><h2>Scene-graph node types</h2>
+    <p class="hint">Nodes are the classes registered by the node-registration pattern (commented-out registrations are ignored). A node is a <b>container</b> when its class, or an ancestor, has a <code>${esc(N.handlerParam||'any')}</code> handler whose name matches <code>${esc(N.hookRe)}</code> — the hooks the walker calls only for nodes with children. Every other registered node is a <b>leaf</b>.${DB.hasPages?' Faded rows are in files no HTML page loads.':''}</p>
+    <div class="cards">
+      <div class="card"><b>${rows.length}</b><span>registered types</span></div>
+      <div class="card"><b>${cont.length}</b><span>live containers</span></div>
+      <div class="card"><b>${leaf.length}</b><span>live leaves</span></div>
+      ${DB.hasPages?`<div class="card ${rows.length-live.length?'warn':''}"><b>${rows.length-live.length}</b><span>in files no page loads</span></div>`:''}
+      <div class="card ${N.dupTypes.length?'warn':''}"><b>${N.dupTypes.length}</b><span>type names registered twice</span></div>
+      <div class="card ${multi.length?'warn':''}"><b>${multi.length}</b><span>files registering several classes</span></div>
+    </div>
+    <div class="legend">Live types by folder: ${[...folders].sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<span class="chip">${esc(d)} ${n}</span>`).join('')}</div></section>
+  ${N.dupTypes.length?`<section class="block"><h2>Type names registered more than once</h2><p class="hint">The registry keeps the last registration. Harmless when the two files never load on the same page; a real clash when they do.</p>
+    <div class="tw"><table><tr><th>Type</th><th>Registrations</th><th>Loaded together on</th></tr>${N.dupTypes.map(d=>`<tr><td class="mono">${esc(d.type)}</td><td>${d.rows.map(r=>`<div>${clsCell(r)} ${flink(r.file)}<span class="file">:${r.regLine}</span> ${pagesCell(r)}</div>`).join('')}</td>
+      <td>${d.sameFile?'<span class="chip warn">same file twice</span>':d.together.length?d.together.map(p=>`<span class="chip warn">${esc(p)}</span>`).join(''):DB.hasPages?'<span class="muted">never</span>':''}</td></tr>`).join('')}</table></div></section>`:''}
+  <section class="block"><h2>Files registering several node classes</h2><p class="hint">Candidates for splitting into one file per node.</p>
+    ${multi.length?multi.map(([f,l])=>`<div style="margin:6px 0">${flink(f)} ${l[0].unloaded?'<span class="chip warn">not loaded</span>':''} <span class="muted">${l.length} types:</span> ${l.map(r=>`<span class="chip ${r.kind==='container'?'ok':''}">${esc(r.type)}</span>`).join('')}</div>`).join(''):'<p class="muted">None.</p>'}</section>
+  <section class="block"><h2>Containers (${cont.length})</h2>${table(cont.sort((a,b)=>a.type.localeCompare(b.type)),'hooks')}</section>
+  <section class="block"><h2>Leaves (${leaf.length})</h2>${table(leaf.sort((a,b)=>a.type.localeCompare(b.type)),'handlers')}</section>
+  ${odd.length?`<section class="block"><h2>Unclassified (${odd.length})</h2><p class="hint">Class not found as a declaration (e.g. built by a factory function), or no handler methods.</p>${table(odd,'handlers')}</section>`:''}
+  ${DB.hasPages&&rows.length>live.length?`<section class="block"><h2>Registered but not loaded by any page (${rows.length-live.length})</h2>${table(rows.filter(r=>r.unloaded),'handlers')}</section>`:''}`;
+}
+
+// ---------------------------------------------------------------- functions
+function fnRows(){
+  const f=UI.fn, q=f.q.toLowerCase();
+  let list=DB.fns.filter(fn=> f.scope==='all' ? !fn.parent : f.scope==='methods' ? !!fn.cls : (fn.top||!!fn.ns) && !fn.parent);
+  if(q) list=list.filter(fn=>fn.qname.toLowerCase().includes(q)||fn.tokens.includes(q));
+  if(f.file) list=list.filter(fn=>fn.file===f.file);
+  if(f.theme) list=list.filter(fn=>f.theme==='other'?!fn.themes.length:fn.themes.includes(f.theme));
+  if(f.unused) list=list.filter(fn=>fn.unused);
+  const key={name:x=>x.qname.toLowerCase(), file:x=>x.file+':'+String(x.line).padStart(6,'0'), theme:x=>x.themes[0]||'~', callers:x=>-x.callers.length, ext:x=>-x.extFiles.size, uses:x=>-x.callees.length}[f.sort];
+  list.sort((a,b)=>{ const x=key(a), y=key(b); return (x<y?-1:x>y?1:0)*f.dir; });
+  return list;
+}
+function rFunctions(){
+  const f=UI.fn, list=fnRows();
+  const files=[...new Set(DB.fns.filter(fn=>fn.top||fn.ns||fn.cls).map(fn=>fn.file))].sort();
+  const th=(k,l,num)=>`<th class="sort ${num?'num':''}" data-sort="${k}">${l}${f.sort===k?(f.dir>0?' ▲':' ▼'):''}</th>`;
+  $('#view').innerHTML=`<section class="block"><h2>Functions</h2>
+    <div class="toolbar">
+      <input type="search" id="ffq" placeholder="Name contains…" value="${esc(f.q)}">
+      <select id="fff"><option value="">All files</option>${files.map(p=>`<option ${p===f.file?'selected':''}>${esc(p)}</option>`).join('')}</select>
+      <select id="fft"><option value="">All themes</option>${[...DB.themes.map(t=>t.name),'other'].map(t=>`<option ${t===f.theme?'selected':''}>${esc(t)}</option>`).join('')}</select>
+      <select id="ffs"><option value="support" ${f.scope==='support'?'selected':''}>Top-level &amp; namespace</option><option value="methods" ${f.scope==='methods'?'selected':''}>Class methods</option><option value="all" ${f.scope==='all'?'selected':''}>Everything</option></select>
+      <label><input type="checkbox" id="ffu" ${f.unused?'checked':''}> apparently unused</label>
+      <span class="muted">${list.length} shown</span></div>
+    <div class="tw"><table><tr>${th('name','Name')}${th('file','File')}${th('theme','Themes')}${th('callers','Used by',1)}${th('ext','Other files',1)}${th('uses','Uses',1)}</tr>
+    ${list.slice(0,2500).map(fn=>`<tr><td>${link(fn)}<span class="muted mono">(${esc(fn.params)})</span>${fn.exported?' <span class="chip">export</span>':''}${fn.unused?' <span class="chip warn">unused?</span>':''}</td>
+      <td>${loc(fn)}</td><td>${themeChips(fn)}</td><td class="num">${fn.callers.length}${fn.looseN?` <span class="muted" title="calls to .${esc(fn.name)}() on unknown receivers">+≈${fn.looseN}</span>`:''}</td><td class="num">${fn.extFiles.size||''}</td><td class="num">${fn.callees.length||''}</td></tr>`).join('')}
+    </table></div>${list.length>2500?'<p class="hint">First 2500 rows shown — narrow the filter.</p>':''}</section>`;
+  const keep=(id,fnc)=>{ $(id).oninput=$(id).onchange=e=>{ fnc(e.target); const p=id==='#ffq'?e.target.selectionStart:null; rFunctions(); if(p!=null){ const n=$('#ffq'); n.focus(); n.setSelectionRange(p,p); } }; };
+  keep('#ffq',t=>f.q=t.value); keep('#fff',t=>f.file=t.value); keep('#fft',t=>f.theme=t.value); keep('#ffs',t=>f.scope=t.value); keep('#ffu',t=>f.unused=t.checked);
+  document.querySelectorAll('[data-sort]').forEach(h=>h.onclick=()=>{ const k=h.dataset.sort; if(f.sort===k) f.dir=-f.dir; else { f.sort=k; f.dir=1; } rFunctions(); });
+}
+
+// ---------------------------------------------------------------- themes
+function rThemes(){
+  const pool=DB.fns.filter(DB.inScope);
+  const names=[...DB.themes.map(t=>t.name),'other'];
+  const byFile=new Map();
+  for(const f of pool){ let m=byFile.get(f.file); if(!m) byFile.set(f.file,m=new Map()); const t=f.themes[0]||'other'; m.set(t,(m.get(t)||0)+1); }
+  const colTotals=new Map(); for(const m of byFile.values()) for(const [t,n] of m) colTotals.set(t,(colTotals.get(t)||0)+n);
+  const cols=names.filter(t=>colTotals.get(t));
+  const max=Math.max(1,...[...byFile.values()].flatMap(m=>[...m.values()]));
+  const rows=[...byFile].sort((a,b)=>{ const sa=[...a[1].values()].reduce((x,y)=>x+y,0), sb=[...b[1].values()].reduce((x,y)=>x+y,0); return sb-sa; });
+  // name-token frequencies
+  const tokCount=new Map(); for(const f of pool) for(const t of new Set(f.tokens)) tokCount.set(t,(tokCount.get(t)||0)+1);
+  const allWords=new Set(DB.themes.flatMap(t=>[...t.words]));
+  const STOP=new Set(['to','get','set','is','has','on','of','by','for','and','from','with','new','2']);
+  const toks=[...tokCount].filter(([t,n])=>n>1 && t.length>1 && !STOP.has(t)).sort((a,b)=>b[1]-a[1]).slice(0,220);
+  const sel=UI.themeSel;
+  let detail='';
+  if(sel){
+    const list=pool.filter(f=>sel==='other'?!f.themes.length:f.themes.includes(sel));
+    const g=new Map(); for(const f of list){ let a=g.get(f.file); if(!a) g.set(f.file,a=[]); a.push(f); }
+    detail=`<section class="block"><h2>${esc(sel)} <span class="muted">(${list.length})</span></h2><p class="hint">All support functions touching this theme, grouped by where they live. Similar-looking names across files are the merge candidates.</p>
+      ${[...g].sort((a,b)=>b[1].length-a[1].length).map(([file,a])=>`<h3>${flink(file)} <span class="muted">${a.length}</span></h3><div>${a.sort((x,y)=>x.norm.localeCompare(y.norm)).map(f=>`<span style="display:inline-block;margin:2px 10px 2px 0">${link(f)}${DB.similarOf.has(f)?' <span class="chip warn" title="has a duplicate or similar body elsewhere">≈</span>':''}</span>`).join('')}</div>`).join('')}</section>`;
+  }
+  $('#view').innerHTML=`
+  <section class="block"><h2>Theme × file</h2><p class="hint">Primary theme of each support function, by file. Click a cell for those functions; click a column heading to list the whole theme across files below. Themes are editable in Settings.</p>
+    <div class="tw"><table class="matrix"><tr><th>File</th>${cols.map(t=>`<th class="th ${sel===t?'on':''}" data-th="${esc(t)}">${esc(t)}</th>`).join('')}<th class="num">Σ</th></tr>
+    ${rows.map(([file,m])=>`<tr><td>${flink(file)}</td>${cols.map(t=>{ const n=m.get(t)||0; return `<td class="c" ${n?`data-cell="${esc(file)}|${esc(t)}"`:''} style="${n?`background:color-mix(in srgb, var(--accent) ${Math.round(10+60*n/max)}%, transparent)`:''}">${n||''}</td>`; }).join('')}<td class="num">${[...m.values()].reduce((a,b)=>a+b,0)}</td></tr>`).join('')}
+    </table></div></section>
+  ${detail}
+  <section class="block"><h2>Name vocabulary</h2><p class="hint">Words occurring in two or more function names. <span class="tok themed">shaded</span> words already belong to a theme; plain ones are candidates for new themes. Click to see the functions.</p>
+    <div class="tokcloud">${toks.map(([t,n])=>`<span class="tok ${allWords.has(t)||allWords.has(t.replace(/s$/,''))?'themed':''}" data-tok="${esc(t)}">${esc(t)} <span class="muted">${n}</span></span>`).join('')}</div></section>`;
+  document.querySelectorAll('[data-th]').forEach(h=>h.onclick=()=>{ UI.themeSel=UI.themeSel===h.dataset.th?null:h.dataset.th; rThemes(); });
+  document.querySelectorAll('[data-cell]').forEach(c=>c.onclick=()=>{ const [file,t]=c.dataset.cell.split('|'); Object.assign(UI.fn,{file,theme:t,q:'',scope:'support',unused:false}); goTab('functions'); });
+  document.querySelectorAll('[data-tok]').forEach(c=>c.onclick=()=>{ Object.assign(UI.fn,{q:c.dataset.tok,file:'',theme:'',unused:false}); goTab('functions'); });
+}
+
+// ---------------------------------------------------------------- overlaps
+function rOverlaps(){
+  const O=DB.overlaps; const k=UI.ovl;
+  const tabs=[['sameName','Same name',O.sameName.length],['equivNames','Equivalent names',O.equivNames.length],['identical','Identical bodies',O.identical.length],['similar','Similar bodies',O.similar.length]];
+  const grp=g=>`<tr><td>${g.fns.map(f=>`<div>${link(f)} ${loc(f)} <span class="muted">${f.bodyLen} tok</span></div>`).join('')}</td><td>${g.fns.length===2?`<a data-cmp="${g.fns[0].uid}|${g.fns[1].uid}">compare</a>`:g.fns.slice(1).map(f=>`<div><a data-cmp="${g.fns[0].uid}|${f.uid}">compare ${esc(f.file.split('/').pop())}</a></div>`).join('')}</td></tr>`;
+  let body='';
+  if(k==='similar') body=`<div class="tw"><table><tr><th class="num">Score</th><th>A</th><th>B</th><th></th></tr>${O.similar.slice(0,800).map(s=>`<tr><td class="num score">${Math.round(s.score*100)}%</td><td>${link(s.a)}<br>${loc(s.a)}</td><td>${link(s.b)}<br>${loc(s.b)}</td><td><a data-cmp="${s.a.uid}|${s.b.uid}">compare</a></td></tr>`).join('')}</table></div>`;
+  else body=`<div class="tw"><table><tr><th>Definitions</th><th></th></tr>${O[k].map(grp).join('')}</table></div>`;
+  const hints={sameName:'The same leaf name defined in more than one place. Overrides within one class family are excluded.',
+    equivNames:'Different spellings that mean the same: case, separators, colour/color, to/2 (hexToRgb ≈ hex2rgb ≈ HexToRGB).',
+    identical:'Bodies identical after renaming parameters and locals — safe to merge.',
+    similar:`Bodies sharing ≥ ${Math.round(S.sim*100)}% of their 3-token shingles. Usually one is an edited copy of the other.`};
+  $('#view').innerHTML=`<section class="block"><h2>Overlaps</h2><p class="hint">Scope: top-level and namespace functions${S.includeMethods?' plus class methods':''} (toggle in Settings).</p>
+    <div class="toolbar">${tabs.map(([key,l,n])=>`<button data-ovl="${key}" class="${k===key?'primary':''}">${l} (${n})</button>`).join('')}</div>
+    <p class="hint">${hints[k]}</p>${(k==='similar'?O.similar.length:O[k].length)?body:'<p class="muted">Nothing found.</p>'}</section>`;
+  document.querySelectorAll('[data-ovl]').forEach(b=>b.onclick=()=>{ UI.ovl=b.dataset.ovl; rOverlaps(); });
+}
+
+// ---------------------------------------------------------------- usage
+function rUsage(){
+  const prov=DB.files.map(F=>{ const users=new Map(), defs=new Map();
+    for(const e of [...F.fns,...DB.classes.filter(c=>c.file===F.path)]) for(const c of e.callers||[]) if(c.e.file!==F.path){ users.set(c.e.file,(users.get(c.e.file)||0)+c.n); defs.set(e,(defs.get(e)||0)+1); }
+    return {F,users,defs}; }).filter(x=>x.users.size).sort((a,b)=>b.users.size-a.users.size);
+  const cons=DB.files.map(F=>{ const deps=new Map(); for(const e of [F,...F.fns,...DB.classes.filter(c=>c.file===F.path)]) for(const c of e.callees||[]) if(c.e.file!==F.path) deps.set(c.e.file,(deps.get(c.e.file)||0)+c.n); return {F,deps}; }).filter(x=>x.deps.size).sort((a,b)=>b.deps.size-a.deps.size);
+  const unused=DB.fns.filter(f=>f.unused && DB.inScope(f));
+  const unl=DB.files.filter(F=>F.unloaded);
+  const ud=new Map(); for(const F of unl){ const d=F.path.split('/').slice(0,-1).join('/')||'(root)'; let a=ud.get(d); if(!a) ud.set(d,a=[]); a.push(F); }
+  $('#view').innerHTML=`
+  ${DB.hasPages?`<section class="block"><h2>Pages and what they load</h2><p class="hint">Each HTML page and the number of files it pulls in through &lt;script src&gt;, imports and literal dynamic imports.</p>
+    <div>${DB.pages.map(P=>`<span class="chip">${esc(P.path)} ${P.reach}</span>`).join('')}</div>
+    <h3>Files no page loads (${unl.length})</h3><p class="hint">Reached by no page. Usually leftovers or stand-alone experiments — check for loading by computed path before removing.</p>
+    ${[...ud].sort((a,b)=>a[0].localeCompare(b[0])).map(([d,l])=>`<div style="margin:4px 0"><span class="file">${esc(d)}/</span> ${l.map(F=>`<a data-file="${esc(F.path)}" class="mono" style="margin-right:10px">${esc(F.path.split('/').pop())}</a>`).join('')}</div>`).join('')}</section>`:''}
+  <section class="block"><h2>Who depends on each file</h2><p class="hint">Files whose functions or classes are referenced elsewhere, with the referencing files and reference counts. Expand a row to see which of its definitions carry the load.</p>
+    ${prov.map(({F,users,defs})=>`<details class="fileitem"><summary><span class="mono">${esc(F.path)}</span><span class="muted">used by ${users.size} file${users.size===1?'':'s'} · ${defs.size} definitions used externally</span><a data-file="${esc(F.path)}" class="muted" style="margin-left:auto;font-size:12px">details</a></summary>
+      <div class="inner"><div style="margin-bottom:6px">${[...users].sort((a,b)=>b[1]-a[1]).map(([f,n])=>`<span class="chip">${esc(f)} ${n}</span>`).join('')}</div>
+      <table><tr><th>Definition</th><th class="num">Files using it</th></tr>${[...defs.keys()].sort((a,b)=>b.extFiles.size-a.extFiles.size).map(e=>`<tr><td>${link(e)}</td><td class="num">${e.extFiles.size}</td></tr>`).join('')}</table></div></details>`).join('')}</section>
+  <section class="block"><h2>What each file depends on</h2>
+    ${cons.map(({F,deps})=>`<div style="margin:6px 0">${flink(F.path)} → ${[...deps].sort((a,b)=>b[1]-a[1]).map(([f,n])=>`<span class="chip">${esc(f)} ${n}</span>`).join('')}</div>`).join('')}</section>
+  <section class="block"><h2>Apparently unused (${unused.length})</h2><p class="hint">No resolved reference and not exported. Event handlers wired by string, HTML attributes or dynamic lookups will show up here falsely — check before deleting.</p>
+    <div class="tw"><table><tr><th>Function</th><th>Where</th><th>Themes</th></tr>${unused.map(f=>`<tr><td>${link(f)}</td><td>${loc(f)}</td><td>${themeChips(f)}</td></tr>`).join('')}</table></div></section>`;
+}
+
+// ---------------------------------------------------------------- detail drawer
+const HIST=[];
+function openDetail(key,push=true){
+  if(push) HIST.push(key);
+  $('#drawer').hidden=false; const b=$('#dBody');
+  if(key.startsWith('cmp:')){ const [a,c]=key.slice(4).split('|').map(u=>DB.byUid.get(u)); b.innerHTML=compareHtml(a,c); }
+  else if(key.startsWith('file:')) b.innerHTML=fileHtml(DB.fileMap.get(key.slice(5)));
+  else { const e=DB.byUid.get(key); b.innerHTML=e.ek==='fn'?fnHtml(e):e.ek==='cls'?clsHtml(e):fileHtml(e); }
+  b.scrollTop=0; $('#dBack').disabled=HIST.length<2;
+}
+function fnHtml(f){
+  const sim=DB.similarOf.get(f)||[];
+  const same=DB.fns.filter(x=>x!==f && (x.name===f.name || x.norm===f.norm) && !x.parent);
+  const nested=DB.fns.filter(x=>x.parent===f);
+  return `<h2>${esc(f.qname)}</h2>
+   <div class="row"><span class="chip">${esc(f.kind)}</span>${f.exported?'<span class="chip">exported</span>':''}${f.unused?'<span class="chip warn">apparently unused</span>':''}${themeChips(f)}</div>
+   <p class="mono" style="margin:8px 0">${esc(f.name)}(${esc(f.params)})</p>
+   <p>${flink(f.file)} <span class="file">lines ${f.line}–${f.endLine}</span>${DB.fileMap.get(f.file).unloaded?' <span class="chip warn">file not loaded by any page</span>':''}${f.clsRef?` · method of ${link(f.clsRef)}`:''}${f.parent?` · nested in ${link(f.parent)}`:''}</p>
+   <h3>Used by (${f.callers.length})</h3>${groupedRefs(f.callers,'No resolved references.')}
+   ${f.looseN?`<p class="muted">Plus ≈${f.looseN} calls to <code>.${esc(f.name)}(…)</code> on receivers the scanner can’t type (in ${(DB.loose.get(f.name)||{files:new Set()}).files.size} files).</p>`:''}
+   <h3>Uses (${f.callees.length})</h3>${groupedRefs(f.callees.map(c=>({...c})), 'Calls nothing defined in the project.')}
+   ${nested.length?`<h3>Nested functions</h3><ul>${nested.map(n=>`<li>${link(n)}</li>`).join('')}</ul>`:''}
+   ${same.length?`<h3>Same or equivalent name</h3><ul>${same.map(x=>`<li>${link(x)} ${loc(x)} · <a data-cmp="${f.uid}|${x.uid}">compare</a></li>`).join('')}</ul>`:''}
+   ${sim.length?`<h3>Similar bodies</h3><ul>${sim.map(s=>`<li><span class="score">${Math.round(s.score*100)}%</span> ${link(s.f)} ${loc(s.f)} · <a data-cmp="${f.uid}|${s.f.uid}">compare</a></li>`).join('')}</ul>`:''}
+   <h3>Source</h3>${snippet(f.file,f.line,f.endLine)}`;
+}
+function clsHtml(c){
+  const anc=DB.ancestors(c), hl=new Set((c.evidence||[]).map(e=>e.line));
+  return `<h2>${esc(c.name)}</h2>
+   <div class="row"><span class="chip">${c.kind==='prototype'?'prototype-style class':'class'}</span>${c.nodeKind?`<span class="chip ${c.nodeKind==='container'||c.nodeKind==='compound'?'ok':''}">${esc(c.nodeKind)}</span>`:''}${(c.nodeTypes||[]).map(t=>`<span class="chip t">type ${esc(t)}</span>`).join('')}${c.hooks&&c.hooks.length?`<span class="muted mono" style="font-size:11.5px">${esc(c.hooks.join(' '))}</span>`:''}${c.bundled?'<span class="chip warn">not in its own file</span>':''}</div>
+   <p>${flink(c.file)} <span class="file">lines ${c.line}–${c.endLine}</span></p>
+   ${anc.length?`<p>Ancestry: ${[c,...anc].map(a=>a===c?`<b>${esc(a.name)}</b>`:link(a)).join(' → ')}${c.base && !c.baseCls?` → <span class="muted">${esc(c.base)} (not in project)</span>`:''}</p>`:c.base?`<p>Extends <span class="mono">${esc(c.extendsRaw)}</span> <span class="muted">(not found in project)</span></p>`:''}
+   ${c.subs.length?`<h3>Subclasses (${c.subs.length})</h3><ul>${c.subs.map(s=>`<li>${link(s)} ${loc(s)}</li>`).join('')}</ul>`:''}
+   ${c.evidence&&c.evidence.length?`<h3>Children evidence</h3><ul>${c.evidence.map(e=>`<li class="mono">L${e.line}: ${esc(e.text)}</li>`).join('')}</ul>`:c.inheritsFrom?`<h3>Children</h3><p>Inherited from ${link(c.inheritsFrom)}</p>`:''}
+   <h3>Methods (${c.methods.length})</h3>${c.methods.length?`<ul>${c.methods.map(m=>`<li>${m.isStatic?'static ':''}<a class="sym" data-uid="${m.uid}">${esc(m.name)}</a><span class="muted">(${esc(m.params)})</span> <span class="file">L${m.line}</span> ${m.callers.length?`<span class="muted">· ${m.callers.length} refs</span>`:''}</li>`).join('')}</ul>`:'<p class="muted">None</p>'}
+   <h3>Referenced by (${c.callers.length})</h3>${groupedRefs(c.callers,'No references found.')}
+   <h3>Source</h3>${c.kind==='class'?snippet(c.file,c.line,c.endLine,hl,250):c.ctorFn?snippet(c.file,c.ctorFn.line,c.ctorFn.endLine,hl):''}`;
+}
+function fileHtml(F){
+  const cls=DB.classes.filter(c=>c.file===F.path), fns=F.fns.filter(f=>!f.clsRef && !f.parent);
+  const imps=F.imports.filter(i=>i.local);
+  return `<h2>${esc(F.path)}</h2><p class="muted">${F.lineCount} lines · ${cls.length} classes · ${fns.length} functions</p>
+   ${DB.hasPages&&!/\.html?$/i.test(F.path)?`<p>${F.unloaded?'<span class="chip warn">loaded by no page</span>':`Loaded by: ${F.pages.map(p=>`<span class="chip">${esc(p)}</span>`).join('')}`}</p>`:''}
+   ${imps.length?`<h3>Imports</h3><ul>${imps.map(i=>{ const m=F.importMap.get(i.local); return `<li class="mono">${esc(i.local)}${i.imported!==i.local?` <span class="muted">(${esc(i.imported)})</span>`:''} ← ${m&&m.target?flink(m.target.path):`<span class="muted">${esc(i.from||'')}</span>`}</li>`; }).join('')}</ul>`:''}
+   ${cls.length?`<h3>Classes</h3><ul>${cls.map(c=>`<li>${link(c)}${c.base?` <span class="muted">extends ${esc(c.base)}</span>`:''} <span class="file">L${c.line}</span></li>`).join('')}</ul>`:''}
+   ${fns.length?`<h3>Functions</h3><ul>${fns.map(f=>`<li>${link(f)} <span class="file">L${f.line}</span> <span class="muted">· used by ${f.callers.length}</span></li>`).join('')}</ul>`:''}
+   <h3>Top-level code uses</h3>${groupedRefs(F.callees||[],'Nothing at top level.')}`;
+}
+function compareHtml(a,b){
+  return `<h2>Compare</h2><div class="cmp"><div><p>${link(a)}<br>${loc(a)}</p>${snippet(a.file,a.line,a.endLine)}</div><div><p>${link(b)}<br>${loc(b)}</p>${snippet(b.file,b.line,b.endLine)}</div></div>
+    <h3>Callers</h3><div class="cmp"><div>${groupedRefs(a.callers,'none')}</div><div>${groupedRefs(b.callers,'none')}</div></div>`;
+}
+$('#dClose').onclick=()=>{ $('#drawer').hidden=true; HIST.length=0; };
+$('#dBack').onclick=()=>{ if(HIST.length>1){ HIST.pop(); openDetail(HIST[HIST.length-1],false); } };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(!$('#searchResults').hidden) $('#searchResults').hidden=true; else $('#dClose').click(); } });
+document.addEventListener('click',e=>{
+  const u=e.target.closest('[data-uid]'); if(u){ e.preventDefault(); openDetail(u.dataset.uid); $('#searchResults').hidden=true; return; }
+  const c=e.target.closest('[data-cmp]'); if(c){ e.preventDefault(); openDetail('cmp:'+c.dataset.cmp); return; }
+  const f=e.target.closest('[data-file]'); if(f){ e.preventDefault(); openDetail('file:'+f.dataset.file); return; }
+  const t=e.target.closest('.chip[data-theme]'); if(t){ UI.themeSel=t.dataset.theme; goTab('themes'); return; }
+  if(!e.target.closest('.actions')) $('#searchResults').hidden=true;
+});
+
+// ---------------------------------------------------------------- search
+$('#search').oninput=e=>{
+  const q=e.target.value.trim().toLowerCase(), box=$('#searchResults');
+  if(!q||!DB){ box.hidden=true; return; }
+  const score=s=>{ s=s.toLowerCase(); return s===q?0:s.startsWith(q)?1:s.includes(q)?2:9; };
+  const hits=[...DB.classes.map(c=>({e:c,s:score(c.name)-0.5})),...DB.fns.map(f=>({e:f,s:Math.min(score(f.name),score(f.qname)+0.2)}))]
+    .filter(x=>x.s<9).sort((a,b)=>a.s-b.s||a.e.label.length-b.e.label.length).slice(0,40);
+  box.innerHTML=hits.length?hits.map(({e})=>`<a data-uid="${e.uid}"><span class="mono">${e.ek==='cls'?'<b>class</b> ':''}${esc(e.label)}</span><small>${esc(e.file)}:${e.line}</small></a>`).join(''):'<div class="muted" style="padding:8px">No match</div>';
+  box.hidden=false;
+};
+$('#search').onkeydown=e=>{ if(e.key==='Enter'){ const a=$('#searchResults a'); if(a) a.click(); } };
+</script>
+</body>
+</html>
