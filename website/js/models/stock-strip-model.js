@@ -3,7 +3,7 @@ import { EdgeSnapController } from '../2d-support/edge-snap-controller.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { PipperNode } from '../nodes2d/pipper-node.js';
 import { RaftSnapController } from '../2d-support/raft-snap-controller.js';
-import '../nodes2d/button-node-zones.js';   // 'button-node'
+import '../nodes2d/button-node.js';
 import '../nodes2d/fracture-cone-node.js';   // 'fracture-cone'
 import '../nodes2d/stock-strip-node.js';   // 'stock-strip'
 import '../nodes2d/word-node.js';   // 'word-node'

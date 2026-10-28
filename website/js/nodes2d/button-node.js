@@ -1,17 +1,30 @@
 /**
  * button-node.js
  *
- * Canvas scene-graph node: flexible bevelled button.
- * Follows the DragPointNode pattern from omni-scene-nodes.js.
+ * Canvas scene-graph node: flexible bevelled button.  One class for both
+ * worlds (it replaces button-node-zones.js); the coordinate contract is the
+ * one DragPointNode uses (D3 in docs/twin-merge-plan.md).
  *
- * node.value — instance data: x, y, width, height, label, sub, badge, disabled, color
- * ctxMix     — context bag:   ctx, hitPoint, W, H, highlighted, …
- * params     — style/anim:    all visual knobs (layer-level); zoom, panX, panY
+ * node.value — instance data: x, y, width, height, label, sub, badge, disabled,
+ *              color, and optionally any of VALUE_STYLE_KEYS, which then win
+ *              over the layer params for this one button.
+ * ctxMix     — context bag: getValue/setValue (the resolver), T, and either
+ *              directCtx() (Omni, screen space) or ctx (a Zones pane).
+ * params     — style/anim: all visual knobs (layer-level).
+ *
+ * Position is read through the resolver, in local coordinates; T maps it to
+ * the drawing space.  Omni pushes a real T, a Zones pane leaves the identity
+ * T from Values, so zoom = T.sx is 1 there, as it was.  Hit tests compare
+ * with ctxMix.screenHitPoint when the harness keeps one, else hitPoint.
+ * The selection ring shows for ctxMix.highlighted (Omni) or value.selected /
+ * hovered (Zones).
  */
 
 import { SYS } from '../omni-support/sys.js';
 import { roundRectPath } from '../2d-support/paint.js';
 import { hexToRgb, shiftColor } from '../colour/colour.js';
+import { PipKinds } from '../2d-support/pip-kind.js';
+import { Values } from '../omni-support/values.js';
 
 // ── helpers ─────────────────────────────────────────────────
 
@@ -63,16 +76,50 @@ const DEFAULTS = Object.freeze({
   pressDepth:     1,
 });
 
+// Style knobs a single button may carry in its value (the Zones property
+// editor writes them there).  Draw and hit test both honour them.
+const VALUE_STYLE_KEYS = ['scale', 'liftY', 'cornerRadius', 'borderWidth',
+  'fontSize', 'bevel', 'bevelStrength', 'brightness'];
+
+function styleOf(v, params) {
+  const p = { ...DEFAULTS, ...params };
+  for (const k of VALUE_STYLE_KEYS) if (v[k] != null) p[k] = v[k];
+  return p;
+}
+
 // ── ButtonNode ──────────────────────────────────────────────
 
 class ButtonNode {
+  static meta = {
+    zOrder: 1,
+    pipKind: PipKinds.JUNCTION,
+    spawnOverrides: (wp) => ({ x: wp.x, y: wp.y, label: 'Btn', sub: '' }),
+    editableFields: (node) => [
+      { key: 'label', label: 'Label', type: 'text', value: node.value.label || '' },
+      { key: 'sub', label: 'Subtext', type: 'text', value: node.value.sub || '' },
+      { key: 'badge', label: 'Badge', type: 'number', value: node.value.badge || 0 },
+      { key: 'color', label: 'Fill Color', type: 'color', value: node.value.color || DEFAULTS.fill },
+      { key: 'fontSize', label: 'Font Size', type: 'number', value: node.value.fontSize || DEFAULTS.fontSize },
+      { key: 'cornerRadius', label: 'Corner Radius', type: 'number', value: node.value.cornerRadius || DEFAULTS.cornerRadius },
+      { key: 'borderWidth', label: 'Border Width', type: 'number', value: node.value.borderWidth || DEFAULTS.borderWidth },
+      { key: 'bevel', label: 'Bevel', type: 'number', value: node.value.bevel ?? DEFAULTS.bevel },
+      { key: 'bevelStrength', label: 'Bevel Strength', type: 'number', value: node.value.bevelStrength ?? DEFAULTS.bevelStrength },
+      { key: 'scale', label: 'Scale', type: 'number', value: node.value.scale || DEFAULTS.scale },
+      { key: 'brightness', label: 'Brightness', type: 'number', value: node.value.brightness ?? DEFAULTS.brightness },
+    ],
+  };
+
+  static getCentreXY(res, node, params) {
+    const v = res.getValue(res, node, params) || {};
+    return { x: v.x || 0, y: v.y || 0 };
+  }
 
   static draw2d(ctxMix, node, params) {
     const T = ctxMix.T;
     if (!T) return;
 
-    const v = node.value || {};
-    const p = { ...DEFAULTS, ...params };
+    const v = ctxMix.getValue(ctxMix, node, params) || {};
+    const p = styleOf(v, params);
     const zoom = T.sx;              // ← zoom from T, not params
 
     // ── geometry (centre-based) ──────────────────────────
@@ -81,7 +128,7 @@ class ButtonNode {
     const sc     = (p.scale || 1);
     const w      = rawW * zoom * sc;
     const h      = rawH * zoom * sc;
-    const screen = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const screen = T.toScreen(ButtonNode.getCentreXY(ctxMix, node, params));
     const cx     = screen.x;
     const cy     = screen.y + (p.liftY || 0) * zoom;
     const left   = cx - w / 2;
@@ -91,7 +138,8 @@ class ButtonNode {
 
     const fillHex = v.color || p.fill;
 
-    const ctx = ctxMix.directCtx(); // ← screen-space drawing
+    // Omni draws in screen space (directCtx saves); a Zones pane on its own ctx.
+    const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
 
     // ── disabled opacity ─────────────────────────────────
     if (v.disabled) ctx.globalAlpha *= 0.42;
@@ -216,7 +264,7 @@ class ButtonNode {
     }
 
     // ── selection highlight ──────────────────────────────
-    if (ctxMix.highlighted?.has(node)) {
+    if (ctxMix.highlighted?.has(node) || v.selected || v.hovered) {
       ctx.setLineDash([4 * zoom, 4 * zoom]);
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth   = 2 * zoom;
@@ -227,7 +275,7 @@ class ButtonNode {
       ctx.setLineDash([]);
     }
 
-    ctx.restore();                  // ← balances directCtx()
+    ctx.restore();                  // ← balances directCtx() / save()
   }
 
   // ── hit test + drag — uses T ──────────────────────────────
@@ -240,10 +288,10 @@ class ButtonNode {
     const T  = ctxMix.T;
     if (!pt || !T) return;
 
-    const v = node.value || {};
+    const v = ctxMix.getValue(ctxMix, node, params) || {};
     if (v.disabled) return;
 
-    const p    = { ...DEFAULTS, ...params };
+    const p    = styleOf(v, params);
     const zoom = T.sx;
 
     const sc   = p.scale || 1;
@@ -253,7 +301,7 @@ class ButtonNode {
     const h    = rawH * zoom * sc;
     const r    = Math.min((p.cornerRadius || 0) * zoom * sc, w / 2, h / 2);
 
-    const screen = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+    const screen = T.toScreen(ButtonNode.getCentreXY(ctxMix, node, params));
     const sx   = screen.x;
     const sy   = screen.y + (p.liftY || 0) * zoom;
     const left = sx - w / 2;
@@ -278,10 +326,11 @@ class ButtonNode {
     ctxMix.hitResult = {
       node,
       interactions: {
+        // Writes go through the channel, so a flyweight proto works.
         applyDrag(screenX, screenY) {
           const local = Ts.toLocal({ x: screenX - dxHit, y: screenY - dyHit });
-          node.value.x = local.x;
-          node.value.y = local.y;
+          Values.setValue(Values, node, params, { x: local.x, y: local.y });
+          return node;
         },
       },
     };

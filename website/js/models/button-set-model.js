@@ -1,6 +1,6 @@
 import { SYS } from '../omni-support/sys.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
-import '../nodes2d/button-node-zones.js';   // 'button-node'
+import '../nodes2d/button-node.js';
 export { ButtonSetModel };
 class ButtonSetModel {
   get name() { return 'Button Set · Scene Graph'; }
