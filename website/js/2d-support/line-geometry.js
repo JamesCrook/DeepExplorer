@@ -1,5 +1,5 @@
 import { PathAst } from './path-ast.js';
-export { Vector2D } from '../2d-support/vector2d.js'
+export { Vector2D } from './vector2d.js'
 /**
  * @fileoverview Geometric line and curve utilities for creating smooth biarc paths.
  * 

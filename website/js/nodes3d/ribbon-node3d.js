@@ -1,6 +1,6 @@
 import { SceneNode } from '../omni-support/scene.js';
 import { RibbonUI } from '../3d-support/ribbon3d.js';
-import { Spherical } from '../../js/utilities2/spherical.js';
+import { Spherical } from '../3d-support/spherical.js';
 import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 

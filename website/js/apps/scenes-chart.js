@@ -1,7 +1,7 @@
 import { MiniAstNode, SCENES, ADDABLES, sceneRegistry } from '../omni-support/scene.js';
 import { OmniChartModel }   from './omni-chart-model.js';
 import { CSVData }          from '../data/csv-data.js';
-import { TreeOfData }       from '../utilities2/tree-of-data.js';
+import { TreeOfData }       from '../data/tree-of-data.js';
 import '../nodes2d/sizing-nodes.js';
 
 import { beveragesTree } from '../data/drinks-data.js';

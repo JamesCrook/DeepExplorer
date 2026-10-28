@@ -38,7 +38,7 @@ circles for control points.
 
 import { sceneRegistry } from '../omni-support/scene.js';
 import { Ribbon } from '../../js/2d-support/ribbon2d.js';
-import { RibbonPath } from '../../js/utilities2/line-geometry.js';
+import { RibbonPath } from '../2d-support/line-geometry.js';
 import { SYS } from '../omni-support/sys.js';
 
 // ── Fallback ribbon drawing ──────────────────────────────────

@@ -1,6 +1,6 @@
 import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
 import { OmniAnimateModel } from './omni-animate-model.js';
-import { ReactiveRuntime }  from '../utilities/reactive-runtime.js';
+import { ReactiveRuntime }  from '../omni-support/reactive-runtime.js';
 
 import '../nodes2d/mol-scene-nodes.js';
 

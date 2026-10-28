@@ -1,7 +1,7 @@
 import '../2d-support/vector2d.js'
 import '../2d-support/box.js'
 
-//import '../utilities2/ast-manager.js'
+//import '../parsers/ast-manager.js'
 //import '../parsers/parser.js'
 //import '../parsers/jatex.js'
 

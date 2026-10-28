@@ -33,7 +33,7 @@ RegExp terminals do local lookahead. Since atoms are regexes, we get anchored pa
 
 */
 
-import { AstNode } from '../utilities2/ast-manager.js'
+import { AstNode } from './ast-manager.js'
 
 /**
  * @module Parser

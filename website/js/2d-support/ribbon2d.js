@@ -1,4 +1,4 @@
-import { PathAst } from '../utilities2/path-ast.js';
+import { PathAst } from './path-ast.js';
 /**
  * @class RibbonStyle
  * @description Manages the visual style of a ribbon.

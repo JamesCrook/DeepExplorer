@@ -1,5 +1,5 @@
 import {Parser} from './parser.js'
-//import { createHandlerRegistry, AstNode } from '../utilities2/ast-manager.js'
+//import { createHandlerRegistry, AstNode } from './ast-manager.js'
 
 // ── FEN (Forsyth-Edwards Notation) ──────────────────────
 // #chesse/fen

@@ -6,7 +6,7 @@
  */
 
 import {Parser} from './parser.js'
-import { createHandlerRegistry, AstNode } from '../utilities2/ast-manager.js'
+import { createHandlerRegistry, AstNode } from './ast-manager.js'
 
 /**
  * Creates a parser for SVG documents.

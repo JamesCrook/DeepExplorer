@@ -5,7 +5,7 @@
  * It includes specific handlers for complex elements like fractions and electronic symbols.
  */
 import {Parser} from './parser.js'
-import { createHandlerRegistry, AstNode } from '../utilities2/ast-manager.js'
+import { createHandlerRegistry, AstNode } from './ast-manager.js'
 
 /**
  * Creates a processor for JaTeX syntax.
