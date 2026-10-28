@@ -121,17 +121,25 @@ class HtmlTextNode {
       { key: 'class', label: 'Class', type: 'text', value: node.value.class || '' },
     ],
   };
+  /* value.raw: the text is shown as it is, with no {param} filling, and update
+     re-reads it, so a model that writes value.text sees it on the next render.
+     For text from outside (a file's metadata), where braces are content. */
+  static _text(v, params) {
+    return v.raw ? String(v.text ?? '') : HtmlFill.fill(v.text, params);
+  }
   static mount(ctxMix, node, params) {
     const v = node.value || {};
     const el = document.createElement(v.tag || 'div');
     if (v.class) el.className = v.class;
-    el.textContent = HtmlFill.fill(v.text, params);
+    el.textContent = HtmlTextNode._text(v, params);
     node.inst = { ...(node.inst || {}), el };
     ctxMix.parentEl.appendChild(el);
   }
   static update(ctxMix, node, params) {
     const v = node.value || {}, el = node.inst?.el;
-    if (el && HtmlFill.has(v.text)) el.textContent = HtmlFill.fill(v.text, params);
+    if (!el || !(v.raw || HtmlFill.has(v.text))) return;
+    const text = HtmlTextNode._text(v, params);
+    if (el.textContent !== text) el.textContent = text;
   }
 }
 
