@@ -16,6 +16,11 @@
  *     drag-point  (⌟ corner)
  *     [content]   (optional — jatex, chart, …)
  *
+ * Drawing uses T where the walk has one: the frame and the content ctx are
+ * placed in screen pixels from T, not from the ctx an ancestor left behind
+ * (FR4 in docs/twin-merge-plan.md).  The ctx.translate/scale below is then
+ * relative to the screen.
+ *
  * Coordinate spaces:
  *   • Drag-points live in the parent (layer) coordinate space.
  *     They continue to handle their own zoom multiplication and
@@ -78,6 +83,31 @@ class HandleFrameNode {
       width:  Math.abs((p1.x || 0) - (p0.x || 0)),
       height: Math.abs((p1.y || 0) - (p0.y || 0)),
     };
+  }
+
+  /** The frame in screen pixels, from T where the walk has one (so it is
+   *  right under any stack of zooms and frames).  Without T, the legacy
+   *  params.zoom rectangle, relative to whatever origin ctx has. */
+  static _getFrameScreen(ctxMix, node, params) {
+    const lf = HandleFrameNode._getFrameLocal(node);
+    const T  = ctxMix.T;
+    if (!T || !lf) return HandleFrameNode._getFrame(node, params);
+    const a = T.toScreen({ x: lf.left, y: lf.top });
+    const b = T.toScreen({ x: lf.left + lf.width, y: lf.top + lf.height });
+    return { left: Math.min(a.x, b.x), top: Math.min(a.y, b.y),
+             width: Math.abs(b.x - a.x), height: Math.abs(b.y - a.y) };
+  }
+
+  /** ctx.save(); then, with T, reset ctx to screen pixels, so what this node
+   *  draws does not depend on what an ancestor did to ctx. */
+  static _saveScreenCtx(ctxMix) {
+    const ctx = ctxMix.ctx;
+    ctx.save();
+    if (ctxMix.T) {
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    return ctx;
   }
 
   // ── Resolve fill colour + opacity ─────────────────────
@@ -144,12 +174,12 @@ class HandleFrameNode {
     const ctx = ctxMix.ctx;
     if (!ctx) return;
 
-    const frame = HandleFrameNode._getFrame(node, params);
+    const frame = HandleFrameNode._getFrameScreen(ctxMix, node, params);
     if (!frame || frame.width < 1) return;
 
     const r = Math.min(params.roundedCorners || 0, frame.width / 2, frame.height / 2);
 
-    ctx.save();
+    HandleFrameNode._saveScreenCtx(ctxMix);
     ctx.globalAlpha = fill.opacity;
     ctx.fillStyle   = fill.color;
 
@@ -174,13 +204,13 @@ class HandleFrameNode {
   static before_child_draw2d(ctxMix, node, params, child) {
     if (child.token === 'drag-point') return;
 
-    const frame = HandleFrameNode._getFrame(node, params);
+    const frame = HandleFrameNode._getFrameScreen(ctxMix, node, params);
     if (!frame || frame.width < 1) return;
 
     const ctx = ctxMix.ctx;
     if (!ctx) return;
 
-    ctx.save();
+    HandleFrameNode._saveScreenCtx(ctxMix);
     ctx.translate(frame.left, frame.top);
 
     node._savedContentScale = ctxMix.contentScale ?? 1;

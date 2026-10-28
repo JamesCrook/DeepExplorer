@@ -1,13 +1,21 @@
 /**
- * frame-node.js  — v4
+ * frame-node.js  — v5 (stamp-frame)
  *
- * Fixes from v3:
- *   - hit_test → before_hit_test / after_hit_test (container pattern)
- *     Frame AABB check in before_hit_test so child buttons override it.
- *   - Unchanged: bump polygon, perimeter walker, edge generation.
+ * A decorative movable card with a bumpy perimeter; a container (before/after
+ * pattern), so its children draw and hit-test inside it.
+ *
+ * v5 (FR4 in docs/twin-merge-plan.md): T only.  The frame draws in screen
+ * space (directCtx) at T.toScreen(value), sizes by T.uniformScale, and pushes
+ * T.child(value) for its children.  The legacy branch is gone: no
+ * ctx.translate for children, no params.panX/panY shift in hit_test, and no
+ * params.zoom, so zoom is no longer recorded twice.  No child it can hold
+ * (button grids, charts, ribbons, nested frames) needed the legacy branch.
+ *
+ * v4: hit_test → before_hit_test / after_hit_test (container pattern).
  */
 
 import { SYS } from '../omni-support/sys.js';
+import { Values } from '../omni-support/values.js';
 
 // ── Seeded PRNG ─────────────────────────────────────────────
 
@@ -261,17 +269,29 @@ const FRAME_DEFAULTS = Object.freeze({
 //  FRAME NODE — container: before/after pattern
 // ═══════════════════════════════════════════════════════
 
+/** The frame's screen rectangle: centre T.toScreen(value), size scaled by T. */
+function stampRect(ctxMix, node, params, p) {
+  const T    = ctxMix.T;
+  const v    = ctxMix.getValue?.(ctxMix, node, params) || node.value || {};
+  const zoom = T.uniformScale;
+  const pad  = (p.framePadding || 0) * zoom;
+  const w    = (v.width  || 200) * zoom + pad * 2;
+  const h    = (v.height || 100) * zoom + pad * 2;
+  const c    = T.toScreen({ x: v.x || 0, y: v.y || 0 });
+  return { cx: c.x, cy: c.y, w, h, left: c.x - w / 2, top: c.y - h / 2, zoom, v };
+}
+
 class StampFrameNode {
 
   // ── Draw ───────────────────────────────────────────────
 
   static before_draw2d(ctxMix, node, params) {
-    const ctx = ctxMix.ctx;
-    if (!ctx) return;
+    node._savedT = null;
+    if (!ctxMix.ctx || !ctxMix.T) return;
 
     const p  = { ...FRAME_DEFAULTS, ...params };
 
-    const { cx, cy, left, top, w, h, zoom, v } = ctxMix.frameRect( ctxMix, node, p);
+    const { left, top, w, h, zoom, v } = stampRect(ctxMix, node, params, p);
 
     const depth    = (p.edgeDepth || 0) * zoom;
     const cr       = Math.min((p.edgeCornerRadius || 0) * zoom, w / 2, h / 2);
@@ -287,7 +307,9 @@ class StampFrameNode {
       cr, count, depth, reg, seed, flats, sections, curvy
     );
 
-    ctx.save();
+    // Screen space; stays saved while the children draw (after_draw2d restores).
+    const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
+    node._drawSaved = true;
 
     // ── drop shadow ──
     if (p.frameShadowBlur > 0) {
@@ -326,22 +348,14 @@ class StampFrameNode {
       ctx.setLineDash([]);
     }
 
-    // ── Translate so children draw relative to frame centre ──
-    //const { cx, cy } = _frameRect( ctxMix, node, p);
-    ctx.translate(cx, cy);
-
-    // ── Push T for children (screen-space shift) ──
+    // ── Children are placed relative to the frame centre ──
     node._savedT = ctxMix.T;
-    if (ctxMix.T) {
-      ctxMix.T = ctxMix.T.shift({ x: cx, y: cy });
-    }
-
-    // Context stays saved — children render between before/after
+    ctxMix.T = ctxMix.T.child({ x: v.x || 0, y: v.y || 0 });
   }
 
   static after_draw2d(ctxMix, node) {
     if (node._savedT) { ctxMix.T = node._savedT; node._savedT = null; }
-    ctxMix.ctx?.restore();
+    if (node._drawSaved) { ctxMix.ctx.restore(); node._drawSaved = false; }
   }
 
   // ── Hit test — container pattern ───────────────────────
@@ -351,88 +365,46 @@ class StampFrameNode {
   // during recursion can overwrite hitResult.
 
   static before_hit_test(ctxMix, node, params) {
+    node._savedT = null;
     // Compared with T.toScreen, so it must be the screen point.  An enclosing
     // container may have rewritten ctxMix.hitPoint into its own local space
     // (handle-frame does, for its content); SceneRootNode keeps the original.
     const pt = ctxMix.screenHitPoint ?? ctxMix.hitPoint;
-    if (!pt) return;
+    const T  = ctxMix.T;
+    if (!pt || !T) return;
 
-    const p    = { ...FRAME_DEFAULTS, ...params };
-    const T    = ctxMix.T;
-
-    const { w, h, v, zoom } = ctxMix.frameRect( ctxMix, node, p);
+    const p = { ...FRAME_DEFAULTS, ...params };
+    const { cx: sx, cy: sy, w, h, v, zoom } = stampRect(ctxMix, node, params, p);
     const depth = (p.edgeDepth || 0) * zoom;
     const hitW  = w + depth * 2;
     const hitH  = h + depth * 2;
+    const left  = sx - hitW / 2;
+    const top   = sy - hitH / 2;
 
-    // Screen-space centre
-    let sx, sy;
-    if (T) {
-      const screen = T.toScreen({ x: v.x || 0, y: v.y || 0 });
-      sx = screen.x;
-      sy = screen.y;
-    } else {
-      sx = (v.x || 0) * zoom + (params.panX || 0) + (ctxMix.W || 0) / 2;
-      sy = (v.y || 0) * zoom + (params.panY || 0) + (ctxMix.H || 0) / 2;
-    }
-
-    const left = sx - hitW / 2;
-    const top  = sy - hitH / 2;
-
-    // Frame background hit
+    // Frame background hit; children hit-tested after this may overwrite it.
     if (pt.x >= left && pt.x <= left + hitW &&
         pt.y >= top  && pt.y <= top  + hitH) {
       const dxHit = pt.x - sx;
       const dyHit = pt.y - sy;
-
-      if (T) {
-        const Ts = T.clone();
-        ctxMix.hitResult = {
-          node,
-          interactions: {
-            applyDrag(screenX, screenY) {
-              const local = Ts.toLocal({ x: screenX - dxHit, y: screenY - dyHit });
-              node.value.x = local.x;
-              node.value.y = local.y;
-            },
+      const Ts = T.clone();
+      ctxMix.hitResult = {
+        node,
+        interactions: {
+          applyDrag(screenX, screenY) {
+            const local = Ts.toLocal({ x: screenX - dxHit, y: screenY - dyHit });
+            Values.setValue(Values, node, params, { x: local.x, y: local.y });
           },
-        };
-      } else {
-        const sz = zoom, spx = params.panX || 0, spy = params.panY || 0;
-        const cxS = (ctxMix.W || 0) / 2, cyS = (ctxMix.H || 0) / 2;
-        ctxMix.hitResult = {
-          node,
-          interactions: {
-            applyDrag(screenX, screenY) {
-              node.value.x = (screenX - dxHit - spx - cxS) / sz;
-              node.value.y = (screenY - dyHit - spy - cyS) / sz;
-            },
-          },
-        };
-      }
+        },
+      };
     }
 
-    // ── Push T for children ──
-    node._savedT = ctxMix.T;
-    if (ctxMix.T) {
-      ctxMix.T = ctxMix.T.shift({ x: (v.x || 0) * zoom, y: (v.y || 0) * zoom });
-    }
-
-    // ── Legacy: shift pan so non-T children still work ──
-    node._savedPanX = params.panX;
-    node._savedPanY = params.panY;
-    params.panX = (params.panX || 0) + (v.x || 0) * zoom;
-    params.panY = (params.panY || 0) + (v.y || 0) * zoom;
+    // ── Children are placed relative to the frame centre ──
+    node._savedT = T;
+    ctxMix.T = T.child({ x: v.x || 0, y: v.y || 0 });
   }
 
-  static after_hit_test(ctxMix, node, params) {
+  static after_hit_test(ctxMix, node) {
     if (node._savedT) { ctxMix.T = node._savedT; node._savedT = null; }
-    if ('_savedPanX' in node) {
-      params.panX = node._savedPanX;
-      params.panY = node._savedPanY;
-      delete node._savedPanX;
-      delete node._savedPanY;
-    }
   }
 }
 

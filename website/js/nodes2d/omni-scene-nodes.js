@@ -196,23 +196,6 @@ function makeBox(w, h) {
 // ═══════════════════════════════════════════════════════
 
 /** 
- * This is a centred contract, cx and cy will be frame centre 
- * width and height are 
- * */
-function frameRect( ctxMix, node, p) {
-  const v  = node.value || {};
-  const zoom = p.zoom || 1;
-  const rawW = v.width  || 200;
-  const rawH = v.height || 100;
-  const pad  = (p.framePadding || 0) * zoom;
-  const w    = rawW * zoom + pad * 2;
-  const h    = rawH * zoom + pad * 2;
-  const cx   = (v.x || 0) * zoom;
-  const cy   = (v.y || 0) * zoom;
-  return { cx, cy, w, h, left: cx - w / 2, top: cy - h / 2, zoom, v };
-}
-
-/** 
  * This is about the minimal contract
  * W and H are retrieved from the ctx.
  */
@@ -237,7 +220,6 @@ class SceneRootNode {
     // ── Initialize transform system ──
     ctxMix.T   = new Transform({ x: 0, y: 0 }, 1, 1);
     ctxMix.getWH = ((ctxMix, node, params)=>{return {W:ctxMix.W, H:ctxMix.H}});
-    ctxMix.frameRect = frameRect;
     ctxMix.box = makeBox(W, H);
     return {ctx, W, H};
   }
