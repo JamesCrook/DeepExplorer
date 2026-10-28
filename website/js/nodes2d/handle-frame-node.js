@@ -147,9 +147,10 @@ class HandleFrameNode {
     node._savedLayout = ctxMix.layout ? { ...ctxMix.layout } : { x: 0, y: 0 };
     ctxMix.layout = { x: 0, y: 0 };
 
-    // For stretchContent: expose actual frame pixel dimensions
+    // For stretchContent: expose the frame's size, in the content's own
+    // (local) units, as draw and hit-test give it in ctxMix.W / H.
     if (node.value?.stretchContent) {
-      const frame = HandleFrameNode._getFrame(node, params);
+      const frame = HandleFrameNode._getFrameLocal(node);
       if (frame) ctxMix._contentFrame = frame;
     }
   }
@@ -223,17 +224,24 @@ class HandleFrameNode {
     const localFrame = HandleFrameNode._getFrameLocal(node);
 
     if (node.value?.stretchContent) {
-      // No scaling — content draws at actual frame pixel dimensions
-      ctxMix.W = frame.width;
-      ctxMix.H = frame.height;
-      ctxMix.box = { _w: frame.width, _h: frame.height,
+      // Content fills the frame at the frame's own (local) size, and zooms
+      // with it: ctx is scaled by T's scale, so what children draw on ctx
+      // agrees with what they place by T.  Without T (no walk transform),
+      // the old behaviour: frame pixels, unscaled.
+      if (ctxMix.T && localFrame && localFrame.width > 0 && localFrame.height > 0) {
+        const sx = frame.width / localFrame.width, sy = frame.height / localFrame.height;
+        ctx.scale(sx, sy);
+        ctxMix.contentScale = node._savedContentScale * Math.sqrt(sx * sy);
+        ctxMix.W = localFrame.width;
+        ctxMix.H = localFrame.height;
+        ctxMix.T = ctxMix.T.child({ x: localFrame.left, y: localFrame.top }, 1, 1);
+      } else {
+        ctxMix.W = frame.width;
+        ctxMix.H = frame.height;
+      }
+      ctxMix.box = { _w: ctxMix.W, _h: ctxMix.H,
                      width() { return this._w; }, height() { return this._h; },
                      tl() { return { x: 0, y: 0 }; } };
-
-      if (ctxMix.T && localFrame) {
-        ctxMix.T = ctxMix.T.child(
-          { x: localFrame.left, y: localFrame.top }, 1, 1);
-      }
     } else {
       const nw = node._naturalWidth;
       if (!nw) { ctx.restore(); return; }
@@ -408,23 +416,28 @@ class HandleFrameNode {
     const localFrame = HandleFrameNode._getFrameLocal(node);
 
     if (node.value?.stretchContent) {
-      // No scaling — just offset by frame origin
-      if (ctxMix.hitPoint) {
-        ctxMix.hitPoint = {
-          x: ctxMix.hitPoint.x - frame.left,
-          y: ctxMix.hitPoint.y - frame.top,
-        };
+      // Matches draw: content in the frame's local units, mapped by T.
+      if (ctxMix.T && localFrame && localFrame.width > 0 && localFrame.height > 0) {
+        const sx = frame.width / localFrame.width, sy = frame.height / localFrame.height;
+        ctxMix.contentScale = node._savedContentScale * Math.sqrt(sx * sy);
+        ctxMix.W = localFrame.width;
+        ctxMix.H = localFrame.height;
+        ctxMix.T = ctxMix.T.child({ x: localFrame.left, y: localFrame.top }, 1, 1);
+        if (ctxMix.hitPoint) {
+          ctxMix.hitPoint = ctxMix.screenHitPoint
+            ? ctxMix.T.toLocal(ctxMix.screenHitPoint)
+            : { x: (ctxMix.hitPoint.x - frame.left) / sx, y: (ctxMix.hitPoint.y - frame.top) / sy };
+        }
+      } else {
+        if (ctxMix.hitPoint) {
+          ctxMix.hitPoint = { x: ctxMix.hitPoint.x - frame.left, y: ctxMix.hitPoint.y - frame.top };
+        }
+        ctxMix.W = frame.width;
+        ctxMix.H = frame.height;
       }
-      ctxMix.W = frame.width;
-      ctxMix.H = frame.height;
-      ctxMix.box = { _w: frame.width, _h: frame.height,
+      ctxMix.box = { _w: ctxMix.W, _h: ctxMix.H,
                      width() { return this._w; }, height() { return this._h; },
                      tl() { return { x: 0, y: 0 }; } };
-
-      if (ctxMix.T && localFrame) {
-        ctxMix.T = ctxMix.T.child(
-          { x: localFrame.left, y: localFrame.top }, 1, 1);
-      }
     } else {
       const nw = node._naturalWidth;
       if (!nw) return;

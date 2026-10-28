@@ -335,6 +335,13 @@ Separately, the `jatex` text in a post-it starts at the note's centre rather tha
 
   I'd take option 1.
 
+  **Decided and done (28 Oct): option 1.** Stretched content is laid out in
+  the frame's local units (W/H = the local frame size, as `_contentFrame` in
+  layout) and ctx is scaled by T's scale, so ctx-drawn and T-placed content
+  agree and both zoom.  Hit-test maps the pointer with T.toLocal.  The post-it
+  pushes its centre with T.child (local) instead of a screen shift.  At zoom 2
+  the note, its lines and its text now all double.  Frame tests unchanged.
+
 ## Afterwards
 
 - Rerun Code Cartographer. Expected: no duplicate type names except D4's intentional aliases, and no `-zones` twin files. `heatmap-zone.js`, `bga-zone.js` and the other Zones-only nodes are not twins and are out of scope.

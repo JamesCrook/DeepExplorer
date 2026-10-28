@@ -81,7 +81,7 @@ class PostitNode {
 
   // ── Layout: adopt actual frame dimensions ──────────────
   // When inside a stretchContent handle-frame, the frame
-  // stores pixel dimensions on ctxMix._contentFrame.
+  // stores its local size on ctxMix._contentFrame.
   // Resizing our box means handle-frame computes scale = 1.
 
   static before_layout(ctxMix, node, params) {
@@ -226,11 +226,11 @@ class PostitNode {
     ctxMix.W = canvas.w;
     ctxMix.H = canvas.h;
 
-    // Push T: screen-space shift (w/2 is in zoomed pixels,
-    // same coordinate space as T.origin, so use shift).
+    // Push T: the centre, in local units (w, h are the frame's local size;
+    // handle-frame scales ctx and T alike).
     node._savedT = ctxMix.T;
     if (ctxMix.T) {
-      ctxMix.T = ctxMix.T.shift({ x: w / 2, y: h / 2 });
+      ctxMix.T = ctxMix.T.child({ x: w / 2, y: h / 2 });
     }
 
     // Context stays saved — children render between before/after
@@ -268,11 +268,11 @@ class PostitNode {
 
     const T = ctxMix.T;
     if (T) {
-      // T.origin is the frame's top-left in screen space
-      // (accumulated through scene centering + zoom + handle-frame offset).
-      // w is the zoomed frame width (screen pixels), so +w/2 gives center.
-      const frameCenterX = T.origin.x + w / 2;
-      const frameCenterY = T.origin.y + h / 2;
+      // T maps the frame's local units (top-left at 0,0) to screen, through
+      // scene centering, zoom and the handle-frame offset.
+      const centre = T.toScreen({ x: w / 2, y: h / 2 });
+      const frameCenterX = centre.x;
+      const frameCenterY = centre.y;
 
       // Restore hitPoint to screen coordinates
       node._savedHitPoint = ctxMix.hitPoint ? { ...ctxMix.hitPoint } : null;
@@ -297,10 +297,10 @@ class PostitNode {
     ctxMix.W = ctxMix.canvasW || ctxMix.W;
     ctxMix.H = ctxMix.canvasH || ctxMix.H;
 
-    // Push T: screen-space shift (matching draw2d)
+    // Push T: the centre, in local units (matching draw2d)
     node._savedT = ctxMix.T;
     if (ctxMix.T) {
-      ctxMix.T = ctxMix.T.shift({ x: w / 2, y: h / 2 });
+      ctxMix.T = ctxMix.T.child({ x: w / 2, y: h / 2 });
     }
   }
 
