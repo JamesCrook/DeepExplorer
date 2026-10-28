@@ -25,6 +25,7 @@
 
 import { MiniAstNode, SCENES } from '../omni-support/scene.js';
 import { SYS } from '../omni-support/sys.js';
+import { CSVData } from '../data/csv-data.js';
 
 
 // ═══════════════════════════════════════════════════════
@@ -551,9 +552,36 @@ function sectionExport(cardData) {
 }
 
 
+/**
+ * Load Data: a CSV whose first line is a header and whose rows are cards,
+ * [heading, body, body…], as omni-card loaded them.  The cards are replaced
+ * and the HTML backend remounts the scene.
+ */
+function sectionLoadData() {
+  return [{
+    group: 'Load Data', id: 'load', abbrev: 'Load',
+    type: 'filedrop',
+    label: 'Drop CSV file or click',
+    accept: '.csv,.txt',
+    onDrop: (files, layer, app) => {
+      const file = files?.[0];
+      if (!file) return;
+      file.text().then(text => {
+        const csv = new CSVData(text);
+        const grid = layer.subtree.find(n => n.type === 'card-grid');
+        if (!grid) return;
+        app.activeBackend?.deactivate();
+        grid.subtree = csv.rows.map(row => new MiniAstNode('flash-card', [], row));
+        app.activeBackend?.activate();
+      }).catch(err => console.error('CSV error:', err));
+    },
+  }];
+}
+
 /** Assemble all slider sections for OmniControlPanel. */
 function cardsBuildUI(layer) {
   return [
+    ...sectionLoadData(),
     ...sectionLayout(),
     ...sectionDimensions(),
     ...sectionHeadingType(),

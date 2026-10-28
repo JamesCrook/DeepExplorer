@@ -681,6 +681,10 @@ class OmniSceneApp {
         const origBuild = sec.build;
         wrapped.build = (groupEl, _controls) => origBuild(groupEl, layer, this);
       }
+      if (sec.type === 'filedrop' && sec.onDrop) {
+        const origDrop = sec.onDrop;
+        wrapped.onDrop = (files, _panel) => origDrop(files, layer, this);
+      }
       return wrapped;
     });
   }
