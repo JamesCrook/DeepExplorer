@@ -9,6 +9,9 @@ import { PipperNode } from '../nodes2d/pipper-node.js';
 import { RaftSnapController } from '../2d-support/raft-snap-controller.js';
 import '../nodes2d/fracture-cone-node.js';   // 'fracture-cone'
 export { SeedModel };
+
+// Model '2D Raft' — polygon tiles whose pips snap together into rafts, which fracture along a cone
+
 class SeedModel{
   get name() { return '2D Raft'; }
   get btnClass() { return 'green'; }

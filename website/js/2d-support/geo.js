@@ -1,4 +1,7 @@
 export { Geo };
+
+// Geo — angle and polygon helpers for pips and tiles: normalise, angle difference, polygon vertices
+
 class Geo {
   static PI = Math.PI;
   static TAU = Math.PI * 2;

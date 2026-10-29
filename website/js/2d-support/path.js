@@ -1,5 +1,7 @@
 import { Vector2D, lerp } from './vector2d.js';
 
+// Paths a row of cells can follow — Linear, Arc, Sector, Wrapped, Grid, Blended — and their frames and corners at t
+//
 // ============================================================
 // Coordinate conventions
 // ============================================================

@@ -1,5 +1,5 @@
 /**
- * scenes-frame.js  — v4
+ * OmniScene addable: Frames — stamp-frames of kanji, each new one at a golden-angle offset
  *
  * Fixes from v3:
  *   - Added createItem(count) so the + button creates new frames

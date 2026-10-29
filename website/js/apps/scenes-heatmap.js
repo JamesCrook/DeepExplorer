@@ -1,5 +1,5 @@
 /**
- * scenes-heatmap.js
+ * OmniScene scene and addable: Heatmap — the body heatmap, full-canvas or in a handle-frame
  *
  * Heatmap scene definition + addable for OmniScene.
  *

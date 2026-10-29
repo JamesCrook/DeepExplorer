@@ -2,6 +2,9 @@ import { SYS } from '../omni-support/sys.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { MoleculeModel } from './molecule-model.js';
 export { ButanolModel };
+
+// Model 'Butanol' — a butanol molecule, built by MoleculeModel
+
 class ButanolModel extends MoleculeModel {
   get name() { return 'Butanol'; }
   constructor() {

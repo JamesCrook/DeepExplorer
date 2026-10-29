@@ -2,6 +2,9 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
 import '../nodes3d/ground-plane-node.js';   // 'ground-plane'
 export { GroundPlaneModel };
+
+// Model 'Ground Plane' — a 3D grid with axes (ground-plane)
+
 class GroundPlaneModel {
   get name() { return 'Ground Plane'; }
   get displayType() { return '3d'; }

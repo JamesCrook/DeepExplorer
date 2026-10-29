@@ -4,6 +4,8 @@ import '../nodes2d/drag-point-node.js';   // 'drag-point'
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { MoleculeModel };
 
+// MoleculeModel — base class for small molecules: CPK atoms as drag points, bonds as pipped edges, hydrogens placed
+
 class MoleculeModel{
   get btnClass() { return 'green'; }
   get displayType() { return '2d'; }

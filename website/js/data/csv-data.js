@@ -1,3 +1,5 @@
+// Grid data for charts: GridData, CSVData (parsed CSV), FunctionData, MiscData, DataAdapter
+//
 // ============================================================
 // GRID DATA CLASSES
 // ============================================================

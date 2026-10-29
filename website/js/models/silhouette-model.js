@@ -4,6 +4,9 @@ import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import '../nodes2d/drag-point-node.js';   // 'drag-point'
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { SilhouetteModel };
+
+// Model 'Silhouette' — a human outline as drag points joined by pipped edges
+
 class SilhouetteModel {
   get name() { return 'Silhouette'; }
   get btnClass() { return 'green'; }

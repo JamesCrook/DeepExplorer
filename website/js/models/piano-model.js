@@ -3,6 +3,9 @@ import { makeArray } from '../2d-support/make-array.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { keyValue, NOTE_NAMES } from '../nodes2d/piano-key-zone.js';
 export { PianoModel };
+
+// Model 'Piano · 3 Octaves' — a keyboard of piano-keys that know their notes
+
 class PianoModel {
   get name() { return 'Piano · 3 Octaves'; }
   get displayType() { return '2d'; }

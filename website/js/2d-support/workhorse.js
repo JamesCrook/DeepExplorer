@@ -5,6 +5,8 @@ import { Box } from './box.js'
 import { Shape } from './shape.js'
 import { drawWigglyLine, applyBend } from './wiggly-line.js';
 
+// Scorpio's 2023 mind-map code, as it was (window globals, (A, obj, d)); only drawScorpioLabel is still used, by jatex-tile-node
+
 var metaData = 
 { 
   version: "2023-02",

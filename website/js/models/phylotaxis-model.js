@@ -2,6 +2,9 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { make3DPane } from '../3d-support/three-boot.js';
 import '../nodes3d/phylo-node.js';   // 'phylo-node'
 export { PhylotaxisModel };
+
+// Models 'Phylotaxis α' and 'β' — 3D phyllotaxis spirals, in levels (phylo-node)
+
 class PhylotaxisModel {
   constructor(label, state) {
     this._label = label;

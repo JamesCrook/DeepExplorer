@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+// Spherical — latitude and longitude to a THREE.Vector3 on a sphere (Y up, as earth textures)
+
 export class Spherical {
   /**
    * Converts a latitude and longitude to a THREE.Vector3 point on a sphere.

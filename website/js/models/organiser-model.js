@@ -1,5 +1,8 @@
 import { SYS } from '../omni-support/sys.js';
 export { OrganiserModel };
+
+// Model 'Organiser' — checkboxes that show and hide the other models' panels
+
 class OrganiserModel {
   get name() { return 'Organiser'; }
   get displayType() { return 'none'; }

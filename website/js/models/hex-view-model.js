@@ -3,6 +3,9 @@ import { HexChunkNode } from '../nodes2d/hex-view-zone.js';
 import { makeArray } from '../2d-support/make-array.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 export { HexViewModel };
+
+// Model 'HexaView' — a hex dump of synthetic data, one hex-chunk per visible row
+
 class HexViewModel {
   get name() { return 'HexaView'; }
   get displayType() { return '2d'; }

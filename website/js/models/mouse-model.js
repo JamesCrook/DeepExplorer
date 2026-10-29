@@ -4,6 +4,9 @@ import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import '../nodes2d/mouse-zone.js';   // 'mouse-button'
 export { MouseModel };
 import { mouseGeometry } from '../nodes2d/mouse-zone.js';
+
+// Model 'Mouse Bindings · 6 Zones' — a mouse drawn as clickable zones, each showing its binding (mouse-button)
+
 class MouseModel {
   get name() {
     return 'Mouse Bindings · 6 Zones';

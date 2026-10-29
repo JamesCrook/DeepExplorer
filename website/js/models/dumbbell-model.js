@@ -2,6 +2,9 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
 import '../nodes3d/dumbbell-node.js';   // 'dumbbell-node'
 export { DumbbellModel };
+
+// Model 'Dumbbell · Atoms & Bonds' — two atoms and a bond in 3D (dumbbell-node)
+
 class DumbbellModel {
   get name() { return 'Dumbbell · Atoms & Bonds'; }
   get displayType() { return '3d'; }

@@ -1,5 +1,5 @@
 /**
- * scene-shapes.js
+ * OmniScene addable: Rectangle — and what every addable declares (selectionSize, refCount, …)
  *
  * Addable declarations — one per object type OmniScene can add
  * to a scene.

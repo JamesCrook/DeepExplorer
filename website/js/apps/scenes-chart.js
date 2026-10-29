@@ -7,6 +7,8 @@ import '../nodes2d/sizing-nodes.js';
 import { beveragesTree } from '../data/drinks-data.js';
 import { kangxiCharacters } from '../data/k-data.js';
 
+// OmniScene scene and addable: Chart — sales, footfall, drinks and kanji samples as stacked, warpable charts
+
 const SAMPLE_OPTIONS = [
   { value: 'sales',    label: 'Product Sales' },
   { value: 'footfall', label: 'Location Footfall' },

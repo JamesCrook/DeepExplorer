@@ -1,4 +1,6 @@
 /*
+ * TreeOfData — walk a JSON tree of arrays, keyed objects and {name, items} interposers by cursor and level
+ *
  * In a data tree some nodes are arrays of things, some are objects where the keys 
  * in effect form an array too.
  * additionally there can be intermediate objects such 

@@ -1,5 +1,5 @@
 /**
- * scenes-mask.js
+ * OmniScene scenes and addables from the mask editor: Lloyd Mirror, and Chip Layer with Sobel edges
  *
  * Mask-editor nodes surfaced in OmniScene.
  *

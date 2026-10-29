@@ -1,5 +1,7 @@
 import { PathAst } from './path-ast.js';
 /**
+ * Ribbon — a 2D ribbon along a biarc path, with end shapes; the drawing behind the `ribbon` node
+ *
  * @class RibbonStyle
  * @description Manages the visual style of a ribbon.
  */

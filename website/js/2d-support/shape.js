@@ -1,3 +1,5 @@
+// Shape — Scorpio's polygon with typed edges and end codes ('warts'), bevels and SVG output
+
 function Shape(){
    // Shape uses Vector2D
    // Shape uses ctx

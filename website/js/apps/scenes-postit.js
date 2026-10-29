@@ -1,5 +1,5 @@
 /**
- * scenes-postit.js
+ * OmniScene addable: Post-it — a draggable, resizable note (handle-frame > postit-node > jatex)
  *
  * Addable declaration for post-it notes.
  * Each post-it is a handle-frame (draggable, resizable) containing

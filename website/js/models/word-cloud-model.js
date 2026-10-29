@@ -2,6 +2,9 @@ import { SYS } from '../omni-support/sys.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import '../nodes2d/word-node.js';   // 'word-node'
 export { WordCloudModel };
+
+// Model 'Word Cloud' — word-nodes laid out as a cloud
+
 class WordCloudModel {
   get name() { return 'Word Cloud'; }
   get displayType() { return '2d'; }

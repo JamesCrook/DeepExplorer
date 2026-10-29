@@ -3,6 +3,9 @@ import { makeArray } from '../2d-support/make-array.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { ringGeometry, treeRingData } from '../nodes2d/tree-ring-zone.js';
 export { TreeRingModel };
+
+// Model 'Tree Rings · 35 Years' — a trunk's rings, one per year (tree-ring)
+
 class TreeRingModel {
   get name() {
     return 'Tree Rings · 35 Years';

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  RIBBON SCENES + ADDABLE — v2
+// OmniScene scene and addable: Ribbon — a 2D ribbon through draggable points
 // ═══════════════════════════════════════════════════════
 //
 // Changes from v1:

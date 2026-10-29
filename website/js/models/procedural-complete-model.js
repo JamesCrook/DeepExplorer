@@ -3,6 +3,9 @@ import { GraphModel } from './graph-model.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { ProceduralTreeModel } from './procedural-tree-model.js';
 export { ProceduralCompleteModel };
+
+// Generated complete graphs (K4 …) on GraphModel: every node joined to every other
+
 class ProceduralCompleteModel extends GraphModel {
   constructor(name, n) {
     super();

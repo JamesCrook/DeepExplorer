@@ -1,5 +1,8 @@
 import { Geo } from './geo.js';
 export { ConeEngine };
+
+// ConeEngine — the fracture cone: which tiles of a raft come with the one being dragged
+
 class ConeEngine {
 
   static computeCone(n, tilt, angle) {

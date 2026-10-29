@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-//  WORKHORSE SCENES + ADDABLES
+// OmniScene scene and addable: Mind map — atoms and bonds from the workhorse nodes
 // ═══════════════════════════════════════════════════════════════
 //
 //  Parallel to scenes-ribbon.js.

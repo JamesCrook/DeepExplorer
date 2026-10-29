@@ -2,6 +2,9 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE, make3DPane } from '../3d-support/three-boot.js';
 import '../nodes3d/planet-node.js';   // 'planet'
 export { PlanetModel };
+
+// Model 'Planet Cutaway' — a planet with crust, core and cutaway planes (planet-node)
+
 class PlanetModel {
   get name() { return 'Planet Cutaway'; }
   get displayType() { return '3d'; }

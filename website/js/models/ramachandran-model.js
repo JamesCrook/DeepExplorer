@@ -7,6 +7,8 @@ export { RamachandranModel };
 import { RC_DEFAULTS } from '../nodes2d/ramachandran-chart-node.js';
 
 /* ─────────────────────────────────────────────────────────────────────────────
+Model 'Ramachandran' — residues' φ/ψ angles as points on a Ramachandran chart
+
 Value function — reads frame dimensions from ctxMix.getWH()
 ──────────────────────────────────────────────────────────────────────────── */
 

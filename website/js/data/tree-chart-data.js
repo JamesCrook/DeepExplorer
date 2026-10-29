@@ -1,5 +1,7 @@
 import { GridData } from './csv-data.js';
 
+// TreeChartData — a data tree (TreeOfData) seen as GridData, so a chart can draw a hierarchy
+
 function getNodeLabel(tree, cursor) {
   const node = tree.getNode(cursor);
   if (!node) return '';

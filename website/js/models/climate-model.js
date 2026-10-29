@@ -10,6 +10,8 @@ export { ClimateModel };
 import { BAR_DEFAULTS } from '../nodes2d/bar-element-node.js';
 
 /* ─────────────────────────────────────────────────────────────────────────────
+Model 'Climate' — a climate chart of axes, bars, a dotted line and word labels, from flyweight arrays
+
 Value functions — read frame dimensions from ctxMix.getWH()
 ──────────────────────────────────────────────────────────────────────────── */
 

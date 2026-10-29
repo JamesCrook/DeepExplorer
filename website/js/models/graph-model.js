@@ -3,7 +3,7 @@ import { BasicCollectionNode } from '../nodes2d/basic-collection-node.js';
 import '../nodes2d/drag-point-node.js';   // 'drag-point'
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { GraphModel };
-// A lightweight base class for generating standard graph layouts
+// GraphModel — base class for generated graphs: junction drag-points joined by pipped edges
 class GraphModel {
   get btnClass() { return 'green'; }
   get displayType() { return '2d'; }

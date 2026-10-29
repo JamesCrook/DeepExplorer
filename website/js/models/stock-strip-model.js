@@ -8,6 +8,9 @@ import '../nodes2d/fracture-cone-node.js';   // 'fracture-cone'
 import '../nodes2d/stock-strip-node.js';   // 'stock-strip'
 import '../nodes2d/word-node.js';   // 'word-node'
 export { StockStripModel };
+
+// Model 'Stock Strip · Scene Graph' — a pane with a strip of prototype buttons to drag out as copies
+
 class StockStripModel {
   get name() { return 'Stock Strip · Scene Graph'; }
   get displayType() { return '2d'; }

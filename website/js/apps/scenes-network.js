@@ -1,5 +1,5 @@
 /**
- * scenes-network.js — v2
+ * OmniScene addable: Network — linked nodes and edges, as a pair of layers
  *
  * Network addable: linked nodes + edges as a layer pair.
  *

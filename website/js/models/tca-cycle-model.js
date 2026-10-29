@@ -6,6 +6,9 @@ import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import { PippedButtonNode } from '../nodes2d/pipped-button-node.js';
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { TCACycleModel };
+
+// Model 'TCA Cycle' — the citric acid cycle as pipped buttons joined by pipped edges
+
 class TCACycleModel{
   get name() { return 'TCA Cycle'; }
   get btnClass() { return 'green'; }

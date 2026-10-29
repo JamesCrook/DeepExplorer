@@ -1,4 +1,4 @@
-// demo-fns.js
+// Sample grids for the chart and grid demos: random, wave, multiplication table, gradient
 
 import { CSVData, FunctionData } from './csv-data.js';
 

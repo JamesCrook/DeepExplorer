@@ -1,5 +1,5 @@
 /**
- * molam-scene.js — Molam scene definition for OmniScene
+ * OmniScene scene: Molam — the 3D protein viewer, with protein loading, presets and controls
  *
  * Provides everything needed to run Molam inside OmniScene:
  *   - createMolamScene()  → scene-root with three-scene AST + layer.inst

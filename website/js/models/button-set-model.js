@@ -2,6 +2,9 @@ import { SYS } from '../omni-support/sys.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 import '../nodes2d/button-node.js';
 export { ButtonSetModel };
+
+// Model 'Button Set · Scene Graph' — six button-nodes: kana keys, a badge, a disabled one
+
 class ButtonSetModel {
   get name() { return 'Button Set · Scene Graph'; }
   get displayType() { return '2d'; }

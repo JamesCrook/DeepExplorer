@@ -3,6 +3,9 @@ import { ROW_LETTERS, pinLayout } from '../nodes2d/bga-zone.js';
 import { makeArray } from '../2d-support/make-array.js';
 import { makeZoomableCamera } from '../2d-support/make-camera.js';
 export { BGAModel };
+
+// Model 'BGA Package · 12×12' — a ball-grid-array chip's pins, signal and ground (bga-pin)
+
 class BGAModel {
   get name() { return 'BGA Package · 12×12'; }
   get displayType() { return '2d'; }
