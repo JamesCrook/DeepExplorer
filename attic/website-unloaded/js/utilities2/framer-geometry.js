@@ -1,3 +1,5 @@
+// FramerGeometry — lines to a planar graph, and the regions (faces) it encloses
+
 class FramerGeometry {
   static buildGraph(lines) {
     const nodes = [];

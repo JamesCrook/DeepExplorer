@@ -1,3 +1,5 @@
+// Avatars — 4-fold symmetric patterns from a seed, as cached blob URLs
+
 // Cache for storing generated pattern blobs
 const patternCache = new Map();
 

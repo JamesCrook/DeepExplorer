@@ -1,3 +1,5 @@
+// OmniMaskModel — builds the mask editor's scene from its layer state (old, xsa and lld exposures)
+
 /**
  * omni-mask-model.js
  *

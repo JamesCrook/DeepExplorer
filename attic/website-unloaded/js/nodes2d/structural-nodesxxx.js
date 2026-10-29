@@ -3,6 +3,7 @@ import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
 import { SYS } from '../omni-support/sys.js';
 
+// `overlay`, `rect`, `label`, `hstack`, `vstack` — early structural nodes, superseded
 
 class WarpedRectanglesNode {
   static draw2d(ctxMix, node, params) {

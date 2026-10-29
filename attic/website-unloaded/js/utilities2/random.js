@@ -1,4 +1,4 @@
-// Seeded pseudo-random number generator
+// SeededRandom — a seeded pseudo-random number generator (LCG)
 class SeededRandom {
   constructor(seed) {
     this.seed = this.hashSeed(seed);

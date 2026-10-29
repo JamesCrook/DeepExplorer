@@ -1,3 +1,5 @@
+// Glyph — draws a glyph from Unicode or an SVG path, with reflection, desaturation, scaling and opacity
+
 /**
  * @fileoverview A utility for rendering glyphs from various sources.
  *

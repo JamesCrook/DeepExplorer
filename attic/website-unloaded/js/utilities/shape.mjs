@@ -1,3 +1,5 @@
+// Shape as an ES module: edges with warts, end codes, tile styles, bond tapers (an older copy of 2d-support/shape.js)
+
 /**
  * shape.mjs
  *

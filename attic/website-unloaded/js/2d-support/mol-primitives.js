@@ -1,3 +1,5 @@
+// Drawing helpers for the molecular animation nodes: labels, arrows, circles, rounded boxes, dashed lines
+
 /**
  * mol-primitives.js
  *

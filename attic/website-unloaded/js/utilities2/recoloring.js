@@ -1,3 +1,5 @@
+// ReColoring — hue, saturation, brightness and contrast as CSS filter chains on images
+
 class ReColoring {
   constructor() {
     this.hue = 0;

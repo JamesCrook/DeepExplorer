@@ -1,3 +1,5 @@
+// `net-node` — a network of linked nodes drawn through T (its header below is a stale copy of scroll-cell.js)
+
 /**
  * scroll-cell.js
  *

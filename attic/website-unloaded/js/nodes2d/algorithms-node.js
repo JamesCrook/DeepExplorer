@@ -1,3 +1,5 @@
+// `alggrid`, `link`, `cellrect` — the old flyweight algorithm-trace grid; superseded by trace-cell and trace-link
+
 /* ============================================
    ChartScene - Unified Charting Engine
    ============================================

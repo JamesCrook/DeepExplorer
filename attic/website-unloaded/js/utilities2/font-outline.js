@@ -1,3 +1,5 @@
+// FontOutline — vector outlines of glyphs, traced from pixels rendered offscreen
+
 /**
  * FontOutline - A class for extracting vector paths from font glyphs.
  * This class works by rendering a character to an offscreen canvas

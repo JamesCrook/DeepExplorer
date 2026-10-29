@@ -1,6 +1,8 @@
 import { MemorySource, MemoryStore, OverlaySource, findBlocks } from './mdplus.js';
 import { ConfigStack } from './mdconfig.js';
 
+// Node test of mdconfig.js's ConfigStack and mdplus.js's sources: layered _project.md / _local.md config
+
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
   if (cond) { pass++; console.log('  ok   ' + name); }

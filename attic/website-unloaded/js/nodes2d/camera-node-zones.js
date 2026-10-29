@@ -1,5 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { CameraNode };
+
+// `camera-node` — the Zones camera: applies a Camera's transform and draws a background grid (container)
+
 class CameraNode {
   static before_draw2d(ctxMix, node, params) {
     const c = ctxMix.ctx;

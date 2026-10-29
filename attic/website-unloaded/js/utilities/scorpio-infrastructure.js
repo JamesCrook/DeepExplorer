@@ -1,3 +1,5 @@
+// Scorpio's framework core: text formatting, styles, rulers, chart sub-draws, graphs, sphere remapping
+
 /**
  * scorpio-infrastructure.js
  *

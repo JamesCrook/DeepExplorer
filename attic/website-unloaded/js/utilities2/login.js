@@ -1,3 +1,4 @@
+// Login link and user menu for the page header
 
 const SCRIPT_URL = document.currentScript.src;
 

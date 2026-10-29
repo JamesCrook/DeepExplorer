@@ -1,5 +1,7 @@
 export { Camera };
 
+// Camera — screen/world conversion and the canvas transform for a 2D pane (the plain object, not a node)
+
 /* ─────────────────────────────────────────────────────────────────────────────
 Camera — screen/world conversion and the canvas transform for a 2D pane.
 

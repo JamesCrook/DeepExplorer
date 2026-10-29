@@ -1,3 +1,5 @@
+// Molecular animation nodes — animate-scene, porphyrin-plane, fe-atom, o2-molecule … — replaced by generic nodes
+
 /**
  * mol-scene-nodes.js
  *

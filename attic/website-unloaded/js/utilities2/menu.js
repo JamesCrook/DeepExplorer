@@ -3,6 +3,8 @@ import "../2d-support/box.js"
 import "./help.js"
 import "./nav.js"
 
+// initMenu — adds items to window.NavMenu
+
 function initMenu( menuItems ){
 	window.NavMenu.addItems( menuItems );
 }

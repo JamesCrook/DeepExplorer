@@ -1,4 +1,4 @@
-// patchbay-boot.js
+// Patchbay bootstrap: connects any OmniControlPanel app to a Patchbay when the URL has ?patchbay=role
 // Generic bootstrap for Patchbay support in any OmniControlPanel app.
 // Injected into child tabs by an orchestrator, or included as a script tag.
 // Activates only if URL contains ?patchbay=<role> parameter.

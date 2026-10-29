@@ -1,3 +1,5 @@
+// Scorpio's small canvas drawing helpers and stage constants, from scorpiodiagrams.js
+
 /**
  * scorpio-drawing-utils.js
  *

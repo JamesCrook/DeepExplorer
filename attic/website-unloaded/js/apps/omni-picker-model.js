@@ -1,4 +1,7 @@
 import '../utilities2/tree-of-data.js';
+
+// OmniPickerModel — Miller-like columns over a tree or grid that scroll in sync as you drag
+
 const TreeOfData = window.TreeOfData;
 
 import { MiniAstNode, sceneRegistry } from '../omni-support/scene.js';

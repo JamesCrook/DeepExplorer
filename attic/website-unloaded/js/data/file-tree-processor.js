@@ -1,3 +1,5 @@
+// FileTreeProcessor — an AST of directory entries, with YAML files parsed inside, rendered as ASCII
+
 /**
  * @fileoverview File Tree Processor
  * Builds an AST from directory entries using the same AstNode structure as the parser.

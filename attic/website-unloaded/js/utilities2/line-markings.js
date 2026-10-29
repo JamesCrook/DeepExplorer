@@ -1,3 +1,4 @@
+// LineMarkings — tick spacing and metric/time labels for a zoomable ruler
 
 // #zoomyruler/code
 const LineMarkings = (function() {

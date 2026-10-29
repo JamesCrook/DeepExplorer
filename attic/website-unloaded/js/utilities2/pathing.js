@@ -1,3 +1,5 @@
+// Pathings — index to 2D position: raster, snake and spiral scans, Cantor and Szudzik pairings
+
 /**
  * Pathings - A class for converting an index to a 2D position for various pathing algorithms.
  */

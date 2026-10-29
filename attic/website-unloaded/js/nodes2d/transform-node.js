@@ -1,6 +1,8 @@
 
 import { SYS } from '../omni-support/sys.js';
 
+// `transform` — scales its subtree by params.zoom (container)
+
 class TransformNode {
 
   static before_measure(ctxMix, node, params) {

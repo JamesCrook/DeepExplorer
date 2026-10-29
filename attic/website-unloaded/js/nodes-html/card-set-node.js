@@ -1,3 +1,5 @@
+// `card-set` — a grid of styled cards via CSS injection; superseded by card-grid and flash-card
+
 /**
  * Classes:
  * -  CardSetNode    – renders a grid of styled cards via CSS injection

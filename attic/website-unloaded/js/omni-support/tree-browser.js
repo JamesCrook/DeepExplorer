@@ -1,5 +1,6 @@
 import { HtmlScene } from '../../../q-legacy/js/omni-support/html-scene.js';
 
+// TreeBrowser — a searchable, virtually scrolled text tree on HtmlScene (not in this repo)
 
 class TreeBrowser extends HtmlScene {
   constructor(container) {

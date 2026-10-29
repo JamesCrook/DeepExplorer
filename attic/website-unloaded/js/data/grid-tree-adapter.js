@@ -1,3 +1,5 @@
+// GridTreeAdapter — a grid seen as a two-level tree (rows, then cells), optionally transposed
+
 class GridTreeAdapter {
   constructor(grid, opts = {}) {
     this.grid = grid;

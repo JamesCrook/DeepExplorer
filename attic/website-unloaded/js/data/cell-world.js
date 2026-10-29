@@ -1,3 +1,5 @@
+// Sample path styles for ribbons and cells ('Smooth curve going through the control points')
+
 let cellWorld = {
   "title": "Smooth curve going through the control points",
   "id": "world.cell",

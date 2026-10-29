@@ -1,3 +1,5 @@
+// General utilities from utils.js: value helpers, colour tuples, number formatting, math and random
+
 /**
  * utils.mjs
  *

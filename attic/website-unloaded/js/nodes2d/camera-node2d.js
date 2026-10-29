@@ -1,3 +1,5 @@
+// CameraNode2d — a Blender-style scene-graph camera: pan, zoom range and view offset as node state
+
 /* ============================================
    CameraNode — Scene-graph camera (Blender-style)
    ============================================

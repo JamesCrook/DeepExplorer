@@ -1,3 +1,5 @@
+// ImageWarper — loads, repeats and caches images on an offscreen canvas, for warping onto another
+
 /**
  * @file This file contains a utility class for warping images onto a canvas.
  * It uses an offscreen canvas to handle image loading, repetition, and caching.

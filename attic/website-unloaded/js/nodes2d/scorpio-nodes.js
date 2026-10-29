@@ -1,3 +1,5 @@
+// Scorpio diagram nodes — stacks, overlay, text, shapes, charts, graphs, sankey, parliament … — from scorpiodiagrams.js
+
 /**
  * scorpio-nodes.js
  *
