@@ -378,6 +378,12 @@ class SectorPath {
     return this.center.addPolar(this._radius(t), this._midAngle);
   }
 
+  // A point inside the wedge: f = 0 on the startAngle side, 1 on the endAngle
+  // side, along the arc at that radius (lerping the corners would cut a chord).
+  pointAt(t, f) {
+    return this.center.addPolar(this._radius(t), lerp(this.startAngle, this.endAngle, f));
+  }
+
   frameAt(t) {
     const a = this.angleAt(t);
     const tangent = new Vector2D(Math.cos(a), Math.sin(a));   // radially outward
@@ -569,6 +575,22 @@ class GridPath extends WrappedPath {
 
 
 // ============================================================
+// pathPointAt — a point across any path's band
+// ============================================================
+// f = 0 on the corner [0] side, 1 on the [1] side.  Paths with an angular
+// cross section (sectors, blends) say so with pointAt; for the rest the
+// corners are joined by a straight across-edge, so lerping them is exact.
+// end = true takes a cell's end-side corners ([3], [2]), which differ from
+// the start side only where a path leaves a segment gap.
+
+function pathPointAt(path, t, f, end = false) {
+  if (path.pointAt) return path.pointAt(t, f, end);
+  const c = path.cornersAt(t, t);
+  return end ? c[3].lerp(c[2], f) : c[0].lerp(c[1], f);
+}
+
+
+// ============================================================
 // BlendedPath
 // ============================================================
 // Linearly interpolates every output of two sub-paths.
@@ -593,6 +615,13 @@ class BlendedPath {
 
   positionAt(t) {
     return this.pathA.positionAt(t).lerp(this.pathB.positionAt(t), this.blend);
+  }
+
+  // A point across the band at t (f = 0 at corner [0]'s side, 1 at [1]'s),
+  // blended as cornersAt is.  end picks a cell's end-side corners where a
+  // sub-path has a segment gap.
+  pointAt(t, f, end = false) {
+    return pathPointAt(this.pathA, t, f, end).lerp(pathPointAt(this.pathB, t, f, end), this.blend);
   }
 
   // Tangent angle, blended via lerpAngle (modular).
@@ -721,5 +750,5 @@ function buildBentChild(anchor, centreDir, length, crossSize,
 }
 
 
-export { LinearPath, ArcPath, SectorPath, WrappedPath, GridPath, BlendedPath,
+export { LinearPath, ArcPath, SectorPath, WrappedPath, GridPath, BlendedPath, pathPointAt,
          lerpAngle, buildBentChild };
