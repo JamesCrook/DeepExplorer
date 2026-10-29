@@ -192,9 +192,10 @@ function nonZero(v) {
 // ============================================================
 
 class RepeatIterator {
-  constructor(count) {
+  /** Columns first .. count-1 (first > 0 when columns before it are culled). */
+  constructor(count, first = 0) {
     this.count = count;
-    this.index = 0;
+    this.index = first;
   }
   /** Current column cursor, e.g. [0], [1], [2]… */
   get cursor() { return [this.index - 1]; }
@@ -283,7 +284,8 @@ class InnerPathBuilder {
   _columnFrame(col, { baseline, alignment, rotateStack, rotateChart,
                       selfLevel, globalMax, maxHeight }) {
     const { outer, arc, ring } = this;
-    const tMid = (col + 0.5) / outer.count;
+    // Uniform columns, or each its share of the spine (outer.colMid/colFrac).
+    const tMid = outer.colMid ? outer.colMid[col] : (col + 0.5) / outer.count;
 
     // ── Column frame from outer path ───────────────────────
     // angleAt is now the tangent direction; recover the normal
@@ -307,7 +309,7 @@ class InnerPathBuilder {
 
     // ── Sector-inner anchor + direction ──────────────────
     const catAngle    = arc.startAngle + rotateStack
-                      + (col + 0.5) * arc.columnAngle;
+                      + (outer.colMid ? tMid * arc.totalAngle : (col + 0.5) * arc.columnAngle);
     const sectorBaseR = 0.5 * outer.stackHeight * (baseline - 0.5)
                       + 0.5 * originShift;
     const sectorAnchor = new Polar(sectorBaseR, catAngle).from(outer.center);
@@ -329,11 +331,17 @@ class InnerPathBuilder {
     );
     const donutAnchor = baselineShift.from(colCenter);
 
+    // Column widths: one for all, or this column's.
+    const stackWidth  = outer.stackWidths ? outer.stackWidths[col] : outer.stackWidth;
+    const sectorAngle = arc.sectorAngles ? arc.sectorAngles[col] : arc.sectorAngle;
+    const ringThickness = ring.thicknesses ? ring.thicknesses[col] : ring.thickness;
+
     return {
       stackLevelledRot: stackLevelledAngle - Math.PI / 2,
       linearOrigin,
       sectorAnchor, catAngle, sectorBaseR,
       donutAnchor, centreDir,
+      stackWidth, sectorAngle, ringThickness,
     };
   }
 
@@ -347,20 +355,20 @@ class InnerPathBuilder {
 
     const linearInner = LinearPath.makePath(
       frame.linearOrigin, frame.stackLevelledRot,
-      outer.stackHeight, outer.stackWidth,
+      outer.stackHeight, frame.stackWidth,
     );
 
     const sectorInner = SectorPath.makePath(
       frame.sectorAnchor, frame.catAngle,
       0.5 * outer.stackHeight, 0,
-      frame.sectorBaseR, 0.5 * arc.sectorAngle,
+      frame.sectorBaseR, 0.5 * frame.sectorAngle,
     );
 
     const sharedInner = new BlendedPath(linearInner, sectorInner, arc.blend);
 
     const donutArc = buildBentChild(
       frame.donutAnchor, frame.centreDir,
-      ring.arcLength, ring.thickness,
+      ring.arcLength, frame.ringThickness,
       ring.sweepAngle, ring.fullBendR,
       ring.segmentGap,
     );
@@ -463,17 +471,20 @@ class WarpableGridNode {
     // Compute maxHeights and globalMax from adapter (on-demand segments).
     // getSegment ensures the cumulative cache is fresh; the cache
     // only rebuilds when data-shaping params actually change.
+    // Only alignment reads them, and they cost rows x columns: skip at 0.
     const numProducts = params.numProducts ?? data.colCount;
     const maxHeights = [];
-    for (let col = 0; col < rowCount; col++) {
-      let max = 0;
-      for (let r = 0; r < numProducts; r++) {
-        const seg = data.getSegment([col, r], params);
-        if (seg && seg.y1 > max) max = seg.y1;
+    if ((params.alignment ?? 0) !== 0) {
+      for (let col = 0; col < rowCount; col++) {
+        let max = 0;
+        for (let r = 0; r < numProducts; r++) {
+          const seg = data.getSegment([col, r], params);
+          if (seg && seg.y1 > max) max = seg.y1;
+        }
+        maxHeights.push(max);
       }
-      maxHeights.push(max);
     }
-    const globalMax  = Math.max(...maxHeights);
+    const globalMax  = maxHeights.length ? Math.max(...maxHeights) : 0;
 
     const w  = node.width   || 0, h = node.height || 0;
     const cx = node.xOffset || 0;
@@ -553,15 +564,61 @@ class WarpableGridNode {
     const spineArcLength = spineRadius * sweepAngle;
     const segmentArcGap  = spineRadius * segmentGap * GRID_LAYOUT.donutGapScale;
 
+    // ── Variable column widths ───────────────────────────
+    // A parent may stamp colWeights (one per column, any units): each column
+    // then takes that share of the spine, for its position and its width.
+    // Gridiness keeps equal cells.  Without weights, the uniform values above.
+    let colMid = null, colFrac = null, stackWidths = null, sectorAngles = null, thicknesses = null;
+    const weights = node.colWeights;
+    if (weights?.length === rowCount) {
+      const total = weights.reduce((a, b) => a + b, 0) || 1;
+      colMid = new Array(rowCount); colFrac = new Array(rowCount);
+      stackWidths = new Array(rowCount); sectorAngles = new Array(rowCount); thicknesses = new Array(rowCount);
+      let acc = 0;
+      const fill = Math.max(0.001, segmentWidth) * (1 - segmentGap);
+      for (let c = 0; c < rowCount; c++) {
+        const f = weights[c] / total;
+        colFrac[c] = f;
+        colMid[c] = acc + f / 2;
+        acc += f;
+        stackWidths[c]  = outerPath.length * f * fill;
+        sectorAngles[c] = nonZeroBend * f * segmentWidth * (1 - segmentGap);
+        thicknesses[c]  = lerp(stackWidths[c], donutThickness, bendStack);
+      }
+    }
+
     // ── Build the inner-path factory ─────────────────────
     const innerPathBuilder = new InnerPathBuilder({
-      outer: { path: outerPath, count: rowCount, stackHeight, stackWidth, center },
+      outer: { path: outerPath, count: rowCount, stackHeight, stackWidth, center,
+               colMid, colFrac, stackWidths },
       arc:   { startAngle: arcStartAngle, blend: arcBlend,
-               columnAngle, sectorAngle },
+               columnAngle, sectorAngle, totalAngle: nonZeroBend, sectorAngles },
       ring:  { fullBendR, sweepAngle,
-               thickness: ringThickness,
+               thickness: ringThickness, thicknesses,
                arcLength: spineArcLength, segmentGap: segmentArcGap },
     });
+
+    // ── Column culling ───────────────────────────────────
+    // While the chart is straight (no bend, grid or ring, columns upright or
+    // reversed), a column stays inside its band of the outer path, so only
+    // the columns whose band meets the visible rect are walked.  The rect is
+    // ctxMix.clipRect when a viewport sets one, else the canvas.
+    let firstCol = 0, lastCol = rowCount - 1;
+    const straight = arcBlend === 0 && gridiness === 0 && bendStack === 0
+                  && Math.abs(Math.sin(rotateStack)) < 1e-9;
+    if (straight && ctxMix.ctx) {
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+      const rect = ctxMix.clipRect
+        ?? { x: 0, y: 0, w: ctxMix.ctx.canvas.width / dpr, h: ctxMix.ctx.canvas.height / dpr };
+      const outerT = new PathTransform(outerPath, ctxMix.T?.affine ?? ctxMix.T,
+        { length: outerPath.length, cross: stackHeight });
+      const lb = outerT.localBounds(rect);
+      const L = outerPath.length;
+      const start = c => colMid ? (colMid[c] - colFrac[c] / 2) * L : c / rowCount * L;
+      const end   = c => colMid ? (colMid[c] + colFrac[c] / 2) * L : (c + 1) / rowCount * L;
+      while (firstCol < rowCount - 1 && end(firstCol) < lb.x0) firstCol++;
+      while (lastCol > firstCol && start(lastCol) > lb.x1) lastCol--;
+    }
 
     // ── Store only what downstream needs ─────────────────
     node.inst = {
@@ -571,6 +628,8 @@ class WarpableGridNode {
       innerPathBuilder,
       stackHeight,
       stackWidth,
+      stackWidths,
+      firstCol, lastCol,
       orch: node._orch,
     };
 
@@ -583,7 +642,7 @@ class WarpableGridNode {
     ctxMix.coordinator = node.inst;
     ctxMix.highlightMode = data.isTreeChart ? 'treeChart' : 'row';
     ctxMix.iterators[ctxMix.iterators.length - 1] =
-      new RepeatIterator(rowCount);
+      new RepeatIterator(lastCol + 1, firstCol);
   }
 
   /**
@@ -611,7 +670,7 @@ class WarpableGridNode {
     const neighborliness = params.neighborliness ?? 0;
     const bendStack = params.bendStack ?? 0;
 
-    const L = inst.stackHeight, half = inst.stackWidth / 2;
+    const L = inst.stackHeight, half = (inst.stackWidths ? inst.stackWidths[col] : inst.stackWidth) / 2;
     const t0 = lerp(seg.y0, ctxMix.flyweight.t0, stack);
     const t1 = lerp(seg.y1, ctxMix.flyweight.t1, stack);
 
@@ -650,14 +709,14 @@ class WarpableGridNode {
       rotateChart:  params.rotateChart ?? 0,
       selfLevel:    params.selfLevel,
       globalMax:    inst.globalMax,
-      maxHeight:    inst.maxHeights[col],
+      maxHeight:    inst.maxHeights[col] ?? 0,
     });
 
     // Virtual bounds for ClippingIterator
     child.yOffset = 0;
     child.height  = inst.stackHeight;
     child.xOffset = 0;
-    child.width   = inst.stackWidth;
+    child.width   = inst.stackWidths ? inst.stackWidths[col] : inst.stackWidth;
 
 
     // ── Populate cache from adapter segments ────────────────
