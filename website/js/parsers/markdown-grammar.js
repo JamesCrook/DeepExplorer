@@ -1,9 +1,8 @@
 import {Parser} from './parser.js'
 
+// PEG grammar: Markdown, blocks and inlines (not loaded by any page)
 
 // ── Markdown (with recursive nesting) ───────────────────
-// PEG grammar: Markdown, blocks and inlines (not loaded by any page)
-//
 //
 // Two tiers: blocks and inlines.
 // Containers (blockquotes, lists) recurse into blocks.
