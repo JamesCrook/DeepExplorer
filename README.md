@@ -48,7 +48,8 @@ DeepExplorer/
 │     ├─ pages-smoke.py         #   every page in headless Chromium: errors, 404s
 │     └─ gguf-parse-test.mjs    #   GGUF parser on a synthetic file
 ├─ tools/
-│  └─ tree.py                   # the file tree with each file's title line beside it
+│  ├─ tree.py                   # the file tree with each file's title line beside it
+│  └─ titles.py                 # check and fix titles as devsrv's Trees page shows them
 ├─ attic/                       # not loaded by any page; kept for reference
 │  ├─ unfolded/                 #   pre-scene-graph apps, now rebuilt in website/html/
 │  ├─ website-unloaded/         #   files no page reached, at their old paths

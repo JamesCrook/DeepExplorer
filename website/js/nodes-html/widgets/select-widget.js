@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { SelectWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `select` — a labelled dropdown bound to a param; its children are the options (container)
-// ════════════════════════════════════════════════════════════════
 
 class SelectWidget extends OmniWidget {
 

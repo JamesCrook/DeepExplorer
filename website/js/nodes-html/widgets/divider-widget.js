@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { DividerWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `divider` — a thin horizontal rule between controls (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class DividerWidget extends OmniWidget {
 

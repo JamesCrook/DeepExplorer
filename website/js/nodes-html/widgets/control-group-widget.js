@@ -2,8 +2,9 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { ControlGroupWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `control-group` — a titled group of controls: an h3 and its children (container)
+
+// ════════════════════════════════════════════════════════════════
 //  ─ Used by the coercion to wrap single-widget sections.
 //  ─ SliderGroupWidget extends this for slider sections.
 // ════════════════════════════════════════════════════════════════

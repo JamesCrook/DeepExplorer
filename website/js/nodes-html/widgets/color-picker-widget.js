@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget, parseHexColor, formatHexColor } from './widget-base.js';
 export { ColorPickerWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `color-picker` — a labelled colour input bound to a param (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class ColorPickerWidget extends OmniWidget {
 

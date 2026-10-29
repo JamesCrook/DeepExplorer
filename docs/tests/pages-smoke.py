@@ -1,3 +1,4 @@
+# Open every page under website/ in headless Chromium and list its errors
 """pages-smoke.py — open every page under website/ in headless Chromium and list its errors.
 
     python3 docs/tests/pages-smoke.py [repo-root]

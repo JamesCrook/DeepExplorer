@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# library_nuggets — copy nuggets from a spike into the library, or report drift
 """
 # ESSENTIALS
 

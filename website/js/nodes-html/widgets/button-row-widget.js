@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { ButtonRowWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `button-row` — a labelled row of buttons of which one is selected, like radio buttons (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class ButtonRowWidget extends OmniWidget {
 

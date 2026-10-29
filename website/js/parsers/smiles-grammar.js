@@ -1,8 +1,9 @@
 import {Parser} from './parser.js'
 
+// PEG grammar: SMILES molecules (not loaded by any page)
+
 // #mol/smiles
 
-// PEG grammar: SMILES molecules (not loaded by any page)
 //
 // ── SMILES (OpenSMILES-complete) ────────────────────────
 Parser

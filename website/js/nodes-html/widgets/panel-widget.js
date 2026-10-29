@@ -2,8 +2,9 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { PanelWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `panel` — the root of a control panel's tree; walkPhase('mount') starts here (container)
+
+// ════════════════════════════════════════════════════════════════
 //  ─ Ensures parentStack exists. Children are top-level sections.
 // ════════════════════════════════════════════════════════════════
 

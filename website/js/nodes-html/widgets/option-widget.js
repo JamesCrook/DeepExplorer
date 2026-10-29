@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { OptionWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `option` — one option of a select (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class OptionWidget extends OmniWidget {
 

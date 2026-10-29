@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { InfoWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `info` — the panel's info area, which the app writes into (panel.infoEl) (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class InfoWidget extends OmniWidget {
 

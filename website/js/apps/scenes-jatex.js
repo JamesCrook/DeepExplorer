@@ -1,12 +1,10 @@
-// ═══════════════════════════════════════════════════════
-// OmniScene scene and addable: Jatex — a formula edited as text, with alignment sliders
-// ═══════════════════════════════════════════════════════
 import { MiniAstNode, SCENES, ADDABLES } from '../omni-support/scene.js';
 import { JatexNode as JatexNodeClass } from '../nodes2d/jatex-node.js';
 import { createItemFields } from '../omni-support/item-fields.js';
 import '../nodes2d/sizing-nodes.js';
 import { findByToken } from '../omni-support/layer-ops.js';
 
+// OmniScene scene and addable: Jatex — a formula edited as text, with alignment sliders
 
 // ── Shared slider definitions ────────────────────────────
 

@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { ButtonWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `button` — one button (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class ButtonWidget extends OmniWidget {
 

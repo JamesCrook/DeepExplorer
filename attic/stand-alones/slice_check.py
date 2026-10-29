@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# slice_check — a model's closure from the declared imports, checked for unbound references
 """slice_check.py — compute a model's closure from the declared imports, and
 verify that the resulting slice has no unbound references.
 

@@ -1,7 +1,8 @@
 import {Parser} from './parser.js'
 
-// #javascript/grammar
 // PEG grammar: JavaScript, flat expressions (not loaded by any page)
+
+// #javascript/grammar
 //
 // ── JavaScript (flat-expression, ~70 rules) ─────────────
 Parser

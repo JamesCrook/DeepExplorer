@@ -1,6 +1,4 @@
-// ============================================================
 // AppUtils — pan/zoom and control-building helpers for the older apps (molam-app, scenes-grid)
-// ============================================================
 
 class AppUtils {
 

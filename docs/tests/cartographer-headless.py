@@ -1,3 +1,4 @@
+# Run Code Cartographer headless over website/: duplicate type names, identical function bodies
 """cartographer-headless.py — run attic/tools/code-cartographer-tool.html over
 website/ in headless Chromium and print what matters for the tidy-up.
 

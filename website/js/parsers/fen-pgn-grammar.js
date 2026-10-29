@@ -1,7 +1,8 @@
+// PEG grammar: chess FEN and PGN (not loaded by any page)
+
 import {Parser} from './parser.js'
 //import { createHandlerRegistry, AstNode } from './ast-manager.js'
 
-// PEG grammar: chess FEN and PGN (not loaded by any page)
 //
 // ── FEN (Forsyth-Edwards Notation) ──────────────────────
 // #chesse/fen

@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { FileDropWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `filedrop` — a drop zone for files, with a click-to-choose input (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class FileDropWidget extends OmniWidget {
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# spike_kit — extract, import and remerge code nuggets from spike files
 """
 # ESSENTIALS
 

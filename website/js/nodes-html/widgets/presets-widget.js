@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { PresetWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `presets` — the row of preset buttons (container)
-// ════════════════════════════════════════════════════════════════
 
 class PresetWidget extends OmniWidget {
 

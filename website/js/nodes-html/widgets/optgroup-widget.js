@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { OptgroupWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `optgroup` — a group of options inside a select (container)
-// ════════════════════════════════════════════════════════════════
 
 class OptgroupWidget extends OmniWidget {
 

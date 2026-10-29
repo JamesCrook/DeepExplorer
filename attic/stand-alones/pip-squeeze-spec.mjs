@@ -1,3 +1,5 @@
+// Spec: two tiles with edges out to junctions are squeezed together (pip snapping, via bundle.test.mjs)
+
 import { PipSetManager, PipperNode, EdgeSnapController, RaftSnapController,
          SnapEngine, makeNode } from './bundle.test.mjs';
 const P = {};

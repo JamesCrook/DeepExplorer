@@ -1,6 +1,5 @@
-// ═══════════════════════════════════════════════════════
 // OmniScene scene and addable: Ribbon — a 2D ribbon through draggable points
-// ═══════════════════════════════════════════════════════
+
 //
 // Changes from v1:
 //   - Twig protocol: addItem, removeItem, selectionInfo on layer.inst

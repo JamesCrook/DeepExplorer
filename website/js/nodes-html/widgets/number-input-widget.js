@@ -2,9 +2,7 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NumberInputWidget };
 
-// ════════════════════════════════════════════════════════════════
 // `number-input` — a labelled number box bound to a param (leaf)
-// ════════════════════════════════════════════════════════════════
 
 class NumberInputWidget extends OmniWidget {
 
