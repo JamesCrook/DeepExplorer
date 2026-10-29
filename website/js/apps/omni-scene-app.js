@@ -1,5 +1,5 @@
 /**
- * omni-scene-app.js  — v9
+ * OmniSceneApp — the OmniScene app: a layer tree of scenes and addables, the twig panel, and the 2D, 3D and HTML backends
  *
  * Changes from v8:
  *   - Recursive twig: _pushLayerSystem emits add-bar + layer-list

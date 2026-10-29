@@ -7,8 +7,8 @@ import { PipSetManager } from '../2d-support/pip-set-manager.js';
 export { PipperNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-PipperNode — the arena.  It owns the pip sets and the controllers, and is the
-substrate both controllers stand on, so neither has to name the other.
+`pipper-node` — the arena: owns the pip sets and the snap controllers (container)
+It is the substrate both controllers stand on, so neither has to name the other.
 
   node.inst.pipSets      PipSetManager, configured with this build's rules
   node.inst.controllers  live controller instances, in claim order

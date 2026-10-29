@@ -3,7 +3,7 @@ import { Values } from '../omni-support/values.js';
 export { ContentFrameNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-ContentFrameNode — generic, content-agnostic frame with drag, resize, and screen-fit.
+`frame-node` (ContentFrameNode) — a content-agnostic frame with drag, resize and screen-fit (container)
 
 Node value properties:
  x, y          — world position (centre of frame)

@@ -1,6 +1,5 @@
 /**
- * polyline-node.js — `polyline`: a stroked path through points, optionally
- * dashed, closed or filled, with arrowheads.
+ * `polyline` — a stroked path through points: dashed, closed or filled, with arrowheads
  *
  * Covers bonds, dashed links, arrows and arcs: a model that wants a curve
  * writes sampled points.

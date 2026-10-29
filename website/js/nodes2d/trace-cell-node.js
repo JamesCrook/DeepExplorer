@@ -1,5 +1,5 @@
 /**
- * trace-cell-node.js — `trace-cell`
+ * `trace-cell` — a round cell with an optional label, for the algorithm traces
  *
  * A round cell with an optional label, used by the algorithm traces
  * (apps/scenes-run.js).  A leaf with no logic: the model writes its value,

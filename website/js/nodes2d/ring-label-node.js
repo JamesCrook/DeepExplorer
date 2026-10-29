@@ -8,7 +8,7 @@ import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { LabelLayerNode, RING_DEFAULTS, RingLabelNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-ring-label — a labelled star whose name may wrap round it, as a scene node.
+`ring-label` and `label-layer` — a labelled star whose name may wrap round it
 
   value { x, y, text, mag?, cls?, color?, px?, ringRadius?, mode? }
   value { x, y, text, region: true, extent }      a seal round a whole region

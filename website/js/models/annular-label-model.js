@@ -6,7 +6,10 @@ import '../nodes2d/sky-nodes.js';        // 'field-star'
 import '../nodes2d/ring-label-node.js';  // 'ring-label', 'label-layer'
 export { AnnularLabelModel };
 
-/* One constellation from the northern atlas: a region seal round it, stars
+/*
+Model 'Annular Labels · Rings' — one constellation, its star names wrapped round the stars
+
+One constellation from the northern atlas: a region seal round it, stars
    inside, and a few outside to show the shapes.  Brightest first, because the
    label layer places in subtree order. */
 class AnnularLabelModel {

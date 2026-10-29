@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
 /**
- * RibbonNode3D — owns a RibbonUI and optional route computation.
+ * `ribbon3d` — owns a RibbonUI (3d-support/ribbon3d.js) and optional route computation
  *
  * AST wiring:
  *   new MiniAstNode('ribbon3d', [], {

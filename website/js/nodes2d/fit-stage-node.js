@@ -1,5 +1,5 @@
 /**
- * fit-stage-node.js — `fit-stage`: a reference area fitted into its box.
+ * `fit-stage` — a reference area fitted into its box (container)
  *
  * Children are laid out in a fixed reference area, refW × refH local units.
  * The stage scales it uniformly to fit the box it is in (ctxMix.W × H, the

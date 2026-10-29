@@ -4,8 +4,8 @@ import { HtmlTemplateNode } from './html-template-node.js';
 export { HtmlHostNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-HtmlHostNode — another backend's scene inside the HTML tree.  The boundary
-between backends: D+'s stage cards, the D+ Mini word cloud.
+`html-host` — another backend's scene inside the HTML tree (container)
+The boundary between backends: D+'s stage cards, the D+ Mini word cloud.
 
 What runs inside is a strategy, named: host.<name> in SYS.FUNCTIONS,
 

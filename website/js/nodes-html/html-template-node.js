@@ -2,9 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 export { HtmlTemplateNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-HtmlTemplateNode — an element whose markup comes from a named template, with
-the node's own value fields filled in.  The type from html-node-types.md that
-replaces D+'s dozen chat widgets (server icon, topic, message, embed card…),
+`html-template` — an element made from a named template, with the node's value fields filled in
+The type from html-node-types.md that replaces D+'s dozen chat widgets (server icon, topic, message, embed card…),
 which are template strings with fields already.
 
 Templates are records in SYS.TEMPLATES, { name, markup, from }.  Any nugget

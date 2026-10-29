@@ -5,7 +5,7 @@ import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
 import { SYS } from '../omni-support/sys.js';
 
 /**
- * ImposterAtomNode — high-performance atom rendering using billboard impostors.
+ * `imposter-atoms` — atoms drawn as billboard impostors, for speed
  *
  * Each atom is a single screen-facing quad (2 triangles). The fragment shader
  * ray-traces a sphere and writes correct gl_FragDepth, producing pixel-perfect

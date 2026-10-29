@@ -3,7 +3,7 @@ import { FlyweightIterator } from '../omni-support/flyweight-iterator.js';
 export { FlyweightArrayNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-FlyweightArrayNode — draws N copies of one proto child.
+`flyweight-array` — draws N copies of one prototype child (container)
 
 The proto is written as an ordinary node and never learns that it is shared.
 The model says how an index becomes a value, and what a write to an item

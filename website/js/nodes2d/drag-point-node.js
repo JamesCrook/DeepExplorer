@@ -6,7 +6,7 @@ import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { DragPointNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-DragPointNode — one class for both worlds (it replaces drag-point-node-zones.js).
+`drag-point` — a draggable point, one class for both worlds (it replaces drag-point-node-zones.js)
 
 Coordinates (the 2D contract, D3 in docs/twin-merge-plan.md):
   - The point's position is its value, read through the resolver

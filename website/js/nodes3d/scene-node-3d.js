@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
 /**
- * SceneNode3D — container that owns a THREE.Group (sphereGroup).
+ * `scene` — a 3D container that owns a THREE.Group
  *
  * Children are positional:
  *   [0] planet   [1] ribbon

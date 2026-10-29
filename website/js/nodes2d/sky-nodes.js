@@ -6,7 +6,7 @@ import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { DeepSkyNode, FieldStarNode, StarNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-Sky nodes — ordinary scene-graph leaves over sky-gl.
+`star`, `field-star`, `deep-sky` — sky objects as ordinary scene-graph leaves over sky-gl
 
   star        a named star: value { x, y, mag, cls (B G M N), color?, nova?, label }
   field-star  an unnamed star for flyweight arrays: value { x, y, w, c }.  It has

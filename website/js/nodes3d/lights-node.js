@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
 /**
- * LightsNode — owns a set of THREE lights.
+ * `lights` — owns a set of THREE lights
  *
  * AST wiring:
  *   new MiniAstNode('lights', [], {

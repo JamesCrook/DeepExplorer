@@ -3,9 +3,8 @@ import { skipChildren } from '../omni-support/scene.js';
 export { HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, HtmlFill };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-html-nodes — the structural HTML node types: a box that holds nodes, a text
-leaf, and an adopted element.  The widget panels are laid out with nothing
-else.
+`html-box`, `html-text`, `html-adopt` — the structural HTML nodes: a box of nodes, text, an adopted element
+The widget panels are laid out with nothing else.
 
 Both are retained: mount creates the element once, update re-applies what can
 change.  What can change is written as a template, '{level}' in a text or a

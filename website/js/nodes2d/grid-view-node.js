@@ -1,5 +1,5 @@
 /**
- * grid-view-node.js — `grid-view`: the OmniGrid renderer as one opaque node.
+ * `grid-view` — the OmniGrid renderer as one opaque node
  *
  * A deliberate stop-gap.  GridScene (2d-support/grid-scene.js) draws the whole
  * table itself, with its own camera; this node gives it the pane to draw in

@@ -3,7 +3,7 @@ import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
 import { SYS } from '../omni-support/sys.js';
 
 /**
- * GroundPlaneNode — owns a GridHelper and optional AxesHelper.
+ * `ground-plane` — owns a GridHelper and an optional AxesHelper
  *
  * One class for both worlds (it replaces ground-plane-node-zones.js).
  *
