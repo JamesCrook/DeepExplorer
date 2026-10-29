@@ -2,8 +2,8 @@ import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
+// `three-scene` — the root of a 3D scene graph: a THREE.Scene, its renderer, camera and lights (container)
 /**
- * `three-scene` — the root of a 3D scene graph: a THREE.Scene, its renderer, camera and lights (container)
  * Owns a THREE.Scene and WebGLRenderer.
  *
  * Positional children:

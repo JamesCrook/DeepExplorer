@@ -1,6 +1,7 @@
 export { hideTooltip, showTooltip };
 
-/* The page's one tooltip element, driven by whichever harness has the
+// The page's one tooltip element, driven by whichever harness has the
+/*
    pointer.  It lives here rather than in a model so that a build without
    the organiser still has somewhere for a hit to report itself. */
 

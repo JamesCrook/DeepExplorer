@@ -4,9 +4,8 @@ import { Spherical } from '../3d-support/spherical.js';
 import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
+// `ribbon3d` — owns a RibbonUI (3d-support/ribbon3d.js) and optional route computation
 /**
- * `ribbon3d` — owns a RibbonUI (3d-support/ribbon3d.js) and optional route computation
- *
  * AST wiring:
  *   new MiniAstNode('ribbon3d', [], {
  *     route: 'great-circle-arc',   // or null for manual control points

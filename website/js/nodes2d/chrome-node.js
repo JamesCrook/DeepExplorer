@@ -1,9 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { ChromeNode };
 
+// `chrome-node` — what a family draws behind or in front of its items, as an ordinary sibling
 /*
-`chrome-node` — what a family draws behind or in front of its items, as an ordinary sibling
-
 Whatever a family draws behind or in front of its items.  It is an ordinary
    sibling node, so the model decides whether there is one at all:
      subtree = [ background, flyweightArray, overlay ]

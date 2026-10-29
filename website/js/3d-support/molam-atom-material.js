@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 
+// MolamAtomMaterial — ShaderMaterial with identical lighting to ImposterAtomNode
 /**
- * MolamAtomMaterial — ShaderMaterial with identical lighting to ImposterAtomNode.
- *
  * Blinn-Phong with no energy-conservation divisor, shininess 30, specular 0.15.
  * Matches the imposter fragment shader exactly, so the transition between
  * imposter (opaque) and sphere (transparent) modes is seamless.

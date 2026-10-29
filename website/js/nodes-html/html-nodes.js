@@ -2,8 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 import { skipChildren } from '../omni-support/scene.js';
 export { HtmlBoxNode, HtmlTextNode, HtmlAdoptNode, HtmlFill };
 
+// `html-box`, `html-text`, `html-adopt` — the structural HTML nodes: a box of nodes, text, an adopted element
 /* ─────────────────────────────────────────────────────────────────────────────
-`html-box`, `html-text`, `html-adopt` — the structural HTML nodes: a box of nodes, text, an adopted element
 The widget panels are laid out with nothing else.
 
 Both are retained: mount creates the element once, update re-applies what can

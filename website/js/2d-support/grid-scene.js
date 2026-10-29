@@ -1,6 +1,5 @@
+// grid-scene.js — the OmniGrid matrix/heatmap renderer, kept whole
 /**
- * grid-scene.js — the OmniGrid matrix/heatmap renderer, kept whole.
- *
  * GridScene is the old omni-grid renderer, unchanged: zoom-dependent cell
  * sizes that blend from heatmap to table, sticky row and column headers, the
  * cyclic A-Z index, focus ranges, blob mode and distance-matrix fading.  The

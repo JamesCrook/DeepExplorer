@@ -1,7 +1,5 @@
 
-/**
- * Capturer: A utility for high-resolution off-screen captures in Three.js.
- */
+// Capturer: A utility for high-resolution off-screen captures in Three.js
 class Capturer {
   constructor(THREE, mainRenderer, scene, camera) {
     this.THREE = THREE

@@ -1,8 +1,7 @@
 import { SYS } from '../omni-support/sys.js';
 
+// actions — what an on entry can do, as action.<name> records in SYS.FUNCTIONS
 /* ─────────────────────────────────────────────────────────────────────────────
-actions — what an on entry can do, as action.<name> records in SYS.FUNCTIONS.
-
 Each record names its arguments, which is what lets the short form be
 positional: 'nav note {label}' is { kind: 'note', target: '{label}' }.  The
 harness has already filled {key} placeholders from the item and params, and

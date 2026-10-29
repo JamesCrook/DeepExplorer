@@ -1,9 +1,8 @@
 import { SYS } from '../omni-support/sys.js';
 import './html-nodes.js';   // the html-box nodes the passes make
 
+// prepasses — turn a flat list of nodes into the nested scene D+ draws
 /* ─────────────────────────────────────────────────────────────────────────────
-prepasses — turn a flat list of nodes into the nested scene D+ draws.
-
 Markdown+ rules emit nodes one block at a time, in document order: a header,
 a card, a few messages.  D+'s _render then built structure by hand.  These
 are that structure as pure functions, prepass.<name> in SYS.FUNCTIONS, each

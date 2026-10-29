@@ -1,6 +1,5 @@
+// A tiny reactive engine: entities, drives, whiles and ons — the rules behind the animations
 /**
- * A tiny reactive engine: entities, drives, whiles and ons — the rules behind the animations
- *
  * Tiny reactive entity/rule engine.
  *
  *   Entities: named bags of numeric properties.

@@ -1,5 +1,5 @@
+// `topics` and `topic-link` — a list of clickable topics for the control panel
 /* ============================================
-`topics` and `topic-link` — a list of clickable topics for the control panel
    ============================================
 
    Registers the 'topics' and 'topic-link' types with sceneRegistry.

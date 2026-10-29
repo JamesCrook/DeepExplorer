@@ -1,6 +1,5 @@
+// `heatmap` — a body-region heatmap: blurred colour-mapped field and sparkles, cached offscreen
 /**
- * `heatmap` — a body-region heatmap: blurred colour-mapped field and sparkles, cached offscreen
- *
  * 2D scene node for rendering region-based heatmaps with
  * colormapped overlays and sparkle particles.
  *

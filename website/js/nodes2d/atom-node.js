@@ -2,9 +2,9 @@ import { SYS } from '../omni-support/sys.js';
 import { kStageHots, transformXy, drawText, drawMindMapLabel } from './workhorse-drawing.js';
 export { AtomNode };
 
+// `atom` — one labelled node of a mind-map: a circle or label box at value.x, y, or a sub-diagram or jatex block in its place
 /* ─────────────────────────────────────────────────────────────────────────────
-`atom` — one labelled node of a mind-map: a circle or label box at value.x, y,
-or a sub-diagram or jatex block in its place. Hit-testable and draggable.
+Hit-testable and draggable.
 ──────────────────────────────────────────────────────────────────────────── */
 //
 // AST shape:

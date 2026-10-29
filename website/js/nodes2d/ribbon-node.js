@@ -1,6 +1,5 @@
+// `ribbon` and `ribbon-point` — a 2D ribbon (2d-support/ribbon2d.js) through its draggable points
 /**
- * `ribbon` and `ribbon-point` — a 2D ribbon (2d-support/ribbon2d.js) through its draggable points
- *
  * Scene-graph node classes for ribbons.
  *
  * RibbonNode       — parent node whose subtree contains ribbon-point children.

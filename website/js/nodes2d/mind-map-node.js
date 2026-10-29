@@ -3,11 +3,10 @@ import { drawBackground, drawAngle } from './workhorse-drawing.js';
 import { BondNode } from './bond-node.js';
 export { MindMapNode };
 
+// `mind-map` — a diagram of labelled atoms joined by tapered bonds: the container that draws the background, the bonds and the angles between them, then its atom children
 /* ─────────────────────────────────────────────────────────────────────────────
-`mind-map` — a diagram of labelled atoms joined by tapered bonds: the container
-that draws the background, the bonds and the angles between them, then its atom
-children. Bonds, angles and quads come from the atoms (bondsFromAtoms,
-anglesFromAtoms, quadsFromAtoms), not from children.
+Bonds, angles and quads come from the atoms (bondsFromAtoms, anglesFromAtoms,
+quadsFromAtoms), not from children.
 
 BROKEN: before_draw2d calls anglesFromAtoms, minEnergy2, bondsFromAtoms and
 quadsFromAtoms, which this file does not import (only the last two exist, in

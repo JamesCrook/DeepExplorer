@@ -2,9 +2,8 @@ import { SceneNode } from '../omni-support/scene.js';
 import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
 import { SYS } from '../omni-support/sys.js';
 
+// `planet` — owns crust, core, grid, cutaway planes and clipping
 /**
- * `planet` — owns crust, core, grid, cutaway planes and clipping
- *
  * AST wiring:
  *   new MiniAstNode('planet', [], {
  *     crustRadius: 1,                 // optional, default 1

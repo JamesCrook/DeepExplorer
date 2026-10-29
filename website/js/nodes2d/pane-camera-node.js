@@ -1,9 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { PaneCameraNode };
 
+// `pane-camera` — pan and zoom for one 2D pane's canvas (container)
 /* ─────────────────────────────────────────────────────────────────────────────
-`pane-camera` — pan and zoom for one 2D pane's canvas (container)
-
 Node value properties:
  centerOrigin — true  → world (0,0) maps to pane centre  (charts)
                 false → world (0,0) maps to pane top-left (zones)

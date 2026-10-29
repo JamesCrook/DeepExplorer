@@ -1,8 +1,8 @@
 import { SYS } from '../omni-support/sys.js';
 export { UncenterNode };
 
+// `uncenter` — undoes a parent layer's center:true translate, so nodes that add
 /* ─────────────────────────────────────────────────────────────────────────────
-`uncenter` — undoes a parent layer's center:true translate, so nodes that add
 W/2, H/2 themselves (the ribbon) don't centre twice. hit_test shifts T the same
 way; ribbon-point computes its screen positions independently.
 ──────────────────────────────────────────────────────────────────────────── */

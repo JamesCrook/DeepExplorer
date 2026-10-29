@@ -1,8 +1,8 @@
 import { SYS } from '../omni-support/sys.js';
 export { RulerNode };
 
+// `ruler` — a self-contained ruler: tick marks and numbers along a line, from the
 /* ─────────────────────────────────────────────────────────────────────────────
-`ruler` — a self-contained ruler: tick marks and numbers along a line, from the
 Scorpio-era Ruler object.
 ──────────────────────────────────────────────────────────────────────────── */
 //

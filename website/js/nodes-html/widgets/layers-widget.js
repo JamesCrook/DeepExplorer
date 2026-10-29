@@ -1,6 +1,5 @@
+// `layers` and `selection-action-bar` — the twig panel's draggable layer list, and the bar of actions on a selection
 /**
- * `layers` and `selection-action-bar` — the twig panel's draggable layer list, and the bar of actions on a selection
- *
  * Refactored to use static mount with ctxMix.parentEl.
  * No compact branch — nav representation is handled by coerceToAST.
  *

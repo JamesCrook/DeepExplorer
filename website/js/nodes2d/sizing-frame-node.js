@@ -2,10 +2,10 @@ import { SYS } from '../omni-support/sys.js';
 import { CHART_NAT_W, CHART_NAT_H } from './sizing-box-node.js';
 export { SizingFrameNode };
 
+// `frame` — sizes a chart to the canvas: its one child gets width, height and a centring offset from ctxMix.W/H, as GenericScene.renderAny did
 /* ─────────────────────────────────────────────────────────────────────────────
-`frame` — sizes a chart to the canvas: its one child gets width, height and a
-centring offset from ctxMix.W/H, as GenericScene.renderAny did. The scene-mode
-partner of `box`; a parent `zoom-pan` does the translate and scale.
+The scene-mode partner of `box`; a parent `zoom-pan` does the translate and
+scale.
 
 How the addables use these sizers (frame, box, zoom-pan, uncenter):
   Ribbon   frame: zoom-pan.            addable: uncenter.

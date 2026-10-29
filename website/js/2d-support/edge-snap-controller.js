@@ -6,9 +6,8 @@ import { PipperNode } from '../nodes2d/pipper-node.js';
 import '../nodes2d/pipped-edge-ref-node.js';   // 'pipped-edge'
 export { EdgeSnapController };
 
+// EdgeSnapController — edges and junctions stay attached to the pips they meet
 /* ─────────────────────────────────────────────────────────────────────────────
-EdgeSnapController — edges and junctions stay attached to the pips they meet.
-
 This class is droppable, and names no other controller.  It answers hooks
 announced by PipperNode rather than being called by RaftSnapController:
 

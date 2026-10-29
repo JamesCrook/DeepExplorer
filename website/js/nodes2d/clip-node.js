@@ -1,9 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { ClipNode };
 
+// `clip-node` — brackets its subtree with a clipping path (container)
 /* ─────────────────────────────────────────────────────────────────────────────
-`clip-node` — brackets its subtree with a clipping path (container)
-
 A clip is a save/restore pair around other nodes, so it is a wrapper rather
 than a sibling: as siblings the bracket would depend on nothing between them
 disturbing the context.  The path comes from value.pathFn, which the model

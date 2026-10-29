@@ -1,5 +1,5 @@
+// Molam — Full Application (shell + controls + widget)
 /* ============================================
-   Molam — Full Application (shell + controls + widget)
    ============================================
 
    Wires together:

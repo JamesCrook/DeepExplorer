@@ -2,8 +2,8 @@ import { sceneRegistry } from '../../omni-support/scene.js';
 import { Values } from '../../omni-support/values.js';
 import { isHexColor, parseHexColor, formatHexColor, lerpColor } from '../../colour/colour.js';
 
+// What the panel widgets share: OmniWidget, WidgetContext (one walk's params and panel), createWidget from a config
 /* ============================================
-What the panel widgets share: OmniWidget, WidgetContext (one walk's params and panel), createWidget from a config
    ============================================
 
    Each widget node type has its own file in this folder and registers

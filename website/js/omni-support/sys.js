@@ -1,6 +1,5 @@
+// SYS — the registries that exist once: node classes, templates, named functions, models
 /*
-SYS — the registries that exist once: node classes, templates, named functions, models
-
 # ESSENTIALS
 
 SYS — the things that exist once, for modules that register themselves.

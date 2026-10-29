@@ -1,10 +1,7 @@
 
 import * as THREE from 'three';
 
-/**
- * ProjectionMorpher — lerps between perspective and orthographic
- * projection matrices element-by-element.
- */
+// ProjectionMorpher — lerps between perspective and orthographic projection matrices element-by-element
 
 class ProjectionMorpher {
   constructor(camera, controls, baseFov = 50, near = 0.1, far = 2000) {

@@ -1,9 +1,7 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { AxisNode };
 
-/* ─────────────────────────────────────────────────────────────────────────────
-`axis-node` — a chart's axes, ticks and grid lines, sized from ctxMix.getWH()
-──────────────────────────────────────────────────────────────────────────── */
+// `axis-node` — a chart's axes, ticks and grid lines, sized from ctxMix.getWH()
 const AXIS_DEFAULTS = Object.freeze({
   axisColor: '#504838', axisWidth: 1.5, tickLength: 5, tickWidth: 1,
   gridColor: 'rgba(255,255,255,0.04)', gridWidth: 0.5, showGrid: true,

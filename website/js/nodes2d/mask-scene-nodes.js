@@ -1,8 +1,8 @@
+// The mask editor's plain nodes, one file each, and its nm coordinates
 /*
-The mask editor's plain nodes, one file each, and its nm coordinates. Importing
-this file registers all three. The mask scenes use OmniScene's `layer`
-(omni-scene-nodes.js); a mask-only LayerNode once registered here under the
-same name never ran, and is gone.
+Importing this file registers all three. The mask scenes use OmniScene's
+`layer` (omni-scene-nodes.js); a mask-only LayerNode once registered here
+under the same name never ran, and is gone.
 */
 
 import './mask-rect-node.js';      // 'rect'          a filled rectangle in nm

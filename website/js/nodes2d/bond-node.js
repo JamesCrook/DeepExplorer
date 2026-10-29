@@ -3,9 +3,9 @@ import { drawLineLabelAndText, makeTaper } from './workhorse-drawing.js';
 import { MindMapNode } from './mind-map-node.js';
 export { BondNode };
 
+// `bond` — a tapered, labelled connector between two atoms of a mind-map
 /* ─────────────────────────────────────────────────────────────────────────────
-`bond` — a tapered, labelled connector between two atoms of a mind-map. For now
-the mind-map draws bonds itself, from atom indices, through
+For now the mind-map draws bonds itself, from atom indices, through
 BondNode._drawBondDirect; draw2d is there for when bonds become children.
 ──────────────────────────────────────────────────────────────────────────── */
 //

@@ -1,8 +1,7 @@
 import { SYS } from './sys.js';
 
+// formats — named number formats, pushed into SYS.FUNCTIONS as format.<name>
 /* ─────────────────────────────────────────────────────────────────────────────
-formats — named number formats, pushed into SYS.FUNCTIONS as format.<name>.
-
 The first tenants of FUNCTIONS.  A node refers to a format by name
 (format: 'pct'), which serialises; the function is looked up at use.  The
 morph slider's Format field lists whatever is registered, so pushing a

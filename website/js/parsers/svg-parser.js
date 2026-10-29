@@ -1,5 +1,5 @@
+// Provides parsers for SVG documents and SVG path data
 /**
- * @fileoverview Provides parsers for SVG documents and SVG path data.
  * This includes a full SVG parser that builds a hierarchical AST from the source,
  * and a specialized parser for the `d` attribute of SVG `<path>` elements.
  * Both parsers also provide methods for rendering the AST as syntax-highlighted HTML.

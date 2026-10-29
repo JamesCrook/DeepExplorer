@@ -1,6 +1,5 @@
+// `composite` — a group of parts in its own frame: position, rotation, scale (container)
 /**
- * `composite` — a group of parts in its own frame: position, rotation, scale (container)
- *
  * A container: its children are placed in local coordinates relative to the
  * composite, which moves, turns and scales them as one.  A molecule of
  * several atoms, a lever with its knob, a striped barrel.

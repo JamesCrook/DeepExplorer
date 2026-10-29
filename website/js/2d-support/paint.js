@@ -1,7 +1,7 @@
 export { HIGHLIGHT, roundRectPath, rrPath };
 
+// paint — canvas paths and the highlight colour.  No scene-graph knowledge
 /* ─────────────────────────────────────────────────────────────────────────────
-paint — canvas paths and the highlight colour.  No scene-graph knowledge.
 (The colour arithmetic that was here is in colour/colour.js.)
 
 These were strays: the colour helpers lived at the foot of model-utils, where a

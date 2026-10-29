@@ -3,9 +3,8 @@ import { OmniAnimateModel } from './omni-animate-model.js';
 import { ReactiveRuntime }  from '../omni-support/reactive-runtime.js';
 
 
+// OmniScene scenes: Haemoglobin and ATP Synthase animations, and the Haemoglobin frame addable
 /*
-OmniScene scenes: Haemoglobin and ATP Synthase animations, and the Haemoglobin frame addable
-
 An animation unit is { runtime, scene }, scene = { root, rules, update }
    (omni-animate-model.js).  A layer animates every unit it holds: its own
    (layer.inst.anim, the full-page scenes) or one per item (item.anim, the

@@ -1,5 +1,5 @@
+// A parser and renderer for a custom LaTeX-like syntax called JaTeX
 /**
- * @fileoverview A parser and renderer for a custom LaTeX-like syntax called JaTeX.
  * This file provides the logic for parsing JaTeX strings into an Abstract Syntax Tree (AST)
  * and then rendering that AST, either as HTML or by drawing it onto a 2D canvas context.
  * It includes specific handlers for complex elements like fractions and electronic symbols.

@@ -1,6 +1,5 @@
+// OmniScene scene and addable: Heatmap — the body heatmap, full-canvas or in a handle-frame
 /**
- * OmniScene scene and addable: Heatmap — the body heatmap, full-canvas or in a handle-frame
- *
  * Heatmap scene definition + addable for OmniScene.
  *
  *   Scene  — full-canvas body heatmap (phases: draw2d only)

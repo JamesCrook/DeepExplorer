@@ -1,6 +1,5 @@
+// Per-item property editor for the twig panel
 /**
- * Per-item property editor for the twig panel
- *
  * Creates a control-panel section with editable fields (text, textarea, color)
  * bound to a resolved AST node's `value` object.
  *

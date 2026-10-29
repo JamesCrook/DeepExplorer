@@ -1,5 +1,5 @@
+// Provides processors for Markdown and Markdown-style tables
 /**
- * @fileoverview Provides processors for Markdown and Markdown-style tables.
  * The main `MarkdownProcessor` handles standard Markdown syntax and includes
  * special support for "islands" of code (JSON or JavaScript), which can be
  * processed separately. A `TableProcessor` is also included for converting

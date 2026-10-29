@@ -1,6 +1,5 @@
+// OmniScene addable: Post-it — a draggable, resizable note (handle-frame > postit-node > jatex)
 /**
- * OmniScene addable: Post-it — a draggable, resizable note (handle-frame > postit-node > jatex)
- *
  * Addable declaration for post-it notes.
  * Each post-it is a handle-frame (draggable, resizable) containing
  * a postit-node (visual background) containing a jatex child (text).

@@ -1,11 +1,9 @@
 import { SYS } from '../omni-support/sys.js';
 export { NmBoxNode, NM_NAT_W, NM_NAT_H };
 
+// `nm-box` — the mask editor inside a handle-frame: children draw into an offscreen canvas at a fixed natural size (800 × 600) with the nm params from node.value, then it is composited at the handle-frame's transform
 /* ─────────────────────────────────────────────────────────────────────────────
-`nm-box` — the mask editor inside a handle-frame: children draw into an
-offscreen canvas at a fixed natural size (800 × 600) with the nm params from
-node.value, then it is composited at the handle-frame's transform. The
-addable-mode partner of `nm-frame`, which explains the offscreen canvas.
+The addable-mode partner of `nm-frame`, which explains the offscreen canvas.
 ──────────────────────────────────────────────────────────────────────────── */
 
 const NM_NAT_W = 800;

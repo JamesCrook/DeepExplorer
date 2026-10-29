@@ -1,6 +1,5 @@
+// `handle-frame` — two corner drag-points define a box; the other children are scaled to fit it (container)
 /**
- * `handle-frame` — two corner drag-points define a box; the other children are scaled to fit it (container)
- *
  * A generic framing node with two drag-point children that define
  * a bounding rectangle.  Content children (any non-drag-point) are
  * drawn inside that rectangle with a ctx.translate + ctx.scale

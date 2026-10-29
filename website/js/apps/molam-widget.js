@@ -1,5 +1,5 @@
+// MolamWidget — embeddable 3D Protein Ribbon Viewer
 /* ============================================
-   MolamWidget — embeddable 3D Protein Ribbon Viewer
    ============================================
 
    Usage:

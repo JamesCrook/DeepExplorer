@@ -1,8 +1,7 @@
 export { THREE, loadThree, make3DPane };
 
+// three-boot — the one place that knows Three.js exists
 /* ─────────────────────────────────────────────────────────────────────────────
-three-boot — the one place that knows Three.js exists.
-
 THREE is a live binding: undefined until loadThree() resolves, and shared by
 every 3D node thereafter.  Nodes import the binding, not a snapshot, so a
 nugget may be read (and typed against) without Three.js being present at all.

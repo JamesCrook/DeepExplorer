@@ -1,6 +1,4 @@
-/**
- * Colours — perceptual colour: LCH, LAB, XYZ and RGB conversions, hue interpolation, gradients
- */
+// Colours — perceptual colour: LCH, LAB, XYZ and RGB conversions, hue interpolation, gradients
 class Colours {
   constructor() { return this}
 

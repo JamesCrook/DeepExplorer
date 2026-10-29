@@ -1,6 +1,5 @@
+// The panel and nav widget node types: importing this registers all of them
 /*
-The panel and nav widget node types: importing this registers all of them
-
    Importing this registers all of them, in the order omni-widget.js did,
    and gives the same exports.  Each type lives in <type>-widget.js; what
    they share (OmniWidget, WidgetContext, value and colour helpers,

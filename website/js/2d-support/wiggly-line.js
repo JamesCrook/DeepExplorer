@@ -1,6 +1,5 @@
+// wiggly-line.js — a wavy line, optionally bowed, appended to the current path
 /**
- * wiggly-line.js — a wavy line, optionally bowed, appended to the current path.
- *
  *   drawWigglyLine(ctx, v0, v1, wiggleCount, bend)
  *     v0, v1        Vector2D ends; the path is assumed to be at v0 already.
  *     wiggleCount   number of half-waves; <= 1 draws a single smooth bow.

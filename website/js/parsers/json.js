@@ -1,6 +1,5 @@
+// JSON parser and highlighter (despite the header below, which says JavaScript; not loaded by any page)
 /**
- * JSON parser and highlighter (despite the header below, which says JavaScript; not loaded by any page)
- *
  * @fileoverview A parser and syntax highlighter for JavaScript.
  * It handles standard JavaScript syntax as well as nested template literals.
  * The parser generates an Abstract Syntax Tree (AST), and the processor

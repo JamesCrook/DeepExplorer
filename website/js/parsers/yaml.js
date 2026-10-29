@@ -1,5 +1,5 @@
+// A parser and syntax highlighter for YAML
 /**
- * @fileoverview A parser and syntax highlighter for YAML.
  * It handles standard YAML syntax including nested structures, lists, mappings,
  * multi-line strings, anchors, and aliases.
  * The parser generates an Abstract Syntax Tree (AST), and the processor

@@ -1,6 +1,5 @@
+// `shape` — a rounded rectangle with an optional label; a circle when the radius is half the size
 /**
- * `shape` — a rounded rectangle with an optional label; a circle when the radius is half the size
- *
  * A general leaf for diagram parts.  cornerRadius at or above half the
  * smaller side makes a stadium, or a circle when w = h.  No logic: a model
  * writes the value, draw2d draws it.

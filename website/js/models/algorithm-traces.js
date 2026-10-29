@@ -1,6 +1,5 @@
+// Traces of FFT, Smith-Waterman and MultiGrid as pure functions of time, for omni-run
 /**
- * Traces of FFT, Smith-Waterman and MultiGrid as pure functions of time, for omni-run
- *
  * Execution traces of three grid algorithms, as pure functions of time.
  * Each algorithm answers
  *

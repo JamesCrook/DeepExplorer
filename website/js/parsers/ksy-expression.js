@@ -1,5 +1,5 @@
+// A parser for KaiTai Struct (.ksy) expression language
 /**
- * @fileoverview A parser for KaiTai Struct (.ksy) expression language.
  * KSY expressions appear in conditionals (if:), size calculations, computed instances,
  * and other dynamic values. The language is similar to JavaScript but with some
  * specific constructs like _parent, _root, _io references.

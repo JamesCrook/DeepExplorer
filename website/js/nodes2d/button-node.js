@@ -1,6 +1,5 @@
+// `button-node` — a bevelled canvas button with label, sub-label and badge; one class for both worlds
 /**
- * `button-node` — a bevelled canvas button with label, sub-label and badge; one class for both worlds
- *
  * Canvas scene-graph node: flexible bevelled button.  One class for both
  * worlds (it replaces button-node-zones.js); the coordinate contract is the
  * one DragPointNode uses (D3 in docs/twin-merge-plan.md).

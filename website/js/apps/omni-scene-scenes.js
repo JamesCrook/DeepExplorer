@@ -1,6 +1,5 @@
+// The OmniScene scene list: the Canvas scene, and imports of the scenes-*.js files that register the rest
 /**
- * The OmniScene scene list: the Canvas scene, and imports of the scenes-*.js files that register the rest
- *
  * Scene definitions: Canvas, Chart, Ribbon, Animate, Jatex, Molam.
  *
  * Changes from v4:

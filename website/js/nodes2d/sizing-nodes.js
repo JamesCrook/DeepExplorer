@@ -1,4 +1,5 @@
-/* Sizing and placing nodes, one file each: what a chart, a jatex block, a
+// Sizing and placing nodes, one file each: what a chart, a jatex block, a
+/*
    heatmap or the mask editor sits in, as a scene (frame) or as an addable
    inside a handle-frame (box). Importing this file registers all six. */
 

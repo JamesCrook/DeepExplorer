@@ -1,6 +1,5 @@
+// `edge-ref` — an edge that references two drag-point nodes
 /**
- * `edge-ref` — an edge that references two drag-point nodes
- *
  * value.fromNode / value.toNode — live references to drag-point MiniAstNodes
  * value.from / value.to — stable uid strings (for display / serialisation)
  *

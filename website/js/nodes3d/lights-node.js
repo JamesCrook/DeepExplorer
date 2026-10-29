@@ -2,9 +2,8 @@ import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
 
+// `lights` — owns a set of THREE lights
 /**
- * `lights` — owns a set of THREE lights
- *
  * AST wiring:
  *   new MiniAstNode('lights', [], {
  *     key:     { type: 'directional', color: 0xffffff, intensity: 1, position: [5, 5, 5], param: 'light1' },

@@ -1,6 +1,5 @@
+// `flash-card` — one card: value = [heading, body, body…]
 /**
- * `flash-card` — one card: value = [heading, body, body…]
- *
  * Leaf, mounted inside a card-grid (card-grid-node.js), which styles it.
  * Moved from apps/scenes-cards.js.
  */

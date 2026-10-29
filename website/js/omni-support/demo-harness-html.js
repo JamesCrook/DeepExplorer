@@ -3,11 +3,10 @@ import { Values } from './values.js';
 import { HtmlFill } from '../nodes-html/html-nodes.js';
 export { DemoHarnessHtml };
 
+// DemoHarnessHtml — owns an HTML pane: mount once, update on change, events, selection, and control-value routing
 /* ═══════════════════════════════════════════════════════════════════════════
-DemoHarnessHtml — owns an HTML pane: mount once, update on change, events,
-selection, and control-value routing.  The third harness, beside
-DemoHarness2D and DemoHarness3D, and the panopticon's counterpart to the
-library's OmniHtml.
+The third harness, beside DemoHarness2D and DemoHarness3D, and the
+panopticon's counterpart to the library's OmniHtml.
 
 Retained, not immediate.  The 2D harness redraws the whole pane every frame;
 this one walks 'mount' once, keeps the elements, and afterwards walks only

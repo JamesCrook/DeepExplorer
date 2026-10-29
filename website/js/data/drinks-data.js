@@ -1,6 +1,5 @@
+// Sample tree for the multiscroller: beverages, by type and category
 /**
- * Sample tree for the multiscroller: beverages, by type and category
- *
  * Sample hierarchical data for the multiscroller.
  * 3 levels: beverage type → category → specific item.
  *

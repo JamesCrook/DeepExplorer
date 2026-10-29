@@ -2,9 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 import '../nodes2d/pane-camera-node.js';   // 'pane-camera'
 export { autoFitCamera, makeZoomableCamera };
 
+// make-camera — wrap a node so a pane can pan and zoom over it
 /* ─────────────────────────────────────────────────────────────────────────────
-make-camera — wrap a node so a pane can pan and zoom over it.
-
 Split out of ModelUtils, which had become a facade over six node types: any
 model that called one builder appeared to depend on all of them.  Three
 nuggets, three honest dependency sets.

@@ -4,9 +4,9 @@ export {
   ColorEngine,
 };
 
+// colour — hex/RGB arithmetic shared by the 2D nodes, the widgets and the param engine
 /* ─────────────────────────────────────────────────────────────────────────────
-colour — hex/RGB arithmetic shared by the 2D nodes, the widgets and the param
-engine.  No canvas, DOM or scene-graph knowledge.
+No canvas, DOM or scene-graph knowledge.
 
 It gathers what used to be copied about:
   - hexToRgb, hexToRgba, shiftColor          from 2d-support/paint.js

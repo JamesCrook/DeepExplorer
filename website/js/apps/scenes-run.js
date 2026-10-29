@@ -1,6 +1,5 @@
+// scenes-run.js — algorithm trace scenes (FFT, Smith-Waterman, MultiGrid)
 /**
- * scenes-run.js — algorithm trace scenes (FFT, Smith-Waterman, MultiGrid)
- *
  * Brought back from attic/unfolded/omni-run.js onto the scene graph.  The old
  * app drew one prototype cell per grid position through a custom iterator,
  * writing positions onto the shared prototype as it went.  Here every cell and

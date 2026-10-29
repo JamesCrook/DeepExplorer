@@ -1,5 +1,5 @@
+// OmniControlPanel - Generic Control Panel Framework
 /* ============================================
-   OmniControlPanel - Generic Control Panel Framework
    ============================================
 
    Now uses the scene graph walker for DOM construction.

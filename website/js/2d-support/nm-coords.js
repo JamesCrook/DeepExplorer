@@ -1,9 +1,9 @@
 export { nm2screen, screen2nm, viewBounds };
 
+// nm-coords — the mask editor's coordinates: nanometres (y up) to screen pixels (y down) and back, and the nm rectangle a view shows
 /* ─────────────────────────────────────────────────────────────────────────────
-nm-coords — the mask editor's coordinates: nanometres (y up) to screen pixels
-(y down) and back, and the nm rectangle a view shows. params carry zoom, the
-view centre vx, vy and nmPx, the nanometres per pixel at zoom 1.
+params carry zoom, the view centre vx, vy and nmPx, the nanometres per pixel
+at zoom 1.
 ──────────────────────────────────────────────────────────────────────────── */
 
 function nm2screen(nx, ny, params, W, H) {

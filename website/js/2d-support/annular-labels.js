@@ -1,9 +1,9 @@
 export { CollisionGrid, LabelLayouter, LabelSpriteFactory, RandomReplacementCache, TextMeasurer, TextStyle, annulusShape, circleShape, rectShape };
 
+// annular-labels — the label sprite system from Constellation Labels, unchanged in substance
 /* ─────────────────────────────────────────────────────────────────────────────
-annular-labels — the label sprite system from Constellation Labels, unchanged
-in substance.  It knows nothing of graphs, zoom or the scene graph: it turns
-label layouts into cached offscreen canvases.  ring-label-node is the adapter.
+It knows nothing of graphs, zoom or the scene graph: it turns label layouts
+into cached offscreen canvases.  ring-label-node is the adapter.
 
 The one change: the factory's dpr is set by the caller per sprite (and is part
 of the key), because in the scene graph the device scale is per node — a

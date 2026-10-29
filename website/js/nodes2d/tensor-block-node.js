@@ -1,6 +1,5 @@
+// `tensor-block` — one block of a GGUF model's layout: a framed box of tensor bars
 /**
- * `tensor-block` — one block of a GGUF model's layout: a framed box of tensor bars
- *
  * One block of a model's layout (embedding, a transformer block, the output
  * head): a framed box with a title, a few tensors drawn as coloured bars, a
  * "+N more" note and the block's total element count.  Used by

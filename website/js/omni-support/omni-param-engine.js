@@ -1,7 +1,7 @@
 import { isHexColor, parseHexColor, formatHexColor } from '../colour/colour.js';
 import { Animator } from './animator.js';
+// OmniParamEngine — DOM-free param + preset manager
 /* ============================================
-   OmniParamEngine — DOM-free param + preset manager
    ============================================
 
    Manages a flat parameter map, a dictionary of named presets,

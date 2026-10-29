@@ -4,9 +4,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { ProjectionMorpher } from '../3d-support/projection-morpher.js';
 import { SYS } from '../omni-support/sys.js';
 
+// `camera` — owns a PerspectiveCamera, OrbitControls and a ProjectionMorpher
 /**
- * `camera` — owns a PerspectiveCamera, OrbitControls and a ProjectionMorpher
- *
  * AST wiring:
  *   new MiniAstNode('camera', [], {
  *     fov: 75,

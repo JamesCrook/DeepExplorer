@@ -1,6 +1,5 @@
+// HelpOverlay — step-by-step help: arrows from text boxes to page elements
 /*
-HelpOverlay — step-by-step help: arrows from text boxes to page elements
-
 global Vector2D */
 
 class HelpOverlay {

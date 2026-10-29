@@ -1,6 +1,5 @@
+// `trace-cell` — a round cell with an optional label, for the algorithm traces
 /**
- * `trace-cell` — a round cell with an optional label, for the algorithm traces
- *
  * A round cell with an optional label, used by the algorithm traces
  * (apps/scenes-run.js).  A leaf with no logic: the model writes its value,
  * and draw2d only draws it.

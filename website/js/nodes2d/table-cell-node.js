@@ -1,6 +1,5 @@
+// Chart cells — `sheet-cell`, `warpable-cell`, `ms-cell` — one renderer for grid and tree multiscrollers
 /**
- * Chart cells — `sheet-cell`, `warpable-cell`, `ms-cell` — one renderer for grid and tree multiscrollers
- *
  * Unified cell renderer for both grid and tree multiscrollers.
  * Internally uses tree-path cursors (arrays) in all modes.
  *

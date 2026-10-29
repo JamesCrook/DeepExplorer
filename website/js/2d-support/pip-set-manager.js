@@ -4,9 +4,8 @@ import { Values } from '../omni-support/values.js';
 import { Utils } from '../omni-support/utils.js';
 export { PipSetManager };
 
+// PipSetManager — owns the pip sets of one arena, and the rules they obey
 /* ─────────────────────────────────────────────────────────────────────────────
-PipSetManager — owns the pip sets of one arena, and the rules they obey.
-
 A pip set is a dumb array of entries { node, pip }: pips that are coincident
 in space.  It needs no class of its own.  The manager holds the collection and
 the configured constraints.

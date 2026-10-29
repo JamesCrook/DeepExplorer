@@ -1,6 +1,5 @@
+// scenes-cards.js — Card scene definition for OmniScene
 /**
- * scenes-cards.js — Card scene definition for OmniScene
- *
  * Renders a grid of styled HTML cards via the omni-html.js backend.
  * The node types live in nodes-html/card-grid-node.js and flash-card-node.js;
  * this file holds the scene, its presets and its panel.

@@ -1,6 +1,5 @@
+// A parameterised syntax-highlighter factory
 /**
- * @fileoverview A parameterised syntax-highlighter factory.
- *
  * Usage:
  *   const proc = SyntaxProcessor(jsonConfig);
  *   proc.htmlOf('{ "a": 1 }');

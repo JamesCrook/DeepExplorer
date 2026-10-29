@@ -1,6 +1,5 @@
+// `lloyd` and `lloyd-directions` — Lloyd's mirror interference, per pixel, and a dial of its exposure directions
 /**
- * `lloyd` and `lloyd-directions` — Lloyd's mirror interference, per pixel, and a dial of its exposure directions
- *
  * Lloyd mirror interference pattern renderer.
  * Writes per-pixel ImageData based on multi-exposure
  * interference with configurable angles, duty cycles,

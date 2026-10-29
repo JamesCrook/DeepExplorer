@@ -1,10 +1,8 @@
 export { Values };
 import { Transform } from './transform.js';
 
+// Values — the one channel through which anything reads or writes a node, and the identity resolver: the answer when there is no context to ask
 /* ─────────────────────────────────────────────────────────────────────────────
-Values — the one channel through which anything reads or writes a node, and
-the identity resolver: the answer when there is no context to ask.
-
   getValue(res, node, params)         -> the node's value
   setValue(res, node, params, patch)  -> true if anything changed
   getNode (res, node, params)         -> the node itself, or its stand-in

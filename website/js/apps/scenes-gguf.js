@@ -1,6 +1,5 @@
+// scenes-gguf.js — GGUF model viewer scenes
 /**
- * scenes-gguf.js — GGUF model viewer scenes
- *
  * Brought back from attic/unfolded/omni-gguf.js onto the scene graph.  The old
  * app cross-faded a text view and a canvas view; here they are two scenes over
  * the same loaded file:

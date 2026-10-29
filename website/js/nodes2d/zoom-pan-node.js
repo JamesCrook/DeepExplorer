@@ -1,10 +1,7 @@
 import { SYS } from '../omni-support/sys.js';
 export { ZoomPanNode };
 
-/* ─────────────────────────────────────────────────────────────────────────────
-`zoom-pan` — translates by params.panX/panY and scales by params.zoom around
-its subtree, and shifts T by the pan (the zoom is already in T, from the layer).
-──────────────────────────────────────────────────────────────────────────── */
+// `zoom-pan` — translates by params.panX/panY and scales by params.zoom around its subtree, and shifts T by the pan (the zoom is already in T, from the layer)
 class ZoomPanNode {
 
   static before_draw2d(ctxMix, node, params) {

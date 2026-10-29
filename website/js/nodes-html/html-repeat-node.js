@@ -2,9 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { skipChildren } from '../omni-support/scene.js';
 export { HtmlRepeatNode, HtmlVariantsNode, Clones };
 
+// `html-repeat` and `html-variants` — one pattern node, many mounted copies
 /* ─────────────────────────────────────────────────────────────────────────────
-`html-repeat` and `html-variants` — one pattern node, many mounted copies
-
 Both keep their first child as a pattern that is never mounted itself.  They
 deep-copy it once per item, overlay the item's fields on the copy's value,
 and mount the copies inside their own element.  The copies live on

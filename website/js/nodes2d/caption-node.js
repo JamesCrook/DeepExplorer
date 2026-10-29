@@ -1,6 +1,5 @@
+// `caption` — a line of text placed in local coordinates
 /**
- * `caption` — a line of text placed in local coordinates
- *
  * For labels that stand apart from any shape (a part's name beside it, a
  * status word).  A shape carries its own label; use caption for the rest.
  *

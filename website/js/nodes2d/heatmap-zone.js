@@ -2,9 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { fillPoly, strokePoly, scalePts } from '../2d-support/poly-draw.js';
 export { BODY, BODY_REGIONS, ORGAN_LABELS, OrganRegionNode, organGeometry };
 
+// `organ-region` — one organ of the body heatmap, and the body template's geometry (Zones heatmap)
 /*
-`organ-region` — one organ of the body heatmap, and the body template's geometry (Zones heatmap)
-
 Geometry for the heatmap's body template, asked for by the model when it
    makes an item's value. */
 function organGeometry(ctxMix, node, params) {

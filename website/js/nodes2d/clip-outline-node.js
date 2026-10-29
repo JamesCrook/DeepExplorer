@@ -2,8 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 import { nm2screen } from '../2d-support/nm-coords.js';
 export { ClipOutlineNode };
 
+// `clip-outline` — dashed amber outlines of the mask editor's clip regions
 /* ─────────────────────────────────────────────────────────────────────────────
-`clip-outline` — dashed amber outlines of the mask editor's clip regions.
 node.value = [{ x, y, w, h }, …] in nm.
 ──────────────────────────────────────────────────────────────────────────── */
 

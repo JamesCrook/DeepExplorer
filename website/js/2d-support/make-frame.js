@@ -3,9 +3,8 @@ import '../nodes2d/frame-node-zones.js';   // 'frame-node'
 import '../nodes2d/pane-camera-node.js';   // 'pane-camera'
 export { makeZoomableFrame };
 
+// make-frame — a frame with content padding, wrapped in a pane camera
 /* ─────────────────────────────────────────────────────────────────────────────
-make-frame — a frame with content padding, wrapped in a pane camera.
-
 The only builder that needs frame-node, which is the largest nugget in the
 substrate.  A model that wants an array and no frame no longer pays for it.
 ──────────────────────────────────────────────────────────────────────────── */

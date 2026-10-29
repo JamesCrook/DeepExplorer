@@ -1,8 +1,7 @@
 export { PipKinds };
 
+// PipKinds — frozen capability records describing what a pip may do
 /* ─────────────────────────────────────────────────────────────────────────────
-PipKinds — frozen capability records describing what a pip may do.
-
 A kind record is never mutated in place.  To change a pip's capabilities at
 run time, swap in a different frozen record.
 

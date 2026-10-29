@@ -1,6 +1,5 @@
+// scenes-grid.js — OmniGrid matrix and heatmap viewer scene
 /**
- * scenes-grid.js — OmniGrid matrix and heatmap viewer scene
- *
  * Brought back from attic/unfolded/omni-grid.js.  The renderer is wrapped
  * whole as one opaque grid-view node, for now:
  *

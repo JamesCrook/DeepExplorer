@@ -2,9 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Values } from '../omni-support/values.js';
 export { ContentFrameNode };
 
+// `frame-node` (ContentFrameNode) — a content-agnostic frame with drag, resize and screen-fit (container)
 /* ─────────────────────────────────────────────────────────────────────────────
-`frame-node` (ContentFrameNode) — a content-agnostic frame with drag, resize and screen-fit (container)
-
 Node value properties:
  x, y          — world position (centre of frame)
  cw, ch        — content width / height (the "drawing area")

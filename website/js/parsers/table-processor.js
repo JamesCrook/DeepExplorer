@@ -2,8 +2,8 @@ import {Parser} from './parser.js'
 import { createHandlerRegistry, AstNode } from './ast-manager.js'
 
 
+// Creates a parser for Markdown-style tables
 /**
- * Creates a parser for Markdown-style tables.
  * It processes pipe-delimited text and converts it into an HTML table.
  * @returns {Object} Parser with `astOf`, `htmlOf`, and `pretty` methods.
  */

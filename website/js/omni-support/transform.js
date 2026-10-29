@@ -1,6 +1,5 @@
+// Transform (T) — the coordinate transform passed down the scene graph
 /**
- * Transform (T) — the coordinate transform passed down the scene graph
- *
  * Carries the accumulated mapping from local coordinates to screen
  * coordinates (CSS pixels). Pushed by intermediate nodes (LayerNode,
  * HandleFrameNode), read by leaf nodes (DragPointNode, RibbonPointNode).

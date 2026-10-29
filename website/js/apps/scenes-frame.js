@@ -1,6 +1,5 @@
+// OmniScene addable: Frames — stamp-frames of kanji, each new one at a golden-angle offset
 /**
- * OmniScene addable: Frames — stamp-frames of kanji, each new one at a golden-angle offset
- *
  * Fixes from v3:
  *   - Added createItem(count) so the + button creates new frames
  *     at offset positions (golden-angle spiral).

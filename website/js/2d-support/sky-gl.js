@@ -1,8 +1,7 @@
 export { DEEP_DEFAULTS, DeepRender, HUBBLE, SPECTRAL, STAR_DEFAULTS, SkyGL, StarRender, magWeight, mixWhite, mulberry32, rgbCss, fieldStarData };
 
+// sky-gl — the star and deep-sky look from Constellation Labels, as sprites
 /* ─────────────────────────────────────────────────────────────────────────────
-sky-gl — the star and deep-sky look from Constellation Labels, as sprites.
-
 The scene graph draws with a 2D context, one node at a time.  The look is made
 by fragment shaders.  This nugget is the bridge: one small offscreen WebGL2
 canvas, two programs, and a sprite cache.  A node asks for its sprite and blits

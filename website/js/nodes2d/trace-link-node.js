@@ -1,6 +1,5 @@
+// `trace-link` — a link between two points, optionally bent into an arc, for the algorithm traces
 /**
- * `trace-link` — a link between two points, optionally bent into an arc, for the algorithm traces
- *
  * A link between two points, optionally bent into an arc, used by the
  * algorithm traces (apps/scenes-run.js).  A leaf with no logic: the model
  * writes its value, and draw2d only draws it.

@@ -1,6 +1,5 @@
+// OmniHtml — OmniScene's HTML DOM backend: mount, update, teardown
 /**
- * OmniHtml — OmniScene's HTML DOM backend: mount, update, teardown
- *
  * Manages a retained-mode DOM tree: builds HTML elements from the
  * scene AST, updates them when params change, and tears down on
  * scene switch.

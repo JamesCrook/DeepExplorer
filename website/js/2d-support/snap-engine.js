@@ -3,9 +3,8 @@ import { Utils } from '../omni-support/utils.js';
 import { PipperNode } from '../nodes2d/pipper-node.js';
 export { SnapEngine };
 
+// SnapEngine — ranks admissible tile-to-tile joins by distance, and applies them
 /* ─────────────────────────────────────────────────────────────────────────────
-SnapEngine — ranks admissible tile-to-tile joins by distance, and applies them.
-
 Every question about whether a join is legal now belongs to PipSetManager:
 this class only asks canJoin and sorts what comes back.  Whether a build
 permits rafting at all is a manager rule (maxTilePips), not a test here.

@@ -1,6 +1,5 @@
+// poly-draw.js — polygons given as [[x, y], …] arrays
 /**
- * poly-draw.js — polygons given as [[x, y], …] arrays.
- *
  *   fillPoly(ctx, pts), strokePoly(ctx, pts)   closed path, filled or stroked
  *   scalePts(pts, w, h)                        unit coordinates to w × h
  *

@@ -1,9 +1,9 @@
 import { SYS } from '../omni-support/sys.js';
 export { Tree2Node };
 
+// `tree2` — STUB: a tree drawn with the molecule renderer, waiting for drawMolecule to be migrated
 /* ─────────────────────────────────────────────────────────────────────────────
-`tree2` — STUB: a tree drawn with the molecule renderer, waiting for
-drawMolecule to be migrated. Draws nothing and warns.
+Draws nothing and warns.
 ──────────────────────────────────────────────────────────────────────────── */
 class Tree2Node {
 

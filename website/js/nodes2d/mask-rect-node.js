@@ -2,8 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 import { nm2screen } from '../2d-support/nm-coords.js';
 export { RectNode };
 
+// `rect` — a white filled rectangle in nm coordinates, for the mask editor
 /* ─────────────────────────────────────────────────────────────────────────────
-`rect` — a white filled rectangle in nm coordinates, for the mask editor.
 node.value = { x, y, w, h } in nm. Under a chip-layer it draws into the
 offscreen buffer and is moved by the layer's tile offset; the chip-layer
 composites it with edge detection.

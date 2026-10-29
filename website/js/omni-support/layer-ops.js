@@ -1,6 +1,5 @@
+// Twig protocol helpers: add, remove and select items in a layer; names
 /**
- * Twig protocol helpers: add, remove and select items in a layer; names
- *
  * Provides:
  *   - Tree utilities: findByToken, containsNode, isNodeInLayer
  *   - autoName: spreadsheet-column naming (0→A, 25→Z, 26→AA)

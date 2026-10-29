@@ -1,9 +1,8 @@
 
+// Box class that handles two vectors, for top left and bottom right of a box
 /**
- * Box class that handles two vectors, for top left and bottom right
- * of a box.
- * Functions are frequently polymorphic, taking either a box or a pair of values
- * as the argument.
+ * Functions are frequently polymorphic, taking either a box or a pair of
+ * values as the argument.
  * @param {number|Box} [x] - The x-coordinate of the bottom-right corner, or a Box to merge with.
  * @param {number} [y] - The y-coordinate of the bottom-right corner.
  * @constructor

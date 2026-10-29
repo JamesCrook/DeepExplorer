@@ -1,5 +1,5 @@
+// Nav — the hamburger menu and page navigation
 /* ============================================
-Nav — the hamburger menu and page navigation
    ============================================
 
    Provides a top-left nav button that is either:

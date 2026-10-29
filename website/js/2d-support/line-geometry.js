@@ -1,8 +1,7 @@
 import { PathAst } from './path-ast.js';
 export { Vector2D } from './vector2d.js'
+// Geometric line and curve utilities for creating smooth biarc paths
 /**
- * @fileoverview Geometric line and curve utilities for creating smooth biarc paths.
- * 
  * This module creates and manipulates smooth curves using biarc interpolation - a technique
  * that connects points with pairs of circular arcs to create visually pleasing, smooth paths. 
  * 

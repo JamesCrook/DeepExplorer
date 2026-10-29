@@ -1,6 +1,4 @@
-/**
- * Vector2D - A 2D vector utility class for simplifying vector operations
- */
+// Vector2D - A 2D vector utility class for simplifying vector operations
 class Vector2D {
   /**
    * @param {number} [x=0] - The x-component of the vector.

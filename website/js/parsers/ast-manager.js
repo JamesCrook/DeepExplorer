@@ -1,7 +1,7 @@
 'use strict';
 
+// Manages an Abstract Syntax Tree (AST) for a given text
 /**
- * Manages an Abstract Syntax Tree (AST) for a given text.
  * It provides methods to convert between character positions and line/column numbers,
  * and to extract text corresponding to AST nodes.
  * @constructor

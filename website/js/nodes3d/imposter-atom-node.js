@@ -4,9 +4,8 @@ import { computeResidueTangents as residueTangentsWith } from '../3d-support/res
 import { CPK_ATOM_DATA } from '../parsers/pdb-parser.js';
 import { SYS } from '../omni-support/sys.js';
 
+// `imposter-atoms` — atoms drawn as billboard impostors, for speed
 /**
- * `imposter-atoms` — atoms drawn as billboard impostors, for speed
- *
  * Each atom is a single screen-facing quad (2 triangles). The fragment shader
  * ray-traces a sphere and writes correct gl_FragDepth, producing pixel-perfect
  * spheres at ~0.4% of the triangle count of SphereGeometry(10,10).

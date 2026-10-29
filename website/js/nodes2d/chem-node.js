@@ -2,8 +2,8 @@ import { SYS } from '../omni-support/sys.js';
 import { AtomNode } from './atom-node.js';
 export { ChemNode };
 
+// `chem` — STUB: a molecule drawing, waiting for drawMolecule to be migrated
 /* ─────────────────────────────────────────────────────────────────────────────
-`chem` — STUB: a molecule drawing, waiting for drawMolecule to be migrated.
 Draws nothing and warns.
 ──────────────────────────────────────────────────────────────────────────── */
 //
