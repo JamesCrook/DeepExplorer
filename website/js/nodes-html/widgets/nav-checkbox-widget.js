@@ -2,6 +2,8 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NavCheckboxWidget };
 
+// `nav-checkbox` — a hamburger-menu item with a checkbox (leaf)
+
 class NavCheckboxWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {

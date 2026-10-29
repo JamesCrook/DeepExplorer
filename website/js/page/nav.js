@@ -1,5 +1,5 @@
 /* ============================================
-   nav.js — Navigation & Hamburger Menu
+Nav — the hamburger menu and page navigation
    ============================================
 
    Provides a top-left nav button that is either:

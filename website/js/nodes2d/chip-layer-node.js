@@ -1,5 +1,5 @@
 /**
- * chip-layer-node.js
+ * `chip-layer` — draws its children into an offscreen buffer and composites them with Sobel edges in the layer's colour
  *
  * Renders child shapes into an offscreen buffer, then composites
  * onto the main canvas with Sobel edge detection and the layer's

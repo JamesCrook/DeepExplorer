@@ -2,7 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { AxisNode };
 
 /* ─────────────────────────────────────────────────────────────────────────────
-Chart-specific nodes — each reads dimensions from ctxMix.getWH()
+`axis-node` — a chart's axes, ticks and grid lines, sized from ctxMix.getWH()
 ──────────────────────────────────────────────────────────────────────────── */
 const AXIS_DEFAULTS = Object.freeze({
   axisColor: '#504838', axisWidth: 1.5, tickLength: 5, tickWidth: 1,

@@ -2,6 +2,8 @@ import { SceneNode } from '../omni-support/scene.js';
 import { THREE as BOOT_THREE } from '../3d-support/three-boot.js';
 import { BondRenderer } from '../3d-support/bond-renderer.js';
 import { SYS } from '../omni-support/sys.js';
+// `molam-bonds` — Molam's bonds (BondRenderer) as a scene node; one class for both worlds
+//
 // #mol/node/bond
 
 /**

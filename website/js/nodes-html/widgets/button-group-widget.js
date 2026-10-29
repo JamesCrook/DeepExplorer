@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { ButtonGroupWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  ButtonGroupWidget (leaf — loops over buttons internally)
+// `button-group` — a column or row of buttons from value.buttons, each with its onClick (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ButtonGroupWidget extends OmniWidget {

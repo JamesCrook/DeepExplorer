@@ -32,10 +32,11 @@ HEAD = 8192  # titles are looked for in the first 8K, as devsrv does
 
 # Opening comments. The group is the whole block; tidy() picks its title line.
 # In JS the import and export-list lines may come first: this repo puts them
-# above the header comment. A trailing // note on an import line is skipped.
-_IMPORT = r"""import\s*(?:[\w$*{}\s,]+?\s*from\s*)?['"][^'"\n]*['"]\s*;?"""
-_EXPORT = r"""export\s*(?:\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?)(?:\s*from\s*['"][^'"\n]*['"])?\s*;?"""
-_PREAMBLE = r"""(?:\s*(?:%s|%s|['"]use strict['"]\s*;?)[ \t]*(?://[^\n]*)?)*""" % (_IMPORT, _EXPORT)
+# above the header comment. A trailing // note on an import line is skipped,
+# and so is a commented-out import among them.
+_IMPORT = r"""import\s*(?:[\w$*{}\s,]+?\s*from\s*)?['"][^'"\n]*['"][ \t]*;?"""
+_EXPORT = r"""export\s*(?:\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?)(?:\s*from\s*['"][^'"\n]*['"])?[ \t]*;?"""
+_PREAMBLE = r"""(?:\s*(?:%s|%s|['"]use strict['"][ \t]*;?|//[ \t]*import\b[^\n]*)[ \t]*(?://[^\n]*)?)*""" % (_IMPORT, _EXPORT)
 JS_OPENING = r'(?s)\A' + _PREAMBLE + r'\s*^[ \t]*(/\*.*?\*/|(?://[^\n]*(?:\n|\Z)[ \t]*)+)'
 HASH_OPENING = r'(?s)\A(?:#![^\n]*\n)?\s*((?:#[^\n]*(?:\n|\Z)[ \t]*)+|""".*?"""|\'\'\'.*?\'\'\')'
 

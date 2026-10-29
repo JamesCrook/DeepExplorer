@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { PresetWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  PresetWidget — container for preset-item children
+// `presets` — the row of preset buttons (container)
 // ════════════════════════════════════════════════════════════════
 
 class PresetWidget extends OmniWidget {

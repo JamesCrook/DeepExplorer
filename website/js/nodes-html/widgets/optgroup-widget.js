@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { OptgroupWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  OptgroupWidget — <optgroup> wrapper for option children
+// `optgroup` — a group of options inside a select (container)
 // ════════════════════════════════════════════════════════════════
 
 class OptgroupWidget extends OmniWidget {

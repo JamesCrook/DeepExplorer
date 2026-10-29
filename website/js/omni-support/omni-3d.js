@@ -1,5 +1,5 @@
 /**
- * omni-3d.js — 3D display backend for OmniScene
+ * Omni3d — OmniScene's three.js backend: build, update, teardown, camera loop
  *
  * Manages the Three.js lifecycle: builds the three-scene / camera / lights
  * AST shell (provided by the scene definition), runs build/update/resize/

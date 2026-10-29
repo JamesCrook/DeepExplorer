@@ -3,7 +3,7 @@ import { OmniWidget, parseHexColor, formatHexColor } from './widget-base.js';
 export { ColorPickerWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  ColorPickerWidget — extracted from SliderGroupWidget._buildColor
+// `color-picker` — a labelled colour input bound to a param (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ColorPickerWidget extends OmniWidget {

@@ -1,3 +1,5 @@
+// WarpedPolygon — a quadrilateral whose edges bend into arcs (not a node; used by cells, edges, jatex)
+//
 //import { SvgScene } from '../../../q-legacy/js/omni-support/svg-scene.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
 

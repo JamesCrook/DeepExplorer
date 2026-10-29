@@ -1,6 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { LineDotNode, LINE_DEFAULTS };
 
+// `line-dot-element` — one dot of a line chart, hit-testable; LINE_DEFAULTS
+
 const LINE_DEFAULTS = Object.freeze({
   lineColor: '#e05040', lineColorHi: '#ff7860', lineWidth: 2.5, dotRadius: 4.5,
   dotFill: '#e05040', dotFillHi: '#ff7860', dotStroke: '#1a1a16', dotStrokeWidth: 2,

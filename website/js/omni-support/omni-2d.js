@@ -1,5 +1,5 @@
 /**
- * omni-2d.js — 2D canvas display backend for OmniScene
+ * Omni2d — OmniScene's 2D canvas backend: render, hit-test, drag, wheel
  *
  * Manages the <canvas> element: rendering via sceneRegistry draw2d phase,
  * pointer events (hit-test, drag, pan, zoom), and DPR-aware resize.

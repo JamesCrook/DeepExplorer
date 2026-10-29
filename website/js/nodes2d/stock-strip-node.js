@@ -5,6 +5,9 @@ import { Utils } from '../omni-support/utils.js';
 import { BasicCollectionNode } from './basic-collection-node.js';
 import { PipperNode } from './pipper-node.js';
 export { StockStripNode };
+
+// `stock-strip` — a palette band along the foot of a pane: its children are prototypes, dragged out as copies
+
 class StockStripNode {
   static layout(ctxMix, node) {
     const { W, H } = ctxMix.getWH();

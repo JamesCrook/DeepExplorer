@@ -2,6 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT, rrPath } from '../2d-support/paint.js';
 export { PianoKeyNode, keyValue, NOTE_NAMES };
 
+// `piano-key` — one key that knows its note and its place among the whites
+
 const BLACK_SET=new Set([1,3,6,8,10]), NOTE_NAMES=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 function noteOfIndex(data,idx){const midi=data.startMidi+idx;return{midi,black:BLACK_SET.has(midi%12)};}
 /* A key knows its own note and where it sits among the whites; the keyboard

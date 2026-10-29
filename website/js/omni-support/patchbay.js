@@ -1,4 +1,4 @@
-// patchbay.js
+// Patchbay — tab-to-tab messages, shared configuration and module loading for the apps
 // Inter-tab communication, configuration, and dynamic module loading for Trisk apps.
 // Sits alongside OmniControlPanel, PatcherBase etc. — not inside them.
 // An app opts in by creating a Patchbay instance. Simple apps ignore it entirely.

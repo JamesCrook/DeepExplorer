@@ -1,6 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { BarElementNode, BAR_DEFAULTS };
 
+// `bar-element` — one bar of a bar chart, hit-testable
+
 const BAR_DEFAULTS = Object.freeze({
   barFill: '#4a90c4', barFillHi: '#6ab0e8', barOpacity: 0.72, barGap: 0.28,
   barRadius: 3, barStroke: 'rgba(90,160,220,0.25)', barStrokeW: 1,

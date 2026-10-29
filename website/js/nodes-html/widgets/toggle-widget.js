@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { ToggleWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  ToggleWidget (leaf)
+// `toggle` — a labelled on/off switch bound to a param (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ToggleWidget extends OmniWidget {

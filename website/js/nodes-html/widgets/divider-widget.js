@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { DividerWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  DividerWidget (leaf)
+// `divider` — a thin horizontal rule between controls (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class DividerWidget extends OmniWidget {

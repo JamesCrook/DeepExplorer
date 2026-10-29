@@ -1,5 +1,5 @@
 /**
- * card-grid-node.js — `card-grid`: a flex grid of styled HTML cards.
+ * `card-grid` — a flex grid of styled HTML cards
  *
  * Container (mount / update / teardown vocabulary, so it mounts in OmniHtml
  * or DemoHarnessHtml).  Injects STATIC_CSS once, and on every update rewrites

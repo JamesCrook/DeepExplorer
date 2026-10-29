@@ -1,5 +1,5 @@
 /**
- * cif-atom.js — one atom record from an mmCIF / BinaryCIF atom_site row.
+ * One atom record from an mmCIF / BinaryCIF atom_site row
  *
  * Shared by mmcif-parser.js and bmcif-parser.js, which had identical copies.
  */

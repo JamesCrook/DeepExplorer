@@ -1,5 +1,5 @@
 /**
- * reactive-runtime.js
+ * A tiny reactive engine: entities, drives, whiles and ons — the rules behind the animations
  *
  * Tiny reactive entity/rule engine.
  *

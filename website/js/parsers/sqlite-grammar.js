@@ -1,6 +1,8 @@
 import {Parser} from './parser.js'
 
 // ── SQLite SQL ──────────────────────────────────────────
+// PEG grammar: SQLite SQL (not loaded by any page)
+//
 // #sql/grammar
 Parser
   .addRep('SQL', ['sql_stmt', /^\s*;?\s*/])

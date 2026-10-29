@@ -1,5 +1,5 @@
 /**
- * gguf-parser.js — read GGUF model files (llama.cpp's format) in the browser.
+ * Read GGUF model files (llama.cpp's format) in the browser
  *
  *   DynamicFileReader  lazy, chunked reads from a File; never loads it whole
  *   GGUFParser         header, metadata key/values and tensor descriptors

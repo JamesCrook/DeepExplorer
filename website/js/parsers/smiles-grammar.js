@@ -2,6 +2,8 @@ import {Parser} from './parser.js'
 
 // #mol/smiles
 
+// PEG grammar: SMILES molecules (not loaded by any page)
+//
 // ── SMILES (OpenSMILES-complete) ────────────────────────
 Parser
   // Top level: one or more dot-separated components

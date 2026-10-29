@@ -2,6 +2,8 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NavSubmenuWidget };
 
+// `nav-submenu` — a hamburger-menu item that opens a submenu of its children (container)
+
 class NavSubmenuWidget extends OmniWidget {
 
   static before_mount(ctxMix, node, params) {

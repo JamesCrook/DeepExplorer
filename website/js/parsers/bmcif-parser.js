@@ -1,6 +1,8 @@
 import { PDBParser } from './pdb-parser.js';
 import { formatCifAtom } from './cif-atom.js';
 
+// BmCifParser — read BinaryCIF (MessagePack) protein structures into chains of atoms
+
 class BmCifParser {
   static decodeMessagePack(buffer) {
     const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);

@@ -2,6 +2,8 @@ import {Parser} from './parser.js'
 
 
 // ── SVG (common subset, emphasis on path data) ─────────
+// PEG grammar: SVG, common subset with path data (not loaded by any page)
+//
 // #svg/grammar
 Parser
   // ── Document level ──

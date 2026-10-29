@@ -1,5 +1,5 @@
 // ============================================================
-// Canvas pan/zoom (static helper for apps using CanvasScene)
+// AppUtils — pan/zoom and control-building helpers for the older apps (molam-app, scenes-grid)
 // ============================================================
 
 class AppUtils {

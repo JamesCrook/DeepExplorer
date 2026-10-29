@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { PresetItemWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  PresetItemWidget — a single preset button (leaf)
+// `preset-item` — one preset button, marked active when chosen (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class PresetItemWidget extends OmniWidget {

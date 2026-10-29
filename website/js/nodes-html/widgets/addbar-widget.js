@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { AddBarWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  AddBarWidget (leaf)
+// `addbar` — a row of '+ name' buttons, one per addable; a click calls inst.onAdd (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class AddBarWidget extends OmniWidget {

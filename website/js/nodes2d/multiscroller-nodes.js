@@ -1,5 +1,5 @@
 /**
- * multiscroller-nodes.js
+ * `stack`/`hstack`/`vstack` and `multiscroller` — scrolling stacks over data sources, with synced scrolling
  *
  * Three things:
  *

@@ -2,6 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { ChromosomeBandNode, chrGeometry };
 
+// `chromosome-band` — one cytoband of a chromosome, clipped to the chromosome's outline
+
 const STAIN_COLORS = { gneg:'#E8E0D0', gpos25:'#B0A890', gpos50:'#808068', gpos75:'#505040', gpos100:'#282820', acen:'#B84430', gvar:'#A0A090', stalk:'#707060' };
 
 function chromosomePath(ctx, cx, topY, botY, cenY, armW, cenW, capR) {

@@ -1,5 +1,5 @@
 /**
- * transform.js — Scene graph coordinate transform
+ * Transform (T) — the coordinate transform passed down the scene graph
  *
  * Carries the accumulated mapping from local coordinates to screen
  * coordinates (CSS pixels). Pushed by intermediate nodes (LayerNode,

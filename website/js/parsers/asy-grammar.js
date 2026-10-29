@@ -1,6 +1,8 @@
 import {Parser} from './parser.js'
 import {SyntaxProcessor} from './syntax-processor.js'
 
+// PEG grammar: Asymptote (not loaded by any page)
+//
 // #asy/grammar
 
 Parser

@@ -3,6 +3,8 @@ import { RibbonUI } from '../3d-support/ribbon3d.js';
 import { getResidueColor } from '../3d-support/molam-objects.js';
 import * as THREE from 'three';
 import { SYS } from '../omni-support/sys.js';
+// `molam-ribbon` — a protein ribbon coloured by residue, with fades and beta-sheet arrows
+//
 // #mol/node/ribbon
 
 /**

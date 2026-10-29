@@ -1,6 +1,8 @@
 import { PDBParser } from './pdb-parser.js';
 import { formatCifAtom } from './cif-atom.js';
 
+// MmCifParser — read mmCIF protein structures into chains of atoms
+
 class MmCifParser {
   static parse(cifContent, includeAllAtoms = false) {
     const lines = cifContent.split('\n');

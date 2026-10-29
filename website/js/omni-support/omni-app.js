@@ -1,3 +1,5 @@
+// OmniApp — the page shell for Molam and OmniScene: header, layout wrapper, overlaid display layers
+
 class OmniApp {
   constructor(options) {
     const {

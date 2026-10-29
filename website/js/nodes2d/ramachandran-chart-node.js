@@ -2,6 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { RamachandranChartNode, RC_DEFAULTS };
 
 /* ─────────────────────────────────────────────────────────────────────────────
+`ramachandran-chart` — the φ/ψ chart: axes, allowed regions and labels
+
 Ramachandran-specific chart nodes — read dimensions from ctxMix.getWH()
 ──────────────────────────────────────────────────────────────────────────── */
 const REGION_SETS = {

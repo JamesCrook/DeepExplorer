@@ -1,3 +1,5 @@
+// Parser — the PEG parser: seq, or and rep rules over RegExp atoms, building an AST
+//
 // This is a PEG parser
 // Ordered Choice; Backtracking not Look-Ahead; Greedy Repetition;
 // However we do get some semblance of look-ahead since our atoms are RegExp, and they can look

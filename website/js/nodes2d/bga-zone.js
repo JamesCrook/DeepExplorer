@@ -2,7 +2,10 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { BGAPinNode, ROW_LETTERS, pinLayout };
 
-/* The same number as HEATMAP_ASPECT_RATIO, deliberately not shared: the two
+/*
+`bga-pin` — one ball of a ball-grid-array chip, coloured by signal (BGA model)
+
+The same number as HEATMAP_ASPECT_RATIO, deliberately not shared: the two
    templates happen to agree today and neither should learn about the other. */
 const BGA_ASPECT_RATIO = 500 / 700;
 const ROW_LETTERS = 'ABCDEFGHJKLMNPRTUVWY';

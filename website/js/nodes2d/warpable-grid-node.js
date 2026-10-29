@@ -1,5 +1,5 @@
 /**
- * warpable-grid-node.js
+ * `warpable-grid` and `rect-grid-cell` — OmniChart's flyweight grid: one column and one cell prototype, reused
  *
  * Flyweight grid: one prototype vstack, one prototype cell, reused
  * per column and row via iteration. Cursors are [col, row] arrays.

@@ -1,5 +1,7 @@
 import {Parser} from './parser.js'
 
+// PEG grammar: Jatex (not loaded by any page)
+//
 // #jatex/grammar
 
 Parser

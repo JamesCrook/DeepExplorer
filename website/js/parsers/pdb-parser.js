@@ -1,3 +1,5 @@
+// PDB parser, and CPK atom data: colours and van der Waals radii by element
+//
 // ============================================================
 // CPK ATOM DATA (Colors & Van der Waals Radii)
 // ============================================================

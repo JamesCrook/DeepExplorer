@@ -3,7 +3,7 @@ import { drawScorpioLabel } from '../2d-support/workhorse.js'
 import { layoutInline } from '../2d-support/node-geometry.js';
 
 /**
- * A class for creating and managing tiled elements.
+ * JatexTileNode — `jatex.tile`: tiles and boxes in jatex (Scorpio labels); registered by jatex-node.js
  * @class
  */
 class JatexTileX {

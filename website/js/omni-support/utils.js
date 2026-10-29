@@ -1,6 +1,9 @@
 import { sceneRegistry } from './sys.js';
 import { Values } from './values.js';
 export { Utils };
+
+// Utils — ask a node for things without knowing its class: pips, detaching, moving
+
 class Utils {
   static classOfNode(node) {
     if (!node) return null;

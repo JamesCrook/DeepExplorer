@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { OptionWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  OptionWidget — a single <option> element (leaf)
+// `option` — one option of a select (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class OptionWidget extends OmniWidget {

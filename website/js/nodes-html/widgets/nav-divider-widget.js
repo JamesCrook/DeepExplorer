@@ -2,6 +2,8 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NavDividerWidget };
 
+// `nav-divider` — a rule between hamburger-menu items (leaf)
+
 class NavDividerWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {

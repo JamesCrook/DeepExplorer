@@ -2,6 +2,8 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NavLinkWidget };
 
+// `nav-link` — a hamburger-menu item that is a link (leaf)
+
 class NavLinkWidget extends OmniWidget {
 
   static mount(ctxMix, node, params) {

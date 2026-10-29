@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { LabelWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  LabelWidget (leaf)
+// `label` — a line of small text or HTML among the controls (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class LabelWidget extends OmniWidget {

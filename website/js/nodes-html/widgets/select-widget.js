@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { SelectWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  SelectWidget — container for option / optgroup children
+// `select` — a labelled dropdown bound to a param; its children are the options (container)
 // ════════════════════════════════════════════════════════════════
 
 class SelectWidget extends OmniWidget {

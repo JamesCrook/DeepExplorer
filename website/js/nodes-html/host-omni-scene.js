@@ -1,4 +1,6 @@
 /*
+`host.omni-scene` — an OmniScene app inside an html-host; D+'s stage card
+
 # ESSENTIALS
 
 host.omni-scene — an OmniSceneApp inside an html-host, and D+'s 'stage': a

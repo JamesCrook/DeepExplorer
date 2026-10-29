@@ -1,5 +1,5 @@
 /**
- * layer-ops.js — Twig protocol helpers
+ * Twig protocol helpers: add, remove and select items in a layer; names
  *
  * Provides:
  *   - Tree utilities: findByToken, containsNode, isNodeInLayer

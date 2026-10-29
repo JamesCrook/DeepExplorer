@@ -1,5 +1,5 @@
 /**
- * frame-node.js  — v5 (stamp-frame)
+ * `stamp-frame` — a decorative movable card with a bumpy perimeter, holding children (container)
  *
  * A decorative movable card with a bumpy perimeter; a container (before/after
  * pattern), so its children draw and hit-test inside it.

@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { NumberInputWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  NumberInputWidget (leaf)
+// `number-input` — a labelled number box bound to a param (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class NumberInputWidget extends OmniWidget {

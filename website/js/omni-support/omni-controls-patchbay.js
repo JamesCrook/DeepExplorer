@@ -1,4 +1,4 @@
-// omni-controls-patchbay.js
+// Patchbay wiring for OmniControlPanel: reconfigure the panel from other tabs (a mixin)
 // Extends OmniControlPanel with reconfiguration support and Patchbay wiring.
 // Import after omni-control-panel.js, or call these as mixin methods.
 //

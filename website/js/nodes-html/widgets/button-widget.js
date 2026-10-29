@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { ButtonWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  ButtonWidget (leaf)
+// `button` — one button (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class ButtonWidget extends OmniWidget {

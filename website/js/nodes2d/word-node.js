@@ -4,6 +4,9 @@ import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { WordNode };
+
+// `word-node` — one word at its own position, size and rotation, hit-testable
+
 function measureWord(ctx, text, font) {
   ctx.font = font;
   ctx.textBaseline = 'alphabetic'; // <-- Add this line to fix the offset

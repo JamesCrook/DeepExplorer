@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { DynamicWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  DynamicWidget (leaf)
+// `dynamic` — an empty container the panel fills later, registered in panel.dynamicContainers (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class DynamicWidget extends OmniWidget {

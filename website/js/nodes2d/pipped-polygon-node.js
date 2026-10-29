@@ -4,6 +4,9 @@ import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { PippedPolygonNode };
+
+// `pipped-polygon` — a polygon tile with a pip on each side, for rafts
+
 class PippedPolygonNode {
   static meta = {
     zOrder: 1,

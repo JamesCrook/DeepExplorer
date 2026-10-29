@@ -1,6 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { THREE } from '../3d-support/three-boot.js';
 export { PhyloNode };
+
+// `phylo-node` — a 3D phyllotaxis spiral of splats, in levels
+
 class PhyloNode {
   static build(ctxMix, node, params) {
     if (node.value.group) return;

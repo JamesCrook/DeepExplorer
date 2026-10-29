@@ -1,6 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 export { RamachandranPointNode };
+
+// `ramachandran-point` — one residue on the Ramachandran chart, hit-testable
+
 class RamachandranPointNode {
 
 // New Style: Metadata tells the system how to interact with this node

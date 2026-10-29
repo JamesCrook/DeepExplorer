@@ -3,6 +3,9 @@ import { THREE } from '../3d-support/three-boot.js';
 import './imposter-atom-node.js';   // registers 'imposter-atoms'
 import './molam-bond-node.js';   // registers 'molam-bonds'
 export { DumbbellNode };
+
+// `dumbbell-node` — two atoms and a bond in 3D, using the Molam bond renderer
+
 class DumbbellNode {
   static build(ctxMix, node, params) {
     if (node.value.group) return;

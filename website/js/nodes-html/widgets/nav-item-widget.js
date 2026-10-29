@@ -2,6 +2,8 @@ import { SYS } from '../../omni-support/sys.js';
 import { OmniWidget } from './widget-base.js';
 export { NavItemWidget };
 
+// `nav-item` — a hamburger-menu item that runs an action (leaf)
+//
 // ════════════════════════════════════════════════════════════════
 //  Nav widgets — menu items as scene graph nodes
 // ════════════════════════════════════════════════════════════════

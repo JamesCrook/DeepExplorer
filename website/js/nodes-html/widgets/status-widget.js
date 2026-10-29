@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { StatusWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  StatusWidget (leaf)
+// `status` — the panel's status line, which the app writes into (panel.statusEl) (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class StatusWidget extends OmniWidget {

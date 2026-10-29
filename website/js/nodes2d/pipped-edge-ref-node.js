@@ -2,6 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { PipKinds } from '../2d-support/pip-kind.js';
 import { Values } from '../omni-support/values.js';
 import { BTN_DEFAULTS } from './pipped-button-node.js';
+// `pipped-edge` — an edge whose ends are pips that attach to junctions or other pipped nodes; bendable
+//
 // The Bend2 control below is a 'morph-slider'; the widget registers it.
 import '../nodes-html/widgets/morph-slider-widget.js';
 export { PippedEdgeRefNode };

@@ -1,4 +1,6 @@
 /*
+The scene registry and walker: node types, phase dispatch, walkPhase over subtrees
+
 # ESSENTIALS
 
 SceneRegistry is a double-dispatch table with a recursive tree walker.

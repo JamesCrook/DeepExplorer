@@ -1,5 +1,5 @@
 /**
- * jatex-node.js
+ * Jatex nodes — `jatex`, `jexp`, `frac`, `jatex.sym`, `jsymbol` — and the registration of jatex.tile, .twisty and .drawn
  *
  */
 

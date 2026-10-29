@@ -1,4 +1,7 @@
 import { layoutInline } from '../2d-support/node-geometry.js';
+
+// JatexDrawnNode — `jatex.drawn`: electronic symbols (transistor, resistor, battery, capacitor) in jatex; registered by jatex-node.js
+
 class JatexDrawnNode {
   static measure(ctxMix, node, params){ 
     node.box = new Box(80,60)

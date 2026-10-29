@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { TextInputWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  TextInputWidget (leaf)
+// `text-input` — a labelled text box bound to a param (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class TextInputWidget extends OmniWidget {

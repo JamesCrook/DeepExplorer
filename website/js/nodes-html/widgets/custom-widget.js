@@ -3,7 +3,7 @@ import { OmniWidget } from './widget-base.js';
 export { CustomWidget };
 
 // ════════════════════════════════════════════════════════════════
-//  CustomWidget — delegates to inst.build(el, panel)
+// `custom` — whatever inst.build(el, panel) makes: the escape hatch for one-off controls (leaf)
 // ════════════════════════════════════════════════════════════════
 
 class CustomWidget extends OmniWidget {

@@ -1,4 +1,5 @@
-/* nodes-html/widgets/index.js — the panel and nav widget node types.
+/*
+The panel and nav widget node types: importing this registers all of them
 
    Importing this registers all of them, in the order omni-widget.js did,
    and gives the same exports.  Each type lives in <type>-widget.js; what

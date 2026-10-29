@@ -1,5 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { HexChunkNode };
+
+// `hex-chunk` — one chunk of a hex dump: address label and rows, culled to the view
+
 const isPrint = (b) => b >= 0x20 && b <= 0x7e;
 const SYMBOLS = ['FIN', 'SYN', 'RST', 'PSH', 'ACK', 'URG', 'ECE', 'CWR'];
 

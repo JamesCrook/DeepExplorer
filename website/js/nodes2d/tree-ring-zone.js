@@ -1,6 +1,8 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { TreeRingNode, ringGeometry, treeRingData };
 
+// `tree-ring` — one annual ring of a trunk, alone or as a flyweight under a plate
+
 function ringGeometry(ctxMix, node, params, data) {
   const { W, H } = ctxMix.getWH(ctxMix, node, params);
   const maxR = Math.max(0.1, Math.min(W, H) / 2 - 16);

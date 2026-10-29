@@ -1,6 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 export { LineChartNode };
 import { LINE_DEFAULTS } from './line-dot-node.js';
+
+// `line-chart-node` — a temperature line across a chart's columns
+
 class LineChartNode {
   static _points(v, ctxMix) {
     const data = v.data || [], n = data.length, tMin = v.tempMin ?? 0, tMax = v.tempMax ?? 30;

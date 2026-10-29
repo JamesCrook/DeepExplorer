@@ -1,6 +1,8 @@
 import { SceneNode } from '../omni-support/scene.js';
 import * as THREE from 'three';
 
+// `molam-atoms` — Molam's atoms (AtomRenderer) as a scene node
+//
 // AtomRenderer must be exported from molam-objects.js.
 // Add to the export line: export { ..., AtomRenderer, BondRenderer };
 import { AtomRenderer } from '../3d-support/molam-objects.js';

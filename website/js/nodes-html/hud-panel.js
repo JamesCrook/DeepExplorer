@@ -3,6 +3,8 @@ import { Values } from '../omni-support/values.js';
 export { HudPanel };
 
 /* ─────────────────────────────────────────────────────────────────────────────
+`hud-panel` and its controls (hud-slider, -button, -checkbox, -select, -color, -separator): the Zones demos' floating panel
+
 HudPanel — standalone floating panel using sceneRegistry.walkPhase
 
 Compatible with OmniWidget conventions so hud-* node types work in either

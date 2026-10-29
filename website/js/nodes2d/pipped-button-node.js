@@ -6,6 +6,8 @@ import { Values } from '../omni-support/values.js';
 import { pointCentreXY } from '../2d-support/node-geometry.js';
 export { BTN_DEFAULTS, PippedButtonNode };
 
+// `pipped-button-node` — a button with pips, so edges can attach to it
+
 const BTN_DEFAULTS = Object.freeze({
   fill:          '#e0ddd4', textColor:     '#2a2a2a',
   cornerRadius:  6,         borderWidth:   1.5,

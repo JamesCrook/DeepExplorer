@@ -2,6 +2,8 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { HIGHLIGHT } from '../2d-support/paint.js';
 export { MouseButtonNode, mouseGeometry };
 
+// `mouse-button` — one clickable zone of the mouse drawing, with its binding
+
 function mouseGeometry(ctxMix, node, params) {
   const { W, H } = ctxMix.getWH(ctxMix, node, params);
   const pad = 30;

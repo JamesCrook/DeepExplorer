@@ -1,5 +1,5 @@
 /**
- * jatex-node.js
+ * `blob` — a diagnostic node: dots at ctxMix.outerPos and outerPos2, to see where a parent put them
  *
  */
 

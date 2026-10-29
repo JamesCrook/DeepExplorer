@@ -1,6 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { BasicCollectionNode };
+
+// `basic-collection` — a group whose children are draggable items; one dropped on the stock strip is removed
+
 class BasicCollectionNode {
   // Selection lives on the item, so clearing it is a walk over the scene.
   static clear_selection(ctxMix, node, params) {

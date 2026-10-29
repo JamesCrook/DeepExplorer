@@ -1,6 +1,9 @@
 import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { FractureConeNode };
+
+// `fracture-cone` — shows the cone along which a dragged raft will split, while the drag is still deciding
+
 class FractureConeNode {
   static draw2d(ctxMix, node, params) {
     const target = node.inst?.target;

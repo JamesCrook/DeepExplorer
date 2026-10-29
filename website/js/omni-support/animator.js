@@ -1,5 +1,5 @@
 /**
- * animator.js — one frame loop for everything that animates.
+ * Animator — one frame loop for everything that animates
  *
  * Preset morphs, a model's tick, any future timeline: each is a *track*, a
  * function called once per display frame with (now, dt).  It returns false

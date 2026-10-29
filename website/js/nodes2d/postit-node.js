@@ -1,5 +1,5 @@
 /**
- * postit-node.js
+ * `postit-node` — a post-it note's paper, holding child layers (container, inside a handle-frame)
  *
  * Container node for post-it notes. Sits inside a handle-frame
  * and acts as a proper container for child layers (jatex, chart,
