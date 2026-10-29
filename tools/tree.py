@@ -4,7 +4,7 @@
 
 # This is a command-line cousin of devsrv's Trees page. A file's title is the
 # first line that says what it is: a .md file's first heading, an .html file's
-# <title>, a code file's opening comment. Run it to see the project as a list of
+# <title>, a code file's first comment. Run it to see the project as a list of
 # one-line explanations, and with --untitled to find the files that don't
 # explain themselves yet.
 #
@@ -13,12 +13,15 @@
 #   python3 tools/tree.py website/js --untitled
 #   python3 tools/tree.py . --rules ~/devsrv/config/files.md
 #
-# Code files are titled by their opening comment only: the comment block the
-# file starts with, // or /* */ or #, first line with words in it. devsrv's
-# files.md instead tries "first /* */ anywhere in 8K", then "first // line",
-# and that lets a stray block comment far down the file (a commented-out line,
-# a JSDoc on a method) stand in for a title. --rules reads a files.md and uses
-# its table instead, to see exactly what the Trees page shows.
+# A title comes from the rules for the file's extension (devsrv's files.md
+# Titles table): every rule is tried, and the match nearest the top of the file
+# wins. So a .js file's title is its first comment, // or /* */, whichever comes
+# first; one with its imports above the header comment still gets the header.
+# A match its rule's Skip pattern catches is passed over, and so is one with no
+# title in it (a rule of ─── or ===, a directive, a commented-out import, a
+# #tag/), and that rule's search goes on below it.
+# --rules reads a files.md and uses its table; --first-rule gives the older
+# devsrv order, where the first rule that matches anywhere wins.
 
 import argparse
 import os
@@ -30,25 +33,18 @@ import time
 EXCLUDE = '.git, .DS_Store, node_modules, __pycache__, .venv, venv'
 HEAD = 8192  # titles are looked for in the first 8K, as devsrv does
 
-# Opening comments. The group is the whole block; tidy() picks its title line.
-# In JS the import and export-list lines may come first: this repo puts them
-# above the header comment. A trailing // note on an import line is skipped,
-# and so is a commented-out import among them.
-_IMPORT = r"""import\s*(?:[\w$*{}\s,]+?\s*from\s*)?['"][^'"\n]*['"][ \t]*;?"""
-_EXPORT = r"""export\s*(?:\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?)(?:\s*from\s*['"][^'"\n]*['"])?[ \t]*;?"""
-_PREAMBLE = r"""(?:\s*(?:%s|%s|['"]use strict['"][ \t]*;?|//[ \t]*import\b[^\n]*)[ \t]*(?://[^\n]*)?)*""" % (_IMPORT, _EXPORT)
-JS_OPENING = r'(?s)\A' + _PREAMBLE + r'\s*^[ \t]*(/\*.*?\*/|(?://[^\n]*(?:\n|\Z)[ \t]*)+)'
-HASH_OPENING = r'(?s)\A(?:#![^\n]*\n)?\s*((?:#[^\n]*(?:\n|\Z)[ \t]*)+|""".*?"""|\'\'\'.*?\'\'\')'
-
-# (extensions, from, pattern, skip), as rows of devsrv's files.md Titles table.
-# The first rule for a file's extension that finds a title wins; a match that
-# also matches skip is passed over and the search goes on.
+# (extensions, from, pattern, skip): the rows of devsrv's config/files.md
+# Titles table. Skip is tested against the whole match.
 RULES = [
     ('.md .markdown', 'front matter', r'title', ''),
     ('.md .markdown', 'text', r'^#\s+(.+?)\s*#*\s*$', r'^#\s+@'),
     ('.html .htm', 'text', r'(?is)<title[^>]*>(.*?)</title>', ''),
-    ('.js .mjs .cjs .ts .css', 'text', JS_OPENING, ''),
-    ('.py .sh', 'text', HASH_OPENING, ''),
+    ('.js .mjs .json .css', 'text', r'(?is)/\*\*?\s*(.+?)\s*\*/', ''),
+    ('.js .mjs .json', 'text', r'^\s*//\s*(.+?)\s*$', r'^\s*//\s*@'),
+    ('.sh', 'text', r'^\s*#\s*(.+?)\s*$', r'^\s*#!'),
+    ('.py', 'text', r'^\s*#\s*(.+?)\s*$', r'^\s*#!'),
+    ('.py', 'text', r'(?is)"""\s*(.+?)\s*"""', ''),
+    ('.py', 'text', r"(?is)\'\'\'\s*(.+?)\s*\'\'\'", ''),
 ]
 
 
@@ -76,17 +72,22 @@ def compile_rules(rules):
     return by_ext
 
 
-# Lines in an opening comment that are never its title: linter and tool directives,
-# and commented-out imports.
+# Lines that are never a title: linter and tool directives, commented-out
+# imports, and work-cascade tags such as #mol/smiles.
 DIRECTIVE = re.compile(r'^(@|global\b|import\b|export\b|eslint|jshint|jslint|@ts-|-\*-|type:|noqa|pylint|vim:)')
+TAG = re.compile(r'^#[\w.-]+/[\w/.-]*$')
 
 
 def tidy(t):
-    """One line from a match that may span several: comment marks, tags and @fileoverview
-    gone, directives and rules of ─── or === passed over, first line with words kept."""
+    """The title in a match, which may span several lines: the first line with
+    letters or digits in it that is not a directive or a tag, without comment
+    marks, tags or @fileoverview. A rule of ─── or === has no title in it."""
     for line in t.splitlines():
-        line = re.sub(r'<[^>]+>', '', line.strip().lstrip('/*#').strip())
+        line = re.sub(r'<[^>]+>', '', line.strip().lstrip('/*').strip())
         line = re.sub(r'(\*/|"""|\'\'\')$', '', line).strip()
+        if TAG.match(line):
+            continue
+        line = line.lstrip('#').strip()
         line = re.sub(r'^@(fileoverview|file|overview)\s*', '', line)
         if DIRECTIVE.match(line) or not re.search(r'[^\W_]', line):
             continue
@@ -107,7 +108,23 @@ def front_matter(text, key):
     return ''
 
 
-def title_of(path, by_ext):
+def first_match(text, frm, pat, skip):
+    """(position, title) of a rule's first match that is not skipped and has words, or None."""
+    if frm == 'front matter':
+        t = front_matter(text, pat)
+        return (0, t) if t else None
+    for m in pat.finditer(text):
+        if skip and skip.search(m.group(0)):
+            continue
+        t = tidy(m.group(1))
+        if t:
+            return (m.start(1), t)
+    return None
+
+
+def title_of(path, by_ext, earliest=True):
+    """The match nearest the top among all the rules for this extension;
+    with earliest=False, the first rule that matches at all (devsrv's older order)."""
     rules = by_ext.get(os.path.splitext(path)[1].lower())
     if not rules:
         return ''
@@ -116,19 +133,14 @@ def title_of(path, by_ext):
             text = f.read(HEAD).decode('utf-8', 'replace')
     except OSError:
         return ''
-    for frm, pat, skip in rules:
-        if frm == 'front matter':
-            t = front_matter(text, pat)
-            if t:
-                return t
-            continue
-        for m in pat.finditer(text):
-            if skip and skip.search(m.group(0)):
-                continue
-            t = tidy(m.group(1))
-            if t:
-                return t
-    return ''
+    found = []
+    for rule in rules:
+        hit = first_match(text, *rule)
+        if hit and not earliest:
+            return hit[1]
+        if hit:
+            found.append(hit)
+    return min(found)[1] if found else ''
 
 
 # ---- reading the tree ----
@@ -154,7 +166,7 @@ def walk_files(root, exclude):
     return found
 
 
-def build(root, rels, exclude, by_ext, titles):
+def build(root, rels, exclude, by_ext, titles, earliest=True):
     tree = {'name': os.path.basename(os.path.abspath(root)), 'dir': True, 'kids': {}}
     for rel in rels:
         parts = rel.split('/')
@@ -169,7 +181,7 @@ def build(root, rels, exclude, by_ext, titles):
         st = os.stat(full)
         node['kids'][parts[-1]] = {'name': parts[-1], 'dir': False, 'size': st.st_size,
                                    'mtime': st.st_mtime, 'path': rel,
-                                   'title': title_of(full, by_ext) if titles else ''}
+                                   'title': title_of(full, by_ext, earliest) if titles else ''}
     return totals(tree)
 
 
@@ -275,6 +287,8 @@ def main():
     ap.add_argument('--no-gitignore', dest='gitignore', action='store_false',
                     help='read the folders directly, not as git sees them')
     ap.add_argument('--rules', help="a devsrv files.md whose Titles table replaces the built-in rules")
+    ap.add_argument('--first-rule', action='store_true',
+                    help='the first rule that matches wins, not the match nearest the top (devsrv\'s older order)')
     ap.add_argument('--untitled', action='store_true',
                     help='list only the files a rule covers that have no title, one path per line')
     ap.add_argument('-o', '--out', help='write here instead of stdout')
@@ -288,7 +302,7 @@ def main():
         rels = git_files(root) if a.gitignore else None
         if rels is None:
             rels = walk_files(root, exclude)
-        tree = build(root, rels, exclude, by_ext, a.titles or a.untitled)
+        tree = build(root, rels, exclude, by_ext, a.titles or a.untitled, not a.first_rule)
         if a.untitled:
             untitled += [os.path.join(root, f['path']) for f in each_file(tree)
                          if not f['title'] and os.path.splitext(f['name'])[1].lower() in by_ext]
