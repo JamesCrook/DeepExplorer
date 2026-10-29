@@ -23,6 +23,7 @@ The grid is grid-viewport > sticky bands > warpable-grid > vstack > table-cell
               frame takes under 250 ms
 """
 import os, re, sys, json, time, threading, http.server, functools
+sys.dont_write_bytecode = True          # importing golden-images.py leaves no __pycache__
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 PORT = 8779

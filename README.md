@@ -41,7 +41,7 @@ DeepExplorer/
 │     ├─ data/                  # sample data and data adapters
 │     └─ page/                  # page chrome: nav (hamburger menu), help
 ├─ docs/                        # plans (twin-merge-plan.md, general-t-and-grid-unwrap.md) and tests
-│  └─ tests/                    # node docs/tests/<name>.mjs
+│  └─ tests/                    # node docs/tests/<name>.mjs; python3 docs/tests/<name>.py (headless Chromium)
 │     ├─ load-graph.mjs         #   broken imports, unloaded files
 │     ├─ frame-drag-test.mjs    #   nested-frame drags; content-hit-test, hit-space-probe
 │     ├─ cartographer-headless.py #  duplicate type names (python3 + Playwright)

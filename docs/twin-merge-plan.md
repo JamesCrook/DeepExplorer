@@ -351,8 +351,11 @@ preset morphs and layer ticks.
 
 Still open, in rough order of value:
 
-- **Unwrap omni-grid** and **general T**: designed, not built. See
-  `docs/general-t-and-grid-unwrap.md` (four decisions at its end).
+- **Unwrap omni-grid** and **general T**: **built 29 Oct**. T is an
+  interface (affine `Transform`, `PathTransform` over any path); OmniChart
+  draws through it with one `table-cell`; OmniGrid is the chart machinery
+  with a straight path, sticky bands and focus as the multiscroller's focal
+  block. See section 0 of `docs/general-t-and-grid-unwrap.md`.
 - Deferred by decision: anglesFromAtoms/minEnergy2 (mind-map); the event
   system and its DSL interpreter; splitting the remaining multi-node files
   (not to be done).

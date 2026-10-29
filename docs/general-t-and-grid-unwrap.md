@@ -1,8 +1,98 @@
 # A general T, and unwrapping OmniGrid
 
-Design note, 28 Oct 2026. Covers items 1 and 6 of the end-of-day list in
-`twin-merge-plan.md`. Nothing here has been built. It is written against
-commit `66e5775`.
+Design note, 28 Oct 2026, written against commit `66e5775`. Covers items 1
+and 6 of the end-of-day list in `twin-merge-plan.md`. **Built 29 Oct**, in
+the order of section 5, one commit per step (`7fe51e4` … `62f917e`). Section
+0 says what was built and where it differs from the design; sections 1–6 are
+the design as written, kept for its reasoning.
+
+## 0. As built (29 Oct)
+
+**Decisions taken** (section 6): OmniGrid is built on the chart code (4.5 a).
+Text stays rigid; labels on biarcs, using the warping code, are for later.
+Local units are pixels along the spine. `zoom-pan > frame` retired from the
+chart only: jatex, heatmap and animate still use `zoom-pan`.
+
+**What exists now**
+
+| Piece | Where |
+|---|---|
+| The T interface on the affine `Transform`: `isAffine`, `affine`, `scaleAt`, `scaleX/Y`, `angleAt`, `frameAt`, `mapQuad`, `mapRect`, `localBounds`, `pinned`, `ctxMatrix` | `omni-support/transform.js` |
+| `PathTransform(path, parentT, {length, cross})`, `NestedTransform` (affine child), `blendedTransform` | `2d-support/path-transform.js` |
+| `pathPointAt` with `pointAt` on `SectorPath` and `BlendedPath` (a sector's cross section is an arc, not a chord) | `2d-support/path.js` |
+| The chart on T: `warpable-grid` pushes `PathTransform(outer)`, each `vstack` replaces it with `PathTransform(inner)`, the cell maps a quad | `nodes2d/warpable-grid-node.js`, `multiscroller-nodes.js` |
+| One cell, `table-cell`, for chart and table | `nodes2d/table-cell-node.js` |
+| Variable column widths (`colWeights`) and column culling | `warpable-grid-node.js` |
+| `sticky`: a band that pins T on one axis | `nodes2d/sticky-node.js` |
+| OmniGrid's pane: `grid-viewport` | `nodes2d/grid-viewport-node.js` |
+
+`grid-scene.js` (GridScene), `grid-view`, `warpable-cell`, `sheet-cell`,
+`ms-cell`, `rect-grid-cell` and `blob` are gone (`blob` to the attic).
+
+**Where it differs from the design**
+
+- **Paths live in the parent's local space, not the screen's.** A
+  `PathTransform` is the path composed with its affine parent (2.3's "affine
+  outside" case), so the chart's path code is unchanged and every number it
+  computes is what it was. Exact under any similarity; under a non-uniform
+  parent the corners are exact and the arc bends approximate.
+- **`length` is the stack's nominal length, not the path's.** A sector's
+  radial length is half its stack height, but the chart's pixels run over the
+  full height, so the stack passes its height and t = x / length as before.
+- **`mapQuad` goes through `cornersAt` for full-width quads.** Segment gaps,
+  wedges and the neighbourliness trapezoid then come out exactly as before;
+  a quad inside the band interpolates with `pathPointAt`.
+- **Rows never enter T, and `sticky` pins at a band.** As corrected in 4.1:
+  the viewport's T has x pan and zoom; `sticky` is `T.pinned(axis, band
+  edge)` plus a clip, a fill, a fade and param overrides for its subtree.
+  The bands' rects come from the parent in `ctxMix.bands`.
+- **Focus is the multiscroller's focal block.** GridScene's focus ranges and
+  `focusAlign` are what the `SyncOrchestrator` already does: the run of
+  same-initial rows is the focal block of every data column and the row
+  names, the letter that of the A–Z index (a cyclic column), and focusAlign
+  is the shared ratio, so the index moves at its own speed. Two orchestrator
+  changes made it general: a source column's focal block may be several
+  items, and `select` anchors on its first.
+- **Data shaping went into the cell's value through `flyFn`**, as 3.2 says;
+  OmniGrid's table is a transposed, permuted view of the data
+  (`TableView`), so a chart column is a table column.
+
+**Checks**
+
+- Golden images (`docs/tests/golden-images.py`): every chart preset ×
+  dataset at zoom 1 pixel-identical to before; at zoom 0.6 the same
+  geometry, with strokes that no longer zoom and text scaled by the zoom
+  (it was the zoom squared). OmniGrid within 1.6 % of the old renderer's
+  pixels at every sample and zoom.
+- `docs/tests/path-transform-test.mjs`: 6333 checks, every path type.
+- `docs/tests/multiscroller-drag-test.py`: 15 cases, both bend axes, zoom, pan.
+- `docs/tests/omnigrid-test.py`: 40 checks — pointer, alignment, clamping,
+  GridScene's runs, focusAlign with the index, readBack, culling, speed (a
+  1000 × 1000 table: 26 columns walked, 21 ms a frame).
+
+**Size.** The chart's own code went from 2897 to 2461 lines (the cell 799 →
+443, the sizers 230 → 75; the grid grew 84 lines for variable widths,
+culling and the table hooks), about 15 % less, with 255 lines of
+`PathTransform` shared by everything. OmniGrid went from 1521 lines
+(GridScene, its wrapper and the scene) to 1273 (viewport, sticky, scene),
+and draws with the chart's cell.
+
+**Bugs fixed on the way:** `RoundedWarpedPolygon.renderCtx`/`renderSvg` drew
+the top line on a side edge; `transformedCtx` ignored rotation; the chart's
+CSV loader looked for node types that no longer existed; `DataAdapter` made
+NaN sizes from text cells.
+
+**Left as they are**
+
+- Column culling only while the chart is straight; a bent chart walks every
+  column (`localBounds` of a bent T is conservative, but inner paths reach
+  outside the outer band).
+- Gridiness keeps equal cells when columns have weights; donuts keep one
+  common size.
+- A rotated child in a bent band maps its corners exactly and its edges
+  approximately (`approx` on the result).
+- The A–Z index draws rounded cells where GridScene drew circles.
+- Text is rigid (biarc labels: later).
 
 ## Summary
 
@@ -415,12 +505,11 @@ Each step is a commit, and the repo works after any of them.
 
 Steps 2 and 3 are worth doing on their own. Step 4 is the one that pays.
 
-## 6. Decisions for you
+## 6. Decisions (taken 29 Oct)
 
-1. **4.5:** OmniGrid as the chart machinery (a), or a sibling (b)?
-2. **Text:** is rigid, frame-aligned text enough for now, or do you want
-   glyphs along arcs?
-3. **Local units:** pixels along the spine, as proposed, so the iterators
-   stay in pixels? Or `t ∈ [0, 1]`, which is closer to `path.js`?
-4. **Whether to keep the old chart contract:** should `zoom-pan > frame`
-   stay available for anything else, or retire with the chart's move?
+1. **4.5:** OmniGrid as the chart machinery (a). *Built.*
+2. **Text:** rigid, frame-aligned for now; labels on biarcs, using the
+   existing warping code, later.
+3. **Local units:** pixels along the spine.
+4. **The old chart contract:** `zoom-pan > frame` retired from the chart;
+   `zoom-pan` stays for jatex, heatmap and animate.
