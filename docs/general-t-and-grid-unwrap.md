@@ -297,17 +297,25 @@ conceptual surface:
 
 ```
 layer
-  grid-viewport            camera {x, y, zoom}; clip; pushes T = inset · scale(zoom) · translate(-camera)
-    table-body             flyweight over the visible range only (T.localBounds of the viewport)
+  grid-viewport            camera {x, zoom}; clip; pushes T = inset · scale(zoom) · translate(-x)
+    table-body             columns culled by T.localBounds; each column a multiscroller stack
       table-cell           the same cell as the chart (3.2), under a straight T
-    sticky pin=y           column headers: T with the camera's y dropped; clip to the header band
+    sticky pin=y           column headers: a band above the body, outside the row scroll
       table-body (header row: getColName)   ← same flyweight, same cell
-    sticky pin=x           row names: T with the camera's x dropped
+    sticky pin=x           row names: T with the camera's x dropped; a synced column like the others
       table-body (row-name column)
     sticky pin=x,y         corner
     sticky pin=x scroll=index   A–Z index: its own scroll, a cyclic data source
       table-body (letters)
 ```
+
+**Rows scroll in the columns, not in T.** The camera has no y. Vertical
+scroll stays where the multiscroller keeps it: each column's anchor item
+and offset, walked outward by the `ClippingIterator`, so no column ever
+needs its total size or a position for row 0. A y translation in T would
+need both, and would put rows a million down at float positions far from
+the viewport. T carries only the x pan and the zoom; `T.localBounds` culls
+columns, and each column's own clip decides its rows.
 
 ### 4.2 Sticky headers that reuse the table's drawing
 
@@ -347,17 +355,22 @@ segments.
 
 ### 4.5 Grid as a chart preset, or a sibling
 
-There is one real difference:
+The apparent difference is that a grid's columns scroll together while a
+multiscroller's scroll at different speeds. It isn't a second mode.
+`SyncOrchestrator` keeps each column's focal block at the same ratio of
+that column's own travel, `offset / (viewport − focalSize)`. In a grid the
+active cursor translates to one row in every column, all the same height,
+so every `focalSize` is equal, and equal ratios mean equal offsets: the
+columns move together. The grid is the degenerate case of proportional
+sync, and needs no locked mode. (Verified by
+`docs/tests/multiscroller-drag-test.py` for the tree case: ratios agree to
+four decimals at every step, straight and bent on both axes.)
 
-- **Grid:** all columns scroll together under one camera.
-- **Chart / multiscroller:** each column scrolls on its own, with
-  `SyncOrchestrator` keeping them proportional.
+So the choice is only about sharing:
 
-There are two ways to handle that:
-
-- **(a)** OmniGrid is the chart machinery with a straight path and a
-  **locked** sync mode, where every panel's offset equals the camera's. One
-  table/chart implementation; the Grid preset and OmniGrid converge.
+- **(a)** OmniGrid is the chart machinery with a straight path and
+  equal-height rows. One table/chart implementation; the Grid preset and
+  OmniGrid converge.
 - **(b)** OmniGrid is a sibling that shares only `T`, the cell and `sticky`.
 
 I'd take (a). It's the generalisation this project is about, and it makes
@@ -396,15 +409,15 @@ Each step is a commit, and the repo works after any of them.
    channels go, and `zoom-pan > frame` is dropped. Diff all presets.
 5. **One cell:** `warpable-cell` and `sheet-cell` become `table-cell`.
 6. **Variable band widths and column culling** in the outer path.
-7. **OmniGrid unwrap:** `grid-viewport`, `sticky`, the shared flyweight, and
-   the locked sync mode (4.5). Then delete `grid-scene.js`.
+7. **OmniGrid unwrap:** `grid-viewport`, `sticky` and the shared flyweight,
+   with rows scrolled by the columns' own sync (4.1, 4.5). Then delete
+   `grid-scene.js`.
 
 Steps 2 and 3 are worth doing on their own. Step 4 is the one that pays.
 
 ## 6. Decisions for you
 
-1. **4.5:** OmniGrid as the chart machinery with locked sync (a), or a
-   sibling (b)?
+1. **4.5:** OmniGrid as the chart machinery (a), or a sibling (b)?
 2. **Text:** is rigid, frame-aligned text enough for now, or do you want
    glyphs along arcs?
 3. **Local units:** pixels along the spine, as proposed, so the iterators

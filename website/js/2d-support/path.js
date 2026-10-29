@@ -299,12 +299,18 @@ class ArcPath {
     return true;
   }
 
-  tFromScreen(x, y) {
+  // The angle only fixes t up to whole turns.  With tHint (the t of the
+  // previous pointer position) the turn nearest the hint is chosen, so a
+  // drag round a ring is continuous; without it the seam is opposite the start.
+  tFromScreen(x, y, tHint) {
     const angle = Math.atan2(y - this.center.y, x - this.center.x);
     let rel = angle - this.startAngle;
     while (rel >  Math.PI) rel -= 2 * Math.PI;
     while (rel < -Math.PI) rel += 2 * Math.PI;
-    return rel / this.angularSpan;
+    const t = rel / this.angularSpan;
+    if (tHint == null || !isFinite(tHint)) return t;
+    const turn = 2 * Math.PI / Math.abs(this.angularSpan);
+    return t + Math.round((tHint - t) / turn) * turn;
   }
 
   screenToT(dx, dy, t) {
@@ -369,8 +375,6 @@ class SectorPath {
   }
 
   positionAt(t) {
-    if (typeof this.center !== 'Vector2D')
-      debugger;
     return this.center.addPolar(this._radius(t), this._midAngle);
   }
 
@@ -404,12 +408,9 @@ class SectorPath {
     return true;
   }
 
+  // A sector travels radially, so t is the distance from the centre.
   tFromScreen(x, y) {
-    const angle = Math.atan2(y - this.center.y, x - this.center.x);
-    let rel = angle - this.startAngle;
-    while (rel >  Math.PI) rel -= 2 * Math.PI;
-    while (rel < -Math.PI) rel += 2 * Math.PI;
-    return rel / this.angularSpan;
+    return (Math.hypot(x - this.center.x, y - this.center.y) - this.baseRadius) / (this.length || 1);
   }
 
   screenToT(dx, dy, t) {
@@ -634,12 +635,26 @@ class BlendedPath {
     return true;
   }
 
-  tFromScreen(x, y) {
-    const tA = this.pathA.tFromScreen(x, y);
-    const tB = this.pathB.tFromScreen(x, y);
-    if (isNaN(tB)) return tA;
-    if (isNaN(tA)) return tB;
-    return lerp(tA, tB, this.blend);
+  // Mixing the sub-paths' inverses is not the inverse of the mix, so
+  // between the ends this projects instead: the t whose blended position
+  // is nearest (x, y).  It searches near tHint when given (a drag passes
+  // its last t), which keeps the answer continuous where the blended path
+  // comes back near itself (a ring that is almost closed).
+  tFromScreen(x, y, tHint) {
+    if (this.blend <= 0) return this.pathA.tFromScreen(x, y, tHint);
+    if (this.blend >= 1) return this.pathB.tFromScreen(x, y, tHint);
+    const d2 = t => { const p = this.positionAt(t); return (p.x - x) ** 2 + (p.y - y) ** 2; };
+    const hinted = tHint != null && isFinite(tHint);
+    const lo0 = hinted ? tHint - 0.5 : -1, hi0 = hinted ? tHint + 0.5 : 2;
+    const step = 0.005;
+    let best = lo0, bd = Infinity;
+    for (let t = lo0; t <= hi0; t += step) { const d = d2(t); if (d < bd) { bd = d; best = t; } }
+    let lo = best - step, hi = best + step;
+    for (let i = 0; i < 30; i++) {              // ternary refine of the bracket
+      const a = lo + (hi - lo) / 3, b = hi - (hi - lo) / 3;
+      if (d2(a) < d2(b)) hi = b; else lo = a;
+    }
+    return (lo + hi) / 2;
   }
 
   screenToT(dx, dy, t) {

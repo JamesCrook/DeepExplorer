@@ -197,6 +197,9 @@ class ClippingIterator {
           if (pos + size <= this.clipMin) { this.phase = 'anchor'; continue; }
           this.backCursor = prev;
           this.backEdge   = pos;
+          // The anchor may have scrolled below the column: skip what is
+          // still wholly below it, as the forward pass does.
+          if (pos >= this.clipMax) continue;
           return this._yield(prev, pos, size, subtree);
         }
         case 'anchor': {
@@ -213,6 +216,9 @@ class ClippingIterator {
           if (pos >= this.clipMax) { this.phase = 'done'; return null; }
           this.fwdCursor = nxt;
           this.fwdEdge   = pos + size;
+          // The anchor may have scrolled above the column: skip what is
+          // still wholly above it, as the backward pass does.
+          if (pos + size <= this.clipMin) continue;
           return this._yield(nxt, pos, size, subtree);
         }
         default: return null;
@@ -426,8 +432,10 @@ class StackNode {
 
     let dragStartT = null;
     let dragStartOffset = null;
+    let lastT = cellT;              // continuity hint: the grabbed cell, then the last t
     ctxMix.flyweight.interactions.applyDrag = (screenX, screenY) => {
-      const t = pathRef.tFromScreen(screenX, screenY);
+      const t = pathRef.tFromScreen(screenX, screenY, lastT);
+      lastT = t;
       if (dragStartT === null) {
         dragStartT = t;
         dragStartOffset = inst.scrollOffset;
