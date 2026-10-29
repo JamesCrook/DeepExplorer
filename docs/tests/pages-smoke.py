@@ -43,7 +43,8 @@ def three_stub():
                     names |= {n.split(' as ')[0].strip() for n in m.group(1).split(',') if n.strip()}
                 names |= set(re.findall(r'\bTHREE\.([A-Za-z_]\w*)', t))
     body = ("const mk = () => new Proxy(function () {}, { get: (t, k) => k === 'then' ? undefined : "
-            "k === Symbol.toPrimitive ? () => 0 : k === Symbol.iterator ? [][Symbol.iterator] : mk(), "
+            "k === Symbol.toPrimitive ? () => 0 : k === Symbol.iterator ? [][Symbol.iterator] : "
+            "k === 'domElement' ? document.createElement('canvas') : mk(), "
             "construct: () => mk(), apply: () => mk(), set: () => true });\n")
     body += ''.join(f'export const {n} = mk();\n' for n in sorted(names) if n.isidentifier())
     return body + 'export default mk();\n'
