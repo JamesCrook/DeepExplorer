@@ -41,9 +41,9 @@ The different presentations work from the same underlying data, e.g. a CSV file.
 
 import { Vector2D } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, BlendedPath } from '../2d-support/path.js';
+import { PathTransform } from '../2d-support/path-transform.js';
 import { sceneRegistry } from '../omni-support/scene.js';
 import { SYS } from '../omni-support/sys.js';
-import { bboxFromCorners } from '../2d-support/node-geometry.js';
 
 
 // ============================================================
@@ -244,7 +244,15 @@ class ClippingIterator {
 // All positioning flows through a Path instance. For linear stacks
 // (the common case), _buildPath creates a LinearPath from the
 // node's current bounds each frame. For curved/radial stacks, set
-// node.inst.path to any Path and it's used instead.
+// node.inst.path to any Path (or a function returning one) and it is
+// used instead.
+//
+// The stack's T: before its children it replaces T with
+// PathTransform(path, the affine T it was given), so a child draws a
+// rectangle in local units — x along the stack, 0 .. the stack's
+// length (node.height for a vstack), y across, ±half its width — and
+// it lands on the path, straight or bent.  The ClippingIterator's
+// pixels are those local units, so nothing converts.
 //
 // Branches on node.inst:
 //   inst with sizeCache  → managed (ClippingIterator, scrolling)
@@ -254,46 +262,10 @@ class ClippingIterator {
 //   1. node.inst?.axis   (explicit)
 //   2. node.type         ('hstack' → 'x', else 'y')
 //
-// For non-scrolling use (JaTeX etc), omit inst entirely — axis
-// falls back to node.type. No per-node overhead.
-//
-// The Path is built fresh each frame in before_draw2d (it depends
-// on bounds the parent just stamped) and stored on node._path.
-//
 // The flyweight carries for each child:
-//   .cursor   — tree cursor (managed stacks only)
-//   .corners  — 4-point quad from path.cornersAt
-//   .bends    — 4 edge bends from path.edgeBends
-//   .t0, .t1  — parameter range
-
-// ============================================================
-// StackNode — unified stack with Path-based positioning
-// ============================================================
-//
-// All positioning flows through a Path instance. For linear stacks
-// (the common case), _buildPath creates a LinearPath from the
-// node's current bounds each frame. For curved/radial stacks, set
-// node.inst.path to any Path and it's used instead.
-//
-// Branches on node.inst:
-//   inst with sizeCache  → managed (ClippingIterator, scrolling)
-//   no sizeCache or no inst → unmanaged (sequential equal-division)
-//
-// Axis resolution:
-//   1. node.inst?.axis   (explicit)
-//   2. node.type         ('hstack' → 'x', else 'y')
-//
-// For non-scrolling use (JaTeX etc), omit inst entirely — axis
-// falls back to node.type. No per-node overhead.
-//
-// The Path is built fresh each frame in before_draw2d (it depends
-// on bounds the parent just stamped) and stored on node._path.
-//
-// The flyweight carries for each child:
-//   .cursor   — tree cursor (managed stacks only)
-//   .corners  — 4-point quad from path.cornersAt
-//   .bends    — 4 edge bends from path.edgeBends
-//   .t0, .t1  — parameter range
+//   .cursor        — the data cursor (managed stacks only)
+//   .span          — { x0, x1 }: the child's interval along the stack, local px
+//   .t0, .t1       — the same as fractions of the length
 
 class StackNode {
 
@@ -323,39 +295,12 @@ class StackNode {
     }
   }
 
-  static _bboxFromCorners = bboxFromCorners;
-
-  static _stampChild(child, corners) {
-    const bb = StackNode._bboxFromCorners(corners);
-    child.xOffset = bb.x;
-    child.yOffset = bb.y;
-    child.width   = bb.w;
-    child.height  = bb.h;
-  }
-
-  static _boundsContain(node, pt) {
-    if (!pt) return false;
-    const x = node.xOffset || 0, y = node.yOffset || 0;
-    return pt.x >= x && pt.x <= x + (node.width  || 0)
-        && pt.y >= y && pt.y <= y + (node.height || 0);
-  }
-
-  /**
-   * Pixel position → t ∈ [0,1].  Bridge for ClippingIterator
-   * which still works in pixel space. Disappears when
-   * ClippingIterator moves to t-space.
-   */
-  static _pixelToT(pixelPos, node) {
-    const axis   = StackNode._getAxis(node);
-    const origin = axis === 'x' ? (node.xOffset || 0) : (node.yOffset || 0);
-    const size   = axis === 'x' ? (node.width   || 0) : (node.height  || 0);
-    return size > 0 ? (pixelPos - origin) / size : 0;
-  }
-
-  static _sizeToT(pixelSize, node) {
+  /** Length along the stack's axis, and its width across, in local px. */
+  static _extent(node) {
     const axis = StackNode._getAxis(node);
-    const size = axis === 'x' ? (node.width || 0) : (node.height || 0);
-    return size > 0 ? pixelSize / size : 0;
+    return axis === 'x'
+      ? { origin: node.xOffset || 0, length: node.width  || 0, cross: node.height || 0 }
+      : { origin: node.yOffset || 0, length: node.height || 0, cross: node.width  || 0 };
   }
 
   static _makeClippingIter(node) {
@@ -377,39 +322,38 @@ class StackNode {
   }
 
   /**
-   * Compute t0/t1 and stamp child bounds. Shared by draw2d
-   * and hit_test phases.
+   * The child's interval along the stack, in local px, on the flyweight.
+   * Shared by draw2d and hit_test.
    */
   static _positionChild(ctxMix, node, child) {
-    const path = node._path;
-    let t0, t1;
+    const { origin, length } = StackNode._extent(node);
+    const iter = ctxMix.iterators.at(-1);
+    let x0, x1;
 
     if (StackNode._isManaged(node)) {
-      const iter = ctxMix.iterators.at(-1);
-      t0 = StackNode._pixelToT(iter.position, node);
-      t1 = t0 + StackNode._sizeToT(iter.size, node);
+      x0 = iter.position - origin;
+      x1 = x0 + iter.size;
       ctxMix.flyweight.cursor = iter.cursor;
-      ctxMix.flyweight.mainAxisSize = iter.size;      
+      ctxMix.flyweight.mainAxisSize = iter.size;
     } else {
-      const iter  = ctxMix.iterators.at(-1);
       const count = node.subtree?.length || 1;
       const idx   = iter.index - 1;
-      t0 = idx / count;
-      t1 = (idx + 1) / count;
+      x0 = idx / count * length;
+      x1 = (idx + 1) / count * length;
     }
 
-    const corners = path.cornersAt(t0, t1);
-    StackNode._stampChild(child, corners);
-
-    ctxMix.flyweight.corners = corners;
-    ctxMix.flyweight.bends   = path.edgeBends(t0, t1);
-    ctxMix.flyweight.t0      = t0;
-    ctxMix.flyweight.t1      = t1;
+    ctxMix.flyweight.span = { x0, x1 };
+    ctxMix.flyweight.t0   = length > 0 ? x0 / length : 0;
+    ctxMix.flyweight.t1   = length > 0 ? x1 / length : 0;
   }
 
   // -- hit_test ─────────────────────────────────────────────
   static before_hit_test(ctxMix, node, params) {
     StackNode.before_draw2d(ctxMix, node, params);
+  }
+
+  static after_hit_test(ctxMix, node, params) {
+    StackNode._popT(ctxMix, node);
   }
 
   static before_child_hit_test(ctxMix, node, params, child) {
@@ -419,30 +363,29 @@ class StackNode {
     if (!StackNode._isManaged(node)) return;
 
     const iter     = ctxMix.iterators.at(-1);
-    const cellT    = StackNode._pixelToT(iter.position + iter.size / 2, node);
+    const { origin, length } = StackNode._extent(node);
+    const cellX    = iter.position + iter.size / 2 - origin;
     const inst     = node.inst;       // persistent scroll state (or overlay)
-    const nodeRef  = node;             // AST node — persists across frames
-    const pathRef  = node._path;       // capture path at creation time
+    const T        = node._T;         // this stack's T, as the press found it
     const axis     = StackNode._getAxis(node);
-    const nodeSize = axis === 'x' ? node.width : node.height;
     const orch     = ctxMix.coordinator?.orch;
     const panelIdx = node.inst?.panelIdx;
 
     if (!ctxMix.flyweight.interactions) ctxMix.flyweight.interactions = {};
 
-    let dragStartT = null;
+    // A drag moves the column by the pointer's travel along it: T.toLocal of
+    // the screen point is the distance along the stack (on a bent path too),
+    // and the grabbed cell's centre seeds its continuity hint.
+    let dragStartX = null;
     let dragStartOffset = null;
-    let lastT = cellT;              // continuity hint: the grabbed cell, then the last t
     ctxMix.flyweight.interactions.applyDrag = (screenX, screenY) => {
-      const t = pathRef.tFromScreen(screenX, screenY, lastT);
-      lastT = t;
-      if (dragStartT === null) {
-        dragStartT = t;
+      if (dragStartX === null && T._hint !== undefined) T._hint = length > 0 ? cellX / length : null;
+      const x = T.toLocal({ x: screenX, y: screenY }).x;
+      if (dragStartX === null) {
+        dragStartX = x;
         dragStartOffset = inst.scrollOffset;
       }
-      inst.scrollOffset = dragStartOffset + (t - dragStartT) * nodeSize;
-//      console.log('drag: t:', t?.toFixed(3), 'startT:', dragStartT?.toFixed(3),
-//        'offset:', inst.scrollOffset?.toFixed(1), 'nodeSize:', nodeSize?.toFixed(1));
+      inst.scrollOffset = dragStartOffset + (x - dragStartX);
       if (orch != null && panelIdx != null) {
         orch.syncFrom(panelIdx);
       }
@@ -461,10 +404,15 @@ class StackNode {
 
   // ── draw2d ─────────────────────────────────────────────
   static before_draw2d(ctxMix, node, params) {
-    //node._path = node.inst?.path || StackNode._buildPath(node);
     const p = node.inst?.path;
     node._path = (typeof p === 'function' ? p(ctxMix, node, params) : p)
       || StackNode._buildPath(node);
+
+    // Replace T: children draw in the stack's local units on its path.
+    const { length, cross } = StackNode._extent(node);
+    node._savedT = ctxMix.T;
+    node._T = new PathTransform(node._path, ctxMix.T?.affine ?? ctxMix.T, { length, cross });
+    ctxMix.T = node._T;
     if (StackNode._isManaged(node)) {
       const iter = StackNode._makeClippingIter(node);
       ctxMix.iterators[ctxMix.iterators.length - 1] = iter;
@@ -501,7 +449,12 @@ class StackNode {
     }
   }
 
+  static _popT(ctxMix, node) {
+    if (node._savedT !== undefined) { ctxMix.T = node._savedT; node._savedT = undefined; }
+  }
+
   static after_draw2d(ctxMix, node, params) {
+    StackNode._popT(ctxMix, node);
     if (!StackNode._isManaged(node) || !node.inst.endStops) return;
 
     const iter = node._lastIter;

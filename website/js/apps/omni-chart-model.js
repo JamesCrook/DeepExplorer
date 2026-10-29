@@ -1,11 +1,10 @@
-// OmniChartModel — a chart as a flyweight grid
 // OmniChartModel — a chart as a flyweight grid: one column and one cell prototype, reused for every column and row
 //
 // AST shape (flyweight):
 //
-//   grid (value = CSVData)
-//     vstack (prototype — reused for every column)
-//       grid-cell (prototype — reused for every row)
+//   warpable-grid (value = DataAdapter)   pushes T over the outer path
+//     vstack (prototype — every column)   replaces T with the column's inner path
+//       table-cell (prototype — every row) draws its quad under that T
 //
 // WarpableNode manages column iteration via RepeatIterator.
 // StackNode manages row iteration via ClippingIterator.
@@ -15,7 +14,6 @@ import { GridData, CSVData, MiscData,FunctionData, DataAdapter} from '../data/cs
 import { MiniAstNode, sceneRegistry  } from '../omni-support/scene.js';
 import {} from '../nodes2d/warpable-grid-node.js';
 import {} from '../nodes2d/table-cell-node.js';
-import {} from '../nodes2d/blob-node.js';
 import { TreeChartData } from '../data/tree-chart-data.js';
 
 
@@ -44,8 +42,7 @@ class OmniChartModel {
     const data = new DataAdapter( rawData );
 
     // Flyweight AST: 3 nodes total
-    const blobProto   = new MiniAstNode('blob');
-    const cellProto   = new MiniAstNode('warpable-cell');
+    const cellProto   = new MiniAstNode('table-cell');
     const vstackProto = new MiniAstNode('vstack', [cellProto]);
     return new MiniAstNode('warpable-grid', [vstackProto], data);
   }
@@ -68,11 +65,9 @@ class OmniChartModel {
       }
     }
 
-    const blobProto   = new MiniAstNode('blob');
-    const cellProto   = new MiniAstNode('warpable-cell');
-    const vstackProto = new MiniAstNode('vstack', [cellProto/*, blobProto*/]);
-    const rootNode     = new MiniAstNode('warpable-grid', [vstackProto], data);
-    return rootNode;
+    const cellProto   = new MiniAstNode('table-cell');
+    const vstackProto = new MiniAstNode('vstack', [cellProto]);
+    return new MiniAstNode('warpable-grid', [vstackProto], data);
   }
 }
 

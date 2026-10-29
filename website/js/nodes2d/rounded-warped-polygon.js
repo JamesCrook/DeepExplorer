@@ -168,14 +168,16 @@ class RoundedWarpedPolygon {
     WarpedPolygon.render(ctxMix, processedGeoms, params, 3);
   }
 
+  // Rounding turns each corner into two points, so the top edge (corners
+  // 2→3 before rounding) is points 5→6: skip 3, in every renderer.
   static renderSvg(group, geoms, params) {
     const processedGeoms = this.processGeoms(geoms, params);
-    WarpedPolygon.renderSvg(group, processedGeoms, params, 1);
+    WarpedPolygon.renderSvg(group, processedGeoms, params, 3);
   }
 
   static renderCtx(ctx, geoms, params) {
     const processedGeoms = this.processGeoms(geoms, params);
-    WarpedPolygon.renderCtx(ctx, processedGeoms, params, 1);
+    WarpedPolygon.renderCtx(ctx, processedGeoms, params, 3);
   }
 }
 

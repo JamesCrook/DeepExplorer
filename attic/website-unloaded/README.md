@@ -20,6 +20,10 @@ Moved here later (28 Oct): `nodes2d/mol-scene-nodes.js` and
 `2d-support/mol-primitives.js`, the special-purpose animation nodes, replaced by
 the generic shape / caption / polyline / composite / fit-stage nodes.
 
+Moved here 29 Oct: `nodes2d/blob-node.js`, a debugging dot pair that read the
+chart's `ctxMix.outerPos` side channel, which went when the chart moved onto
+the general T.
+
 Some of these are used from elsewhere. `apps/omni-picker-model.js` and
 `omni-support/tree-browser.js` import from a sibling `q-legacy/` checkout, and
 `nodes2d/algorithms-node.js` imports `./structural-nodes.js`, which no longer

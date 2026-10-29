@@ -1,6 +1,6 @@
-// `warpable-grid`, `rect-grid-cell` — OmniChart's flyweight grid
+// `warpable-grid` — OmniChart's flyweight grid, on the general T
 /**
- * `warpable-grid` and `rect-grid-cell` — OmniChart's flyweight grid: one column and one cell prototype, reused
+ * `warpable-grid` — OmniChart's flyweight grid: one column and one cell prototype, reused
  *
  * Flyweight grid: one prototype vstack, one prototype cell, reused
  * per column and row via iteration. Cursors are [col, row] arrays.
@@ -30,7 +30,7 @@ import { LinearPath, ArcPath, SectorPath, GridPath, BlendedPath,
          buildBentChild } from '../2d-support/path.js';
 import { SizeCache, GridDataSource, SyncOrchestrator, GridNavigator } from './multiscroller-nodes.js';
 import { SYS } from '../omni-support/sys.js';
-import { bboxFromCorners } from '../2d-support/node-geometry.js';
+import { PathTransform } from '../2d-support/path-transform.js';
 
 // ============================================================
 // TreeChartNavigator — cursor translation for tree-in-chart
@@ -413,7 +413,12 @@ class WarpableGridNode {
       scrollOffset:    0,
     };
     node._sharedInst = vstackProto.inst;
-    node._overlays = [];    
+    node._overlays = [];
+
+    // The cell's value, per flyweight item: its quad in the stack's local
+    // units, colour and text (see cellValue).
+    const cellProto = vstackProto.subtree?.[0];
+    if (cellProto) cellProto.flyFn = (res, n, params) => WarpableGridNode.cellValue(res, node, params);
 
     // ── SyncOrchestrator for cross-column sync ───────────
     const nav = data.isTreeChart
@@ -438,6 +443,13 @@ class WarpableGridNode {
   }
   static before_child_hit_test(ctxMix, node, params, child) {
     WarpableGridNode.before_child_draw2d(ctxMix, node, params, child);
+  }
+  static after_hit_test(ctxMix, node, params) {
+    WarpableGridNode.after_draw2d(ctxMix, node, params);
+  }
+
+  static after_draw2d(ctxMix, node, params) {
+    if (node._savedT !== undefined) { ctxMix.T = node._savedT; node._savedT = undefined; }
   }
 
   // ── before_draw2d ──────────────────────────────────────
@@ -562,11 +574,65 @@ class WarpableGridNode {
       orch: node._orch,
     };
 
-    ctxMix.outerPath = outerPath;// for diagnostics.
+    // T: the outer path over the units this grid was given.  Each column
+    // replaces it with its own inner path (a cascade, not a composition).
+    node._savedT = ctxMix.T;
+    const parentT = ctxMix.T?.affine ?? ctxMix.T;
+    ctxMix.T = new PathTransform(outerPath, parentT, { length: outerPath.length, cross: stackHeight });
+
     ctxMix.coordinator = node.inst;
     ctxMix.highlightMode = data.isTreeChart ? 'treeChart' : 'row';
     ctxMix.iterators[ctxMix.iterators.length - 1] =
       new RepeatIterator(rowCount);
+  }
+
+  /**
+   * A cell's value (the cell prototype's flyFn): where it sits, in the
+   * column's local units, and what it shows.  The data shaping — stack,
+   * normalise, neighbourliness — happens here, so the cell only draws.
+   *
+   *   quad    [q0, q1, q2, q3] local points, path.js corner order: x along
+   *           the column (0 .. stackHeight), y across (±stackWidth / 2).  The
+   *           far edge (q1, q2) takes the next column's values as
+   *           neighbourliness asks, which makes the quad a trapezoid.
+   *   color   the segment's colour (CSS)
+   *   text    display text
+   *   cursor  the flyweight cursor, for the cell's highlight state
+   */
+  static cellValue(ctxMix, node, params) {
+    const inst = node.inst, data = inst?.data;
+    const cursor = ctxMix.flyweight?.cursor;
+    if (!data || !Array.isArray(cursor)) return null;
+    const seg = data.getSegment(cursor, params);
+    if (!seg) return null;
+
+    const col = cursor[0], row = cursor[cursor.length - 1];
+    const stack = params.stack ?? 1;
+    const neighborliness = params.neighborliness ?? 0;
+    const bendStack = params.bendStack ?? 0;
+
+    const L = inst.stackHeight, half = inst.stackWidth / 2;
+    const t0 = lerp(seg.y0, ctxMix.flyweight.t0, stack);
+    const t1 = lerp(seg.y1, ctxMix.flyweight.t1, stack);
+
+    // Neighbour blending: for grid data, the same draw-order position in the
+    // next column.  For tree data, skip naive index matching: parent weights
+    // already keep the columns proportional.
+    let t0A = t0, t1A = t1;
+    if (!data.isTreeChart) {
+      const nextSeg = data.getSegment([(col + 1) % data.rowCount, row], params);
+      if (nextSeg) {
+        t0A = lerp(lerp(nextSeg.y0, t0, 1 - neighborliness), t0, bendStack);
+        t1A = lerp(lerp(nextSeg.y1, t1, 1 - neighborliness), t1, bendStack);
+      }
+    }
+
+    return {
+      quad: [{ x: t0 * L, y: -half }, { x: t0A * L, y: half }, { x: t1A * L, y: half }, { x: t1 * L, y: -half }],
+      color: seg.color,
+      text: data.getDisplayText([col, seg.origIdx ?? 0], params),
+      cursor,
+    };
   }
 
   // ── before_child_draw2d ────────────────────────────────
@@ -586,16 +652,6 @@ class WarpableGridNode {
       globalMax:    inst.globalMax,
       maxHeight:    inst.maxHeights[col],
     });
-
-    // Diagnostic: outerPos2 is a point offset 9px from outerPos along
-    // the outer path's normal direction.  angleAt is now the tangent,
-    // so subtract π/2 to recover the normal direction the original
-    // code was using.
-    ctxMix.outerPos = ctxMix.outerPath.positionAt((col + 0.5) / 6);
-    const theta     = ctxMix.outerPath.angleAt((col + 0.5) / 6) - Math.PI / 2;
-    ctxMix.outerPos2 = ctxMix.outerPos.add(9 * Math.cos(theta), 9 * Math.sin(theta));
-
-    ctxMix.innerPath = innerPath;
 
     // Virtual bounds for ClippingIterator
     child.yOffset = 0;
@@ -650,59 +706,12 @@ class WarpableGridNode {
 
   }
 
-  // ── helpers ────────────────────────────────────────────
-
-  static _bboxFromCorners = bboxFromCorners;
 }
 
 SYS.NODE_CLASSES.push({ name: 'warpable-grid', cls: WarpableGridNode });
 
 
-// ============================================================
-// RectGridCellNode — fast axis-aligned cell (direct canvas)
-// Largely superseded by SheetCellNode.
-// ============================================================
-class RectGridCellNode {
-
-  static draw2d(ctxMix, node) {
-    const ctx  = ctxMix.ctx;
-    const data = ctxMix.coordinator?.data;
-    if (!ctx || !data) return;
-
-    const cursor = ctxMix.flyweight?.cursor;
-    if (!cursor || !Array.isArray(cursor)) return;
-    const col = cursor[0];
-    const row = cursor[cursor.length - 1];
-
-    const x = node.xOffset || 0, y = node.yOffset || 0;
-    const w = node.width   || 0, h = node.height  || 0;
-
-    const value = dataValue(data, cursor);
-    const color = data.getColMeta(row)?.color || '#888';
-    const pad = 1;
-
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.25;
-    ctx.fillRect(x + pad, y + pad, w - pad * 2, h - pad * 2);
-    ctx.restore();
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(x + pad, y + pad, w - pad * 2, h - pad * 2);
-
-    ctx.fillStyle = '#ccc';
-    ctx.font = '12px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(value ?? ''), x + w / 2, y + h / 2);
-  }
-}
-
-SYS.NODE_CLASSES.push({ name: 'rect-grid-cell', cls: RectGridCellNode });
-
-
-export { WarpableGridNode, RectGridCellNode, Polar,
+export { WarpableGridNode, Polar,
          RepeatIterator, GRID_LAYOUT, dataValue };
 // Auto-generated exports
 if (typeof window !== 'undefined') window.InnerPathBuilder = InnerPathBuilder;

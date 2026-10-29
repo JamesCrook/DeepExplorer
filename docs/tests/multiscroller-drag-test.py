@@ -10,13 +10,13 @@ every step.
 
 It wraps StackNode._positionChild to record, each frame, every item each
 column drew: cursor, label, position and size along the column, the clip
-interval, and the cell centre on screen (the column's path at the cell's
-middle t, which lies inside the cell however curved it is).  The numbers come
+interval, and the cell centre on screen (the column's T at the middle of the
+cell's span, on its centreline, which lies inside the cell however curved).  The numbers come
 from what was drawn, not from the orchestrator's own state.
 
 A case selects an item in the first column, presses on an item in the second
-column, and moves the pointer along that column's own path (sampled from the
-path object, so a ring or a fan is followed, not its tangent).  Checks:
+column, and moves the pointer along that column's own centreline (sampled
+through its T, so a ring or a fan is followed, not its tangent).  Checks:
 
   sync      after every step, each column's focal block (the active item's
             ancestor, or its descendants) sits at the same ratio of that
@@ -53,7 +53,10 @@ CASES = [('bend',      0,    300, 'Coffee', 'Filter Coffee'),
          ('bendStack', 0.5,  300, 'Coffee', 'Filter Coffee'),
          ('bendStack', 0.5,  300, 'Tea',    'Filter Coffee'),
          ('bendStack', 0.75, 300, 'Coffee', 'Filter Coffee'),
-         ('bendStack', 1.0,  500, 'Coffee', 'Filter Coffee')]   # full ring, past the seam
+         ('bendStack', 1.0,  500, 'Coffee', 'Filter Coffee'),   # full ring, past the seam
+         ('zoom',      0.7,  250, 'Coffee', 'Filter Coffee'),   # T carries zoom and pan: no remapping anywhere
+         ('zoom',      1.3,  200, 'Coffee', 'Filter Coffee'),
+         ('panX',      -90,  250, 'Coffee', 'Filter Coffee')]
 
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -95,15 +98,15 @@ SPY = r"""async ([param, value]) => {
     const it = ctxMix.iterators.at(-1), inst = node.inst;
     if (inst?.panelIdx == null || !it?.cursor) return r;
     window.__orch = ctxMix.coordinator?.orch;
-    const m = ctxMix.ctx.getTransform(), dpr = window.devicePixelRatio || 1;
     const br = ctxMix.ctx.canvas.getBoundingClientRect();
-    const toPage = p => ({ x: br.left + (m.a * p.x + m.c * p.y + m.e) / dpr, y: br.top + (m.b * p.x + m.d * p.y + m.f) / dpr });
-    window.__paths[inst.panelIdx] = { path: node._path, toPage };
+    const T = node._T;                       // the column's T: local px along it -> canvas px
+    const toPage = p => ({ x: br.left + p.x, y: br.top + p.y });
+    window.__paths[inst.panelIdx] = { T, toPage };
     const col = (window.__cols[inst.panelIdx] ??= { clipMin: it.clipMin, clipMax: it.clipMax, items: [] });
     const data = ctxMix.coordinator.data, fw = ctxMix.flyweight;
     let label = null; try { label = data.getDisplayText(it.cursor, {}); } catch {}
     col.items.push({ cursor: [...it.cursor], pos: it.position, size: it.size, label,
-                     centre: toPage(node._path.positionAt((fw.t0 + fw.t1) / 2)) });
+                     centre: toPage(T.toScreen({ x: (fw.span.x0 + fw.span.x1) / 2, y: 0 })) });
     return r;
   };
   window.__layer = null; window.OmniControlPanel.render();
@@ -117,8 +120,8 @@ SNAP = r"""() => {
   return { cols, focal };
 }"""
 
-CENTRELINE = r"""(col) => { const P = window.__paths[col], out = [];
-  for (let t = -1.5; t <= 2.5; t += 0.002) { const c = P.toPage(P.path.positionAt(t)); out.push([c.x, c.y]); }
+CENTRELINE = r"""(col) => { const P = window.__paths[col], out = [], L = P.T.length;
+  for (let t = -1.5; t <= 2.5; t += 0.002) { const c = P.toPage(P.T.toScreen({ x: t * L, y: 0 })); out.push([c.x, c.y]); }
   return out; }"""
 
 def find(snap, col, label):

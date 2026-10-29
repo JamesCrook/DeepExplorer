@@ -1,45 +1,41 @@
-// `sheet-cell`, `warpable-cell`, `ms-cell` — chart cells
+// `table-cell` — the one cell of tables and charts, drawn under any T
 /**
- * Chart cells — `sheet-cell`, `warpable-cell`, `ms-cell` — one renderer for grid and tree multiscrollers
+ * `table-cell` — one cell for OmniChart's bars, segments, rings and pies and
+ * for OmniGrid's table and heatmap.  It draws a quad it is given in local
+ * units; T says where that lands (docs/general-t-and-grid-unwrap.md 3.2):
  *
- * Unified cell renderer for both grid and tree multiscrollers.
- * Internally uses tree-path cursors (arrays) in all modes.
+ *   value = { quad, color, text, cursor, dataCursor }      (from the parent's flyFn)
+ *   const { corners, bends } = T.mapQuad(...value.quad)
  *
- * CellConfig encapsulates the behavioural differences between
- * grid and tree layouts. A configured instance is passed to the
- * ScrollCellNode constructor; the node is then registered with
- * the scene registry under whatever name(s) you need.
+ * A straight T gives a sheet cell, a bent one a radial bar or a donut segment,
+ * and the cell cannot tell the difference.  D3 contract: the value comes
+ * through the resolver, geometry from T, drawing on directCtx (screen px);
+ * hit testing is against the mapped outline at the screen hit point.
  *
- * Usage:
- *   SYS.NODE_CLASSES.push({ name: 'ms-cell', cls: 
- *     createCellClass(new CellConfig()) });;
- *   SYS.NODE_CLASSES.push({ name: 'grid-scroll-cell', cls: 
- *     createCellClass(new CellConfig({ grid: true })) });;
+ * Text is rigid: placed at the cell's centre and, with tiltText, turned to the
+ * band's direction.  Its size follows the zoom (T.affine), not the local
+ * stretch of a bend.  Bent text (glyphs along an arc) is for later.
+ *
+ * Params (chart ones as before, with these for tables):
+ *   curviness, roundedCorners, flash, blobMode, showValue, tiltText, textAlign,
+ *   fillOpacity, strokeWidth, topWidth      the chart's look
+ *   valueColor  0..1   fill and text from the value (CellConfig.resolveVisuals:
+ *                      colour scheme, colorTarget, distance-matrix fade) instead
+ *                      of the segment colour; above 0.5 it is the table look
+ *   fitText     0|1    text no taller than the cell, truncated to its width,
+ *                      and faded out as the cell gets too small to read
+ *   fontFamily         default sans-serif
+ *
+ * CellConfig is the style policy: highlight state from the active cursor,
+ * hue, and resolveVisuals (the value-to-look mapping GridScene had).
  */
 
-import { sceneRegistry } from '../omni-support/scene.js';
 import { ColorEngine } from '../colour/colour.js';
 import { TextUtils } from '../2d-support/text-utils.js';
 import { WarpedPolygon } from './warped-polygon.js';
 import { RoundedWarpedPolygon } from './rounded-warped-polygon.js';
-import { Vector2D, lerp } from '../2d-support/vector2d.js';
+import { lerp } from '../2d-support/vector2d.js';
 import { SYS } from '../omni-support/sys.js';
-
-function roundRect(ctx, x, y, w, h, r) {
-  if (w <= 0 || h <= 0) return;
-  r = Math.min(r, w / 2, h / 2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
-}
 
 // ── helpers ────────────────────────────────────────────────────
 
@@ -90,13 +86,9 @@ function treeChartCursorRelation(cursor, active, ctxMix) {
   const levelA = cursor[0], idxA = cursor[cursor.length - 1];
   const levelB = active[0], idxB = active[active.length - 1];
 
-  // Same cell
   if (levelA === levelB && idxA === idxB) return 'path';
-
-  // Ancestor–descendant relationship
   if (data.isAncestor(levelA, idxA, levelB, idxB)) return 'path';
 
-  // Same root-level ancestor → category
   const treeA = data.getTreeCursor?.(levelA, idxA);
   const treeB = data.getTreeCursor?.(levelB, idxB);
   if (treeA && treeB && treeA[0] === treeB[0]) return 'category';
@@ -119,66 +111,42 @@ const STATE_STYLES = {
 
 
 /**
- * CellConfig 
- * 
- * Used to customise color, text display of values, font size.
- * Also provides resolveVisuals() — the shared value-to-visual
- * mapping used by all cell types for color, opacity, and blob.
+ * CellConfig — the style policy: text, hue, highlight state, and
+ * resolveVisuals(), the shared value-to-visual mapping for colour, opacity
+ * and blob size.
  */
 class CellConfig {
-  /**
-   * @param {Object}  opts
-   * @param {number[]} opts.categoryHues — fallback hue palette (tree mode)
-   */
   constructor({ categoryHues = null } = {}) {
     this.categoryHues = categoryHues;
   }
 
-  /** Resolve display text for a cell. */
   getText(ctxMix, cursor) {
-    return ctxMix.coordinator?.data?.getString( cursor ) ?? null;
+    return ctxMix.coordinator?.data?.getString(cursor) ?? null;
   }
 
-  /** Resolve hue for the cell background/border/text. */
   getHue(ctxMix, cursor) {
     const hues = ctxMix.categoryHues || this.categoryHues || DEFAULT_HUES;
     return hues[cursor[0] % hues.length];
   }
 
-  /**
-   * Return 'path' | 'category' | 'other'.
-   * Uses ctxMix.highlightMode to select the relation function.
-   * Modes: 'tree' (prefix match), 'row' (last-element match),
-   *        'column' (first-element match), 'cross' (row + column).
-   */
+  /** 'path' | 'category' | 'other', by ctxMix.highlightMode. */
   getState(ctxMix, cursor, activeCursor) {
     const mode = ctxMix?.highlightMode ?? 'tree';
     const fn = HIGHLIGHT_MODES[mode] ?? treeCursorRelation;
     return fn(cursor, activeCursor, ctxMix);
   }
 
-  /** Font size in px (before zoom multiplication). */
+  /** Font size in px at zoom 1. */
   getBaseFontSize(cursor) {
-    const depth = cursor.length;
-    return Math.max(10, 14 - depth);
-  }
-
-  /** Horizontal text inset (before zoom). */
-  getTextInset(state) {
-    return state === 'path' ? 16 : 12;
+    return Math.max(10, 14 - cursor.length);
   }
 
   /**
-   * Resolve visual properties from data for a cell.
-   *
-   * Returns { bg, fg, opacity, blobRadius, value, isNum }.
-   *   bg/fg         — [r,g,b] arrays
-   *   opacity       — 0–1, accounts for distance-matrix triangle fade
-   *   blobRadius    — 0–1 normalised (caller scales to pixel size)
-   *   value/isNum   — raw value and type flag
-   *
-   * Works for both numeric (value-mapped color) and text cells
-   * (default background, default blob size).
+   * Visual properties from data: { bg, fg, opacity, blobRadius, value, isNum }.
+   *   bg/fg       [r,g,b]
+   *   opacity     0–1, the distance-matrix triangle fade
+   *   blobRadius  0–1, normalised
+   * The cursor is a data cursor, [data row, data col] at its ends.
    */
   resolveVisuals(ctxMix, cursor, params) {
     const data  = ctxMix.coordinator?.data;
@@ -186,7 +154,6 @@ class CellConfig {
     const isNum = data?.isNumeric(cursor) ?? false;
     const range = data?.globalRange ?? { min: 0, max: 1 };
 
-    // ── Color ─────────────────────────────────────────────
     let bg = [30, 40, 60];
     let fg = [255, 255, 255];
 
@@ -202,27 +169,25 @@ class CellConfig {
       fg = ColorEngine.lerp(contrast, valueColor, colorTarget);
     }
 
-    // ── Distance-matrix triangle fade ─────────────────────
+    // Distance-matrix triangle fade, on the data's own row and column.
     let opacity = 1;
-    if (data && isNum && data.rowCount === data.colCount) {
+    const rc = data?._remapCursor ? data._remapCursor(cursor) : [cursor[0], cursor[cursor.length - 1]];
+    const shape = data?.grid ?? data;
+    if (data && isNum && shape.rowCount === shape.colCount) {
       const dm = params.distanceMatrix ?? 0.5;
-      // cursor[0] maps to grid row, cursor[last] to grid col
-      const r = cursor[0];
-      const c = cursor[cursor.length - 1];
+      const [r, c] = rc;
       if (r < c)      opacity = 1 - dm;
       else if (r > c) opacity = dm;
       opacity = Math.min(1, 2 * opacity);
     }
 
-    // ── Blob radius (normalised 0–1) ──────────────────────
     let blobRadius = 0;
-    const blobMode = params.blobMode ?? 0;
-    if (blobMode > 0.01) {
+    if ((params.blobMode ?? 0) > 0.01) {
       if (isNum) {
         const maxAbs = Math.max(Math.abs(range.min), Math.abs(range.max));
         blobRadius = maxAbs > 0 ? Math.abs(value) / maxAbs : 0.5;
       } else {
-        blobRadius = 0.5;   // default for non-numeric items
+        blobRadius = 0.5;
       }
     }
 
@@ -230,8 +195,6 @@ class CellConfig {
   }
 }
 
-
-// ── Blob helper ─────────────────────────────────────────────
 
 /** Draw a filled circle at (cx, cy) with given pixel radius and color [r,g,b]. */
 function drawBlob(ctx, cx, cy, radius, color) {
@@ -242,436 +205,143 @@ function drawBlob(ctx, cx, cy, radius, color) {
   ctx.fill();
 }
 
-
-/**
- * ScrollCellNode
- * 
- * A round-rect cell that displays a text string.
- * 
- */
-class ScrollCellNode {
-
-  /** @type {CellConfig} — set by createCellClass() */
-  static config = null;
-
-  static _bounds(node, zoom) {
-    return {
-      x: (node.xOffset || 0) * zoom,
-      y: (node.yOffset || 0) * zoom,
-      w: (node.width   || 0) * zoom,
-      h: (node.height  || 0) * zoom,
-    };
-  }
-
-  /**
-   * Draw cell text with continuous horizontal alignment.
-   * textAlign 0 = left, 0.5 = center, 1 = right.
-   */
-  static drawAlignedCellText(ctx, value, x, y, w, h, fontSize, fgColor, params) {
-    const text = value;
-    const font = `${fontSize}px sans-serif`;
-    const pad = 10;
-    const displayText = text;
-    if (!displayText) return;
-
-    ctx.fillStyle = ColorEngine.toCSS(fgColor);
-    ctx.textAlign = 'left';
-
-    ctx.font = font;
-    const textW = ctx.measureText(text).width;
-    const available = w - pad - textW;
-    const align = params.textAlign ?? 0;
-    const tx = x + pad / 2 + align * available;
-
-    ctx.fillText(displayText, tx, y + h / 2);
-  }
-
-  static draw2d(ctxMix, node, params) {
-    const ctx    = ctxMix.ctx;
-    const cursor = normCursor(ctxMix.flyweight?.cursor);
-    if (!ctx || !cursor) return;
-
-    const zoom = params.zoom || 1;
-    const { x, y, w, h } = this._bounds(node, zoom);
-    const cfg = this.config;
-
-    const active = normCursor(ctxMix.activeCursor);
-    const text   = cfg.getText(ctxMix, cursor);
-    if (text == null) return;
-
-    const pad = 3 * zoom;
-    const gap = 2 * zoom;
-
-    const state = cfg.getState(ctxMix, cursor, active);
-    const hue   = cfg.getHue(ctxMix, cursor);
-    const style = STATE_STYLES[state];
-
-    // Background
-    ctx.fillStyle   = `hsl(${hue}, ${style.sat}%, ${style.lit}%)`;
-    ctx.strokeStyle = `hsl(${hue}, ${style.sat}%, ${style.bLit}%)`;
-    ctx.lineWidth   = style.lineWidth;
-
-    roundRect(ctx, x + pad, y + gap, w - pad * 2, h - gap * 2, 5 * zoom);
-    ctx.fill();
-    ctx.stroke();
-
-    // Accent bar
-    if (style.accent) {
-      ctx.fillStyle = `hsl(${hue}, 70%, 55%)`;
-      roundRect(ctx,
-        x + pad + 2 * zoom,
-        y + gap + 3 * zoom,
-        3 * zoom,
-        h - gap * 2 - 6 * zoom,
-        1.5 * zoom);
-      ctx.fill();
-    }
-
-    // ── Blob / Text ─────────────────────────────────────
-    const blobAmount = params.blobMode ?? 0;
-    const textColor  = [
-      Math.max(0, (style.sat - 10)) * 2.55,
-      style.tLit * 2.55,
-      style.tLit * 2.55,
-    ];
-    // Use hue-derived text color
-    const fgCSS = `hsl(${hue}, ${Math.max(0, style.sat - 10)}%, ${style.tLit}%)`;
-    const fgRGB = ColorEngine.fromCSS?.(fgCSS) ?? [255, 255, 255];
-
-    const cx = x + w / 2;
-    const cy = y + h / 2;
-    const fontSize = cfg.getBaseFontSize(cursor) * zoom;
-
-    if (blobAmount > 0.01) {
-      const maxRadius = Math.min(w - pad * 2, h - gap * 2) / 2 * 0.8;
-      // For tree cells, use default 0.5 normalised radius
-      const vis = cfg.resolveVisuals(ctxMix, cursor, params);
-      const radius = maxRadius * (vis.blobRadius || 0.5);
-
-      ctx.globalAlpha = blobAmount;
-      drawBlob(ctx, cx, cy, radius, fgRGB);
-      ctx.globalAlpha = 1;
-
-      if (blobAmount < 0.99) {
-        ctx.globalAlpha = 1 - blobAmount;
-        ctx.fillStyle    = fgCSS;
-        ctx.font         = `${fontSize}px monospace`;
-        ctx.textAlign    = 'left';
-        ctx.textBaseline = 'middle';
-        const textX = x + cfg.getTextInset(state) * zoom;
-        ctx.fillText(text, textX, cy, w - 28 * zoom);
-        ctx.globalAlpha = 1;
-      }
-    } else {
-      // Text only
-      ctx.fillStyle    = fgCSS;
-      ctx.font         = `${fontSize}px monospace`;
-      ctx.textAlign    = 'left';
-      ctx.textBaseline = 'middle';
-      const textX = x + cfg.getTextInset(state) * zoom;
-      ctx.fillText(text, textX, cy, w - 28 * zoom);
-    }
-  }
-
-  static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
-    if (!pt) return;
-
-    const zoom = params.zoom || 1;
-    const { x, y, w, h } = this._bounds(node, zoom);
-
-    if (pt.x >= x && pt.x <= x + w && pt.y >= y && pt.y <= y + h) {
-      const cursor = ctxMix.flyweight?.cursor;
-      ctxMix.hitResult = {
-        cursor:       cursor ? [...cursor] : cursor,
-        position:     node.yOffset || 0,
-        size:         node.height  || 0,
-        interactions: ctxMix.flyweight.interactions
-                        ? { ...ctxMix.flyweight.interactions } : {},
-      };
-      ctxMix.flyweight.interactions = {};
-    }
-  }
+function roundRect(ctx, x, y, w, h, r) {
+  if (w <= 0 || h <= 0) return;
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 /**
- * SheetCellNode — rectangular cell with value-based coloring.
- *
- * Uses CellConfig.resolveVisuals for all color, opacity, and blob
- * decisions.  Draws an unrounded rectangle with optional blob and
- * distance-matrix triangle fade.
+ * Cell text with continuous horizontal alignment (textAlign 0 left, 0.5
+ * centre, 1 right) within a box w wide, vertically centred.  With truncate,
+ * the text is cut to fit, as a table cell does.
  */
-class SheetCellNode extends ScrollCellNode {
-  static config = new CellConfig();
-
-  static draw2d(ctxMix, node, params) {
-    const ctx    = ctxMix.ctx;
-    const cursor = normCursor(ctxMix.flyweight?.cursor);
-    if (!ctx || !cursor) return;
-
-    const zoom = params.zoom || 1;
-    const { x, y, w, h } = this._bounds(node, zoom);
-    const cfg = this.config;
-
-    const active = normCursor(ctxMix.activeCursor);
-    const text   = cfg.getText(ctxMix, cursor);
-    if (text == null) return;
-
-    const state = cfg.getState(ctxMix, cursor, active);
-    const hue   = cfg.getHue(ctxMix, cursor);
-    const style = STATE_STYLES[state];
-
-    const pad = 3 * zoom;
-    const gap = 2 * zoom;
-    const fontSize = cfg.getBaseFontSize(cursor) * zoom;
-
-    // ── Resolve colors, opacity, blob from real data ─────
-    const vis = cfg.resolveVisuals(ctxMix, cursor, params);
-
-    if (vis.opacity < 0.01) return;   // distance-matrix culling
-
-    let { bg, fg } = vis;
-
-    // Highlight override: brighten background for selected cell
-    if (state === 'path') bg = [70, 80, 120];
-
-    // ── Background ───────────────────────────────────────
-    ctx.globalAlpha = vis.opacity;
-    ctx.fillStyle = ColorEngine.toCSS(bg);
-    ctx.fillRect(x, y, w, h);
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, w, h);
-
-    // ── Blob / Text ──────────────────────────────────────
-    const blobAmount = params.blobMode ?? 0;
-
-    if (blobAmount > 0.01) {
-      const maxRadius = Math.min(w, h) / 2 * 0.8;
-      const radius = maxRadius * vis.blobRadius;
-
-      ctx.globalAlpha = vis.opacity * blobAmount;
-      drawBlob(ctx, x + w / 2, y + h / 2, radius, fg);
-
-      if (blobAmount < 0.99) {
-        ctx.globalAlpha = vis.opacity * (1 - blobAmount);
-        this.drawAlignedCellText(ctx, text, x, y, w, h, fontSize, fg, params);
-      }
-    } else {
-      this.drawAlignedCellText(ctx, text, x, y, w, h, fontSize, fg, params);
-    }
-
-    ctx.globalAlpha = 1;
-
-    // ── Selection outline (hue-based, as in base class) ──
-    ctx.beginPath();
-    roundRect(ctx, x + pad, y + gap, w - pad * 2, h - gap * 2, 5 * zoom);
-    ctx.strokeStyle = `hsl(${hue}, ${style.sat}%, ${style.bLit}%)`;
-    ctx.lineWidth   = style.lineWidth;
-    ctx.stroke();
-  }
+function drawAlignedCellText(ctx, text, x, y, w, h, fontSize, fgColor, params, font = 'sans-serif', truncate = false) {
+  if (!text) return;
+  const pad = 10;
+  const f = `${fontSize}px ${font}`;
+  ctx.font = f;
+  const shown = truncate ? TextUtils.truncate(ctx, text, w - pad, f) : text;
+  if (!shown) return;
+  ctx.fillStyle = ColorEngine.toCSS(fgColor);
+  ctx.textAlign = 'left';
+  const textW = ctx.measureText(shown).width;
+  const tx = x + pad / 2 + (params.textAlign ?? 0) * (w - pad - textW);
+  ctx.fillText(shown, tx, y + h / 2);
 }
 
-SYS.NODE_CLASSES.push({ name: 'sheet-cell', cls: SheetCellNode });
+function smoothstep(x, a, b) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
 
 
 // ============================================================
-// WarpableCellNode — warped polygon cell (path-aware)
+// TableCellNode
 // ============================================================
-// Renders via WarpedPolygon. Reads pre-computed segments from
-// the grid node to apply neighborliness (cross-column blending) and
-// curviness (edge bend scaling). Handles corner reversal so
-// topPath draws the visual top/outer edge.
 
-class WarpableCellNode extends ScrollCellNode {
+class TableCellNode {
   static config = new CellConfig();
 
+  /** The cell's screen outline under T, or null if degenerate. */
+  static _mapped(ctxMix, node, params) {
+    const v = ctxMix.getValue(ctxMix, node, params);
+    if (!v?.quad || !ctxMix.T?.mapQuad) return null;
+    const { corners, bends } = ctxMix.T.mapQuad(...v.quad);
+    if (corners[0].distanceTo(corners[1]) < 0.5 && corners[2].distanceTo(corners[3]) < 0.5) return null;
+    return { v, corners, bends };
+  }
+
   static hit_test(ctxMix, node, params) {
-    const pt = ctxMix.hitPoint;
+    const pt = ctxMix.screenHitPoint ?? ctxMix.hitPoint;
     if (!pt || !ctxMix.ctx) return;
+    const m = TableCellNode._mapped(ctxMix, node, params);
+    if (!m) return;
 
-    const corners = ctxMix.flyweight?.corners;
-    if (!corners) return;
-
-    const bends = ctxMix.flyweight?.bends || [0, 0, 0, 0];
-    const pathD = WarpedPolygon.path(corners, bends);
-    const path2D = new Path2D(pathD);
-
+    const path2D = new Path2D(WarpedPolygon.path(m.corners, m.bends.map(b => b * (params.curviness ?? 0))));
     const ctx = ctxMix.ctx;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const inside = ctx.isPointInPath(path2D, pt.x, pt.y);
     ctx.restore();
- 
-//    console.log('hit_test cell', ctxMix.flyweight.cursor, 'inside:', inside,
-//      'pt:', pt.x.toFixed(0), pt.y.toFixed(0),
-//      'c0:', corners[0].x.toFixed(0), corners[0].y.toFixed(0),
-//      'c2:', corners[2].x.toFixed(0), corners[2].y.toFixed(0));
+
     if (inside) {
       ctxMix.hitResult = {
-        cursor:       ctxMix.flyweight.cursor
-                        ? [...ctxMix.flyweight.cursor] : null,
-        interactions: ctxMix.flyweight.interactions
-                        ? { ...ctxMix.flyweight.interactions } : {},
+        cursor:       ctxMix.flyweight.cursor ? [...ctxMix.flyweight.cursor] : null,
+        interactions: ctxMix.flyweight.interactions ? { ...ctxMix.flyweight.interactions } : {},
       };
-      // protect returned values from future mutation
-      ctxMix.flyweight.interactions = {};
+      ctxMix.flyweight.interactions = {};       // protect returned values from future mutation
     }
   }
 
-
   static draw2d(ctxMix, node, params) {
-    const coordinator = ctxMix.coordinator;
-    const data = coordinator?.data;
-    if (!data) return;
+    const m = TableCellNode._mapped(ctxMix, node, params);
+    if (!m) return;
+    const { v, corners } = m;
+    const cfg = this.config;
+    const cursor = v.cursor;
+    const active = normCursor(ctxMix.activeCursor);
+    const state  = cfg.getState(ctxMix, cursor, active);
+    const curviness  = params.curviness ?? 0;
+    const scaledBends = m.bends.map(b => b * curviness);
+    const valueColor = params.valueColor ?? 0;
+    const zoom = ctxMix.T.affine?.uniformScale ?? 1;   // text and blobs follow the zoom, not a bend's stretch
 
-    let corners, bends, color,text;
-    const curviness = params.curviness ?? 0;
-    const showValue = params.showValue ?? 1.0;
-    const stack     = params.stack ?? 1;
-    const innerPath = ctxMix.innerPath;
-    const cursor    = ctxMix.flyweight?.cursor;
-    const active    = normCursor(ctxMix.activeCursor);
-    let state = 'none';
-
-    if( innerPath ){
-      if (!cursor || !Array.isArray(cursor)) return;
-      const col = cursor[0];
-      const row = cursor[cursor.length - 1];
-
-      // ── Look up segment from adapter ───────────────────────
-      const innerPath = ctxMix.innerPath;
-      const neighborliness  = params.neighborliness ?? 0;
-      const bendStack = params.bendStack ?? 0;
-
-      const seg = data.getSegment(cursor, params);
-      if (!seg) return;
-
-      color = seg.color;
-
-      const ft0 = ctxMix.flyweight.t0;
-      const ft1 = ctxMix.flyweight.t1;
-      const t0 = lerp(seg.y0, ft0, stack);
-      const t1 = lerp(seg.y1, ft1, stack);
-
-
-//      if (col === 0) {
-//        console.log('draw [0,' + row + '] t:', t0?.toFixed(3), t1?.toFixed(3));
-//      }
-//
-//      if (col === 0 && row === 0) {
-//        console.log('cell [0,0] flyweight t:', t0?.toFixed(3), t1?.toFixed(3),
-//          'seg t:', seg.y0?.toFixed(3), seg.y1?.toFixed(3));
-//      }
-
-      // Neighbor blending: for grid data, same draw-order position
-      // in adjacent column. For tree data, skip naive index matching
-      // — parent weights already ensure proportional alignment.
-      const nextCol = (col + 1) % data.rowCount;
-      let t0A = t0, t1A = t1;
-      if (!data.isTreeChart) {
-        const nextSeg = data.getSegment([nextCol, row], params);
-        if (nextSeg) {
-          t0A = lerp(nextSeg.y0, t0, 1 - neighborliness);
-          t1A = lerp(nextSeg.y1, t1, 1 - neighborliness);
-          t0A = lerp(t0A, t0, bendStack);
-          t1A = lerp(t1A, t1, bendStack);
-        }
-      }
-
-      corners = innerPath.cornersAt(t0, t1, t0A, t1A);
-      bends   = innerPath.edgeBends(t0, t1);
-
-      // ── Compute corners from inner path ──────────────────
-      //text    = String(data.getValue([col, seg.origIdx??0]));
-      text = data.getDisplayText([col, seg.origIdx ?? 0], params);
-
-      //corners = innerPath.cornersAt(t0, t1, t0A, t1A);
-      //bends   = innerPath.edgeBends(t0, t1);
-      state   = this.config.getState(ctxMix, cursor, active);
-    } else {
-      const cfg = this.config;
-
-      const fwCorners = ctxMix.flyweight?.corners;
-      const fwBends   = ctxMix.flyweight?.bends;
-      state = cfg.getState(ctxMix, cursor, active);
-      const hue   = cfg.getHue(ctxMix, cursor);
-      const style = STATE_STYLES[state];
-
-      color   = `hsl(${hue}, ${style.sat}%, ${style.lit}%)`;
-      text   = cfg.getText(ctxMix, cursor);
-
-      //ctx.fillStyle   = `hsl(${hue}, ${style.sat}%, ${style.lit}%)`;
-      //ctx.strokeStyle = `hsl(${hue}, ${style.sat}%, ${style.bLit}%)`;
-      //ctx.lineWidth   = style.lineWidth;
-
-      corners = fwCorners;
-      bends   = fwBends || [0, 0, 0, 0];
+    // ── Colours: the segment's, or the value's (table look) ──
+    let fill = v.color, textRGB = [255, 255, 255], alpha = 1, vis = null;
+    if (valueColor > 0.5 || (params.blobMode ?? 0) > 0.01) vis = cfg.resolveVisuals(ctxMix, v.dataCursor ?? cursor, params);
+    if (valueColor > 0.5) {
+      fill = ColorEngine.toCSS(vis.bg);
+      textRGB = vis.fg;
+      alpha = vis.opacity;
+      if (alpha < 0.01) return;               // distance-matrix culling
     }
 
-    // Skip degenerate
-    if (corners[0].distanceTo(corners[1]) < 0.5
-     && corners[2].distanceTo(corners[3]) < 0.5) return;
+    const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
+    ctx.globalAlpha *= alpha;
 
-    // No reversal needed: inner path goes upward/outward,
-    // cornersAt puts t1 (top/outer) at indices [2,3],
-    // which is where topPath draws edge 2→3.
-    const scaledBends = bends.map(b => b * curviness);
+    const geoms = [{ type: 'warpedpoly', corners, bends: scaledBends, color: fill }];
+    if (params?.roundedCorners > 0.5) RoundedWarpedPolygon.renderCtx(ctx, geoms, params);
+    else WarpedPolygon.renderCtx(ctx, geoms, params);
 
-    const geoms = [{ type: 'warpedpoly', corners, bends: scaledBends, color: color}];
-
-    if( params?.roundedCorners > 0.5)
-      RoundedWarpedPolygon.render(ctxMix, geoms, params);
-    else
-      WarpedPolygon.render(ctxMix, geoms, params);
-    // ── Text & Accent ───────────────────────────────────
-    const ctx = ctxMix.ctx;
-    const hue = this.config.getHue(ctxMix, cursor);
-
-    // Centroid — used by accent flash and blob
+    const hue = cfg.getHue(ctxMix, cursor);
     const centroid = corners[0].add(corners[1]).add(corners[2]).add(corners[3]).scale(0.25);
 
-    // ── Accent flash ────────────────────────────────────
+    // ── Accent flash on the selected path ──
     const flash = params.flash ?? 0.5;
     const flashW = 6;
-    if (flash > 0.01 && state === 'path' && ctx) {
-      const mid03 = corners[0].lerp(corners[3], 0.5);
-      const mid12 = corners[1].lerp(corners[2], 0.5);
-      const leftIs03 = false;
-      const p0   = leftIs03 ? corners[0] : corners[1];
-      const p1   = leftIs03 ? corners[3] : corners[2];
-      const bend = leftIs03 ? scaledBends[3] : scaledBends[1];
-
+    if (flash > 0.01 && state === 'path') {
+      const p0 = corners[1], p1 = corners[2], bend = scaledBends[1];
       const nudge = 3;
-
       ctx.save();
-      ctx.strokeStyle = innerPath ? color : `hsl(${hue}, 70%, 55%)`;
+      ctx.strokeStyle = valueColor > 0.5 ? `hsl(${hue}, 70%, 55%)` : v.color;
       ctx.lineWidth = flash * flashW;
       ctx.lineCap = 'round';
-
-      const arcP = bend && Math.abs(bend) > 0.01
-        ? WarpedPolygon._getArcParams(p0, p1, bend) : null;
-
+      const arcP = bend && Math.abs(bend) > 0.01 ? WarpedPolygon._getArcParams(p0, p1, bend) : null;
       if (arcP) {
         let span = arcP.endAngle - arcP.startAngle;
         if (arcP.counterclockwise && span < 0) span += 2 * Math.PI;
         if (!arcP.counterclockwise && span > 0) span -= 2 * Math.PI;
-
-        const inR = arcP.radius + nudge;
-        const trim = 6/inR;
-        const aA = arcP.startAngle + trim;
-        const aB = arcP.startAngle + span - trim;
+        const inR = arcP.radius + nudge, trim = 6 / inR;
         ctx.beginPath();
-        ctx.arc(arcP.center.x, arcP.center.y, inR, aA, aB, arcP.counterclockwise);
+        ctx.arc(arcP.center.x, arcP.center.y, inR, arcP.startAngle + trim, arcP.startAngle + span - trim, arcP.counterclockwise);
         ctx.stroke();
       } else {
         const dir = p1.sub(p0).normalize();
         const perp = dir.perpendicular();
         const sign = perp.dot(centroid.sub(p0.lerp(p1, 0.5))) > 0 ? 1 : -1;
         const offset = perp.scale(sign * nudge);
-        const pa = p0.add( dir.scale(3)).add(offset);
-        const pb = p1.sub( dir.scale(3)).add(offset);
+        const pa = p0.add(dir.scale(3)).add(offset), pb = p1.sub(dir.scale(3)).add(offset);
         ctx.beginPath();
         ctx.moveTo(pa.x, pa.y);
         ctx.lineTo(pb.x, pb.y);
@@ -680,120 +350,66 @@ class WarpableCellNode extends ScrollCellNode {
       ctx.restore();
     }
 
-    // ── Blob (at centroid) ──────────────────────────────
+    // ── Blob at the centroid ──
     const blobAmount = params.blobMode ?? 0;
-    if (blobAmount > 0.01 && ctx) {
-      // Approximate cell size from corner distances
+    if (blobAmount > 0.01) {
       const cellW = corners[0].distanceTo(corners[1]);
       const cellH = corners[0].distanceTo(corners[3]);
-      const maxRadius = Math.min(cellW, cellH) / 2 * 0.8;
-
-      const vis = this.config.resolveVisuals(ctxMix, cursor, params);
-      const radius = maxRadius * (vis.blobRadius || 0.5);
-
-      const blobColor = innerPath
-        ? ColorEngine.fromCSS?.(color) ?? [255, 255, 255]
-        : (ColorEngine.fromCSS?.(`hsl(${hue}, 60%, 55%)`) ?? [255, 255, 255]);
-
+      const radius = Math.min(cellW, cellH) / 2 * 0.8 * (vis.blobRadius || 0.5);
       ctx.save();
-      ctx.globalAlpha = blobAmount;
-      drawBlob(ctx, centroid.x, centroid.y, radius, blobColor);
+      ctx.globalAlpha *= blobAmount;
+      drawBlob(ctx, centroid.x, centroid.y, radius, valueColor > 0.5 ? vis.fg : [255, 255, 255]);
       ctx.restore();
     }
 
-    // ── Text ─────────────────────────────────────────────
-    const textOpacity = blobAmount < 0.99 ? 1 - blobAmount : 0;
-    if (showValue >= 0.5 && text && ctx && textOpacity > 0.01) {
-      const mid03 = corners[0].lerp(corners[3], 0.5);
-      const mid12 = corners[1].lerp(corners[2], 0.5);
-      const lx = Math.min(mid03.x, mid12.x)+ 1 + flash * flashW/2;
-      const rx = Math.max(mid03.x, mid12.x)-1;
+    // ── Text, rigid, at the centre ──
+    const showValue = params.showValue ?? 1.0;
+    let textOpacity = blobAmount < 0.99 ? 1 - blobAmount : 0;
+    const mid03 = corners[0].lerp(corners[3], 0.5);
+    const mid12 = corners[1].lerp(corners[2], 0.5);
+    const textH = corners[0].distanceTo(corners[3]);
+    const fit = (params.fitText ?? 0) > 0.5;
+    if (fit) textOpacity *= smoothstep(textH, 5, 11);
+    if (showValue >= 0.5 && v.text && textOpacity > 0.01) {
+      const lx = Math.min(mid03.x, mid12.x) + 1 + flash * flashW / 2;
+      const rx = Math.max(mid03.x, mid12.x) - 1;
       const cy = (mid03.y + mid12.y) / 2;
-      //const textW = rx - lx;
-
       const tiltText = params.tiltText ?? 0;
-      const screenW = rx - lx;
-      const crossW  = mid03.distanceTo(mid12);
-      const textW   = lerp(screenW, crossW, tiltText);
-
-      const textH = corners[0].distanceTo(corners[3]);
-      const fontSize = this.config.getBaseFontSize(cursor) * (params.zoom || 1);
-      const tColor = innerPath ? [255, 255, 255]
-        : ColorEngine.fromCSS?.(`hsl(${hue}, ${Math.max(0, style.sat-10)}%, ${style.tLit}%)`)
-          ?? [255, 255, 255];
+      const textW = lerp(rx - lx, mid03.distanceTo(mid12), tiltText);
+      let fontSize = (params.fontSize ?? cfg.getBaseFontSize(cursor)) * zoom;
+      if (fit) fontSize = Math.min(fontSize, textH * 0.6);
+      const font = params.fontFamily ?? 'sans-serif';
 
       let textAngle = 0;
       if (tiltText > 0.01) {
-        const startCross = corners[1].sub(corners[0]);
-        const endCross   = corners[2].sub(corners[3]);
-        const avgCross   = startCross.add(endCross).scale(0.5);
+        const avgCross = corners[1].sub(corners[0]).add(corners[2].sub(corners[3])).scale(0.5);
         let angle = Math.atan2(avgCross.y, avgCross.x);
-        // Keep readable — flip if upside-down
-        if (angle >  Math.PI / 2) angle -= Math.PI;
+        if (angle >  Math.PI / 2) angle -= Math.PI;       // keep it readable
         if (angle < -Math.PI / 2) angle += Math.PI;
         textAngle = angle * tiltText;
       }
       ctx.save();
-      ctx.globalAlpha = textOpacity;
-      ctx.font = `${fontSize}px monospace`;
+      ctx.globalAlpha *= textOpacity;
       ctx.textBaseline = 'middle';
-
       if (Math.abs(textAngle) > 0.001) {
-        const tcx = (lx + rx) / 2;
-        const dFlash = (flash * flashW/2)/2
-        ctx.translate(tcx-dFlash, cy);
+        const tcx = (lx + rx) / 2, dFlash = (flash * flashW / 2) / 2;
+        ctx.translate(tcx - dFlash, cy);
         ctx.rotate(textAngle);
         ctx.translate(dFlash, 0);
-        ScrollCellNode.drawAlignedCellText(
-          ctx, text, -textW / 2, -textH / 2, textW, textH, fontSize, tColor, params
-        );
+        drawAlignedCellText(ctx, v.text, -textW / 2, -textH / 2, textW, textH, fontSize, textRGB, params, font, fit);
       } else {
-        ScrollCellNode.drawAlignedCellText(
-          ctx, text, lx, cy - textH / 2, textW, textH, fontSize, tColor, params
-        );
+        drawAlignedCellText(ctx, v.text, lx, cy - textH / 2, textW, textH, fontSize, textRGB, params, font, fit);
       }
       ctx.restore();
     }
+    ctx.restore();
   }
 }
 
-SYS.NODE_CLASSES.push({ name: 'warpable-cell', cls: WarpableCellNode });
+SYS.NODE_CLASSES.push({ name: 'table-cell', cls: TableCellNode });
 
-// ── Factory ────────────────────────────────────────────────────
-
-/** Returns a class (not an instance) with the given config baked in. */
-function createCellClass(config) {
-  return class extends ScrollCellNode {
-    static config = config;
-  };
-}
-
-
-// ── Registration ───────────────────────────────────────────────
-
-SYS.NODE_CLASSES.push({ name: 'ms-cell', cls: createCellClass(new CellConfig()) });
-
-export { CellConfig, ScrollCellNode, createCellClass };
-// Auto-generated exports
-if (typeof window !== 'undefined') window.DEFAULT_HUES = DEFAULT_HUES;
-export { DEFAULT_HUES };
-if (typeof window !== 'undefined') window.HIGHLIGHT_MODES = HIGHLIGHT_MODES;
-export { HIGHLIGHT_MODES };
-if (typeof window !== 'undefined') window.STATE_STYLES = STATE_STYLES;
-export { STATE_STYLES };
-if (typeof window !== 'undefined') window.SheetCellNode = SheetCellNode;
-export { SheetCellNode };
-if (typeof window !== 'undefined') window.WarpableCellNode = WarpableCellNode;
-export { WarpableCellNode };
-if (typeof window !== 'undefined') window.drawBlob = drawBlob;
-export { drawBlob };
-if (typeof window !== 'undefined') window.gridCursorRelation = gridCursorRelation;
-export { gridCursorRelation };
-if (typeof window !== 'undefined') window.normCursor = normCursor;
-export { normCursor };
-if (typeof window !== 'undefined') window.roundRect = roundRect;
-export { roundRect };
-if (typeof window !== 'undefined') window.treeChartCursorRelation = treeChartCursorRelation;
-export { treeChartCursorRelation };
-if (typeof window !== 'undefined') window.treeCursorRelation = treeCursorRelation;
-export { treeCursorRelation };
+export {
+  TableCellNode, CellConfig, DEFAULT_HUES, HIGHLIGHT_MODES, STATE_STYLES,
+  drawBlob, drawAlignedCellText, roundRect, normCursor,
+  gridCursorRelation, treeChartCursorRelation, treeCursorRelation,
+};

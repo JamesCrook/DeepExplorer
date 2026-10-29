@@ -81,10 +81,10 @@ const HANDLE_SLIDER = { id: 'pointRadius', label: 'Handles', min: 2, max: 15, st
 //  CSV LOADER — shared by scene and addable
 // ═══════════════════════════════════════════════════════
 
-/** Walk the layer tree to find the chart container (chart-frame or chart-box). */
+/** Walk the layer tree to find the chart's sizer (frame or box), whose child is the chart. */
 function findChartContainer(node) {
   if (!node) return null;
-  if (node.type === 'chart-frame' || node.type === 'chart-box') return node;
+  if ((node.type === 'frame' || node.type === 'box') && node.subtree?.[0]?.type === 'warpable-grid') return node;
   for (const child of (node.subtree || [])) {
     const hit = findChartContainer(child);
     if (hit) return hit;
@@ -294,10 +294,10 @@ function createChartScene(numCategories = 6, sampleType = 'sales') {
   } else {
     root = OmniChartModel.makeChartAst(numCategories, sampleType);
   }
-  const frame     = new MiniAstNode('frame', [root]);
-  const zoomScale = new MiniAstNode('zoom-pan', [frame]);
-  const layer     = new MiniAstNode('layer', [zoomScale], {
-    name: 'Chart', visible: true,
+  // The centred layer's T carries pan and zoom; frame sizes the chart in its units.
+  const frame = new MiniAstNode('frame', [root]);
+  const layer = new MiniAstNode('layer', [frame], {
+    name: 'Chart', visible: true, center: true,
     params: { ...CHART_DEFAULTS, panX: 0, panY: 0 },
   });
   layer.inst = { buildUI: chartBuildUI, presets: CHART_PRESETS };
