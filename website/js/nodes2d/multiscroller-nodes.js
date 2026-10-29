@@ -1,5 +1,7 @@
-// `stack`/`hstack`/`vstack` and `multiscroller` — scrolling stacks over data sources, with synced scrolling
+// `stack`, `hstack`, `vstack`, `multiscroller` — scrolling stacks
 /**
+ * `stack`/`hstack`/`vstack` and `multiscroller` — scrolling stacks over data sources, with synced scrolling
+ *
  * Three things:
  *
  * 1. ScrollState     — inst for managed stacks. Holds cache, scroll offset,

@@ -1,3 +1,4 @@
+// PathAst — paths as an AST, and the end-shape library
 // PathAst — paths as an AST of SVG-like commands, and the end-shape library (< ( / …) for ribbons
 // It also has the 'end shape' library in it, so we can get < ( and / ends.
 

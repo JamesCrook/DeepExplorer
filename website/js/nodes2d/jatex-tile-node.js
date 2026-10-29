@@ -2,8 +2,9 @@ import { Shape } from '../2d-support/shape.js'
 import { drawScorpioLabel } from '../2d-support/workhorse.js'
 import { layoutInline } from '../2d-support/node-geometry.js';
 
-// JatexTileNode — `jatex.tile`: tiles and boxes in jatex (Scorpio labels); registered by jatex-node.js
+// `jatex.tile` — tiles and boxes in jatex
 /**
+ * JatexTileNode — `jatex.tile`: tiles and boxes in jatex (Scorpio labels); registered by jatex-node.js
  * @class
  */
 class JatexTileX {

@@ -1,4 +1,8 @@
-// `blob` — a diagnostic node: dots at ctxMix.outerPos and outerPos2, to see where a parent put them
+// `blob` — a diagnostic dot pair
+/**
+ * `blob` — a diagnostic node: dots at ctxMix.outerPos and outerPos2, to see where a parent put them
+ *
+ */
 
 import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';

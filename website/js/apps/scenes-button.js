@@ -1,5 +1,7 @@
-// OmniScene addable: Button Grid — a layer of draggable button-nodes with bevel and lighting controls
+// OmniScene addable: Button Grid
 /**
+ * OmniScene addable: Button Grid — a layer of draggable button-nodes with bevel and lighting controls
+ *
  * Addable declaration for button-node objects in OmniScene.
  * Registers a "Button Grid" addable that creates a single layer
  * of draggable button-nodes with full bevel / lighting controls.

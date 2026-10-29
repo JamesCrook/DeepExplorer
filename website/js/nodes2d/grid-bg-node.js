@@ -2,7 +2,11 @@ import { SYS } from '../omni-support/sys.js';
 import { nm2screen, viewBounds } from '../2d-support/nm-coords.js';
 export { GridBgNode };
 
-// `grid-bg` — the mask editor's background: a dark fill, an nm grid whose spacing adapts to the zoom, a finer snap grid, and the origin crosshair
+// `grid-bg` — the mask editor's grid background
+/* ─────────────────────────────────────────────────────────────────────────────
+`grid-bg` — the mask editor's background: a dark fill, an nm grid whose spacing
+adapts to the zoom, a finer snap grid, and the origin crosshair.
+──────────────────────────────────────────────────────────────────────────── */
 
 class GridBgNode {
   static draw2d(ctxMix, node, params) {

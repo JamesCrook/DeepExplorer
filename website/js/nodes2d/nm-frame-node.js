@@ -1,9 +1,11 @@
 import { SYS } from '../omni-support/sys.js';
 export { NmFrameNode };
 
-// `nm-frame` — the mask editor's scene-mode sizer: children draw into an offscreen canvas at CSS-pixel size, which is then blitted at the device pixel ratio
+// `nm-frame` — the mask editor sized to the canvas
 /* ─────────────────────────────────────────────────────────────────────────────
-The partner of `nm-box`.
+`nm-frame` — the mask editor's scene-mode sizer: children draw into an offscreen
+canvas at CSS-pixel size, which is then blitted at the device pixel ratio. The
+partner of `nm-box`.
 
 Both nm sizers redirect their children to an offscreen canvas so that:
   1. mask nodes can getImageData without a slow GPU→CPU readback from the

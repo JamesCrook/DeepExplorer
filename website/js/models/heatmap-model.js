@@ -5,6 +5,7 @@ import { makeZoomableCamera } from '../2d-support/make-camera.js';
 export { HeatmapModel };
 import { organGeometry } from '../nodes2d/heatmap-zone.js';
 
+// Model 'Body Heatmap · 9 Organs'
 // Model 'Body Heatmap · 9 Organs' — a body outline whose organ regions are coloured by value (organ-region)
 
 class HeatmapModel {

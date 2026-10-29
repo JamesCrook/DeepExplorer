@@ -8,8 +8,11 @@ import { PipperNode } from '../nodes2d/pipper-node.js';
 import { SnapEngine } from './snap-engine.js';
 export { RaftSnapController };
 
-// RaftSnapController — tiles that abut travel together, and fracture along a cone when pulled apart
+// RaftSnapController — abutting tiles travel together
 /* ─────────────────────────────────────────────────────────────────────────────
+RaftSnapController — tiles that abut travel together, and fracture along a
+cone when pulled apart.
+
 This class is droppable.  It names no other controller: everything it once
 asked EdgeSnapController to do is now announced through PipperNode as a hook,
 so a build without edges still rafts, and a build without rafting still keeps

@@ -1,5 +1,7 @@
-// OmniScene scenes and addables from the mask editor: Lloyd Mirror, and Chip Layer with Sobel edges
+// OmniScene: Lloyd Mirror and Chip Layer, from the mask editor
 /**
+ * OmniScene scenes and addables from the mask editor: Lloyd Mirror, and Chip Layer with Sobel edges
+ *
  * Mask-editor nodes surfaced in OmniScene.
  *
  * Provides:

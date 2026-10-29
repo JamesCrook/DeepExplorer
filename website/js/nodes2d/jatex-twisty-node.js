@@ -2,6 +2,7 @@ import '../2d-support/vector2d.js'
 import '../2d-support/box.js'
 
 //import '../parsers/ast-manager.js'
+// `jatex.twisty` — twisty diagrams of crossing strands
 // Twisty — `jatex.twisty`: braid-like 'twisty' diagrams of crossing strands; registered by jatex-node.js
 //
 //import '../parsers/parser.js'

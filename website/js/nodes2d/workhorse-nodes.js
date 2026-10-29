@@ -1,7 +1,9 @@
-// The mind-map family, from Scorpio's workhorse.js: `mind-map` holds `atom`s and draws the `bond`s between them; `ruler`, `chem` and `tree2` came along
+// The mind-map family, from Scorpio's workhorse.js
 /*
-One file each, their drawing helpers in workhorse-drawing.js. Importing this
-file registers all six and re-exports what the old single file exported.
+The mind-map family, from Scorpio's workhorse.js: `mind-map` holds `atom`s and
+draws the `bond`s between them; `ruler`, `chem` and `tree2` came along. One file
+each, their drawing helpers in workhorse-drawing.js. Importing this file
+registers all six and re-exports what the old single file exported.
 
 Migrated from Registrar.js.workhorse_js (an IIFE of registerMethod() calls) to
 ES-module node classes with static methods.

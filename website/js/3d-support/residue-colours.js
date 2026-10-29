@@ -1,8 +1,9 @@
-// residue-colours.js — residue and bond colour tables, and the two per-residue helpers both 3D worlds share
+// residue-colours — residue and bond colour tables
 /*
-Free of any THREE import: the functions take THREE as an argument, so
-importing this file never forces three.js to load (three-boot.js loads it
-lazily on Zones pages).
+residue-colours.js — residue and bond colour tables, and the two per-residue
+helpers both 3D worlds share.  Free of any THREE import: the functions take
+THREE as an argument, so importing this file never forces three.js to load
+(three-boot.js loads it lazily on Zones pages).
 
 Moved out of molam-objects.js unchanged.  bond-renderer.js and
 nodes3d/imposter-atom-node.js use it in both worlds; before, the Zones world had

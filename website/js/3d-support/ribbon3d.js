@@ -1,5 +1,6 @@
-// ribbon3d — a 3D protein ribbon: biarc segments through framed points, extruded to a mesh, and its UI
+// ribbon3d — 3D protein ribbon geometry and UI
 /* ============================================
+ribbon3d — a 3D protein ribbon: biarc segments through framed points, extruded to a mesh, and its UI
    ============================================
 
    Pure geometry:

@@ -1,10 +1,11 @@
 import { SYS } from '../omni-support/sys.js';
 export { BoxNode, CHART_NAT_W, CHART_NAT_H };
 
-// `box` — a chart's fixed natural size (800 × 600) inside a handle-frame: the addable-mode partner of `frame`
+// `box` — a chart at its natural size, in a handle-frame
 /* ─────────────────────────────────────────────────────────────────────────────
-measure gives handle-frame the size; draw and hit-test set the child's
-dimensions and map drags into chart-local space.
+`box` — a chart's fixed natural size (800 × 600) inside a handle-frame: the
+addable-mode partner of `frame`. measure gives handle-frame the size; draw and
+hit-test set the child's dimensions and map drags into chart-local space.
 ──────────────────────────────────────────────────────────────────────────── */
 
 const CHART_NAT_W = 800;

@@ -1,5 +1,7 @@
-// The Haemoglobin and ATP Synthase animations: rules in the subject's own names, generic nodes, a facade between
+// Haemoglobin and ATP Synthase animations
 /**
+ * The Haemoglobin and ATP Synthase animations: rules in the subject's own names, generic nodes, a facade between
+ *
  * The animation scenes: each builds its runtime (entities and rules, in the
  * subject's own names), a scene graph of generic nodes, and the facade that
  * joins them.

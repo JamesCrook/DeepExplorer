@@ -1,5 +1,6 @@
 export { DemoHarness3D };
 
+// DemoHarness3D — owns a 3D pane
 // DemoHarness3D — owns a 3D pane for the Zones App: makes or re-attaches the view, passes controls on
 
 class DemoHarness3D {

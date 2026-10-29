@@ -4,8 +4,11 @@ import { autoFitCamera } from '../2d-support/make-camera.js';
 import { hideTooltip, showTooltip } from '../2d-support/tooltip.js';
 export { DemoHarness2D };
 
-// DemoHarness2D — owns a 2D canvas pane: drawing, hit-testing, pan/zoom, and control-value routing
+// DemoHarness2D — owns a 2D canvas pane
 /* ═══════════════════════════════════════════════════════════════════════════
+DemoHarness2D — owns a 2D canvas pane: drawing, hit-testing, pan/zoom,
+and control-value routing.
+
 Changes from original:
 - Seeds this.params from paneConfig.controls on construction so that
  control values (regionSet, showGrid, screenMode …) reach draw2d params

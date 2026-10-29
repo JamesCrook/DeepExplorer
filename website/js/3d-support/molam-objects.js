@@ -1,3 +1,4 @@
+// AtomRenderer — Molam's atoms as instanced meshes
 // AtomRenderer — Molam's atoms as one instanced mesh per element, CPK sizes, residue colour schemes
 //
 //import { OmniThreeScene } from '../omni-support/omni-three-scene.js';

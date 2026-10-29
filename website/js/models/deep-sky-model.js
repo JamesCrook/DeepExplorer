@@ -5,8 +5,10 @@ import { HUBBLE, fieldStarData, mulberry32 } from '../2d-support/sky-gl.js';
 import '../nodes2d/sky-nodes.js';   // 'star', 'field-star', 'deep-sky'
 export { DeepSkyModel };
 
-// Model 'Deep Sky · Stars & Galaxies' — galaxies of each Hubble type, the nebula family, a dark cloud
+// Model 'Deep Sky · Stars & Galaxies'
 /*
+Model 'Deep Sky · Stars & Galaxies' — galaxies of each Hubble type, the nebula family, a dark cloud
+
 A small sky: galaxies of each Hubble type, the nebula family, a dark cloud
    in front of a nursery so absorption shows, named stars, and a field. */
 class DeepSkyModel {

@@ -1,5 +1,9 @@
-// molam-parts.js — scene-graph builders shared by the Molam widget (molam-widget.js, html/molam.html) and the Molam scene in OmniScene (scenes-molam.js), which had identical copies
+// molam-parts — scene builders shared by Molam's widget and scene
 /**
+ * molam-parts.js — scene-graph builders shared by the Molam widget
+ * (molam-widget.js, html/molam.html) and the Molam scene in OmniScene
+ * (scenes-molam.js), which had identical copies.
+ *
  *   makeGroundPlane(), makeRibbon(key, color), makeAtoms(useImposters),
  *   makeBonds()                          one 3D node each, with its inst
  *   buildProteinScene(chains, structureChains, atoms, scale)

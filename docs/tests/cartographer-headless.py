@@ -1,4 +1,4 @@
-"""cartographer-headless.py — run attic/unfolded/code-cartographer-tool.html over
+"""cartographer-headless.py — run attic/tools/code-cartographer-tool.html over
 website/ in headless Chromium and print what matters for the tidy-up.
 
     python3 docs/tests/cartographer-headless.py
@@ -26,7 +26,7 @@ with sync_playwright() as p:
     page = browser.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
-    page.goto(f'http://127.0.0.1:{PORT}/attic/unfolded/code-cartographer-tool.html')
+    page.goto(f'http://127.0.0.1:{PORT}/attic/tools/code-cartographer-tool.html')
     page.wait_for_timeout(500)
     page.set_input_files('#fileInput', os.path.join(REPO, 'website'))
     page.wait_for_function("() => typeof DB !== 'undefined' && DB && DB.nodes", timeout=120000)

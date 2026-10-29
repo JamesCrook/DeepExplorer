@@ -6,6 +6,7 @@ import { BasicCollectionNode } from './basic-collection-node.js';
 import { PipperNode } from './pipper-node.js';
 export { StockStripNode };
 
+// `stock-strip` — a palette of prototypes to drag out
 // `stock-strip` — a palette band along the foot of a pane: its children are prototypes, dragged out as copies
 
 class StockStripNode {

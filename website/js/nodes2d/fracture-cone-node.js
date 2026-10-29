@@ -2,6 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { FractureConeNode };
 
+// `fracture-cone` — where a dragged raft will split
 // `fracture-cone` — shows the cone along which a dragged raft will split, while the drag is still deciding
 
 class FractureConeNode {

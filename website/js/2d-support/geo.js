@@ -1,5 +1,6 @@
 export { Geo };
 
+// Geo — angle and polygon helpers for pips and tiles
 // Geo — angle and polygon helpers for pips and tiles: normalise, angle difference, polygon vertices
 
 class Geo {

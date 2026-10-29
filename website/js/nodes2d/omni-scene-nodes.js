@@ -1,5 +1,7 @@
-// OmniScene's frame nodes: `scene-root` (sets up T and the hit point), `layer`, `corner-rect`, `simple-path`
+// `scene-root`, `layer`, `corner-rect`, `simple-path` — OmniScene's frame nodes
 /**
+ * OmniScene's frame nodes: `scene-root` (sets up T and the hit point), `layer`, `corner-rect`, `simple-path`
+ *
  * Changes from v4:
  *   - Transform system: T and box flow through ctxMix
  *   - SceneRootNode initializes T, box, screenHitPoint, canvasW/H

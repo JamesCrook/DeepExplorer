@@ -3,6 +3,7 @@ import { ControlGroupWidget } from './control-group-widget.js';
 export { SliderGroupWidget };
 
 // ════════════════════════════════════════════════════════════════
+// `slider-group` — a control-group of sliders
 // `slider-group` — a control-group whose children are morph-sliders, colour pickers and button rows (container)
 //  ─ Inherits before_mount/after_mount (creates .control-group).
 //  ─ Children (morph-slider, color-picker, button-row) are subtree

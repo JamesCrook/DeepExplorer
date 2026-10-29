@@ -2,8 +2,11 @@ import { SYS } from '../../omni-support/sys.js';
 import '../../omni-support/formats.js';   // format.* in SYS.FUNCTIONS
 export { MorphSliderWidget };
 
-// MorphSliderWidget — the morphable range slider: a track, a fill and a thin pip whose geometry is driven by the --ms-* CSS variables
+// `morph-slider` — the morphable range slider
 /* ─────────────────────────────────────────────────────────────────────────────
+MorphSliderWidget — the morphable range slider: a track, a fill and a thin
+pip whose geometry is driven by the --ms-* CSS variables.
+
 Taken from the panopticon's own copy, which lived inside pipped-edge-ref-node
 (it belongs in a nugget of its own; here it has one) and which is the HUD
 dialect of the OmniWidget original: it writes through ctxMix.setParam rather

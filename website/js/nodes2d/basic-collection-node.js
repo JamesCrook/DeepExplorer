@@ -2,6 +2,7 @@ import { SYS, sceneRegistry } from '../omni-support/sys.js';
 import { Utils } from '../omni-support/utils.js';
 export { BasicCollectionNode };
 
+// `basic-collection` — a group of draggable items
 // `basic-collection` — a group whose children are draggable items; one dropped on the stock strip is removed
 
 class BasicCollectionNode {

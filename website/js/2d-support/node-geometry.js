@@ -1,5 +1,8 @@
-// node-geometry.js — small geometry helpers that many 2D node classes shared as identical private copies
+// node-geometry — geometry helpers shared by 2D nodes
 /**
+ * node-geometry.js — small geometry helpers that many 2D node classes shared
+ * as identical private copies.
+ *
  *   pointCentreXY(res, node, params)   a node whose value is a point: its x, y
  *                                       (local units).  The getCentreXY of
  *                                       drag-point, button-node, word-node,

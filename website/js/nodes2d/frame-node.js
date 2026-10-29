@@ -1,3 +1,4 @@
+// `stamp-frame` — a movable card with a bumpy edge
 // `stamp-frame` — a decorative movable card with a bumpy perimeter, holding children (container)
 /**
  * A decorative movable card with a bumpy perimeter; a container (before/after

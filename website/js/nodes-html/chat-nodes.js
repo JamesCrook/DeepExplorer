@@ -1,5 +1,7 @@
-// D+'s chat node types that need code — tags, diagrams, control, code, html — and its template functions
+// D+'s chat node types that need code
 /*
+D+'s chat node types that need code — tags, diagrams, control, code, html — and its template functions
+
 # ESSENTIALS
 
 chat-nodes — the D+ node types that need code, and the template functions

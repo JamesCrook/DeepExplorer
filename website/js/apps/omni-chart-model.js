@@ -1,3 +1,4 @@
+// OmniChartModel — a chart as a flyweight grid
 // OmniChartModel — a chart as a flyweight grid: one column and one cell prototype, reused for every column and row
 //
 // AST shape (flyweight):

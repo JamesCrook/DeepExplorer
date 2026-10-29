@@ -1,3 +1,4 @@
+// `trace-link` — a link between two trace points
 // `trace-link` — a link between two points, optionally bent into an arc, for the algorithm traces
 /**
  * A link between two points, optionally bent into an arc, used by the

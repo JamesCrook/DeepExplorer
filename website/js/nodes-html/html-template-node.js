@@ -1,6 +1,7 @@
 import { SYS } from '../omni-support/sys.js';
 export { HtmlTemplateNode };
 
+// `html-template` — an element from a named template
 // `html-template` — an element made from a named template, with the node's value fields filled in
 /* ─────────────────────────────────────────────────────────────────────────────
 The type from html-node-types.md that replaces D+'s dozen chat widgets (server icon, topic, message, embed card…),

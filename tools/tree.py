@@ -91,7 +91,10 @@ def tidy(t):
         line = re.sub(r'^@(fileoverview|file|overview)\s*', '', line)
         if DIRECTIVE.match(line) or not re.search(r'[^\W_]', line):
             continue
-        return re.sub(r'\s+', ' ', line.strip('"\' '))
+        line = re.sub(r'\s+', ' ', line).strip()
+        if len(line) > 1 and line[0] == line[-1] and line[0] in '"\'':
+            line = line[1:-1].strip()
+        return line
     return ''
 
 

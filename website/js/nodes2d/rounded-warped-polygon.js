@@ -1,6 +1,7 @@
 import { Vector2D } from '../2d-support/vector2d.js';
 import { WarpedPolygon } from './warped-polygon.js';
 
+// RoundedWarpedPolygon — a WarpedPolygon with rounded corners
 // RoundedWarpedPolygon — a WarpedPolygon with rounded corners (not a node; used by table-cell-node)
 
 class RoundedWarpedPolygon {

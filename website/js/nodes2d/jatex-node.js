@@ -1,4 +1,8 @@
-// Jatex nodes — `jatex`, `jexp`, `frac`, `jatex.sym`, `jsymbol` — and the registration of jatex.tile, .twisty and .drawn
+// Jatex nodes — `jatex`, `jexp`, `frac`, `jatex.sym`, `jsymbol`
+/**
+ * Jatex nodes — `jatex`, `jexp`, `frac`, `jatex.sym`, `jsymbol` — and the registration of jatex.tile, .twisty and .drawn
+ *
+ */
 
 /*
 # ESSENTIALS

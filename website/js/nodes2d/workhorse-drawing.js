@@ -32,9 +32,11 @@ export {
   makeTaper,
 };
 
-// workhorse-drawing — how the mind-map nodes draw: tapered bonds, styled lines with end shapes, rotated labels and text, angle arcs and quads, and the background
+// workhorse-drawing — how the mind-map nodes draw
 /* ─────────────────────────────────────────────────────────────────────────────
-Scorpio's 2023 workhorse.js, rewritten for (ctx, obj, params).
+workhorse-drawing — how the mind-map nodes draw: tapered bonds, styled lines
+with end shapes, rotated labels and text, angle arcs and quads, and the
+background. Scorpio's 2023 workhorse.js, rewritten for (ctx, obj, params).
 
 Uses Shape (end shapes, Scorpio labels) without importing it, so those
 throw if called; 2d-support/workhorse.js has the working originals.

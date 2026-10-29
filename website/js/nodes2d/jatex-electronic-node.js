@@ -1,5 +1,6 @@
 import { layoutInline } from '../2d-support/node-geometry.js';
 
+// `jatex.drawn` — electronic symbols in jatex
 // JatexDrawnNode — `jatex.drawn`: electronic symbols (transistor, resistor, battery, capacitor) in jatex; registered by jatex-node.js
 
 class JatexDrawnNode {

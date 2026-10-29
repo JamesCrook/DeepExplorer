@@ -5,6 +5,7 @@ import '../nodes2d/mouse-zone.js';   // 'mouse-button'
 export { MouseModel };
 import { mouseGeometry } from '../nodes2d/mouse-zone.js';
 
+// Model 'Mouse Bindings · 6 Zones'
 // Model 'Mouse Bindings · 6 Zones' — a mouse drawn as clickable zones, each showing its binding (mouse-button)
 
 class MouseModel {

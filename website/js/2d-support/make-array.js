@@ -5,8 +5,11 @@ import '../nodes2d/clip-node.js';   // 'clip-node'
 import '../nodes2d/flyweight-array-node.js';   // 'flyweight-array'
 export { makeArray };
 
-// make-array — one flyweight node standing for a whole data array, with the selection and hover channel wired through it
+// make-array — a whole data array as one flyweight node
 /* ─────────────────────────────────────────────────────────────────────────────
+make-array — one flyweight node standing for a whole data array, with the
+selection and hover channel wired through it.
+
 clip-node and chrome-node are reached only when the leaf class declares
 clipPath or drawOverlay.  The imports below are therefore an over-estimate for
 some models: the type is named here, so a slice keeps it.  That is the honest
