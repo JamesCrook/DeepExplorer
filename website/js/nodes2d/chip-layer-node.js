@@ -26,7 +26,7 @@
 // #wsi/rectnode/code
 
 import { SubtreeIterator } from '../omni-support/scene.js';
-import { nm2screen, viewBounds } from './mask-scene-nodes.js';
+import { nm2screen, viewBounds } from '../2d-support/nm-coords.js';
 import { hexToRgbArray } from '../colour/colour.js';
 import { SYS } from '../omni-support/sys.js';
 

@@ -20,7 +20,7 @@
  * (set by chip-layer-node's after_draw2d).
  */
 
-import { nm2screen } from './mask-scene-nodes.js';
+import { nm2screen } from '../2d-support/nm-coords.js';
 import { hexToRgbArray } from '../colour/colour.js';
 import { SYS } from '../omni-support/sys.js';
 

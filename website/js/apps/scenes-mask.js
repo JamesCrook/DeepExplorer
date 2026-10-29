@@ -24,7 +24,7 @@ import { createItemFields } from '../omni-support/item-fields.js';
 // mask-scene-nodes.js registers grid-bg, rect and clip-outline; 'layer' is
 // OmniScene's own (omni-scene-nodes.js).
 import '../nodes2d/mask-scene-nodes.js';
-import { screen2nm, nm2screen } from '../nodes2d/mask-scene-nodes.js';
+import { screen2nm, nm2screen } from '../2d-support/nm-coords.js';
 
 import '../nodes2d/lloyd-mask-node.js';
 import '../nodes2d/chip-layer-node.js';
