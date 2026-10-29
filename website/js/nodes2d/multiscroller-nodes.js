@@ -558,6 +558,19 @@ class SyncOrchestrator {
     }
     s.anchorCursor = cursor;
 
+    // The source's own focal block may start before the pressed item (a
+    // table's run of rows): anchor it on the block's first item, the same
+    // place, by stepping back over the items in between.
+    const first = this.nav.translateCursor(cursor, src.level);
+    if (s && first && s.dataSource?.cursorKey(first) !== s.dataSource?.cursorKey(cursor)) {
+      let c = cursor, off = s.scrollOffset;
+      for (let i = 0; i < 100000 && c && s.dataSource.cursorKey(c) !== s.dataSource.cursorKey(first); i++) {
+        c = s.dataSource.prev(c);
+        if (c) off -= this._itemSize(s, c);
+      }
+      if (c) { s.anchorCursor = first; s.scrollOffset = off; }
+    }
+
     this.syncFrom(sourceIndex);
   }
 
@@ -568,7 +581,12 @@ class SyncOrchestrator {
     const ss = src.state;
     if (!ss) return;
 
-    const anchorSize = ss.anchorBounds?.size ?? ss.defaultItemSize;
+    // The source's focal block: its anchor item, or the whole block when the
+    // navigator gives the source more than one (a table's run of rows).
+    const count = this.nav.focalCount(this.activeCursor, src.level);
+    const anchorSize = count > 1
+      ? this._focalSize(ss, ss.anchorCursor, count, 0.5, src.level)
+      : (ss.anchorBounds?.size ?? ss.defaultItemSize);
     const ratio = ScrollSync.ratio(ss.scrollOffset, anchorSize, src.viewportSize());
 
     for (let i = 0; i < this.panels.length; i++) {
@@ -799,6 +817,24 @@ class GridDataSource {
     return last < this.count - 1 ? [...cursor.slice(0, -1), last + 1] : null;
   }
   cursorKey(cursor) { return cursor.join(','); }
+}
+
+
+// ============================================================
+// CyclicDataSource — a GridDataSource that wraps round
+// ============================================================
+// prev of the first item is the last, next of the last is the first, so a
+// column over it never ends: OmniGrid's A–Z index scrolls for ever.
+
+class CyclicDataSource extends GridDataSource {
+  prev(cursor) {
+    const last = cursor[cursor.length - 1];
+    return [...cursor.slice(0, -1), last > 0 ? last - 1 : this.count - 1];
+  }
+  next(cursor) {
+    const last = cursor[cursor.length - 1];
+    return [...cursor.slice(0, -1), last < this.count - 1 ? last + 1 : 0];
+  }
 }
 
 
@@ -1085,6 +1121,8 @@ export {
   MultiscrollerNode,
   GridNavigator,
   GridDataSource, // Used by OmniChart
+  CyclicDataSource,
+  ScrollSync,
 
   //NullIterator,
   //ClippingIterator,

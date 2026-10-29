@@ -23,8 +23,15 @@
  *                      colour scheme, colorTarget, distance-matrix fade) instead
  *                      of the segment colour; above 0.5 it is the table look
  *   fitText     0|1    text no taller than the cell, truncated to its width,
- *                      and faded out as the cell gets too small to read
+ *                      and faded out as the cell, and so its font, gets too
+ *                      small to read
+ *   textPad            horizontal padding round the text, px (default 10)
  *   fontFamily         default sans-serif
+ *   fontSize           base size at zoom 1 (default by depth: 10–13)
+ *   textColor          CSS colour for the text, over the default (white, or
+ *                      the value's contrast colour)
+ *   borderColor        CSS colour of a 1 px outline round each cell
+ *   focusTint          CSS colour laid over cells in the 'path' state
  *
  * CellConfig is the style policy: highlight state from the active cursor,
  * hue, and resolveVisuals (the value-to-look mapping GridScene had).
@@ -96,11 +103,22 @@ function treeChartCursorRelation(cursor, active, ctxMix) {
   return 'other';
 }
 
+/**
+ * Focus relation (OmniGrid): 'path' for the rows of the focused run, asked of
+ * the grid's navigator, which knows the run; the grid's sync level says which
+ * column kind this is (data, row names, index).
+ */
+function focusCursorRelation(cursor, active, ctxMix) {
+  const coord = ctxMix?.coordinator;
+  return coord?.orch?.nav?.relation?.(cursor, coord.syncLevel) ?? 'other';
+}
+
 /** Mode lookup — extensible with 'column', 'cross', etc. */
 const HIGHLIGHT_MODES = {
   tree:      treeCursorRelation,
   row:       gridCursorRelation,
   treeChart: treeChartCursorRelation,
+  focus:     focusCursorRelation,
 };
 
 const STATE_STYLES = {
@@ -171,7 +189,8 @@ class CellConfig {
 
     // Distance-matrix triangle fade, on the data's own row and column.
     let opacity = 1;
-    const rc = data?._remapCursor ? data._remapCursor(cursor) : [cursor[0], cursor[cursor.length - 1]];
+    const rc = data?.cellRowCol?.(cursor)
+      ?? (data?._remapCursor ? data._remapCursor(cursor) : [cursor[0], cursor[cursor.length - 1]]);
     const shape = data?.grid ?? data;
     if (data && isNum && shape.rowCount === shape.colCount) {
       const dm = params.distanceMatrix ?? 0.5;
@@ -228,12 +247,12 @@ function roundRect(ctx, x, y, w, h, r) {
  */
 function drawAlignedCellText(ctx, text, x, y, w, h, fontSize, fgColor, params, font = 'sans-serif', truncate = false) {
   if (!text) return;
-  const pad = 10;
+  const pad = params.textPad ?? 10;
   const f = `${fontSize}px ${font}`;
   ctx.font = f;
   const shown = truncate ? TextUtils.truncate(ctx, text, w - pad, f) : text;
   if (!shown) return;
-  ctx.fillStyle = ColorEngine.toCSS(fgColor);
+  ctx.fillStyle = typeof fgColor === 'string' ? fgColor : ColorEngine.toCSS(fgColor);
   ctx.textAlign = 'left';
   const textW = ctx.measureText(shown).width;
   const tx = x + pad / 2 + (params.textAlign ?? 0) * (w - pad - textW);
@@ -310,9 +329,17 @@ class TableCellNode {
     const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
     ctx.globalAlpha *= alpha;
 
-    const geoms = [{ type: 'warpedpoly', corners, bends: scaledBends, color: fill }];
+    // The renderer sets globalAlpha from the polygon's opacity, so a fade goes there.
+    const geoms = [{ type: 'warpedpoly', corners, bends: scaledBends, color: fill,
+                     ...(alpha < 1 ? { opacity: (params.fillOpacity ?? 1) * alpha } : {}) }];
     if (params?.roundedCorners > 0.5) RoundedWarpedPolygon.renderCtx(ctx, geoms, params);
     else WarpedPolygon.renderCtx(ctx, geoms, params);
+    if (params.borderColor || (params.focusTint && state === 'path')) {
+      const outline = new Path2D(WarpedPolygon.path(corners, scaledBends));
+      if (params.focusTint && state === 'path') { ctx.fillStyle = params.focusTint; ctx.fill(outline); }
+      if (params.borderColor) { ctx.strokeStyle = params.borderColor; ctx.lineWidth = 1; ctx.stroke(outline); }
+    }
+    if (params.textColor) textRGB = params.textColor;
 
     const hue = cfg.getHue(ctxMix, cursor);
     const centroid = corners[0].add(corners[1]).add(corners[2]).add(corners[3]).scale(0.25);
@@ -378,6 +405,7 @@ class TableCellNode {
       const textW = lerp(rx - lx, mid03.distanceTo(mid12), tiltText);
       let fontSize = (params.fontSize ?? cfg.getBaseFontSize(cursor)) * zoom;
       if (fit) fontSize = Math.min(fontSize, textH * 0.6);
+      const fontFade = fit ? smoothstep(fontSize, 5, 7) : 1;
       const font = params.fontFamily ?? 'sans-serif';
 
       let textAngle = 0;
@@ -389,7 +417,7 @@ class TableCellNode {
         textAngle = angle * tiltText;
       }
       ctx.save();
-      ctx.globalAlpha *= textOpacity;
+      ctx.globalAlpha *= textOpacity * fontFade;
       ctx.textBaseline = 'middle';
       if (Math.abs(textAngle) > 0.001) {
         const tcx = (lx + rx) / 2, dFlash = (flash * flashW / 2) / 2;
@@ -409,7 +437,7 @@ class TableCellNode {
 SYS.NODE_CLASSES.push({ name: 'table-cell', cls: TableCellNode });
 
 export {
-  TableCellNode, CellConfig, DEFAULT_HUES, HIGHLIGHT_MODES, STATE_STYLES,
+  TableCellNode, CellConfig, DEFAULT_HUES, HIGHLIGHT_MODES, STATE_STYLES, focusCursorRelation,
   drawBlob, drawAlignedCellText, roundRect, normCursor,
   gridCursorRelation, treeChartCursorRelation, treeCursorRelation,
 };

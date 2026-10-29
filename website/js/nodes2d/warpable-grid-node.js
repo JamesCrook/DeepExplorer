@@ -28,7 +28,7 @@ import { WarpedPolygon } from './warped-polygon.js';
 import { Vector2D, lerp } from '../2d-support/vector2d.js';
 import { LinearPath, ArcPath, SectorPath, GridPath, BlendedPath,
          buildBentChild } from '../2d-support/path.js';
-import { SizeCache, GridDataSource, SyncOrchestrator, GridNavigator } from './multiscroller-nodes.js';
+import { SizeCache, GridDataSource, CyclicDataSource, SyncOrchestrator, GridNavigator } from './multiscroller-nodes.js';
 import { SYS } from '../omni-support/sys.js';
 import { PathTransform } from '../2d-support/path-transform.js';
 
@@ -403,6 +403,14 @@ class InnerPathBuilder {
 class WarpableGridNode {
 
   // ── One-time wiring ────────────────────────────────────
+  //
+  // A parent (OmniGrid's viewport) may set, before the first draw:
+  //   node.sharedOrch   a SyncOrchestrator to join instead of making one, so
+  //                     several grids scroll as one (body, row names, index)
+  //   node.syncLevel    the level this grid's columns register under, for a
+  //                     one-column grid in a shared orchestrator ('rows')
+  //   node.cyclic       the rows wrap round (CyclicDataSource)
+  // and, each frame, node.itemSize, node.colWeights and node.highlightMode.
   static _wire(node) {
     if (node._wired) return;
     node._wired = true;
@@ -415,7 +423,7 @@ class WarpableGridNode {
     vstackProto.inst = {
       axis:            'y',
       sizeCache:       new SizeCache(),
-      dataSource:      new GridDataSource(data.colCount),
+      dataSource:      node.cyclic ? new CyclicDataSource(data.colCount) : new GridDataSource(data.colCount),
       defaultItemSize: 50,
       anchorCursor:    [0, 0],
       scrollOffset:    0,
@@ -429,18 +437,16 @@ class WarpableGridNode {
     if (cellProto) cellProto.flyFn = (res, n, params) => WarpableGridNode.cellValue(res, node, params);
 
     // ── SyncOrchestrator for cross-column sync ───────────
-    const nav = data.isTreeChart
+    const orch = node.sharedOrch ?? new SyncOrchestrator(data.isTreeChart
       ? new TreeChartNavigator(data)
-      : new GridNavigator();
-    const orch = new SyncOrchestrator(nav);
+      : new GridNavigator());
     for (let col = 0; col < data.rowCount; col++) {
       const overlay = Object.create(node._sharedInst);
       overlay.sizeCache    = new SizeCache();   // own cache per column
       overlay.anchorCursor = [col, 0];
       overlay.scrollOffset = 0;
-      overlay.panelIdx = col;
+      overlay.panelIdx = orch.addPanel(overlay, node.syncLevel ?? col, () => node.inst?.stackHeight || 600, () => 0);
       node._overlays[col] = overlay;
-      orch.addPanel(overlay, col, () => node.inst?.stackHeight || 600, () => 0);
     }
     node._orch = orch;
   }  
@@ -630,6 +636,7 @@ class WarpableGridNode {
       stackWidth,
       stackWidths,
       firstCol, lastCol,
+      syncLevel: node.syncLevel,
       orch: node._orch,
     };
 
@@ -640,7 +647,7 @@ class WarpableGridNode {
     ctxMix.T = new PathTransform(outerPath, parentT, { length: outerPath.length, cross: stackHeight });
 
     ctxMix.coordinator = node.inst;
-    ctxMix.highlightMode = data.isTreeChart ? 'treeChart' : 'row';
+    ctxMix.highlightMode = node.highlightMode ?? (data.isTreeChart ? 'treeChart' : 'row');
     ctxMix.iterators[ctxMix.iterators.length - 1] =
       new RepeatIterator(lastCol + 1, firstCol);
   }
@@ -733,7 +740,16 @@ class WarpableGridNode {
       const colCount = inst.data.getColCount?.(col) ?? numProducts;
       child.inst.dataSource.count = colCount;
 
-      if (inst.data.isTreeChart) {
+      if (node.itemSize != null) {
+        // Content sizing for any data (a table's rows): every item itemSize
+        // px at normalize=0, blending to value shares of the column at 1.
+        const itemSize = node.itemSize, normalize = params.normalize ?? 0;
+        child.inst.defaultItemSize = lerp(itemSize, inst.stackHeight / colCount, normalize);
+        child.inst.sizeFn = normalize === 0 ? () => itemSize : (cursor) => {
+          const seg = inst.data.getSegment(cursor, params);
+          return lerp(itemSize, seg ? seg.stackedH * inst.stackHeight : itemSize, normalize);
+        };
+      } else if (inst.data.isTreeChart) {
         // Content-based sizing at normalize=0 (items have fixed px
         // height, overflow clips like OmniPicker); segment-based
         // sizing at normalize=1 (everything fits in stackHeight).

@@ -1,9 +1,10 @@
 // scenes-grid.js — OmniGrid matrix and heatmap viewer scene
 /**
- * Brought back from attic/unfolded/omni-grid.js.  The renderer is wrapped
- * whole as one opaque grid-view node, for now:
+ * OmniGrid, on the chart's machinery (docs/general-t-and-grid-unwrap.md 4):
  *
- *   scene-root > layer (grid options as params) > grid-view
+ *   scene-root > layer (grid options as params) > grid-viewport
+ *     sticky bands (body, header, row names, corner, A–Z index), each a
+ *     warpable-grid > vstack > table-cell: the same cell as OmniChart's
  *
  * The app's other work lives here, as the model: choosing and loading data,
  * the dedup filter, and keeping the panel's sliders and info lines in step
@@ -12,10 +13,9 @@
 
 import { MiniAstNode, SCENES } from '../omni-support/scene.js';
 import { AppUtils } from '../omni-support/app-utils.js';
-import { CSVData, MiscData } from '../data/csv-data.js';
+import { CSVData, MiscData, FilteredGridData } from '../data/csv-data.js';
 import { randomMatrix, waveMatrix, multiplicationTable, gradientMatrix } from '../data/demo-fns.js';
-import { FilteredGridData, OMNIGRID_PRESETS } from '../2d-support/grid-scene.js';
-import { GridViewNode } from '../nodes2d/grid-view-node.js';
+import { GridViewportNode } from '../nodes2d/grid-viewport-node.js';
 
 // ── Data sources ─────────────────────────────────────────
 // sized: takes 'small' | 'medium' | 'large'.
@@ -28,6 +28,93 @@ const SAMPLES = {
   wave:           { label: 'Wave Pattern',         make: waveMatrix,          sized: true },
   multiplication: { label: 'Multiplication Table', make: multiplicationTable, sized: true },
   gradient:       { label: 'Diagonal Gradient',    make: gradientMatrix,      sized: true },
+};
+
+const OMNIGRID_PRESETS = {
+  'Standard': {
+    distanceMatrix: 0.5,
+    reverseRows: 0.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 2
+  },
+  'Heatmap': {
+    distanceMatrix: 0.5,
+    reverseRows: 0.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 0
+  },
+  'Inverse': {
+    distanceMatrix: 0.5,
+    reverseRows: 0.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 1,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 2
+  },
+  'Bubble': {
+    distanceMatrix: 0.5,
+    reverseRows: 0.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 1,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 2
+  },
+  'Distance': {
+    distanceMatrix: 0.7,
+    reverseRows: 1.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 0
+  },
+  'Distance BR': {
+    distanceMatrix: 0.7,
+    reverseRows: 0.0,
+    reverseCols: 1.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.5,
+    indexOverlay: 0,
+    decimalPlaces: 0
+  },
+  'Indexed': {
+    distanceMatrix: 0.5,
+    reverseRows: 0.0,
+    reverseCols: 0.0,
+    headersAffectWidth: 0,
+    colorTarget: 0,
+    smoothGradient: 1,
+    blobMode: 0,
+    textAlign: 0.0,
+    indexOverlay: 1,
+    decimalPlaces: 0
+  }
 };
 
 const COLOR_SCHEMES = [
@@ -52,14 +139,14 @@ function isDistanceMatrix(data) {
 /** Show data: reset the view, and set the distance-matrix defaults as the old app did. */
 function showData(layer, data, controls) {
   const p = layer.value.params, grid = layer.inst.grid;
-  GridViewNode.setData(grid, data);
+  GridViewportNode.setData(grid, data);
   const distance = isDistanceMatrix(data);
   Object.assign(p, {
     distanceMatrix: distance ? 0.7 : 0.5,
     reverseRows: distance ? 1 : 0,
     zoom: 1,
   });
-  GridViewNode.markZoom(grid, 1);
+  GridViewportNode.markZoom(grid, 1);
   for (const id of ['distanceMatrix', 'reverseRows', 'zoom']) controls?.updateSliderDOM(id, p[id]);
 }
 
@@ -123,7 +210,7 @@ function dedupInfoText(layer) {
   const total = src.rows.length;
   const prefixLen = dedupPrefixLen(st.dedupApplied);
   if (prefixLen === Infinity) return `${total} rows (no filter)`;
-  const shown = layer.inst.grid.inst.renderer.gridData?.rowCount ?? total;
+  const shown = GridViewportNode.data(layer.inst.grid)?.rowCount ?? total;
   return `${shown}/${total} rows (prefix ${prefixLen} char${prefixLen !== 1 ? 's' : ''})`;
 }
 
@@ -135,7 +222,7 @@ function csvQuote(value, delim) {
 
 /** The data as shown (after dedup), as a CSV download. */
 function saveCsv(layer) {
-  const data = layer.inst.grid.inst?.renderer?.gridData;
+  const data = GridViewportNode.data(layer.inst.grid);
   const raw = data?.grid;
   if (!raw?._colNames) { alert('No CSV data loaded'); return; }
   const delim = raw.delimiter || ',';
@@ -164,19 +251,18 @@ function updateGridValues(layer, params, app) {
   if ((params.dedupLevel ?? 0) !== st.dedupApplied) applyDedup(layer, app.controls);
 
   // What the pointer did to the grid since the last render, into params and sliders.
-  const moved = GridViewNode.readBack(st.grid, params);
+  const moved = GridViewportNode.readBack(st.grid, params);
   for (const [id, v] of Object.entries(moved)) {
     params[id] = v;
     app.controls.updateSliderDOM(id, v);
   }
 
-  const r = st.grid.inst?.renderer;
+  const range = GridViewportNode.visibleRange(st.grid);
   const vis = document.getElementById('infoVisible');
   const tot = document.getElementById('infoTotal');
-  if (vis && tot && r?.gridData) {
-    const { startRow, endRow, startCol, endCol } = r.getVisibleRange();
-    vis.textContent = `${endRow - startRow + 1}×${endCol - startCol + 1}`;
-    tot.textContent = `${r.gridData.rowCount}×${r.gridData.colCount}`;
+  if (vis && tot && range) {
+    vis.textContent = `${range.endRow - range.startRow + 1}×${range.endCol - range.startCol + 1}`;
+    tot.textContent = `${range.rowCount}×${range.colCount}`;
   }
   const info = document.getElementById('dedupInfo');
   if (info) info.textContent = dedupInfoText(layer);
@@ -253,9 +339,9 @@ function gridBuildUI(layer) {
         groupEl.appendChild(AppUtils.createButton({
           text: 'Reset View',
           onClick: () => {
-            GridViewNode.renderer(st.grid).resetView();
+            GridViewportNode.resetView(st.grid);
             lyr.value.params.zoom = 1;
-            GridViewNode.markZoom(st.grid, 1);
+            GridViewportNode.markZoom(st.grid, 1);
             app.render();
           },
         }));
@@ -307,7 +393,7 @@ function gridBuildUI(layer) {
 // ═══════════════════════════════════════════════════════
 
 function createGridScene() {
-  const grid = new MiniAstNode('grid-view', [], {});
+  const grid = new MiniAstNode('grid-viewport', [], {});
   const layer = new MiniAstNode('layer', [grid], {
     name: 'Grid', visible: true,
     params: {
@@ -331,4 +417,4 @@ SCENES.push(
   { id: 'grid-viewer', label: 'Matrix viewer', group: 'Grid', hasLayers: false, create: createGridScene },
 );
 
-export { createGridScene, SAMPLES };
+export { createGridScene, SAMPLES, OMNIGRID_PRESETS };

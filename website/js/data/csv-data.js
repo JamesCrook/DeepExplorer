@@ -644,8 +644,9 @@ _rebuildCumulative(useValue, focusProduct, numProducts) {
 
       for (let j = 0; j < np; j++) {
         const origIdx = perRow ? j : (focusProduct - 1 + j) % gridCols;
-        const rawValue = this.grid.getValue(r, origIdx);
-        const transformed = 1 + (rawValue - 1) * useValue;
+        // A cell that is not a number counts as 1 (it would make NaN sizes).
+        const rawValue = Number(this.grid.getValue(r, origIdx));
+        const transformed = useValue === 0 || !isFinite(rawValue) ? 1 : 1 + (rawValue - 1) * useValue;
         cum[j + 1] = cum[j] + transformed;
         if (transformed > maxSingle) maxSingle = transformed;
       }
@@ -713,7 +714,32 @@ _rebuildCumulative(useValue, focusProduct, numProducts) {
   }
 }
 
-export {GridData, CSVData, MiscData,FunctionData,DataAdapter}
+// ============================================================
+// FilteredGridData — a view of a source showing only some rows
+// ============================================================
+// The rows at the given indices, in that order; everything else delegates
+// to the source.  OmniGrid's dedup filter uses it.
+
+class FilteredGridData extends GridData {
+  constructor(source, keptRowIndices) {
+    super(keptRowIndices.length, source.colCount);
+    this._source = source;
+    this._kept = keptRowIndices;
+    // Carry forward CSVData properties the rest of the app uses
+    this.delimiter = source.delimiter;
+    this._colNames = source._colNames;
+    this._hasRowNames = source._hasRowNames;
+    this.headers = source.headers;
+    this.rows = keptRowIndices.map(i => source.rows[i]);
+  }
+  getValue(row, col)   { return this._source.getValue(this._kept[row], col); }
+  getRowName(row)      { return this._source.getRowName(this._kept[row]); }
+  getColName(col)      { return this._source.getColName(col); }
+  isNumeric(row, col)  { return this._source.isNumeric(this._kept[row], col); }
+  hasRowNames()        { return this._source.hasRowNames(); }
+}
+
+export {GridData, CSVData, MiscData,FunctionData,DataAdapter, FilteredGridData}
 // Auto-generated exports
 if (typeof window !== 'undefined') window._lerp = _lerp;
 export { _lerp };
