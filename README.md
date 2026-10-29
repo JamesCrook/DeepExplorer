@@ -45,7 +45,10 @@ DeepExplorer/
 │     ├─ load-graph.mjs         #   broken imports, unloaded files
 │     ├─ frame-drag-test.mjs    #   nested-frame drags; content-hit-test, hit-space-probe
 │     ├─ cartographer-headless.py #  duplicate type names (python3 + Playwright)
+│     ├─ pages-smoke.py         #   every page in headless Chromium: errors, 404s
 │     └─ gguf-parse-test.mjs    #   GGUF parser on a synthetic file
+├─ tools/
+│  └─ tree.py                   # the file tree with each file's title line beside it
 ├─ attic/                       # not loaded by any page; kept for reference
 │  ├─ unfolded/                 #   pre-scene-graph apps, now rebuilt in website/html/
 │  ├─ website-unloaded/         #   files no page reached, at their old paths
@@ -58,6 +61,12 @@ DeepExplorer/
 
 Every `.js` file under `website/js/` except some parsers is reached from a page;
 `node docs/tests/load-graph.mjs --unloaded` lists the exceptions.
+
+Every `.js` file under `website/js/` opens with a comment whose first line says
+what the file is; a node file's starts with the type names it registers.
+`python3 tools/tree.py website/js` prints the tree with those lines beside the
+names, and is the quickest map of the code. `--untitled` lists any file that
+lacks one.
 
 ## Scene graph nodes and demos
 

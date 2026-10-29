@@ -2,7 +2,7 @@
 
 Based on `JamesCrook/DeepExplorer` at commit `0348426` ("Shift to using SYS", 27 Oct 2026). Scope is `website/` unless stated; `attic/` is set aside. All counts come from parsing the code (declarations, imports, registrations) and from following what each HTML page actually loads.
 
-## Status, 28 Oct
+## Status, 29 Oct
 
 What this map proposed, and where it stands (all pushed to `master`):
 
@@ -15,7 +15,8 @@ What this map proposed, and where it stands (all pushed to `master`):
 | One colour module (§3.2) | **Done.** `js/colour/colour.js` holds hex/RGB parse and format, `shift`, `lerp` and `ColorEngine`. `colour/perceptual.js` is `colours.js` brought back, and `ribbon-node` now imports it. The private copies are gone. `TextUtils` → `2d-support/text-utils.js`. Two parsers remain on purpose: a forgiving one for drawing and a strict one with alpha for morphing. |
 | Twins (§1.2, §2.1) | **Done.** All seven pairs are merged; see `docs/twin-merge-plan.md`. So no `zones/` sub-folders are needed. |
 | README tree (step 6) | **Done.** |
-| Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | `mol-scene-nodes` is gone (replaced by generic nodes, 28 Oct). The rest not started. |
+| Split the other multi-node files (§2.2: `mol-scene-nodes`, `hud-panel`, `sizing-nodes`, …) | `mol-scene-nodes` is gone (replaced by generic nodes, 28 Oct). **29 Oct:** `sizing-nodes`, `workhorse-nodes` and `mask-scene-nodes` split, one file per type; each old file now imports and re-exports its parts, so importers and copies elsewhere are unchanged. Helpers went to `nodes2d/workhorse-drawing.js` and `2d-support/nm-coords.js`. Left whole on purpose: `hud-panel`, `chat-nodes`, `html-nodes`, `sky-nodes`, `jatex-node` (a container or family with its own items, each file's header says why), and `multiscroller-nodes` and `table-cell-node`, which `docs/general-t-and-grid-unwrap.md` is redesigning. |
+| Title lines (29 Oct) | **Done.** Every `.js` file under `website/js` opens with a comment whose first line says what it is; a node file starts with its registered type names. `python3 tools/tree.py website/js` prints the tree with these titles; `--untitled` lists files without one (none now). Found on the way: `mind-map` throws (undefined helpers), `workhorse-drawing.js` uses `Shape` without importing it, `json.js`'s header calls it JavaScript, and `NmBoxNode.after_hit_test` clears `_savedHitPoint` before the drag wrap reads it, so that wrap never runs. |
 | `card-grid` / `flash-card` out of `apps/scenes-cards.js` (§2.3) | **Done** (28 Oct): `nodes-html/card-grid-node.js` and `flash-card-node.js`. |
 | Copy clusters (§3.3) | **Done** (28 Oct): `2d-support/node-geometry.js` (pointCentreXY ×8, bboxFromCorners ×3, layoutInline ×4), `2d-support/wiggly-line.js` (×3), `parsers/cif-atom.js` (×2), `apps/molam-parts.js` (make*, buildProteinScene, buildThreeRoot, constants), `resolveSelectedOfType` and `findByToken` in `layer-ops.js`. Also folded after a Cartographer rerun: `2d-support/poly-draw.js` (heatmap fillPoly/strokePoly/scalePts), `findParentOf` (twice in path-ast.js), `skipChildren` (now in scene.js). Left alone: the two `Ribbon` class names (different classes, ES modules keep them apart), and groups that differ only in literals. `docs/tests/cartographer-headless.py` reruns the check: 155 types, none registered twice. |
 | The four `attic/unfolded` apps | **Done** (28 Oct): rebuilt as OmniScene scenes with pages in `html/`; omni-grid's renderer is still one opaque node. See `attic/unfolded/README.md`. |

@@ -9,7 +9,7 @@ import { HudPanel } from '../nodes-html/hud-panel.js';
 import { Animator } from './animator.js';
 export { App };
 /* ═══════════════════════════════════════════════════════════════════════════
-App — the application shell.
+App — the Zones demo shell: a pane per model in SYS.MODELS, each with its 2D, 3D or HTML harness, and the HUD
 
 Changes from original:
 - this.views3D replaced by this.harnesses (holds both 2D and 3D).
