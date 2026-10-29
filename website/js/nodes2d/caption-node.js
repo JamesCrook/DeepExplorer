@@ -17,10 +17,10 @@ class CaptionNode {
     if (v.visible === false || !v.text) return;
     const T = ctxMix.T;
     const c = T.toScreen({ x: v.x ?? 0, y: v.y ?? 0 });
-    const s = T.uniformScale;
+    const s = T.scaleAt({ x: v.x ?? 0, y: v.y ?? 0 });
     const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
     ctx.translate(c.x, c.y);
-    ctx.rotate((T.rot || 0) + (v.rotation ?? 0) * Math.PI / 180);
+    ctx.rotate(T.angleAt({ x: v.x ?? 0, y: v.y ?? 0 }) + (v.rotation ?? 0) * Math.PI / 180);
     if (v.opacity !== undefined) ctx.globalAlpha *= v.opacity;
     ctx.font = `${(v.fontSize ?? 10) * s}px ${v.font ?? 'Menlo, monospace'}`;
     ctx.fillStyle = v.color ?? '#8b949e';

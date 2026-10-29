@@ -17,8 +17,32 @@
  * Code that reads sx, sy or origin directly assumes rot = 0; such code sits
  * outside rotated subtrees.
  *
+ * ── The general T interface ──────────────────────────────────
+ * T is an interface with two implementations: this affine Transform, and
+ * PathTransform (2d-support/path-transform.js), which maps local units onto
+ * a bent Path.  Nodes use only these, never the fields, so either works:
+ *
+ *   toScreen(p), toLocal(q)     the mapping and its inverse
+ *   isAffine                    true here
+ *   affine                      the nearest affine T: this, or a PathTransform's parent
+ *   scaleAt(p), scaleX, scaleY  screen px per local unit (at p; along local x; along y)
+ *   uniformScale                scaleAt at the origin
+ *   angleAt(p)                  screen angle of the local x axis at p
+ *   frameAt(p)                  { origin, ex, ey }: screen point and the screen
+ *                               vectors of one local unit along x and y
+ *   mapQuad(q0, q1, q2, q3)     { corners, bends } of a local quad, in the
+ *                               path.js corner order ([0] start −y, [1] start +y,
+ *                               [2] end +y, [3] end −y); bends are arc angles
+ *                               per edge, as WarpedPolygon draws them
+ *   mapRect(x0, y0, x1, y1)     mapQuad of a rectangle, start at x0
+ *   localBounds(rect)           local box covering a screen rect (for culling)
+ *   pinned(axis, value)         this T with its screen origin's axis fixed at value
+ *   ctxMatrix()                 [a, b, c, d, e, f] for ctx.setTransform (affine only)
+ *
  * Place in: omni-support/transform.js
  */
+
+import { Vector2D } from '../2d-support/vector2d.js';
 
 class Transform {
   /**
@@ -55,6 +79,55 @@ class Transform {
   /** Uniform scale (positive = screen pixels per local unit). */
   get uniformScale() {
     return Math.sqrt(Math.abs(this.sx * this.sy));
+  }
+
+  // ── The general T interface (see the header) ───────────────
+
+  get isAffine() { return true; }
+  get affine()   { return this; }
+
+  scaleAt()    { return this.uniformScale; }
+  get scaleX() { return this.sx; }
+  get scaleY() { return this.sy; }
+  angleAt()    { return this.rot; }
+
+  frameAt(p = { x: 0, y: 0 }) {
+    const c = Math.cos(this.rot), s = Math.sin(this.rot);
+    return {
+      origin: this.toScreen(p),
+      ex: { x: c * this.sx, y: s * this.sx },
+      ey: { x: -s * this.sy, y: c * this.sy },
+    };
+  }
+
+  mapQuad(q0, q1, q2, q3) {
+    const v = q => { const p = this.toScreen(q); return new Vector2D(p.x, p.y); };
+    return { corners: [v(q0), v(q1), v(q2), v(q3)], bends: [0, 0, 0, 0] };
+  }
+
+  mapRect(x0, y0, x1, y1) {
+    return this.mapQuad({ x: x0, y: y0 }, { x: x0, y: y1 }, { x: x1, y: y1 }, { x: x1, y: y0 });
+  }
+
+  /** Local axis-aligned box { x0, y0, x1, y1 } covering screen rect { x, y, w, h }. */
+  localBounds(r) {
+    const pts = [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]]
+      .map(([x, y]) => this.toLocal({ x, y }));
+    return {
+      x0: Math.min(...pts.map(p => p.x)), x1: Math.max(...pts.map(p => p.x)),
+      y0: Math.min(...pts.map(p => p.y)), y1: Math.max(...pts.map(p => p.y)),
+    };
+  }
+
+  /** This T with the screen origin's x or y fixed: content then ignores scroll on that axis. */
+  pinned(axis, value) {
+    const origin = { ...this.origin, [axis]: value };
+    return new Transform(origin, this.sx, this.sy, this.rot);
+  }
+
+  ctxMatrix() {
+    const c = Math.cos(this.rot), s = Math.sin(this.rot);
+    return [c * this.sx, s * this.sx, -s * this.sy, c * this.sy, this.origin.x, this.origin.y];
   }
 
   /**

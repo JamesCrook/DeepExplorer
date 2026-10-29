@@ -15,7 +15,7 @@
  *
  * Position is read through the resolver, in local coordinates; T maps it to
  * the drawing space.  Omni pushes a real T, a Zones pane leaves the identity
- * T from Values, so zoom = T.sx is 1 there, as it was.  Hit tests compare
+ * T from Values, so zoom = T.scaleX is 1 there, as it was.  Hit tests compare
  * with ctxMix.screenHitPoint when the harness keeps one, else hitPoint.
  * The selection ring shows for ctxMix.highlighted (Omni) or value.selected /
  * hovered (Zones).
@@ -119,7 +119,7 @@ class ButtonNode {
 
     const v = ctxMix.getValue(ctxMix, node, params) || {};
     const p = styleOf(v, params);
-    const zoom = T.sx;              // ← zoom from T, not params
+    const zoom = T.scaleX;          // ← zoom from T, not params
 
     // ── geometry (centre-based) ──────────────────────────
     const rawW   = v.width  || 64;
@@ -291,7 +291,7 @@ class ButtonNode {
     if (v.disabled) return;
 
     const p    = styleOf(v, params);
-    const zoom = T.sx;
+    const zoom = T.scaleX;
 
     const sc   = p.scale || 1;
     const rawW = v.width  || 64;

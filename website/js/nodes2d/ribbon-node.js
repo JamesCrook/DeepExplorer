@@ -186,7 +186,7 @@ class RibbonNode {
     const T = ctxMix.T;
     if (!T) return;
 
-    const zoom = T.sx;
+    const zoom = T.scaleX;
 
     // ── Collect points and transform to screen coords ─────
     const children = node.subtree || [];

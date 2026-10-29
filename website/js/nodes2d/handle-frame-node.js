@@ -315,7 +315,7 @@ class HandleFrameNode {
     const local = HandleFrameNode._getFrameLocal(node);
     if (!local) return;
     const tl = T.toScreen({ x: local.left, y: local.top });
-    const sw = local.width * T.sx, sh = local.height * T.sy;
+    const sw = local.width * T.scaleX, sh = local.height * T.scaleY;
     if (sw < 1) return;
 
     if (pt.x >= tl.x && pt.x <= tl.x + sw && pt.y >= tl.y && pt.y <= tl.y + sh) {

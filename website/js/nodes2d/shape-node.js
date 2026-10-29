@@ -29,11 +29,11 @@ class ShapeNode {
     if (v.visible === false) return;
     const T = ctxMix.T;
     const c = T.toScreen({ x: v.x ?? 0, y: v.y ?? 0 });
-    const s = T.uniformScale;
+    const s = T.scaleAt({ x: v.x ?? 0, y: v.y ?? 0 });
     const w = (v.w ?? 20) * s, h = (v.h ?? 20) * s;
     const ctx = ctxMix.directCtx ? ctxMix.directCtx() : (ctxMix.ctx.save(), ctxMix.ctx);
     ctx.translate(c.x, c.y);
-    ctx.rotate((T.rot || 0) + (v.rotation ?? 0) * Math.PI / 180);
+    ctx.rotate(T.angleAt({ x: v.x ?? 0, y: v.y ?? 0 }) + (v.rotation ?? 0) * Math.PI / 180);
     if (v.opacity !== undefined) ctx.globalAlpha *= v.opacity;
 
     if (v.glow > 0 && v.glowColor) {

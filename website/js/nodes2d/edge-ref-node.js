@@ -19,7 +19,7 @@ class EdgeRefNode {
     const fn = v.fromNode, tn = v.toNode;
     if (!fn || !tn) return;
 
-    const zoom = T.sx;
+    const zoom = T.scaleX;
     const s0 = T.toScreen({ x: fn.value?.x || 0, y: fn.value?.y || 0 });
     const s1 = T.toScreen({ x: tn.value?.x || 0, y: tn.value?.y || 0 });
 

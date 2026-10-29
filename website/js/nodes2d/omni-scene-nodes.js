@@ -29,6 +29,8 @@ import { SYS } from '../omni-support/sys.js';
 // transformedCtx()  — ctx with T baked in: local (0,0) → screen
 //                     T.origin, 1 local unit → T.scale screen px.
 //                     Caller MUST ctx.restore() when done.
+//                     Only an affine T can be baked into ctx; under a
+//                     bent T (PathTransform) this uses its affine parent.
 
 function _directCtx(ctxMix) {
   const ctx = ctxMix.ctx;
@@ -41,13 +43,9 @@ function _directCtx(ctxMix) {
 function _transformedCtx(ctxMix) {
   const ctx = ctxMix.ctx;
   const dpr = window.devicePixelRatio || 1;
-  const T   = ctxMix.T;
+  const [a, b, c, d, e, f] = ctxMix.T.affine.ctxMatrix();
   ctx.save();
-  ctx.setTransform(
-    dpr * T.sx, 0,
-    0, dpr * T.sy,
-    dpr * T.origin.x, dpr * T.origin.y,
-  );
+  ctx.setTransform(dpr * a, dpr * b, dpr * c, dpr * d, dpr * e, dpr * f);
   return ctx;
 }
 
