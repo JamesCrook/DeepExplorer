@@ -414,7 +414,8 @@ function createGridScene() {
 }
 
 SCENES.push(
-  { id: 'grid-viewer', label: 'Matrix viewer', group: 'Grid', hasLayers: false, create: createGridScene },
+  // pane 'fill': the table keeps its own scale, so the window crops it rather than scaling it
+  { id: 'grid-viewer', label: 'Matrix viewer', group: 'Grid', hasLayers: false, pane: 'fill', create: createGridScene },
 );
 
 export { createGridScene, SAMPLES, OMNIGRID_PRESETS };

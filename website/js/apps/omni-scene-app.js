@@ -134,6 +134,10 @@ class OmniSceneApp {
     if (this.activeBackend && this.activeBackend !== backend) this.activeBackend.deactivate();
 
     this.currentScene = def;
+    // def.pane: 'aspect' (default) keeps the pane's 800:650 for charts drawn to
+    // fit; 'fill' lets it take the space given, for content with its own scale
+    // that the pane crops (OmniGrid).  Set before activate(), which sizes the canvas.
+    this.container?.classList.toggle('pane-fill', def.pane === 'fill');
     this.root         = def.create();
     this.sceneLayer   = this.root.subtree[0];
     _layerCount       = this._contentLayers().length;

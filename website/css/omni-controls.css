@@ -394,6 +394,24 @@ body.layout-landscape .chart-container {
   justify-self: center;
 }
 
+/* ============================================
+   PANE FIT — a scene's `pane` setting
+   ============================================
+   Default (`aspect`): the pane keeps 800:650, for charts drawn to fit,
+   which scale with it.  `fill` (class pane-fill): the pane takes the space
+   it is given, for content that keeps its own scale and is cropped by the
+   pane, such as OmniGrid's table: a shorter window crops only the height. */
+body.layout-portrait .chart-container.pane-fill {
+  aspect-ratio: auto;
+  height: calc(100vh - 270px);
+}
+
+body.layout-landscape .chart-container.pane-fill {
+  aspect-ratio: auto;
+  width: 100%;
+  height: 100%;
+}
+
 body.layout-landscape .controls-wrapper {
   grid-column: 2;
   grid-row: 1 / 3;
