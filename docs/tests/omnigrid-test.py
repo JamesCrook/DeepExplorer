@@ -226,6 +226,38 @@ with sync_playwright() as p:
 
     if os.environ.get('SHOT'): pg.locator('#scene-canvas').screenshot(path=os.environ['SHOT'])
 
+    # ── index drag: rows move with the letter; a letter with no run leaves them be ──
+    for header, names_first in (('Name,Score,Rank', True), ('Id,Name,Score', False)):
+        pg.evaluate("""async ([header, namesFirst]) => {
+          const { CSVData } = await import('/js/data/csv-data.js');
+          const G = (await import('/js/nodes2d/grid-viewport-node.js')).GridViewportNode;
+          const lines = [header]; let id = 0;
+          for (let L = 0; L < 26; L++) for (let i = 0; i < 4 + (L % 5) * 3; i++) {
+            const name = String.fromCharCode(65 + L) + 'name' + i, score = (L * 7 + i) % 50;
+            lines.push(namesFirst ? `${name},${score},${++id}` : `${++id},${name},${score}`);
+          }
+          const vp = window.__goldenLayer.subtree[0];
+          const p = window.__goldenLayer.value.params; p.reverseRows = 0; p.reverseCols = 0; p.zoom = 1; p.indexOverlay = 1;
+          G.setData(vp, new CSVData(lines.join('\\n'))); G.markZoom(vp, 1); window.OmniControlPanel.render(); }""", [header, names_first])
+        pg.wait_for_timeout(100); render(pg); s = state(pg)
+        ix, iy = s['ox'] + 10, s['oy'] + s['ins']['y'] + 12.5 * s['ch']
+        pg.mouse.move(*page_xy(s, ix, iy)); pg.mouse.down(); pg.wait_for_timeout(80)
+        s0 = state(pg)
+        for k in range(1, 4): pg.mouse.move(*page_xy(s, ix, iy + 60 * k)); pg.wait_for_timeout(80)
+        s1 = state(pg); pg.mouse.up(); pg.wait_for_timeout(80)
+        finite = all(p['offset'] == p['offset'] and isinstance(p['anchor'][-1], int) for p in s1['panels'])
+        check(finite, f'index drag ({header}): every column finite, anchored on a row', json.dumps(s1['panels'][:2]))
+        idx0 = next(p for p in s0['panels'] if p['level'] == 'index')['offset']
+        idx1 = next(p for p in s1['panels'] if p['level'] == 'index')['offset']
+        check(idx1 > idx0, f'index drag ({header}): the letter follows the pointer', f'{idx0:.1f} -> {idx1:.1f}')
+        if names_first:
+            run = s1['focus'] and s1['focus']['run']
+            check(bool(run), 'index press on a names table: the run is found in the row names', json.dumps(s1['focus']))
+            check(s1['rowTop'] > s0['rowTop'] and aligned(s1)[0], 'index drag: the rows move with it, aligned',
+                  f"rowTop {s0['rowTop']:.1f} -> {s1['rowTop']:.1f}")
+        else:
+            check(s1['rowTop'] == s0['rowTop'], 'index drag, letter with no run: the rows stay', f"rowTop {s0['rowTop']} -> {s1['rowTop']}")
+
     # ── large wave: culling and speed ──
     pg.evaluate("""() => { const b = [...document.querySelectorAll('.size-selector button')].find(e => e.textContent.trim() === 'L'); b?.click(); }""")
     pg.wait_for_timeout(300)

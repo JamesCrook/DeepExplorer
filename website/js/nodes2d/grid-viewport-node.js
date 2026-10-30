@@ -161,11 +161,13 @@ class IndexView {
 class GridFocusNavigator {
   constructor() { this.focus = null; }
 
+  /** null when this column has no focal block (a letter with no run): the
+   *  orchestrator then leaves the column where it is. */
   translateCursor(cursor, level) {
     const f = this.focus;
-    if (level === 'index') return [0, f?.letter ?? cursor[cursor.length - 1]];
-    const row = f?.run ? f.run.start : cursor[cursor.length - 1];
-    return [level === 'rows' ? 0 : level, row];
+    if (level === 'index') return f?.letter != null ? [0, f.letter] : null;
+    if (!f?.run) return null;
+    return [level === 'rows' ? 0 : level, f.run.start];
   }
 
   focalCount(cursor, level) {
@@ -458,15 +460,28 @@ class GridViewportNode {
     return { run: { start, end }, letter: li >= 0 && li < 26 ? li : null };
   }
 
-  /** GridScene's computeFocusFromIndex: the first run starting with the letter, in the first column. */
+  /** First letter of a row's name (display order). */
+  static _nameChar(st, row) {
+    const s = String(st.raw.getRowName(permute(row, st.raw.rowCount, st.opts.reverseRows)) ?? '');
+    return s ? s[0].toUpperCase() : '';
+  }
+
+  /** GridScene's computeFocusFromIndex: the first run starting with the letter,
+   *  in the first data column; failing that, in the row names (a CSV's text
+   *  first column becomes its row names, so a names table has its names there). */
   static focusFromIndex(st, letter) {
     const ch = String.fromCharCode(65 + letter);
-    let start = -1, end = -1;
-    for (let r = 0; r < st.raw.rowCount; r++) {
-      if (GridViewportNode._firstChar(st, r, 0) === ch) { if (start < 0) start = r; end = r; }
-      else if (start >= 0) break;
-    }
-    return { run: start >= 0 ? { start, end } : null, letter };
+    const find = (charOf) => {
+      let start = -1, end = -1;
+      for (let r = 0; r < st.raw.rowCount; r++) {
+        if (charOf(r) === ch) { if (start < 0) start = r; end = r; }
+        else if (start >= 0) break;
+      }
+      return start >= 0 ? { start, end } : null;
+    };
+    const run = find(r => GridViewportNode._firstChar(st, r, 0))
+             ?? (st.raw.hasRowNames?.() ? find(r => GridViewportNode._nameChar(st, r)) : null);
+    return { run, letter };
   }
 
   /** Make focus the navigator's, re-anchoring every panel on its focal block where it now is. */

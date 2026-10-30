@@ -549,7 +549,7 @@ class SyncOrchestrator {
       const ps = panel.state;
       if (ps && ps !== s) {
         const translated = this.nav.translateCursor(cursor, panel.level);
-        ps.anchorCursor = translated;
+        if (translated != null) ps.anchorCursor = translated;   // null: no focal block here
       }
     }
 
@@ -562,7 +562,7 @@ class SyncOrchestrator {
     // table's run of rows): anchor it on the block's first item, the same
     // place, by stepping back over the items in between.
     const first = this.nav.translateCursor(cursor, src.level);
-    if (s && first && s.dataSource?.cursorKey(first) !== s.dataSource?.cursorKey(cursor)) {
+    if (s && first != null && s.dataSource?.cursorKey(first) !== s.dataSource?.cursorKey(cursor)) {
       let c = cursor, off = s.scrollOffset;
       for (let i = 0; i < 100000 && c && s.dataSource.cursorKey(c) !== s.dataSource.cursorKey(first); i++) {
         c = s.dataSource.prev(c);
@@ -600,6 +600,7 @@ class SyncOrchestrator {
     if (!ps) return;
 
     const translated = this.nav.translateCursor(this.activeCursor, panel.level);
+    if (translated == null) return;              // a column with no focal block stays where it is
     const count = this.nav.focalCount(this.activeCursor, panel.level);
     const focalSize = this._focalSize(ps, translated, count, ratio, panel.level);
     const targetPos = ScrollSync.position(ratio, focalSize, panel.viewportSize());
