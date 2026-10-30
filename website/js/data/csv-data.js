@@ -579,15 +579,16 @@ class DataAdapter {
   // k=1 → fully reversed. Smooth transition between the two.
   // Generalises to any axis of a cursor; for now, row and col.
 
+  // k is clamped to 0..1: a preset morph overshoots its target.
   permutedRow(r, k) {
     const n = this.rowCount;
-    const split = Math.floor(k * n);
+    const split = Math.floor(Math.max(0, Math.min(1, k ?? 0)) * n);
     return r < split ? (n - 1) - r : r - split;
   }
 
   permutedCol(c, k) {
     const n = this.colCount;
-    const split = Math.floor(k * n);
+    const split = Math.floor(Math.max(0, Math.min(1, k ?? 0)) * n);
     return c < split ? (n - 1) - c : c - split;
   }
 

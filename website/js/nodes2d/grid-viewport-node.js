@@ -65,9 +65,11 @@ const LAYOUT = {
 const smoothstep = (x, a, b) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const lerp = (a, b, t) => a + (b - a) * t;
 
-/** Split-point reversal, as DataAdapter.permutedRow: k = 0 natural, 1 reversed. */
+/** Split-point reversal, as DataAdapter.permutedRow: k = 0 natural, 1 reversed.
+ *  k is clamped: a preset morph overshoots its target (k = −0.02 made index n,
+ *  past the end, and a NaN width that stuck in the camera). */
 function permute(i, n, k) {
-  const split = Math.floor((k ?? 0) * n);
+  const split = Math.floor(Math.max(0, Math.min(1, k ?? 0)) * n);
   return i < split ? (n - 1) - i : i - split;
 }
 
@@ -370,7 +372,10 @@ class GridViewportNode {
 
   static _clampX(st, L) {
     const maxX = Math.max(0, L.totalW - L.viewW);
-    st.camera.x = Math.max(0, Math.min(maxX, st.camera.x));
+    // Never keep a non-finite camera: NaN survives every clamp and every later frame.
+    const x = Number.isFinite(st.camera.x) ? st.camera.x : 0;
+    st.camera.x = Number.isFinite(maxX) ? Math.max(0, Math.min(maxX, x)) : 0;
+    if (!Number.isFinite(st.camera.zoom) || st.camera.zoom <= 0) st.camera.zoom = 1;
   }
 
   /** Zoom by factor about screen point (px, py), pinned to a table edge in view. */
@@ -569,7 +574,7 @@ class GridViewportNode {
     const o = ctxMix.T?.affine?.origin ?? { x: 0, y: 0 };
 
     // options; a change of decimal places re-measures
-    const dp = Math.round(params.decimalPlaces ?? 2);
+    const dp = Math.max(0, Math.min(20, Math.round(params.decimalPlaces ?? 2)));   // a morph overshoots
     if (dp !== st.opts.decimalPlaces) st.opts.decimalPlaces = dp;
     st.opts.reverseRows = params.reverseRows ?? 0;
     st.opts.reverseCols = params.reverseCols ?? 0;

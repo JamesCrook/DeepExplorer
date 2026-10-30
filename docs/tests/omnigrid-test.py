@@ -133,6 +133,15 @@ with sync_playwright() as p:
         check(abs(s['rowTop'] - target) < 1e-6, f'rows clamp at the {want}', f'rowTop {s["rowTop"]:.1f}, want {target:.1f}')
         check(aligned(s)[0], f'aligned at the {want}')
 
+    # ── overshoot: a preset morph passes reverseCols / decimalPlaces beyond their range ──
+    for rc, dp in ((-0.02, -0.6), (1.03, 6.4), (0, 2)):
+        pg.evaluate("([rc, dp]) => { const p = window.__goldenLayer.value.params; p.reverseCols = rc; p.reverseRows = rc; p.decimalPlaces = dp; window.OmniControlPanel.render(); }", [rc, dp])
+        pg.wait_for_timeout(60); s = state(pg)
+        finite = all(isinstance(s[k], (int, float)) and s[k] == s[k] for k in ('camX', 'zoom', 'rowTop'))
+        c = cell_at(pg, s['ox'] + s['ins']['x'] + 20, s['oy'] + s['ins']['y'] + 10)
+        check(finite and c is not None and not errs, f'overshoot reverse {rc}, decimals {dp}: camera finite, table in view',
+              f"camX {s['camX']}, cell {c}, errors {errs[:1]}")
+
     # ── cities: text, runs of initials, a distance matrix ──
     sample(pg, 'cities'); set_param(pg, 'indexOverlay', 1)
     s = state(pg)
